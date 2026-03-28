@@ -1,0 +1,227 @@
+//! Xray gRPC API client — direct gRPC connection (no Docker CLI dependency).
+//!
+//! Uses the `xray-core` crate for pre-compiled protobuf bindings.
+//! Connects to xray's gRPC API (default: xray:10085 on Docker network).
+
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use tonic::transport::Channel;
+use tracing::{debug, error, info, warn};
+
+use xray_core::app::proxyman::command::{
+    handler_service_client::HandlerServiceClient,
+    AlterInboundRequest,
+};
+use xray_core::app::stats::command::{
+    stats_service_client::StatsServiceClient,
+    QueryStatsRequest, SysStatsRequest,
+};
+
+/// Inbound tag definitions — email suffix and flow for each inbound.
+pub struct InboundDef {
+    pub tag: &'static str,
+    pub suffix: &'static str,
+    pub flow: &'static str,
+}
+
+pub static INBOUND_DEFS: &[InboundDef] = &[
+    InboundDef { tag: "VLESS TCP REALITY", suffix: "xray", flow: "xtls-rprx-vision" },
+    InboundDef { tag: "VLESS XHTTP REALITY", suffix: "xhttp", flow: "" },
+    InboundDef { tag: "VLESS gRPC REALITY", suffix: "grpc", flow: "" },
+    InboundDef { tag: "VLESS WS CDN", suffix: "ws", flow: "" },
+];
+
+/// gRPC-based xray API client.
+pub struct XrayApi {
+    addr: String,
+    stats: Arc<Mutex<Option<StatsServiceClient<Channel>>>>,
+    handler: Arc<Mutex<Option<HandlerServiceClient<Channel>>>>,
+}
+
+impl XrayApi {
+    pub fn new(addr: &str) -> Self {
+        // Validate address format
+        assert!(
+            addr.contains(':') && addr.len() <= 256,
+            "Invalid xray gRPC address: {addr}"
+        );
+        Self {
+            addr: addr.to_string(),
+            stats: Arc::new(Mutex::new(None)),
+            handler: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    /// Lazily connect to xray gRPC. Reconnects on failure.
+    async fn get_channel(&self) -> Result<Channel, tonic::transport::Error> {
+        let endpoint = format!("http://{}", self.addr);
+        Channel::from_shared(endpoint)
+            .expect("valid URI")
+            .connect_timeout(std::time::Duration::from_secs(5))
+            .timeout(std::time::Duration::from_secs(10))
+            .connect()
+            .await
+    }
+
+    async fn stats_client(&self) -> Option<StatsServiceClient<Channel>> {
+        let mut guard = self.stats.lock().await;
+        if guard.is_none() {
+            match self.get_channel().await {
+                Ok(ch) => *guard = Some(StatsServiceClient::new(ch)),
+                Err(e) => { warn!(error = %e, "Failed to connect xray stats gRPC"); return None; }
+            }
+        }
+        guard.clone()
+    }
+
+    async fn handler_client(&self) -> Option<HandlerServiceClient<Channel>> {
+        let mut guard = self.handler.lock().await;
+        if guard.is_none() {
+            match self.get_channel().await {
+                Ok(ch) => *guard = Some(HandlerServiceClient::new(ch)),
+                Err(e) => { warn!(error = %e, "Failed to connect xray handler gRPC"); return None; }
+            }
+        }
+        guard.clone()
+    }
+
+    /// Reset cached connections (e.g. after xray restart).
+    pub async fn reset_connections(&self) {
+        *self.stats.lock().await = None;
+        *self.handler.lock().await = None;
+    }
+
+    // ── User Management ──
+
+    pub async fn add_user(&self, inbound_tag: &str, uuid: &str, email: &str, flow: &str) -> bool {
+        let Some(mut client) = self.handler_client().await else { return false; };
+
+        // Build VLESS user config as protobuf Any
+        let mut user_config = serde_json::json!({
+            "id": uuid,
+            "email": email,
+        });
+        if !flow.is_empty() {
+            user_config["flow"] = serde_json::json!(flow);
+        }
+
+        let request = AlterInboundRequest {
+            tag: inbound_tag.to_string(),
+            operation: Some(xray_core::common::serial::TypedMessage {
+                r#type: "xray.proxy.vless.Account".to_string(),
+                value: serde_json::to_vec(&user_config).unwrap_or_default(),
+            }),
+        };
+
+        match client.alter_inbound(request).await {
+            Ok(_) => true,
+            Err(e) => {
+                warn!(tag = inbound_tag, email, error = %e, "add_user gRPC failed");
+                // Reset connection on transport error
+                if e.code() == tonic::Code::Unavailable {
+                    self.reset_connections().await;
+                }
+                false
+            }
+        }
+    }
+
+    pub async fn remove_user(&self, inbound_tag: &str, email: &str) -> bool {
+        let Some(mut client) = self.handler_client().await else { return false; };
+
+        let request = AlterInboundRequest {
+            tag: inbound_tag.to_string(),
+            operation: Some(xray_core::common::serial::TypedMessage {
+                r#type: "xray.proxy.RemoveUserOperation".to_string(),
+                value: email.as_bytes().to_vec(),
+            }),
+        };
+
+        match client.alter_inbound(request).await {
+            Ok(_) => true,
+            Err(e) => {
+                debug!(tag = inbound_tag, email, error = %e, "remove_user gRPC failed");
+                false
+            }
+        }
+    }
+
+    pub async fn add_user_to_all_inbounds(&self, uuid: &str, username: &str, _short_id: &str) -> bool {
+        let mut ok = 0usize;
+        for d in INBOUND_DEFS {
+            let email = format!("{username}@{}", d.suffix);
+            if self.add_user(d.tag, uuid, &email, d.flow).await { ok += 1; }
+        }
+        if ok < INBOUND_DEFS.len() {
+            warn!(username, ok, total = INBOUND_DEFS.len(), "add_user_to_all: partial success");
+        }
+        ok > 0
+    }
+
+    pub async fn remove_user_from_all_inbounds(&self, username: &str) -> bool {
+        let mut any_ok = false;
+        for d in INBOUND_DEFS {
+            let email = format!("{username}@{}", d.suffix);
+            if self.remove_user(d.tag, &email).await { any_ok = true; }
+        }
+        any_ok
+    }
+
+    // ── Stats ──
+
+    pub async fn query_all_traffic(&self) -> HashMap<String, TrafficStats> {
+        let Some(mut client) = self.stats_client().await else {
+            return HashMap::new();
+        };
+
+        let request = QueryStatsRequest {
+            pattern: "user>>>".to_string(),
+            reset: false,
+        };
+
+        let response = match client.query_stats(request).await {
+            Ok(r) => r.into_inner(),
+            Err(e) => {
+                warn!(error = %e, "query_all_traffic gRPC failed");
+                return HashMap::new();
+            }
+        };
+
+        let mut result: HashMap<String, TrafficStats> = HashMap::new();
+        for stat in response.stat {
+            // Format: "user>>>email>>>traffic>>>uplink/downlink"
+            let parts: Vec<&str> = stat.name.split(">>>").collect();
+            if parts.len() == 4 {
+                let uname = parts[1].split('@').next().unwrap_or("");
+                let entry = result.entry(uname.to_string()).or_default();
+                if parts[3] == "uplink" { entry.up += stat.value; }
+                else { entry.down += stat.value; }
+            }
+        }
+        result
+    }
+
+    // ── Health ──
+
+    pub async fn health_check(&self) -> bool {
+        let Some(mut client) = self.stats_client().await else { return false; };
+        client.get_sys_stats(SysStatsRequest {}).await.is_ok()
+    }
+
+    /// Reload xray config. With gRPC, this requires restarting the process
+    /// or using the handler service to re-add inbounds.
+    pub async fn reload(&self) -> bool {
+        // gRPC doesn't have a "reload config" command.
+        // The caller should regenerate config file and restart xray container.
+        // For hot reload, use add/remove user via HandlerService instead.
+        warn!("XrayApi::reload called — with gRPC, use add/remove user for hot changes");
+        false
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct TrafficStats {
+    pub up: i64,
+    pub down: i64,
+}

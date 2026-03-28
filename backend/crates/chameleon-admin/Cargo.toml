@@ -1,0 +1,24 @@
+[package]
+name = "chameleon-admin"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+chameleon-core = { path = "../chameleon-core" }
+chameleon-config = { path = "../chameleon-config" }
+chameleon-db = { path = "../chameleon-db" }
+chameleon-auth = { path = "../chameleon-auth" }
+chameleon-vpn = { path = "../chameleon-vpn" }
+
+tokio = { workspace = true }
+axum = { workspace = true }
+axum-extra = { workspace = true }
+fred = { workspace = true }
+sqlx = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+tracing = { workspace = true }
+anyhow = { workspace = true }
+sha2 = { workspace = true }
+time = "0.3"

@@ -1,0 +1,29 @@
+[package]
+name = "chameleon-server"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "chameleon-server"
+path = "src/main.rs"
+
+[features]
+default = ["admin", "apple"]
+admin = ["dep:chameleon-admin"]
+apple = ["dep:chameleon-apple"]
+full = ["admin", "apple"]
+
+[dependencies]
+chameleon-config = { path = "../chameleon-config" }
+chameleon-core = { path = "../chameleon-core" }
+chameleon-monitoring = { path = "../chameleon-monitoring" }
+
+# Optional modules
+chameleon-admin = { path = "../chameleon-admin", optional = true }
+chameleon-apple = { path = "../chameleon-apple", optional = true }
+
+tokio = { workspace = true }
+axum = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }

@@ -1,0 +1,18 @@
+[package]
+name = "chameleon-apple"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+chameleon-core = { path = "../chameleon-core" }
+chameleon-config = { path = "../chameleon-config" }
+chameleon-db = { path = "../chameleon-db" }
+chameleon-auth = { path = "../chameleon-auth" }
+chameleon-vpn = { path = "../chameleon-vpn" }
+
+axum = { workspace = true }
+sqlx = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+tokio = { workspace = true }

@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+.venv/
+venv/
+.eggs/
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Node
+node_modules/
+admin/dist/
+
+# iOS
+apple/Frameworks/Libbox.xcframework/
+*.xcuserdata/
+DerivedData/
+build/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+*.log
+
+# Cache
+cache.db
+*.sqlite3
+
+# Claude
+.claude/
