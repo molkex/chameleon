@@ -82,7 +82,15 @@ ENVEOF
 fi
 
 step "3/5 Pulling Docker images"
-docker compose pull
+if ! docker compose pull 2>/dev/null; then
+    warn "Anonymous pull failed — GHCR packages may be private"
+    echo "Login to GitHub Container Registry:"
+    read -rp "GitHub username: " GH_USER
+    read -rsp "GitHub PAT (with read:packages): " GH_PAT
+    echo ""
+    echo "$GH_PAT" | docker login ghcr.io -u "$GH_USER" --password-stdin
+    docker compose pull
+fi
 log "Images pulled"
 
 step "4/5 Starting services"
