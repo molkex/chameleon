@@ -35,6 +35,7 @@ RUN touch crates/*/src/*.rs crates/chameleon-server/src/main.rs && \
 
 # ── Stage 2: Runtime (minimal, no Docker CLI) ──
 FROM debian:bookworm-slim
+LABEL org.opencontainers.image.source=https://github.com/molkex/chameleon
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends ca-certificates curl && \

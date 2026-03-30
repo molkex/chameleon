@@ -8,6 +8,7 @@ RUN npm run build
 
 # Serve via nginx
 FROM nginx:1.27-alpine
+LABEL org.opencontainers.image.source=https://github.com/molkex/chameleon
 COPY --from=builder /app/dist /usr/share/nginx/html/admin
 # nginx.conf is mounted from backend/nginx.conf via docker-compose
 EXPOSE 80
