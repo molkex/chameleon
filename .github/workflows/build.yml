@@ -59,8 +59,7 @@ jobs:
 
       - uses: docker/build-push-action@v6
         with:
-          context: .
-          file: ./admin/Dockerfile
+          context: ./admin
           push: true
           tags: |
             ${{ env.NGINX_IMAGE }}:latest
