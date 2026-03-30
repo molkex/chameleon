@@ -30,18 +30,13 @@ export const api = {
 export interface User {
   id: number;
   vpn_username: string;
-  username: string | null;
   full_name: string | null;
   is_active: boolean;
   subscription_expiry: string | null;
   days_left: number | null;
   cumulative_traffic: number;
-  traffic_up: number;
-  traffic_down: number;
   devices: number;
   device_limit: number | null;
-  total_spent: number;
-  payment_count: number;
   created_at: string | null;
 }
 

@@ -133,7 +133,7 @@ impl Protocol for VlessReality {
         let default_sni = user_snis.first().map(|s| s.as_str()).unwrap_or("ads.x5.ru");
 
         for srv in servers {
-            let host = if srv.domain.is_empty() { &srv.host } else { &srv.domain };
+            let host = srv.effective_host();
             let base = format!("{} {}", srv.flag, srv.name);
             for sni in &user_snis {
                 let sni_label = sni.split('.').next().unwrap_or(sni);
@@ -147,7 +147,7 @@ impl Protocol for VlessReality {
     fn singbox_outbound(&self, tag: &str, server: &ServerConfig, user: &UserCredentials, opts: &OutboundOpts) -> Option<serde_json::Value> {
         let transport = opts.transport.as_deref().unwrap_or("tcp");
         let sni = opts.sni.as_deref().unwrap_or_else(|| self.snis.first().map(|s| s.as_str()).unwrap_or("ads.x5.ru"));
-        let host = if server.domain.is_empty() { &server.host } else { &server.domain };
+        let host = server.effective_host();
         let port = if transport == "tcp" { self.tcp_port } else { self.grpc_port };
 
         let mut out = json!({

@@ -46,7 +46,7 @@ impl Protocol for Hysteria2 {
     fn client_links(&self, _user: &UserCredentials, servers: &[ServerConfig]) -> Vec<ClientLink> {
         if self.password.is_empty() { return vec![]; }
         servers.iter().map(|srv| {
-            let remark = format!("{} {} Hysteria2", srv.flag, srv.name);
+            let remark = srv.remark("Hysteria2");
             let uri = format!(
                 "hy2://{}@{}:{}?insecure=1&sni={}&obfs=salamander&obfs-password={}#{}",
                 self.password, srv.host, self.port, self.sni, self.obfs_password, urlencoding::encode(&remark)

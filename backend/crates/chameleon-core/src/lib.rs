@@ -6,6 +6,7 @@
 //! accessing DB/Redis directly.
 
 pub mod error;
+pub mod http_utils;
 pub mod middleware;
 
 use std::sync::Arc;

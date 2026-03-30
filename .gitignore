@@ -30,6 +30,9 @@ build/
 .DS_Store
 Thumbs.db
 
+# Rust
+target/
+
 # Docker
 *.log
 

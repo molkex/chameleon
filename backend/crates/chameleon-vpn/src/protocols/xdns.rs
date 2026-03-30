@@ -44,7 +44,7 @@ impl Protocol for Xdns {
     fn client_links(&self, user: &UserCredentials, servers: &[ServerConfig]) -> Vec<ClientLink> {
         if !self.enabled() { return vec![]; }
         servers.iter().map(|srv| {
-            let remark = format!("{} {} DNS-Tunnel", srv.flag, srv.name);
+            let remark = srv.remark("DNS-Tunnel");
             let uri = format!("xdns://{}@{}:53?domain={}&security=none#{}", user.uuid, self.domain, self.domain, remark);
             ClientLink { uri, protocol: "xdns".into(), transport: "dns".into(), server_key: srv.key.clone(), remark, is_relay: false }
         }).collect()

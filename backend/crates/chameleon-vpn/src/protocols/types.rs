@@ -63,6 +63,23 @@ pub struct OutboundOpts {
     pub network: Option<String>,
 }
 
+impl ServerConfig {
+    /// Resolve effective host: prefer domain over raw IP.
+    pub fn effective_host(&self) -> &str {
+        if self.domain.is_empty() { &self.host } else { &self.domain }
+    }
+
+    /// Resolve host with optional override domain.
+    pub fn resolve_host<'a>(&'a self, override_domain: &'a str) -> &'a str {
+        if override_domain.is_empty() { self.effective_host() } else { override_domain }
+    }
+
+    /// Format server remark: "🇩🇪 Germany {suffix}"
+    pub fn remark(&self, suffix: &str) -> String {
+        format!("{} {} {}", self.flag, self.name, suffix)
+    }
+}
+
 /// Protocol plugin trait — every VPN protocol must implement this.
 pub trait Protocol: Send + Sync {
     fn name(&self) -> &str;

@@ -66,11 +66,14 @@ async fn dashboard(
     State(state): State<ChameleonCore>,
     _admin: AuthAdmin,
 ) -> ApiResult<Json<DashboardResponse>> {
-    let counts = chameleon_db::queries::stats::get_dashboard_counts(&state.db).await
-        .map_err(|e| chameleon_core::error::ApiError::Internal(e))?;
-
-    let revenue_all = chameleon_db::queries::stats::get_revenue_all(&state.db).await.unwrap_or_default();
-    let revenue_today = chameleon_db::queries::stats::get_revenue_today(&state.db).await.unwrap_or_default();
+    let (counts_res, revenue_all, revenue_today) = tokio::join!(
+        chameleon_db::queries::stats::get_dashboard_counts(&state.db),
+        chameleon_db::queries::stats::get_revenue_all(&state.db),
+        chameleon_db::queries::stats::get_revenue_today(&state.db),
+    );
+    let counts = counts_res.map_err(|e| chameleon_core::error::ApiError::Internal(e))?;
+    let revenue_all = revenue_all.unwrap_or_default();
+    let revenue_today = revenue_today.unwrap_or_default();
 
     let rev_map: serde_json::Value = revenue_all.iter()
         .map(|r| (r.currency.clone(), serde_json::json!(r.total)))

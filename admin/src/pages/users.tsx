@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useDeferredValue } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, type User } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,20 +8,20 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Search, Trash2, Clock } from "lucide-react";
+import { statusColor } from "@/lib/constants";
 
 function StatusBadge({ active }: { active: boolean }) {
-  return active
-    ? <Badge className="bg-emerald-900 text-emerald-300">Active</Badge>
-    : <Badge className="bg-red-900 text-red-300">Expired</Badge>;
+  return <Badge className={statusColor(active)}>{active ? "Active" : "Expired"}</Badge>;
 }
 
 export default function UsersPage() {
   const [search, setSearch] = useState("");
+  const deferredSearch = useDeferredValue(search);
   const queryClient = useQueryClient();
 
   const { data: users = [], isLoading } = useQuery({
-    queryKey: ["users", search],
-    queryFn: () => api.get<{ users: User[] }>(`/admin/users?search=${search}&page_size=100`).then((r) => r.users || []),
+    queryKey: ["users", deferredSearch],
+    queryFn: () => api.get<{ users: User[] }>(`/admin/users?search=${deferredSearch}&page_size=100`).then((r) => r.users || []),
   });
 
   const deleteMutation = useMutation({

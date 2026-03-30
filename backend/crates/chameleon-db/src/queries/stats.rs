@@ -15,18 +15,16 @@ pub async fn get_dashboard_counts(pool: &PgPool) -> anyhow::Result<DashboardCoun
     let now = Utc::now().naive_utc();
     let today_start = now.date().and_hms_opt(0, 0, 0).unwrap();
 
-    let (total,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users")
-        .fetch_one(pool).await?;
-
-    let (active,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users WHERE is_active = true")
-        .fetch_one(pool).await?;
-
-    let (blocked,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users WHERE bot_blocked_at IS NOT NULL")
-        .fetch_one(pool).await?;
-
-    let (today_new,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users WHERE created_at >= $1")
-        .bind(today_start)
-        .fetch_one(pool).await?;
+    let (total, active, blocked, today_new): (i64, i64, i64, i64) = sqlx::query_as(
+        "SELECT
+            COUNT(*),
+            COUNT(*) FILTER (WHERE is_active = true),
+            COUNT(*) FILTER (WHERE bot_blocked_at IS NOT NULL),
+            COUNT(*) FILTER (WHERE created_at >= $1)
+         FROM users"
+    )
+    .bind(today_start)
+    .fetch_one(pool).await?;
 
     let (proxy_clicks,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM proxy_clicks")
         .fetch_one(pool).await?;

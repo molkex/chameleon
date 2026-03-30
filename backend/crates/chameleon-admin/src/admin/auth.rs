@@ -46,9 +46,7 @@ struct UserInfo {
 }
 
 fn extract_ip(headers: &HeaderMap) -> String {
-    headers.get("x-real-ip").and_then(|v| v.to_str().ok())
-        .or_else(|| headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()).and_then(|v| v.split(',').next()))
-        .unwrap_or("unknown").trim().to_string()
+    chameleon_core::http_utils::extract_client_ip(headers)
 }
 
 async fn login(

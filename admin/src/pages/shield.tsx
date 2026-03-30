@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Zap, ArrowDown } from "lucide-react";
+import { STATUS_COLORS } from "@/lib/constants";
 
 export default function ShieldPage() {
   const { data, isLoading } = useQuery({
@@ -70,7 +71,7 @@ export default function ShieldPage() {
                   <TableCell className="font-mono">{info.priority}</TableCell>
                   <TableCell className="font-mono">{info.weight}</TableCell>
                   <TableCell>
-                    <Badge className={info.status === "active" ? "bg-emerald-900 text-emerald-300" : "bg-zinc-800 text-zinc-400"}>
+                    <Badge className={info.status === "active" ? STATUS_COLORS.active : STATUS_COLORS.pending}>
                       {info.status}
                     </Badge>
                   </TableCell>

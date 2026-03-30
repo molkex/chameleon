@@ -35,18 +35,13 @@ struct UserListResponse {
 struct UserItem {
     id: i32,
     vpn_username: Option<String>,
-    username: Option<String>,
     full_name: Option<String>,
     is_active: bool,
     subscription_expiry: Option<String>,
     days_left: Option<i64>,
     cumulative_traffic: f64,
-    traffic_up: f64,
-    traffic_down: f64,
     devices: i32,
     device_limit: Option<i32>,
-    total_spent: f64,
-    payment_count: i64,
     created_at: Option<String>,
 }
 
@@ -76,18 +71,13 @@ async fn list_users(
         UserItem {
             id: u.id,
             vpn_username: u.vpn_username,
-            username: u.username,
             full_name: u.full_name,
             is_active,
             subscription_expiry: expiry_fmt,
             days_left,
             cumulative_traffic: (u.cumulative_traffic.unwrap_or(0) as f64) / 1024.0 / 1024.0 / 1024.0,
-            traffic_up: 0.0,
-            traffic_down: 0.0,
             devices: 0,
             device_limit: u.device_limit,
-            total_spent: 0.0,
-            payment_count: 0,
             created_at: u.created_at.map(|t| t.format("%d.%m.%Y %H:%M").to_string()),
         }
     }).collect();
@@ -107,17 +97,10 @@ async fn extend_user(
     Json(body): Json<ExtendBody>,
 ) -> ApiResult<Json<serde_json::Value>> {
     let days = body.days.unwrap_or(30).clamp(1, 365);
-    let result = sqlx::query(
-        "UPDATE users SET subscription_expiry = GREATEST(subscription_expiry, NOW()) + ($1 || ' days')::interval
-         WHERE vpn_username = $2"
-    )
-    .bind(days.to_string())
-    .bind(&username)
-    .execute(&state.db)
-    .await
-    .map_err(|e| ApiError::Internal(e.into()))?;
+    let affected = user_q::extend_subscription(&state.db, &username, days)
+        .await.map_err(|e| ApiError::Internal(e))?;
 
-    if result.rows_affected() == 0 {
+    if affected == 0 {
         return Err(ApiError::NotFound("user not found".into()));
     }
 
@@ -130,13 +113,10 @@ async fn delete_user(
     _op: RequireOperator,
     Path(username): Path<String>,
 ) -> ApiResult<Json<serde_json::Value>> {
-    let result = sqlx::query("DELETE FROM users WHERE vpn_username = $1")
-        .bind(&username)
-        .execute(&state.db)
-        .await
-        .map_err(|e| ApiError::Internal(e.into()))?;
+    let affected = user_q::delete_by_vpn_username(&state.db, &username)
+        .await.map_err(|e| ApiError::Internal(e))?;
 
-    if result.rows_affected() == 0 {
+    if affected == 0 {
         return Err(ApiError::NotFound("user not found".into()));
     }
 

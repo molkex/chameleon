@@ -24,8 +24,8 @@ impl Protocol for AnyTls {
 
     fn client_links(&self, _user: &UserCredentials, servers: &[ServerConfig]) -> Vec<ClientLink> {
         servers.iter().map(|srv| {
-            let host = if srv.domain.is_empty() { &srv.host } else { &srv.domain };
-            let remark = format!("{} {} AnyTLS", srv.flag, srv.name);
+            let host = srv.effective_host();
+            let remark = srv.remark("AnyTLS");
             let uri = format!("anytls://{}@{}:{}?sni={}#{}", self.password, host, self.port, self.sni, urlencoding::encode(&remark));
             ClientLink { uri, protocol: "anytls".into(), transport: "tcp".into(), server_key: srv.key.clone(), remark, is_relay: false }
         }).collect()
@@ -33,7 +33,7 @@ impl Protocol for AnyTls {
 
     fn singbox_outbound(&self, tag: &str, server: &ServerConfig, _user: &UserCredentials, _opts: &OutboundOpts) -> Option<serde_json::Value> {
         if self.password.is_empty() { return None; }
-        let host = if server.domain.is_empty() { &server.host } else { &server.domain };
+        let host = server.effective_host();
         Some(json!({
             "type": "anytls", "tag": tag, "server": host, "server_port": self.port,
             "password": self.password, "idle_timeout": "15m",

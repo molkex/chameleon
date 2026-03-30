@@ -78,43 +78,43 @@ const layoutRoute = createRoute({
 const indexRoute = createRoute({
   getParentRoute: () => layoutRoute,
   path: "/",
-  component: () => <Suspense fallback={<PageSkeleton />}><Dashboard /></Suspense>,
+  component: Dashboard,
 });
 
 const usersRoute = createRoute({
   getParentRoute: () => layoutRoute,
   path: "/users",
-  component: () => <Suspense fallback={<PageSkeleton />}><Users /></Suspense>,
+  component: Users,
 });
 
 const nodesRoute = createRoute({
   getParentRoute: () => layoutRoute,
   path: "/nodes",
-  component: () => <Suspense fallback={<PageSkeleton />}><Nodes /></Suspense>,
+  component: Nodes,
 });
 
 const protocolsRoute = createRoute({
   getParentRoute: () => layoutRoute,
   path: "/protocols",
-  component: () => <Suspense fallback={<PageSkeleton />}><Protocols /></Suspense>,
+  component: Protocols,
 });
 
 const shieldRoute = createRoute({
   getParentRoute: () => layoutRoute,
   path: "/shield",
-  component: () => <Suspense fallback={<PageSkeleton />}><Shield /></Suspense>,
+  component: Shield,
 });
 
 const settingsRoute = createRoute({
   getParentRoute: () => layoutRoute,
   path: "/settings",
-  component: () => <Suspense fallback={<PageSkeleton />}><Settings /></Suspense>,
+  component: Settings,
 });
 
 const adminsRoute = createRoute({
   getParentRoute: () => layoutRoute,
   path: "/admins",
-  component: () => <Suspense fallback={<PageSkeleton />}><Admins /></Suspense>,
+  component: Admins,
 });
 
 const routeTree = rootRoute.addChildren([

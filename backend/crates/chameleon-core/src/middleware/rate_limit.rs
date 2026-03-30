@@ -19,11 +19,7 @@ pub async fn auth_rate_limit(
     request: Request,
     next: Next,
 ) -> Response {
-    // Extract IP
-    let ip = request.headers()
-        .get("x-real-ip").and_then(|v| v.to_str().ok())
-        .or_else(|| request.headers().get("x-forwarded-for").and_then(|v| v.to_str().ok()).and_then(|v| v.split(',').next()))
-        .unwrap_or("unknown").trim().to_string();
+    let ip = crate::http_utils::extract_client_ip(request.headers());
 
     let key = format!("auth_rate:{ip}");
 

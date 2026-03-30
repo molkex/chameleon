@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Users, Activity, TrendingUp, Clock } from "lucide-react";
+import { STATUS_COLORS } from "@/lib/constants";
 
 interface DashboardStats {
   total_users: number;
@@ -156,7 +157,7 @@ export default function DashboardPage() {
                     <TableCell className="font-mono text-sm">{tx.user_id ?? "-"}</TableCell>
                     <TableCell>{tx.amount} {tx.currency}</TableCell>
                     <TableCell>
-                      <Badge className={tx.status === "paid" ? "bg-emerald-900 text-emerald-300" : "bg-zinc-800 text-zinc-400"}>
+                      <Badge className={tx.status === "paid" ? STATUS_COLORS.paid : STATUS_COLORS.pending}>
                         {tx.status}
                       </Badge>
                     </TableCell>

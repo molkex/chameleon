@@ -4,7 +4,7 @@
 use axum::{extract::{Path, State}, routing::{delete, get, post}, Json, Router};
 use serde::Deserialize;
 
-use chameleon_auth::{password, RequireAdmin};
+use chameleon_auth::{password, rbac::Role, RequireAdmin};
 use chameleon_db::queries::admin as admin_q;
 use chameleon_core::{ChameleonCore, error::{ApiError, ApiResult}};
 
@@ -56,7 +56,7 @@ async fn create_admin(
         return Err(ApiError::BadRequest("password too long (max 128)".into()));
     }
     let role = body.role.as_deref().unwrap_or("viewer");
-    if !["admin", "operator", "viewer"].contains(&role) {
+    if Role::from_str(role).is_none() {
         return Err(ApiError::BadRequest("invalid role".into()));
     }
 

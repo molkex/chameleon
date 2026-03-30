@@ -56,22 +56,15 @@ pub async fn list_users(
         if !s.is_empty() {
             let safe = s.replace('%', r"\%").replace('_', r"\_");
             let pattern = format!("%{safe}%");
-            count_qb.push(" AND (vpn_username ILIKE ");
-            count_qb.push_bind(pattern.clone());
-            count_qb.push(" OR full_name ILIKE ");
-            count_qb.push_bind(pattern.clone());
-            count_qb.push(" OR username ILIKE ");
-            count_qb.push_bind(pattern.clone());
-            count_qb.push(")");
-
-            let pattern2 = format!("%{safe}%");
-            qb.push(" AND (vpn_username ILIKE ");
-            qb.push_bind(pattern2.clone());
-            qb.push(" OR full_name ILIKE ");
-            qb.push_bind(pattern2.clone());
-            qb.push(" OR username ILIKE ");
-            qb.push_bind(pattern2);
-            qb.push(")");
+            for builder in [&mut count_qb, &mut qb] {
+                builder.push(" AND (vpn_username ILIKE ");
+                builder.push_bind(pattern.clone());
+                builder.push(" OR full_name ILIKE ");
+                builder.push_bind(pattern.clone());
+                builder.push(" OR username ILIKE ");
+                builder.push_bind(pattern.clone());
+                builder.push(")");
+            }
         }
     }
 
@@ -134,4 +127,24 @@ pub async fn count_active_users(pool: &PgPool) -> anyhow::Result<i64> {
         .fetch_one(pool)
         .await?;
     Ok(count)
+}
+
+pub async fn extend_subscription(pool: &PgPool, username: &str, days: i32) -> anyhow::Result<u64> {
+    let result = sqlx::query(
+        "UPDATE users SET subscription_expiry = GREATEST(subscription_expiry, NOW()) + ($1 || ' days')::interval
+         WHERE vpn_username = $2"
+    )
+    .bind(days.to_string())
+    .bind(username)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected())
+}
+
+pub async fn delete_by_vpn_username(pool: &PgPool, username: &str) -> anyhow::Result<u64> {
+    let result = sqlx::query("DELETE FROM users WHERE vpn_username = $1")
+        .bind(username)
+        .execute(pool)
+        .await?;
+    Ok(result.rows_affected())
 }

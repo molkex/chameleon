@@ -9,12 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { UserPlus, Trash2 } from "lucide-react";
-
-const ROLE_COLORS: Record<string, string> = {
-  admin: "bg-red-900 text-red-300",
-  operator: "bg-blue-900 text-blue-300",
-  viewer: "bg-zinc-800 text-zinc-300",
-};
+import { ROLE_COLORS } from "@/lib/constants";
 
 export default function AdminsPage() {
   const queryClient = useQueryClient();

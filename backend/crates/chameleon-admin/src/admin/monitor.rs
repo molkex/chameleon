@@ -6,7 +6,7 @@ use chrono::{Utc, Duration, NaiveDateTime};
 use serde::Serialize;
 
 use chameleon_auth::AuthAdmin;
-use chameleon_core::{ChameleonCore, error::{ApiError, ApiResult}};
+use chameleon_core::{ChameleonCore, error::ApiResult};
 
 pub fn router() -> Router<ChameleonCore> {
     Router::new().route("/monitor", get(monitor))
@@ -36,13 +36,11 @@ async fn monitor(
 ) -> ApiResult<Json<MonitorResponse>> {
     let _24h_ago = Utc::now().naive_utc() - Duration::hours(24);
 
-    // Latest checks per resource
+    // Latest check per resource (DISTINCT ON avoids self-join)
     let checks: Vec<(Option<String>, Option<String>, Option<bool>, Option<f64>, Option<String>, Option<NaiveDateTime>)> = sqlx::query_as(
-        "SELECT mc.resource, mc.url, mc.is_available, mc.response_time_ms, mc.protocol, mc.checked_at
-         FROM monitor_checks mc
-         INNER JOIN (SELECT resource, MAX(checked_at) as max_ts FROM monitor_checks GROUP BY resource) latest
-         ON mc.resource = latest.resource AND mc.checked_at = latest.max_ts
-         ORDER BY mc.resource"
+        "SELECT DISTINCT ON (resource) resource, url, is_available, response_time_ms, protocol, checked_at
+         FROM monitor_checks
+         ORDER BY resource, checked_at DESC"
     ).fetch_all(&state.db).await.unwrap_or_default();
 
     let check_items: Vec<CheckItem> = checks.into_iter().map(|(res, url, avail, rt, proto, ts)| {
@@ -56,23 +54,26 @@ async fn monitor(
         }
     }).collect();
 
-    // Uptime per category
-    let uptime_vpn = calc_uptime(&state.db, _24h_ago, "vpn").await;
-    let uptime_res = calc_uptime(&state.db, _24h_ago, "residential").await;
-    let uptime_direct = calc_uptime(&state.db, _24h_ago, "direct").await;
+    // Uptime per category (single query instead of 6)
+    let uptime_rows: Vec<(String, i64, i64)> = sqlx::query_as(
+        "SELECT category,
+                COUNT(*),
+                COUNT(*) FILTER (WHERE is_available = true)
+         FROM monitor_checks
+         WHERE checked_at >= $1 AND category IN ('vpn', 'residential', 'direct')
+         GROUP BY category"
+    ).bind(_24h_ago).fetch_all(&state.db).await.unwrap_or_default();
 
-    Ok(Json(MonitorResponse { checks: check_items, uptime_vpn, uptime_residential: uptime_res, uptime_direct }))
-}
+    let calc = |cat: &str| -> Option<f64> {
+        uptime_rows.iter().find(|(c, _, _)| c == cat).and_then(|(_, total, avail)| {
+            if *total == 0 { None } else { Some((*avail as f64 / *total as f64 * 1000.0).round() / 10.0) }
+        })
+    };
 
-async fn calc_uptime(pool: &sqlx::PgPool, since: NaiveDateTime, category: &str) -> Option<f64> {
-    let (total,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM monitor_checks WHERE checked_at >= $1 AND category = $2"
-    ).bind(since).bind(category).fetch_one(pool).await.ok()?;
-    if total == 0 { return None; }
-
-    let (available,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM monitor_checks WHERE checked_at >= $1 AND category = $2 AND is_available = true"
-    ).bind(since).bind(category).fetch_one(pool).await.ok()?;
-
-    Some((available as f64 / total as f64 * 1000.0).round() / 10.0)
+    Ok(Json(MonitorResponse {
+        checks: check_items,
+        uptime_vpn: calc("vpn"),
+        uptime_residential: calc("residential"),
+        uptime_direct: calc("direct"),
+    }))
 }

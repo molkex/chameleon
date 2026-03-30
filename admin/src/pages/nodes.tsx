@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { RefreshCw } from "lucide-react";
+import { statusColor } from "@/lib/constants";
 
 function ProgressBar({ value, max = 100 }: { value: number; max?: number }) {
   const pct = Math.min((value / max) * 100, 100);
@@ -60,7 +61,7 @@ export default function NodesPage() {
           <Card key={node.key}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-base">{node.flag} {node.name}</CardTitle>
-              <Badge className={node.is_active ? "bg-emerald-900 text-emerald-300" : "bg-red-900 text-red-300"}>
+              <Badge className={statusColor(node.is_active)}>
                 {node.is_active ? `${node.latency_ms}ms` : "Offline"}
               </Badge>
             </CardHeader>

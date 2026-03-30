@@ -43,7 +43,7 @@ impl Protocol for Xicmp {
     fn client_links(&self, user: &UserCredentials, servers: &[ServerConfig]) -> Vec<ClientLink> {
         if !self.enabled() { return vec![]; }
         servers.iter().map(|srv| {
-            let remark = format!("{} {} ICMP-Tunnel", srv.flag, srv.name);
+            let remark = srv.remark("ICMP-Tunnel");
             let uri = format!("xicmp://{}@{}?transport=mkcp&security=none#{}", user.uuid, srv.host, remark);
             ClientLink { uri, protocol: "xicmp".into(), transport: "icmp".into(), server_key: srv.key.clone(), remark, is_relay: false }
         }).collect()
