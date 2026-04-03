@@ -19,7 +19,7 @@ use chameleon_auth::jwt;
 use chameleon_core::http_utils::extract_client_ip;
 use chameleon_core::{ApiError, ApiResult, ChameleonCore};
 use chameleon_db::models::User;
-use chameleon_db::queries::users::{find_user_by_apple_id, find_user_by_id};
+use chameleon_db::queries::users::{find_user_by_apple_id, find_user_by_device_id, find_user_by_id};
 
 pub fn router() -> Router<ChameleonCore> {
     Router::new()
@@ -176,31 +176,6 @@ async fn verify_apple_identity_token(token: &str, bundle_id: &str) -> Result<Str
         .map_err(|e| ApiError::BadRequest(format!("Apple token verification failed: {e}")))?;
 
     Ok(token_data.claims.sub)
-}
-
-/// Decode the `sub` claim from an Apple identity_token JWT **without** verifying the signature.
-/// Kept only as a reference / development fallback. Do NOT use in production.
-#[allow(dead_code)]
-fn _decode_apple_sub_insecure(identity_token: &str) -> Result<String, ApiError> {
-    let parts: Vec<&str> = identity_token.split('.').collect();
-    if parts.len() != 3 {
-        return Err(ApiError::BadRequest("Invalid identity_token format".into()));
-    }
-
-    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-    use base64::Engine;
-
-    let payload_bytes = URL_SAFE_NO_PAD
-        .decode(parts[1])
-        .map_err(|_| ApiError::BadRequest("Invalid identity_token encoding".into()))?;
-
-    let payload: serde_json::Value = serde_json::from_slice(&payload_bytes)
-        .map_err(|_| ApiError::BadRequest("Invalid identity_token payload".into()))?;
-
-    payload["sub"]
-        .as_str()
-        .map(String::from)
-        .ok_or_else(|| ApiError::BadRequest("Missing 'sub' in identity_token".into()))
 }
 
 /// Generate a random subscription token (24 random bytes, hex-encoded = 48 chars).
@@ -402,11 +377,9 @@ async fn register_device(
     let secret = &core.config.mobile_jwt_secret;
 
     // Check if device already registered
-    let existing: Option<User> =
-        sqlx::query_as("SELECT * FROM users WHERE device_id = $1")
-            .bind(&body.device_id)
-            .fetch_optional(&core.db)
-            .await?;
+    let existing = find_user_by_device_id(&core.db, &body.device_id)
+        .await
+        .map_err(ApiError::Internal)?;
 
     let user = match existing {
         Some(u) => {

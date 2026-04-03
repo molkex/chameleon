@@ -4,6 +4,7 @@ use axum::{extract::FromRequestParts, http::request::Parts};
 use serde::Serialize;
 
 use crate::jwt;
+use crate::rbac::extract_client_ip;
 
 /// Authenticated mobile user.
 #[derive(Debug, Clone, Serialize)]
@@ -21,18 +22,6 @@ pub struct MobileAuthState {
 /// Auth error for mobile endpoints.
 #[derive(Debug)]
 pub struct MobileAuthError;
-
-/// Extract client IP from request headers (X-Real-IP or X-Forwarded-For).
-fn extract_ip_from_parts(parts: &Parts) -> Option<String> {
-    let headers = &parts.headers;
-    if let Some(ip) = headers.get("x-real-ip").and_then(|v| v.to_str().ok()) {
-        return Some(ip.to_string());
-    }
-    if let Some(fwd) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
-        return Some(fwd.split(',').next().unwrap_or("").trim().to_string());
-    }
-    None
-}
 
 impl axum::response::IntoResponse for MobileAuthError {
     fn into_response(self) -> axum::response::Response {
@@ -60,7 +49,7 @@ where
             if let Some(auth_header) = parts.headers.get("authorization") {
                 if let Ok(value) = auth_header.to_str() {
                     if let Some(token) = value.strip_prefix("Bearer ") {
-                        let client_ip = extract_ip_from_parts(parts);
+                        let client_ip = extract_client_ip(parts);
                         if let Some(claims) = jwt::verify_token(&auth_state.jwt_secret, token, "access", client_ip.as_deref()) {
                             let user_id: i32 = match claims.sub.parse() {
                                 Ok(id) => id,

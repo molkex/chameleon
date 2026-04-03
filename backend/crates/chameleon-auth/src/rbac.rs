@@ -75,7 +75,7 @@ impl axum::response::IntoResponse for AuthError {
 /// Priority: X-Real-IP (set by nginx) > X-Forwarded-For > ConnectInfo peer address.
 /// NOTE: X-Real-IP/X-Forwarded-For are only trustworthy behind a reverse proxy (nginx).
 /// In production, nginx sets X-Real-IP from $remote_addr which cannot be spoofed.
-fn extract_client_ip(parts: &Parts) -> Option<String> {
+pub fn extract_client_ip(parts: &Parts) -> Option<String> {
     // Trusted proxy headers (set by nginx)
     if let Some(ip) = parts.headers.get("x-real-ip").and_then(|v| v.to_str().ok()) {
         return Some(ip.to_string());

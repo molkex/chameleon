@@ -3,6 +3,10 @@
 use chrono::{NaiveDateTime, Utc, Duration};
 use sqlx::PgPool;
 
+fn today_start() -> NaiveDateTime {
+    Utc::now().naive_utc().date().and_hms_opt(0, 0, 0).unwrap()
+}
+
 pub struct DashboardCounts {
     pub total_users: i64,
     pub active_users: i64,
@@ -12,8 +16,7 @@ pub struct DashboardCounts {
 }
 
 pub async fn get_dashboard_counts(pool: &PgPool) -> anyhow::Result<DashboardCounts> {
-    let now = Utc::now().naive_utc();
-    let today_start = now.date().and_hms_opt(0, 0, 0).unwrap();
+    let today_start = today_start();
 
     let (total, active, blocked, today_new): (i64, i64, i64, i64) = sqlx::query_as(
         "SELECT
@@ -59,7 +62,7 @@ pub async fn get_revenue_all(pool: &PgPool) -> anyhow::Result<Vec<RevenueByCurre
 }
 
 pub async fn get_revenue_today(pool: &PgPool) -> anyhow::Result<Vec<RevenueByCurrency>> {
-    let today_start = Utc::now().naive_utc().date().and_hms_opt(0, 0, 0).unwrap();
+    let today_start = today_start();
     let rows: Vec<(Option<String>, Option<f64>)> = sqlx::query_as(
         "SELECT currency, SUM(amount)::float8 FROM transactions
          WHERE status = 'paid' AND created_at >= $1 GROUP BY currency"
@@ -82,11 +85,11 @@ pub struct TodayTransactionStats {
 }
 
 pub async fn get_today_transaction_stats(pool: &PgPool) -> anyhow::Result<TodayTransactionStats> {
-    let today_start = Utc::now().naive_utc().date().and_hms_opt(0, 0, 0).unwrap();
+    let today_start = today_start();
     let (today_transactions, today_paid): (i64, i64) = sqlx::query_as(
         "SELECT
             COUNT(*),
-            COALESCE(SUM(amount)::bigint, 0) FILTER (WHERE status = 'completed')
+            COALESCE(SUM(amount)::bigint, 0) FILTER (WHERE status = 'paid')
          FROM transactions
          WHERE created_at >= $1"
     )

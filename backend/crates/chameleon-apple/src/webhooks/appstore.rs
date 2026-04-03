@@ -8,9 +8,10 @@
 
 use axum::extract::State;
 use axum::http::StatusCode;
-use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
+use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use chameleon_core::{ApiError, ChameleonCore};
+use crate::mobile::subscription::product_to_duration;
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header};
 use serde::Deserialize;
 use x509_parser::prelude::*;
@@ -104,24 +105,6 @@ fn verify_and_decode_jws<T: serde::de::DeserializeOwned>(jws: &str) -> Result<T,
     Ok(token_data.claims)
 }
 
-/// Decode JWS payload WITHOUT signature verification (fallback / testing only).
-///
-/// This exists as a fallback for environments where x5c may not be present
-/// (e.g., sandbox/testing). In production, always use `verify_and_decode_jws`.
-#[allow(dead_code)]
-fn decode_jws_payload_unverified<T: serde::de::DeserializeOwned>(jws: &str) -> Result<T, ApiError> {
-    let parts: Vec<&str> = jws.split('.').collect();
-    if parts.len() != 3 {
-        return Err(ApiError::BadRequest("Invalid JWS format".into()));
-    }
-    let payload = URL_SAFE_NO_PAD
-        .decode(parts[1])
-        .or_else(|_| STANDARD.decode(parts[1]))
-        .map_err(|_| ApiError::BadRequest("Invalid JWS encoding".into()))?;
-    serde_json::from_slice(&payload)
-        .map_err(|e| ApiError::BadRequest(format!("Invalid JWS payload: {e}")))
-}
-
 // ── Apple notification types ──
 
 /// The outer wrapper Apple sends — contains the signed payload.
@@ -158,21 +141,6 @@ struct TransactionInfo {
     product_id: String,
     #[allow(dead_code)]
     expires_date: Option<i64>, // milliseconds since epoch
-}
-
-// ── Product → duration mapping (mirrors verify_purchase logic) ──
-
-fn product_to_duration(product_id: &str) -> (i32, &'static str) {
-    let lower = product_id.to_lowercase();
-    if lower.contains("year") {
-        (365, "yearly")
-    } else if lower.contains("week") {
-        (7, "weekly")
-    } else if lower.contains("month") {
-        (30, "monthly")
-    } else {
-        (30, "monthly")
-    }
 }
 
 // ── Handler ──
@@ -338,6 +306,21 @@ async fn handle_refund(core: &ChameleonCore, txn: &TransactionInfo) -> Result<()
 #[cfg(test)]
 mod tests {
     use super::*;
+    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+
+    /// Decode JWS payload WITHOUT signature verification (testing only).
+    fn decode_jws_payload_unverified<T: serde::de::DeserializeOwned>(jws: &str) -> Result<T, ApiError> {
+        let parts: Vec<&str> = jws.split('.').collect();
+        if parts.len() != 3 {
+            return Err(ApiError::BadRequest("Invalid JWS format".into()));
+        }
+        let payload = URL_SAFE_NO_PAD
+            .decode(parts[1])
+            .or_else(|_| STANDARD.decode(parts[1]))
+            .map_err(|_| ApiError::BadRequest("Invalid JWS encoding".into()))?;
+        serde_json::from_slice(&payload)
+            .map_err(|e| ApiError::BadRequest(format!("Invalid JWS payload: {e}")))
+    }
 
     #[test]
     fn test_decode_jws_payload_unverified_valid() {
