@@ -115,6 +115,30 @@ pub async fn find_user_by_apple_id(pool: &PgPool, apple_id: &str) -> anyhow::Res
     Ok(row)
 }
 
+pub async fn find_user_by_device_id(pool: &PgPool, device_id: &str) -> anyhow::Result<Option<User>> {
+    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE device_id = $1")
+        .bind(device_id)
+        .fetch_optional(pool)
+        .await?;
+    Ok(user)
+}
+
+pub async fn find_user_by_subscription_token(pool: &PgPool, token: &str) -> anyhow::Result<Option<User>> {
+    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE subscription_token = $1 AND is_active = true")
+        .bind(token)
+        .fetch_optional(pool)
+        .await?;
+    Ok(user)
+}
+
+pub async fn find_user_by_original_transaction_id(pool: &PgPool, txn_id: &str) -> anyhow::Result<Option<User>> {
+    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE original_transaction_id = $1")
+        .bind(txn_id)
+        .fetch_optional(pool)
+        .await?;
+    Ok(user)
+}
+
 pub async fn count_users(pool: &PgPool) -> anyhow::Result<i64> {
     let (count,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users")
         .fetch_one(pool)

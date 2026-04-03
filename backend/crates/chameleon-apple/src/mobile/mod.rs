@@ -4,6 +4,7 @@ pub mod auth;
 pub mod config;
 pub mod shield;
 pub mod subscription;
+pub mod support;
 
 use axum::Router;
 use chameleon_core::ChameleonCore;
@@ -14,4 +15,5 @@ pub fn router() -> Router<ChameleonCore> {
         .merge(config::router())
         .merge(shield::router())
         .merge(subscription::router())
+        .merge(support::router())
 }

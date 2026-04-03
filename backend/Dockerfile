@@ -1,5 +1,5 @@
 # ── Stage 1: Build ──
-FROM rust:latest AS builder
+FROM rust:1.85 AS builder
 
 RUN apt-get update && apt-get install -y protobuf-compiler && rm -rf /var/lib/apt/lists/*
 

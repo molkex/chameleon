@@ -375,17 +375,25 @@ dependencies = [
 name = "chameleon-apple"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "axum 0.8.8",
+ "base64",
  "chameleon-auth",
  "chameleon-config",
  "chameleon-core",
  "chameleon-db",
  "chameleon-vpn",
  "chrono",
+ "hex",
+ "jsonwebtoken",
+ "rand",
+ "reqwest",
  "serde",
  "serde_json",
  "sqlx",
  "tokio",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]

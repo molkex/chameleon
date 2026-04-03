@@ -78,6 +78,8 @@ pub struct Settings {
     pub hy2_password: String,
     pub hy2_obfs_password: String,
     pub hy2_sni: String,
+    pub hy2_cert_sha256: String,
+    pub hy2_tls_insecure: bool,
 
     // === WARP ===
     pub warp_private_key: String,
@@ -264,6 +266,8 @@ impl Settings {
             hy2_password: env("HY2_PASSWORD"),
             hy2_obfs_password: env("HY2_OBFS_PASSWORD"),
             hy2_sni: env_or("HY2_SNI", "rutube.ru"),
+            hy2_cert_sha256: env("HY2_CERT_SHA256"),
+            hy2_tls_insecure: env_bool("HY2_TLS_INSECURE"),
 
             warp_private_key: env("WARP_PRIVATE_KEY"),
             warp_address_v4: env_or("WARP_ADDRESS_V4", "172.16.0.2/32"),

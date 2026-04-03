@@ -21,7 +21,11 @@ export default function UsersPage() {
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ["users", deferredSearch],
-    queryFn: () => api.get<{ users: User[] }>(`/admin/users?search=${deferredSearch}&page_size=100`).then((r) => r.users || []),
+    queryFn: () => {
+      const params = new URLSearchParams({ page_size: "100" });
+      if (deferredSearch) params.set("search", deferredSearch);
+      return api.get<{ users: User[] }>(`/admin/users?${params.toString()}`).then((r) => r.users || []);
+    },
   });
 
   const deleteMutation = useMutation({

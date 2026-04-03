@@ -65,7 +65,7 @@ services:
         max-file: "3"
 
   # Hysteria2: UDP-based VPN protocol with salamander obfuscation
-  # Self-signed cert generated on first start (clients use insecure=1)
+  # Self-signed cert generated on first start (clients use cert pinning via HY2_CERT_SHA256)
   # Port 8443/UDP — does NOT conflict with telemt 8443/TCP
   hysteria2:
     image: tobyxdd/hysteria:v2
@@ -111,7 +111,7 @@ services:
     volumes:
       - ./proxy_healthcheck.py:/app/healthcheck.py:ro
     environment:
-      - HEALTHCHECK_KEY=${HEALTHCHECK_KEY:-healthcheck}
+      - HEALTHCHECK_KEY=${HEALTHCHECK_KEY:?HEALTHCHECK_KEY must be set}
     command: python /app/healthcheck.py
     logging:
       driver: "json-file"

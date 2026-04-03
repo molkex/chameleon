@@ -5,6 +5,7 @@ import {
   createRouter,
   createRoute,
   createRootRoute,
+  redirect,
   Outlet,
 } from "@tanstack/react-router";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
@@ -68,11 +69,23 @@ const loginRoute = createRoute({
   component: () => <Suspense fallback={<PageSkeleton />}><Login /></Suspense>,
 });
 
-// App layout with sidebar
+// App layout with sidebar — auth guard checks /admin/auth/me
 const layoutRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: "layout",
   component: AppLayout,
+  beforeLoad: async () => {
+    try {
+      const res = await fetch("/api/v1/admin/auth/me", {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Unauthorized");
+      const me = await res.json();
+      return { auth: me };
+    } catch {
+      throw redirect({ to: "/login" });
+    }
+  },
 });
 
 const indexRoute = createRoute({
@@ -115,6 +128,12 @@ const adminsRoute = createRoute({
   getParentRoute: () => layoutRoute,
   path: "/admins",
   component: Admins,
+  beforeLoad: ({ context }) => {
+    const auth = (context as { auth?: { role: string } }).auth;
+    if (auth?.role !== "admin") {
+      throw redirect({ to: "/" });
+    }
+  },
 });
 
 const routeTree = rootRoute.addChildren([

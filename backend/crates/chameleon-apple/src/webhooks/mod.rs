@@ -1,10 +1,11 @@
 //! Webhook handlers — /webhooks/*
-//! TODO: AppStore Server Notifications v2
+//! App Store Server Notifications V2
 
-use axum::Router;
+mod appstore;
+
+use axum::{routing::post, Router};
 use chameleon_core::ChameleonCore;
 
 pub fn router() -> Router<ChameleonCore> {
-    Router::new()
-    // TODO: .route("/appstore", post(appstore_notification))
+    Router::new().route("/appstore", post(appstore::handle_notification))
 }

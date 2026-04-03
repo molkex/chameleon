@@ -110,7 +110,7 @@ services:
 
   # ── Xray VPN ──
   xray:
-    image: teddysun/xray:latest
+    image: teddysun/xray:1.8.24
     container_name: xray
     restart: unless-stopped
     ports:

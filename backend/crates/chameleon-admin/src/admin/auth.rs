@@ -64,7 +64,17 @@ async fn login(
     }
 
     let client_ip = extract_ip(&headers);
-    let admin = authenticate(&state, &body.username, &body.password).await?;
+    let admin = match authenticate(&state, &body.username, &body.password).await {
+        Ok(a) => a,
+        Err(e) => {
+            let _ = admin_q::write_audit_log(
+                &state.db, None, "login_failed", &client_ip, None,
+                Some(&format!("user={}", body.username)),
+            ).await;
+            tracing::warn!(user = %body.username, ip = %client_ip, "Failed admin login attempt");
+            return Err(e);
+        }
+    };
     let (user_id, username, role) = admin;
 
     let secret = &state.config.admin_jwt_secret;
@@ -95,6 +105,7 @@ async fn login(
 
 async fn refresh(
     State(state): State<ChameleonCore>,
+    headers: HeaderMap,
     jar: CookieJar,
 ) -> ApiResult<(CookieJar, Json<LoginResponse>)> {
     use fred::prelude::*;
@@ -136,9 +147,11 @@ async fn refresh(
     let user_id: i32 = claims.sub.parse()
         .map_err(|_| ApiError::Unauthorized)?;
 
-    let access = jwt::create_access_token(secret, user_id, &claims.username, &claims.role, None)
+    let client_ip = extract_ip(&headers);
+    let ip_ref = Some(client_ip.as_str());
+    let access = jwt::create_access_token(secret, user_id, &claims.username, &claims.role, ip_ref)
         .map_err(|e| ApiError::Internal(anyhow::anyhow!("JWT error: {e}")))?;
-    let new_refresh = jwt::create_refresh_token(secret, user_id, &claims.username, &claims.role, None)
+    let new_refresh = jwt::create_refresh_token(secret, user_id, &claims.username, &claims.role, ip_ref)
         .map_err(|e| ApiError::Internal(anyhow::anyhow!("JWT error: {e}")))?;
 
     let jar = jar
@@ -216,9 +229,20 @@ async fn authenticate(
 }
 
 fn is_https() -> bool {
-    // Secure cookies only when behind HTTPS reverse proxy
-    // Set FORCE_HTTPS=1 when nginx terminates TLS
-    std::env::var("FORCE_HTTPS").unwrap_or_default() == "1"
+    // Secure by default — cookies get Secure flag unless explicitly disabled.
+    // Set FORCE_HTTPS=0 only for local development without TLS.
+    match std::env::var("FORCE_HTTPS").ok().as_deref() {
+        Some("0") => false,
+        Some("1") => true,
+        Some(other) => {
+            tracing::warn!(value = %other, "FORCE_HTTPS has unexpected value, defaulting to secure=true");
+            true
+        }
+        None => {
+            tracing::warn!("FORCE_HTTPS env var not set, defaulting to secure=true; set FORCE_HTTPS=0 for local dev");
+            true
+        }
+    }
 }
 
 fn access_cookie(token: &str) -> Cookie<'static> {

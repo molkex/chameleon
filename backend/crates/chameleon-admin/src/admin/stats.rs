@@ -72,8 +72,8 @@ async fn dashboard(
         chameleon_db::queries::stats::get_revenue_today(&state.db),
     );
     let counts = counts_res.map_err(|e| chameleon_core::error::ApiError::Internal(e))?;
-    let revenue_all = revenue_all.unwrap_or_default();
-    let revenue_today = revenue_today.unwrap_or_default();
+    let revenue_all = revenue_all.map_err(|e| chameleon_core::error::ApiError::Internal(e))?;
+    let revenue_today = revenue_today.map_err(|e| chameleon_core::error::ApiError::Internal(e))?;
 
     let rev_map: serde_json::Value = revenue_all.iter()
         .map(|r| (r.currency.clone(), serde_json::json!(r.total)))
@@ -88,7 +88,8 @@ async fn dashboard(
     // Recent transactions
     let recent: Vec<(Option<i32>, Option<f64>, Option<String>, Option<String>, Option<NaiveDateTime>)> = sqlx::query_as(
         "SELECT user_id, amount::float8, currency, status, created_at FROM transactions ORDER BY created_at DESC LIMIT 10"
-    ).fetch_all(&state.db).await.unwrap_or_default();
+    ).fetch_all(&state.db).await
+        .map_err(|e| chameleon_core::error::ApiError::Internal(e.into()))?;
 
     let recent_transactions: Vec<RecentTransaction> = recent.into_iter().map(|(uid, amt, cur, st, ts)| {
         RecentTransaction {
@@ -108,7 +109,8 @@ async fn dashboard(
          WHERE is_active = true AND vpn_uuid IS NOT NULL
          AND subscription_expiry IS NOT NULL AND subscription_expiry > $1 AND subscription_expiry < $2
          ORDER BY subscription_expiry LIMIT 8"
-    ).bind(now).bind(soon).fetch_all(&state.db).await.unwrap_or_default();
+    ).bind(now).bind(soon).fetch_all(&state.db).await
+        .map_err(|e| chameleon_core::error::ApiError::Internal(e.into()))?;
 
     let expiring_users: Vec<ExpiringUser> = expiring.into_iter().filter_map(|(u, ts)| {
         Some(ExpiringUser {

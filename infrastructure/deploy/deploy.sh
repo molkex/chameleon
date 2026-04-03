@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 # Chameleon VPN — Quick re-deploy (code update + rebuild)
-# Usage: ./deploy.sh <server_ip> <ssh_password>
-# Uploads latest code and rebuilds only changed containers
+# Usage: ./deploy.sh <server_ip>
+#
+# Prerequisites: SSH key must be configured for the target server.
+#   ssh-copy-id ${SSH_USER:-ubuntu}@<server_ip>
+#
+# Uploads latest code and rebuilds only changed containers.
 set -euo pipefail
 
-SERVER="${1:?Usage: ./deploy.sh <server_ip> <ssh_password>}"
-SSH_PASS="${2:?Usage: ./deploy.sh <server_ip> <ssh_password>}"
+SERVER="${1:?Usage: ./deploy.sh <server_ip>}"
 SSH_USER="${SSH_USER:-ubuntu}"
 PROJECT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 REMOTE_DIR="/home/${SSH_USER}/chameleon/backend"
@@ -15,15 +18,16 @@ log()  { echo -e "${GREEN}[+]${NC} $*"; }
 warn() { echo -e "${YELLOW}[!]${NC} $*"; }
 err()  { echo -e "${RED}[x]${NC} $*" >&2; exit 1; }
 
+SSH_OPTS="-o ConnectTimeout=10 -o BatchMode=yes"
+
 ssh_cmd() {
-    sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 "${SSH_USER}@${SERVER}" "$@"
+    ssh $SSH_OPTS "${SSH_USER}@${SERVER}" "$@"
 }
 
 scp_cmd() {
-    sshpass -p "$SSH_PASS" scp -o StrictHostKeyChecking=no "$@"
+    scp $SSH_OPTS "$@"
 }
 
-command -v sshpass >/dev/null || err "sshpass required"
 [ -f "$PROJECT_DIR/backend/docker-compose.yml" ] || err "Run from project root"
 
 log "Deploying to ${SERVER}..."

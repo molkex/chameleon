@@ -75,7 +75,9 @@ async fn health() -> impl IntoResponse {
 /// Modules pass their routers in; core adds shared middleware.
 pub fn build_app(core: ChameleonCore, module_routes: Vec<Router<ChameleonCore>>) -> Router {
     let cors = if core.config.cors_origins.is_empty() {
+        tracing::warn!("CORS_ORIGINS is not configured — using restrictive default (GET only, no credentials)");
         CorsLayer::new()
+            .allow_methods([Method::GET])
     } else {
         CorsLayer::new()
             .allow_origin(

@@ -1,11 +1,18 @@
 #!/usr/bin/env bash
 # Chameleon VPN — One-command server setup
-# Usage: ./setup.sh <server_ip> <ssh_password>
-# Installs Docker, deploys backend + admin + xray + postgres + redis
+# Usage: ./setup.sh <server_ip>
+#
+# Prerequisites: SSH key must be configured for the target server.
+#   ssh-copy-id ${SSH_USER:-ubuntu}@<server_ip>
+#
+# For initial setup when only password auth is available, set DEPLOY_PASSWORD:
+#   DEPLOY_PASSWORD="xxx" ./setup.sh <server_ip>
+# The password is passed via env var (not CLI arg) to avoid exposure in ps aux.
+#
+# Installs Docker, deploys backend + admin + xray + postgres + redis.
 set -euo pipefail
 
-SERVER="${1:?Usage: ./setup.sh <server_ip> <ssh_password>}"
-SSH_PASS="${2:?Usage: ./setup.sh <server_ip> <ssh_password>}"
+SERVER="${1:?Usage: ./setup.sh <server_ip>}"
 SSH_USER="${SSH_USER:-ubuntu}"
 PROJECT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 REMOTE_DIR="/home/${SSH_USER}/chameleon/backend"
@@ -16,21 +23,35 @@ log()  { echo -e "${GREEN}[+]${NC} $*"; }
 warn() { echo -e "${YELLOW}[!]${NC} $*"; }
 err()  { echo -e "${RED}[x]${NC} $*" >&2; exit 1; }
 
-ssh_cmd() {
-    sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 "${SSH_USER}@${SERVER}" "$@"
-}
-
-scp_cmd() {
-    sshpass -p "$SSH_PASS" scp -o StrictHostKeyChecking=no "$@"
-}
+# SSH transport: use sshpass only when DEPLOY_PASSWORD is set (initial setup).
+# StrictHostKeyChecking=accept-new accepts new hosts but rejects changed keys (MITM protection).
+if [ -n "${DEPLOY_PASSWORD:-}" ]; then
+    command -v sshpass >/dev/null || err "sshpass required when using DEPLOY_PASSWORD. brew install sshpass / apt install sshpass"
+    SSH_OPTS="-o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new"
+    ssh_cmd() {
+        sshpass -e ssh $SSH_OPTS "${SSH_USER}@${SERVER}" "$@"
+    }
+    scp_cmd() {
+        sshpass -e scp $SSH_OPTS "$@"
+    }
+    export SSHPASS="$DEPLOY_PASSWORD"
+    warn "Using password auth via DEPLOY_PASSWORD. Set up SSH keys after initial setup."
+else
+    SSH_OPTS="-o ConnectTimeout=10 -o BatchMode=yes"
+    ssh_cmd() {
+        ssh $SSH_OPTS "${SSH_USER}@${SERVER}" "$@"
+    }
+    scp_cmd() {
+        scp $SSH_OPTS "$@"
+    }
+fi
 
 # Preflight checks
-command -v sshpass >/dev/null || err "sshpass not installed. brew install sshpass / apt install sshpass"
 [ -f "$PROJECT_DIR/backend/docker-compose.yml" ] || err "Run from project root or infrastructure/deploy/"
 [ -f "$PROJECT_DIR/backend/.env" ] || err "backend/.env not found. Copy .env.example and fill in values first."
 
 log "Testing SSH connection to ${SERVER}..."
-ssh_cmd 'echo ok' >/dev/null || err "SSH failed. Check credentials."
+ssh_cmd 'echo ok' >/dev/null || err "SSH failed. Check credentials or SSH key setup."
 
 # ── Step 1: Install Docker ──
 log "Installing Docker on ${SERVER}..."

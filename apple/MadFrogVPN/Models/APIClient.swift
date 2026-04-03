@@ -1,5 +1,7 @@
 import Foundation
+#if canImport(UIKit)
 import UIKit
+#endif
 
 enum APIError: LocalizedError {
     case invalidCode
@@ -41,7 +43,7 @@ class APIClient {
     init() {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
-        session = URLSession(configuration: config)
+        session = URLSession(configuration: config, delegate: CertificatePinner(), delegateQueue: nil)
     }
 
     // MARK: - Standalone Device Registration

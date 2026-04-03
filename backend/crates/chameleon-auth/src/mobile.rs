@@ -22,6 +22,18 @@ pub struct MobileAuthState {
 #[derive(Debug)]
 pub struct MobileAuthError;
 
+/// Extract client IP from request headers (X-Real-IP or X-Forwarded-For).
+fn extract_ip_from_parts(parts: &Parts) -> Option<String> {
+    let headers = &parts.headers;
+    if let Some(ip) = headers.get("x-real-ip").and_then(|v| v.to_str().ok()) {
+        return Some(ip.to_string());
+    }
+    if let Some(fwd) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
+        return Some(fwd.split(',').next().unwrap_or("").trim().to_string());
+    }
+    None
+}
+
 impl axum::response::IntoResponse for MobileAuthError {
     fn into_response(self) -> axum::response::Response {
         use axum::http::StatusCode;
@@ -48,7 +60,8 @@ where
             if let Some(auth_header) = parts.headers.get("authorization") {
                 if let Ok(value) = auth_header.to_str() {
                     if let Some(token) = value.strip_prefix("Bearer ") {
-                        if let Some(claims) = jwt::verify_token(&auth_state.jwt_secret, token, "access", None) {
+                        let client_ip = extract_ip_from_parts(parts);
+                        if let Some(claims) = jwt::verify_token(&auth_state.jwt_secret, token, "access", client_ip.as_deref()) {
                             let user_id: i32 = match claims.sub.parse() {
                                 Ok(id) => id,
                                 Err(_) => return Err(MobileAuthError),

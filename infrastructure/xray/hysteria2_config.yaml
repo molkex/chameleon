@@ -1,6 +1,8 @@
 # Hysteria2 server config for VPN nodes (NL/DE)
 # Deploy: copy to /root/telegram_vpn_bot/hysteria2_config.yaml on each node
-# Self-signed TLS cert generated on first run (clients use insecure=1)
+# Self-signed TLS cert generated on first run
+# Clients use cert pinning (HY2_CERT_SHA256) instead of insecure=1
+# To get the cert fingerprint: openssl x509 -in cert.pem -noout -fingerprint -sha256
 
 listen: :8443
 

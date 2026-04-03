@@ -10,6 +10,8 @@ pub struct Hysteria2 {
     port: u16,
     sni: String,
     finalmask_mode: String,
+    cert_sha256: String,
+    tls_insecure: bool,
 }
 
 impl Hysteria2 {
@@ -20,6 +22,8 @@ impl Hysteria2 {
             port: s.hysteria2_port,
             sni: s.hy2_sni.clone(),
             finalmask_mode: s.finalmask_mode.clone(),
+            cert_sha256: s.hy2_cert_sha256.clone(),
+            tls_insecure: s.hy2_tls_insecure,
         }
     }
 }
@@ -47,9 +51,16 @@ impl Protocol for Hysteria2 {
         if self.password.is_empty() { return vec![]; }
         servers.iter().map(|srv| {
             let remark = srv.remark("Hysteria2");
+            let tls_param = if !self.cert_sha256.is_empty() {
+                format!("insecure=0&pinSHA256={}", self.cert_sha256)
+            } else if self.tls_insecure {
+                "insecure=1".to_string()
+            } else {
+                "insecure=0".to_string()
+            };
             let uri = format!(
-                "hy2://{}@{}:{}?insecure=1&sni={}&obfs=salamander&obfs-password={}#{}",
-                self.password, srv.host, self.port, self.sni, self.obfs_password, urlencoding::encode(&remark)
+                "hy2://{}@{}:{}?{}&sni={}&obfs=salamander&obfs-password={}#{}",
+                self.password, srv.host, self.port, tls_param, self.sni, self.obfs_password, urlencoding::encode(&remark)
             );
             ClientLink { uri, protocol: "hysteria2".into(), transport: "udp".into(), server_key: srv.key.clone(), remark, is_relay: false }
         }).collect()
@@ -57,10 +68,18 @@ impl Protocol for Hysteria2 {
 
     fn singbox_outbound(&self, tag: &str, server: &ServerConfig, _user: &UserCredentials, _opts: &OutboundOpts) -> Option<serde_json::Value> {
         if self.password.is_empty() { return None; }
+        let mut tls = json!({
+            "enabled": true,
+            "server_name": self.sni,
+            "insecure": self.tls_insecure && self.cert_sha256.is_empty(),
+        });
+        if !self.cert_sha256.is_empty() {
+            tls["certificate_sha256"] = json!(self.cert_sha256);
+        }
         Some(json!({
             "type": "hysteria2", "tag": tag, "server": server.host, "server_port": self.port,
             "password": self.password,
-            "tls": {"enabled": true, "server_name": self.sni, "insecure": true},
+            "tls": tls,
             "obfs": {"type": "salamander", "password": self.obfs_password},
         }))
     }
