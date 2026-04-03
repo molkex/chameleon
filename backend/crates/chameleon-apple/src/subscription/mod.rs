@@ -9,10 +9,17 @@ use chameleon_vpn::protocols::ProtocolRegistry;
 use chameleon_vpn::links;
 use chameleon_vpn::protocols::{UserCredentials, ServerConfig};
 use chameleon_core::ChameleonCore;
+use chameleon_core::middleware::rate_limit::subscription_rate_limit;
 
-pub fn router() -> Router<ChameleonCore> {
+pub fn router(core: ChameleonCore) -> Router<ChameleonCore> {
+    let rate_limit = axum::middleware::from_fn_with_state(
+        core,
+        subscription_rate_limit,
+    );
+
     Router::new()
         .route("/{token}", get(subscription_links))
+        .layer(rate_limit)
 }
 
 async fn subscription_links(

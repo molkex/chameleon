@@ -66,14 +66,22 @@ async fn dashboard(
     State(state): State<ChameleonCore>,
     _admin: AuthAdmin,
 ) -> ApiResult<Json<DashboardResponse>> {
-    let (counts_res, revenue_all, revenue_today) = tokio::join!(
+    let (counts_res, revenue_all, revenue_today, today_tx_res, conversion_res, churned_res, rev7d_res) = tokio::join!(
         chameleon_db::queries::stats::get_dashboard_counts(&state.db),
         chameleon_db::queries::stats::get_revenue_all(&state.db),
         chameleon_db::queries::stats::get_revenue_today(&state.db),
+        chameleon_db::queries::stats::get_today_transaction_stats(&state.db),
+        chameleon_db::queries::stats::get_conversion_30d(&state.db),
+        chameleon_db::queries::stats::get_churned_7d(&state.db),
+        chameleon_db::queries::stats::get_revenue_7d(&state.db),
     );
     let counts = counts_res.map_err(|e| chameleon_core::error::ApiError::Internal(e))?;
     let revenue_all = revenue_all.map_err(|e| chameleon_core::error::ApiError::Internal(e))?;
     let revenue_today = revenue_today.map_err(|e| chameleon_core::error::ApiError::Internal(e))?;
+    let today_tx = today_tx_res.map_err(|e| chameleon_core::error::ApiError::Internal(e))?;
+    let conversion_30d = conversion_res.map_err(|e| chameleon_core::error::ApiError::Internal(e))?;
+    let churned_7d = churned_res.map_err(|e| chameleon_core::error::ApiError::Internal(e))?;
+    let rev_7d = rev7d_res.map_err(|e| chameleon_core::error::ApiError::Internal(e))?;
 
     let rev_map: serde_json::Value = revenue_all.iter()
         .map(|r| (r.currency.clone(), serde_json::json!(r.total)))
@@ -128,13 +136,13 @@ async fn dashboard(
             today_new: counts.today_new,
             revenue_by_currency: rev_map,
             today_revenue: today_map,
-            today_transactions: 0,
-            today_paid: 0,
+            today_transactions: today_tx.today_transactions,
+            today_paid: today_tx.today_paid,
             proxy_clicks: counts.proxy_clicks,
-            conversion_30d: 0.0,
-            churned_7d: 0,
-            rev_7d_labels: vec![],
-            rev_7d_data: vec![],
+            conversion_30d,
+            churned_7d,
+            rev_7d_labels: rev_7d.iter().map(|p| p.label.clone()).collect(),
+            rev_7d_data: rev_7d.iter().map(|p| p.total).collect(),
         },
         vpn: VpnStats { vpn_users: counts.active_users, active_users: counts.active_users, bw_in_gb: 0.0, bw_out_gb: 0.0 },
         recent_transactions,

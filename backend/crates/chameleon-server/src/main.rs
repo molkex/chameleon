@@ -55,7 +55,7 @@ async fn main() -> anyhow::Result<()> {
     #[cfg(feature = "apple")]
     {
         info!("Module: apple");
-        modules.push(chameleon_apple::routes());
+        modules.push(chameleon_apple::routes(core.clone()));
     }
 
     // Build app
