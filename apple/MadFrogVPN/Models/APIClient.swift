@@ -43,7 +43,7 @@ class APIClient {
     init() {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
-        session = URLSession(configuration: config, delegate: CertificatePinner(), delegateQueue: nil)
+        session = URLSession(configuration: config)
     }
 
     // MARK: - Standalone Device Registration
