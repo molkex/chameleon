@@ -240,14 +240,15 @@ async fn insert_new_user(
     let vpn_uuid = Uuid::new_v4().to_string();
     let vpn_short_id = format!("{:08x}", rand::random::<u32>());
     let subscription_token = generate_subscription_token();
+    let activation_code = generate_subscription_token(); // Separate secret for /auth/activate
 
     let trial_expiry = Utc::now().naive_utc()
         + chrono::Duration::days(core.config.trial_days as i64);
 
     let user = sqlx::query_as::<_, User>(
         "INSERT INTO users (apple_id, device_id, vpn_username, vpn_uuid, vpn_short_id, \
-         subscription_expiry, is_active, auth_provider, subscription_token, created_at) \
-         VALUES ($1, $2, $3, $4, $5, $6, true, $7, $8, NOW()) RETURNING *",
+         subscription_expiry, is_active, auth_provider, subscription_token, activation_code, created_at) \
+         VALUES ($1, $2, $3, $4, $5, $6, true, $7, $8, $9, NOW()) RETURNING *",
     )
     .bind(apple_id)
     .bind(device_id)
@@ -257,6 +258,7 @@ async fn insert_new_user(
     .bind(trial_expiry)
     .bind(auth_provider)
     .bind(&subscription_token)
+    .bind(&activation_code)
     .fetch_one(&core.db)
     .await?;
 
@@ -451,9 +453,9 @@ async fn activate(
     let client_ip = extract_client_ip(&headers);
     let secret = &core.config.mobile_jwt_secret;
 
-    // Look up user by subscription_token
+    // Look up user by activation_code (NOT subscription_token — that's public in sub links)
     let user: Option<User> =
-        sqlx::query_as("SELECT * FROM users WHERE subscription_token = $1")
+        sqlx::query_as("SELECT * FROM users WHERE activation_code = $1")
             .bind(&body.code)
             .fetch_optional(&core.db)
             .await?;

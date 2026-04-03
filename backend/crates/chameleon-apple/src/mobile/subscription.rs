@@ -112,31 +112,16 @@ async fn verify_purchase(
         "Processing iOS subscription purchase"
     );
 
-    // Check if this transaction already belongs to a different user
-    if !original_txn.is_empty() {
-        let existing = sqlx::query_as::<_, chameleon_db::models::User>(
-            "SELECT * FROM users WHERE original_transaction_id = $1 AND id != $2",
-        )
-        .bind(original_txn)
-        .bind(user.user_id)
-        .fetch_optional(&core.db)
-        .await?;
-
-        if existing.is_some() {
-            return Err(ApiError::Conflict(
-                "This transaction belongs to a different account".into(),
-            ));
-        }
-    }
-
-    // Update user subscription in DB
-    sqlx::query(
+    // Atomic check-and-update: use a single UPDATE with WHERE clause to prevent
+    // race conditions on original_transaction_id ownership
+    let result = sqlx::query(
         "UPDATE users SET \
             original_transaction_id = $1, \
             app_store_product_id = $2, \
             current_plan = $3, \
             subscription_expiry = GREATEST(COALESCE(subscription_expiry, NOW()), NOW()) + make_interval(days => $4) \
-         WHERE id = $5"
+         WHERE id = $5 \
+           AND NOT EXISTS (SELECT 1 FROM users WHERE original_transaction_id = $1 AND id != $5)"
     )
     .bind(original_txn)
     .bind(product_id)
@@ -145,6 +130,13 @@ async fn verify_purchase(
     .bind(user.user_id)
     .execute(&core.db)
     .await?;
+
+    // If no rows updated, the transaction belongs to someone else (atomic check)
+    if result.rows_affected() == 0 {
+        return Err(ApiError::Conflict(
+            "This transaction belongs to a different account".into(),
+        ));
+    }
 
     // Fetch updated user to return fresh expiry
     let updated = find_user_by_id(&core.db, user.user_id)

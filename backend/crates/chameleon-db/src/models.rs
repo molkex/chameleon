@@ -33,6 +33,7 @@ pub struct User {
     pub notified_1d: Option<bool>,
     pub current_plan: Option<String>,
     pub subscription_token: Option<String>,
+    pub activation_code: Option<String>,
     pub created_at: Option<NaiveDateTime>,
 }
 
