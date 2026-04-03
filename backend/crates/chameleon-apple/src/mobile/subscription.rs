@@ -190,9 +190,48 @@ async fn restore_purchase(
             ));
         }
         Some(u) if u.id != user.user_id => {
-            return Err(ApiError::Conflict(
-                "This transaction belongs to a different account".into(),
-            ));
+            // Transfer the subscription to the current user if the old account
+            // is inactive or has no other auth provider (anonymous trial).
+            // This supports the "new device" restore flow.
+            if !u.is_active || u.auth_provider.as_deref() == Some("device") {
+                sqlx::query(
+                    "UPDATE users SET original_transaction_id = $1, \
+                     app_store_product_id = $2, current_plan = $3, \
+                     subscription_expiry = $4 \
+                     WHERE id = $5",
+                )
+                .bind(&req.original_transaction_id)
+                .bind(&u.app_store_product_id)
+                .bind(&u.current_plan)
+                .bind(u.subscription_expiry)
+                .bind(user.user_id)
+                .execute(&core.db)
+                .await?;
+
+                // Clear from old user
+                sqlx::query(
+                    "UPDATE users SET original_transaction_id = NULL WHERE id = $1",
+                )
+                .bind(u.id)
+                .execute(&core.db)
+                .await?;
+
+                tracing::info!(
+                    from_user = u.id,
+                    to_user = user.user_id,
+                    "Subscription transferred to new account"
+                );
+
+                // Re-fetch current user with updated data
+                find_user_by_id(&core.db, user.user_id)
+                    .await
+                    .map_err(ApiError::Internal)?
+                    .ok_or_else(|| ApiError::NotFound("User not found".into()))?
+            } else {
+                return Err(ApiError::Conflict(
+                    "This transaction belongs to a different active account".into(),
+                ));
+            }
         }
         Some(u) => u,
     };

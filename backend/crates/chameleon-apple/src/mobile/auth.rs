@@ -238,7 +238,7 @@ async fn insert_new_user(
 ) -> ApiResult<User> {
     let vpn_username = format!("{}_{}", username_prefix, &Uuid::new_v4().to_string()[..8]);
     let vpn_uuid = Uuid::new_v4().to_string();
-    let vpn_short_id = format!("{:04x}", rand::random::<u16>());
+    let vpn_short_id = format!("{:08x}", rand::random::<u32>());
     let subscription_token = generate_subscription_token();
 
     let trial_expiry = Utc::now().naive_utc()
@@ -462,6 +462,17 @@ async fn activate(
 
     if !user.is_active {
         return Err(ApiError::Forbidden("Account is deactivated".into()));
+    }
+
+    // Link device_id to the account if provided
+    if let Some(ref did) = body.device_id {
+        if !did.is_empty() {
+            sqlx::query("UPDATE users SET device_id = $1 WHERE id = $2")
+                .bind(did.as_str())
+                .bind(user.id)
+                .execute(&core.db)
+                .await?;
+        }
     }
 
     let (access_token, refresh_token) = create_tokens(secret, &user, &client_ip)?;
