@@ -105,7 +105,7 @@ struct PaywallView: View {
                     .symbolEffect(.pulse)
             }
 
-            Text("MadFrog VPN")
+            Text(AppConfig.appName)
                 .font(.title.weight(.bold))
                 .foregroundStyle(.white)
 

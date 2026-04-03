@@ -246,7 +246,7 @@ impl Settings {
             jwt_refresh_expire_days: env_i64("JWT_REFRESH_EXPIRE_DAYS", 90),
 
             apple_team_id: env("APPLE_TEAM_ID"),
-            apple_bundle_id: env_or("APPLE_BUNDLE_ID", "com.chameleon.vpn"),
+            apple_bundle_id: env_or("APPLE_BUNDLE_ID", "com.example.vpn"),
 
             appstore_key_id: env("APPSTORE_KEY_ID"),
             appstore_issuer_id: env("APPSTORE_ISSUER_ID"),

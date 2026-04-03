@@ -51,8 +51,9 @@ else
 
     # Prompt for admin password
     echo ""
-    read -rp "Admin panel password [ChameleonAdmin2026]: " ADMIN_PASS
-    ADMIN_PASS="${ADMIN_PASS:-ChameleonAdmin2026}"
+    DEFAULT_ADMIN_PASS=$(openssl rand -base64 16)
+    read -rp "Admin panel password [auto-generated]: " ADMIN_PASS
+    ADMIN_PASS="${ADMIN_PASS:-$DEFAULT_ADMIN_PASS}"
 
     cat > .env <<ENVEOF
 # Chameleon VPN — auto-generated $(date +%Y-%m-%d)

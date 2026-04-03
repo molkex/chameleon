@@ -311,7 +311,7 @@ final class TelemetryService {
         request.httpMethod = "POST"
         request.httpBody = body
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("MadFrog-iOS", forHTTPHeaderField: "User-Agent")
+        request.setValue(AppConfig.userAgent, forHTTPHeaderField: "User-Agent")
         request.timeoutInterval = 10
 
         // Fire and forget — don't block on response

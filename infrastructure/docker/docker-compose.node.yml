@@ -85,7 +85,7 @@ services:
         if [ ! -f /etc/hysteria2/cert.pem ]; then
           openssl req -x509 -nodes -newkey ec:<(openssl ecparam -name prime256v1) \
             -keyout /etc/hysteria2/key.pem -out /etc/hysteria2/cert.pem \
-            -subj "/CN=rutube.ru" -days 3650
+            -subj "/CN=${HY2_SNI:-example.com}" -days 3650
         fi
         # Substitute env vars in config
         sed "s/\$${HY2_PASSWORD}/$HY2_PASSWORD/g; s/\$${HY2_OBFS_PASSWORD}/$HY2_OBFS_PASSWORD/g" \

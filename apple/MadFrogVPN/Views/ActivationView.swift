@@ -138,7 +138,7 @@ struct ActivationView: View {
 
     private var titleSection: some View {
         VStack(spacing: 10) {
-            Text("MadFrog VPN")
+            Text(AppConfig.appName)
                 .font(.largeTitle.bold())
                 .foregroundStyle(isDark ? .white : .primary)
 

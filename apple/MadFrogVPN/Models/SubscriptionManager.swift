@@ -9,8 +9,8 @@ class SubscriptionManager {
 
     // MARK: - Product IDs
 
-    static let monthlyID = "ru.madfrog.vpn.monthly"
-    static let yearlyID  = "ru.madfrog.vpn.yearly"
+    static let monthlyID = AppConfig.monthlyProductID
+    static let yearlyID  = AppConfig.yearlyProductID
 
     // MARK: - Published State
 

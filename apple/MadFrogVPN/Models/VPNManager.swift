@@ -116,10 +116,10 @@ class VPNManager {
         let m = NETunnelProviderManager()
         let proto = NETunnelProviderProtocol()
         proto.providerBundleIdentifier = AppConstants.tunnelBundleID
-        proto.serverAddress = "MadFrog VPN"
+        proto.serverAddress = AppConfig.vpnProfileDescription
         proto.providerConfiguration = [:]
         m.protocolConfiguration = proto
-        m.localizedDescription = "MadFrog VPN"
+        m.localizedDescription = AppConfig.vpnProfileDescription
         m.isEnabled = true
         m.onDemandRules = [NEOnDemandRuleConnect()]
         m.isOnDemandEnabled = false

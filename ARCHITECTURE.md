@@ -148,9 +148,9 @@ GET /api/v1/mobile/config → sing-box JSON
 PostgreSQL с Alembic миграциями. User модель имеет `apple_id` + `telegram_id` (nullable) для совместимости.
 
 ## Инфраструктура
-- **DE (162.19.242.30)** — основной backend + xray для приложений
-- **NL (147.45.252.234)** — xray нода
-- **Moscow (85.239.49.28)** — legacy бот (не трогать)
+- **Main (<YOUR_SERVER_IP>)** — основной backend + xray для приложений
+- **Node 1 (<YOUR_SERVER_IP>)** — xray нода
+- **Relay 1 (<YOUR_SERVER_IP>)** — relay server
 - Docker + Nginx reverse proxy
 - Xray-core v26.3.27 + sing-box 1.13 target + AmneziaWG 2.0
 

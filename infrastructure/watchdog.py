@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""NL Watchdog: auto-failover when Moscow management is unreachable.
+"""Watchdog: auto-failover when primary server is unreachable.
 
-Runs on NL (147.45.252.234) as a systemd timer every 5 minutes.
-Checks Moscow bot health endpoint. After 3 consecutive failures (~15 min),
-automatically triggers failover to NL standby.
+Runs on secondary server as a systemd timer every 5 minutes.
+Checks primary server health endpoint. After 3 consecutive failures (~15 min),
+automatically triggers failover to standby.
 
 Safety:
   - Won't failover if already in failover mode (bot-standby running)
@@ -26,7 +26,15 @@ import urllib.request
 
 # ── Configuration ──
 
-MOSCOW_HOST = "85.239.49.28"
+PRIMARY_HOST = os.environ.get("PRIMARY_HOST")
+SECONDARY_HOST = os.environ.get("SECONDARY_HOST")
+if not PRIMARY_HOST or not SECONDARY_HOST:
+    print("ERROR: PRIMARY_HOST and SECONDARY_HOST environment variables must be set.")
+    print("  export PRIMARY_HOST=<your primary server IP>")
+    print("  export SECONDARY_HOST=<your secondary server IP>")
+    sys.exit(1)
+
+MOSCOW_HOST = PRIMARY_HOST
 MOSCOW_HEALTH_URL = f"http://{MOSCOW_HOST}/health"  # via nginx (port 80)
 HEALTH_TIMEOUT = 10  # seconds
 
@@ -37,8 +45,8 @@ FAILOVER_FLAG = "/root/standby/.failover_active"
 STANDBY_DIR = "/root/standby"
 NODE_DIR = "/root/telegram_vpn_bot"
 
-# Germany server for MTProxy DNS failover
-DE_HOST = "146.19.247.172"
+# Failover server for MTProxy DNS failover
+DE_HOST = os.environ.get("FAILOVER_HOST", "")
 
 # Cloudflare
 CF_EMAIL = os.getenv("CLOUDFLARE_EMAIL", "")
@@ -52,7 +60,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 # Use ADMIN_CHAT_ID env or first entry from ADMIN_IDS
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID") or os.getenv("ADMIN_IDS", "170181045").split(",")[0].strip()
 
-NL_HOST = "147.45.252.234"
+NL_HOST = SECONDARY_HOST
 
 
 # ── State management ──

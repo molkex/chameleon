@@ -1,9 +1,45 @@
 import Foundation
 
+// ============================================================================
+// MARK: - Deployment Configuration
+// Edit these values before building to match your server setup.
+// ============================================================================
+
+enum AppConfig {
+    /// Your server's base URL (with https://)
+    static let baseURL = "https://your-server.example.com"
+
+    /// App Group ID (must match your provisioning profile)
+    static let appGroupID = "group.com.your-company.vpn"
+
+    /// Network Extension bundle ID
+    static let tunnelBundleID = "com.your-company.vpn.tunnel"
+
+    /// App name shown in UI
+    static let appName = "Chameleon VPN"
+
+    /// StoreKit product IDs (set to your App Store Connect product IDs)
+    static let monthlyProductID = "com.your-company.vpn.monthly"
+    static let yearlyProductID = "com.your-company.vpn.yearly"
+
+    /// VPN profile description shown in iOS Settings
+    static let vpnProfileDescription = "Chameleon VPN"
+
+    /// User-Agent for telemetry
+    static let userAgent = "ChameleonVPN-iOS"
+
+    /// Logger subsystem identifier
+    static let logSubsystem = "com.your-company.vpn"
+}
+
+// ============================================================================
+// MARK: - Internal Constants (no need to change)
+// ============================================================================
+
 enum AppConstants {
-    static let appGroupID = "group.com.madfrog.vpn"
-    static let tunnelBundleID = "com.madfrog.vpn.tunnel"
-    static let baseURL = "https://mdfrog.site"
+    static let appGroupID = AppConfig.appGroupID
+    static let tunnelBundleID = AppConfig.tunnelBundleID
+    static let baseURL = AppConfig.baseURL
     static let configFileName = "singbox-config.json"
     static let activationKey = "activationUsername"
     static let lastUpdateKey = "lastConfigUpdate"

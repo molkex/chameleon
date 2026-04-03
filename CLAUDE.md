@@ -36,8 +36,8 @@ chameleon/
 
 ## Важные правила
 - **Белые списки SNI:** ТОЛЬКО проверенные (НЕ google.com/cloudflare.com). Новые SNI проверять на блокировку РКН
-- **Деплой DE:** основной сервер для нового проекта (162.19.242.30)
-- **NL + Moscow:** НЕ ТРОГАТЬ — обслуживают текущих пользователей бота
+- **Деплой Main:** основной сервер для нового проекта
+- **Other nodes:** НЕ ТРОГАТЬ — обслуживают текущих пользователей
 - **sing-box:** версия 1.13 target
 - **Xray-core:** v26.3.27
 
@@ -51,11 +51,11 @@ chameleon/
 ## Серверы
 | Сервер | IP | Роль |
 |---|---|---|
-| DE | 162.19.242.30 | Новый проект: backend + xray |
-| NL | 147.45.252.234 | Бот (не трогать) |
-| Moscow | 85.239.49.28 | Бот (не трогать) |
-| YC Relay | 89.169.144.42 | Whitelist bypass relay |
-| SPB Relay | 185.218.0.43 | Relay #2 |
+| Main | <YOUR_MAIN_SERVER_IP> | Backend + VPN node |
+| Node 1 | <YOUR_NODE_IP> | VPN node |
+| Relay 1 | <YOUR_RELAY_IP> | Relay server |
+| Relay 2 | <YOUR_RELAY_IP_2> | Relay server |
+| Relay 3 | <YOUR_RELAY_IP_3> | Relay server |
 
 ## Система памяти
 После значимых задач обновлять:
