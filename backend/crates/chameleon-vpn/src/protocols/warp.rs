@@ -13,6 +13,7 @@ pub struct Warp {
     endpoint: String,
     reserved: Vec<i32>,
     finalmask_mode: String,
+    domains: Vec<String>,
 }
 
 impl Warp {
@@ -24,6 +25,7 @@ impl Warp {
             endpoint: s.warp_endpoint.clone(),
             reserved: s.warp_reserved.clone(),
             finalmask_mode: s.finalmask_mode.clone(),
+            domains: s.warp_domains.clone(),
         }
     }
 
@@ -67,8 +69,12 @@ impl Protocol for Warp {
 
     fn xray_routing_rules(&self) -> Vec<serde_json::Value> {
         if self.private_key.is_empty() { return vec![]; }
-        // TODO: load warp_domains.json
-        vec![json!({"type": "field", "domain": [], "outboundTag": "WARP"})]
+        if self.domains.is_empty() {
+            // No domains configured — route all traffic through WARP (default route)
+            vec![json!({"type": "field", "network": "tcp,udp", "outboundTag": "WARP"})]
+        } else {
+            vec![json!({"type": "field", "domain": self.domains, "outboundTag": "WARP"})]
+        }
     }
 
     fn client_links(&self, _user: &UserCredentials, _servers: &[ServerConfig]) -> Vec<ClientLink> { vec![] }

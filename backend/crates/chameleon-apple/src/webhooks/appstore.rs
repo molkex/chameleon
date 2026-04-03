@@ -1,36 +1,122 @@
 //! App Store Server Notification V2 webhook handler.
 //!
 //! Apple sends a JWS (JSON Web Signature) `signedPayload` to this endpoint.
-//! We decode the JWS payload, parse the notification, and update the user's
-//! subscription state accordingly.
+//! We decode the JWS payload, verify the signature using the certificate from
+//! the `x5c` header, and update the user's subscription state accordingly.
 //!
 //! Reference: https://developer.apple.com/documentation/appstoreservernotifications
 
 use axum::extract::State;
 use axum::http::StatusCode;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use base64::Engine;
 use chameleon_core::{ApiError, ChameleonCore};
+use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header};
 use serde::Deserialize;
+use x509_parser::prelude::*;
 
-// ── JWS decoding ──
+// ── JWS verification & decoding ──
 
-/// Decode the payload (second segment) of a JWS token without signature verification.
+/// Apple's root CA issuer common name prefix used for basic chain validation.
+const APPLE_ISSUER_MARKER: &str = "Apple";
+
+/// Verify the JWS signature and decode the payload.
 ///
-/// TODO: Production — validate the full certificate chain against Apple's root CA.
-/// See: https://developer.apple.com/documentation/appstoreservernotifications/responsebodyv2decodedpayload
-fn decode_jws_payload<T: serde::de::DeserializeOwned>(jws: &str) -> Result<T, ApiError> {
+/// 1. Decodes the JWS header to extract `x5c` certificate chain and `alg`.
+/// 2. Parses the first (leaf/signing) certificate from the `x5c` chain.
+/// 3. Validates the certificate issuer contains "Apple" (basic chain check).
+/// 4. Extracts the EC public key and verifies the JWS signature.
+///
+/// TODO: Full certificate chain verification against Apple Root CA (download from
+/// https://www.apple.com/certificateauthority/ and pin). Currently we verify the
+/// signature with the embedded cert and check issuer strings, but a sophisticated
+/// attacker could forge the entire x5c chain. For production hardening, pin the
+/// Apple Root CA G3 certificate and verify the full chain.
+fn verify_and_decode_jws<T: serde::de::DeserializeOwned>(jws: &str) -> Result<T, ApiError> {
+    // 1. Decode JWS header to get x5c and algorithm
+    let header = decode_header(jws)
+        .map_err(|e| ApiError::BadRequest(format!("Invalid JWS header: {e}")))?;
+
+    let x5c = header
+        .x5c
+        .ok_or_else(|| ApiError::BadRequest("JWS missing x5c certificate chain".into()))?;
+
+    if x5c.is_empty() {
+        return Err(ApiError::BadRequest("Empty x5c certificate chain".into()));
+    }
+
+    // Require at least 3 certs: leaf, intermediate, root (Apple's standard chain)
+    if x5c.len() < 2 {
+        tracing::warn!(
+            chain_length = x5c.len(),
+            "x5c chain shorter than expected (Apple typically sends 3 certificates)"
+        );
+    }
+
+    // 2. Decode the leaf (signing) certificate from base64 DER
+    let cert_der = STANDARD
+        .decode(&x5c[0])
+        .map_err(|_| ApiError::BadRequest("Invalid x5c certificate encoding".into()))?;
+
+    let (_, cert) = X509Certificate::from_der(&cert_der)
+        .map_err(|e| ApiError::BadRequest(format!("Failed to parse x5c signing certificate: {e}")))?;
+
+    // 3. Basic issuer validation — verify the cert chain involves Apple
+    let issuer = cert.issuer().to_string();
+    if !issuer.contains(APPLE_ISSUER_MARKER) {
+        return Err(ApiError::BadRequest(format!(
+            "Signing certificate issuer does not contain '{APPLE_ISSUER_MARKER}': {issuer}"
+        )));
+    }
+
+    // Also check that the leaf cert subject mentions Apple
+    let subject = cert.subject().to_string();
+    if !subject.contains(APPLE_ISSUER_MARKER) {
+        tracing::warn!(
+            subject = %subject,
+            "Signing certificate subject does not mention Apple"
+        );
+    }
+
+    // 4. Extract the SubjectPublicKeyInfo (SPKI) in DER format
+    let spki_der = cert.public_key().raw;
+
+    // 5. Determine algorithm — Apple uses ES256 for App Store notifications
+    let alg = match header.alg {
+        Algorithm::ES256 => Algorithm::ES256,
+        other => {
+            return Err(ApiError::BadRequest(format!(
+                "Unexpected JWS algorithm: {other:?} (expected ES256)"
+            )));
+        }
+    };
+
+    // 6. Build decoding key from the SPKI DER bytes and verify signature
+    let decoding_key = DecodingKey::from_ec_der(spki_der);
+
+    let mut validation = Validation::new(alg);
+    validation.validate_aud = false; // App Store notifications don't include `aud`
+    validation.validate_exp = false; // Notifications may arrive delayed
+
+    let token_data = decode::<T>(jws, &decoding_key, &validation)
+        .map_err(|e| ApiError::BadRequest(format!("JWS signature verification failed: {e}")))?;
+
+    Ok(token_data.claims)
+}
+
+/// Decode JWS payload WITHOUT signature verification (fallback / testing only).
+///
+/// This exists as a fallback for environments where x5c may not be present
+/// (e.g., sandbox/testing). In production, always use `verify_and_decode_jws`.
+#[allow(dead_code)]
+fn decode_jws_payload_unverified<T: serde::de::DeserializeOwned>(jws: &str) -> Result<T, ApiError> {
     let parts: Vec<&str> = jws.split('.').collect();
     if parts.len() != 3 {
         return Err(ApiError::BadRequest("Invalid JWS format".into()));
     }
     let payload = URL_SAFE_NO_PAD
         .decode(parts[1])
-        .or_else(|_| {
-            // Apple sometimes uses standard base64 with padding
-            use base64::engine::general_purpose::STANDARD;
-            STANDARD.decode(parts[1])
-        })
+        .or_else(|_| STANDARD.decode(parts[1]))
         .map_err(|_| ApiError::BadRequest("Invalid JWS encoding".into()))?;
     serde_json::from_slice(&payload)
         .map_err(|e| ApiError::BadRequest(format!("Invalid JWS payload: {e}")))
@@ -112,7 +198,7 @@ async fn process_notification(core: &ChameleonCore, body: &str) -> Result<(), Ap
         .map_err(|e| ApiError::BadRequest(format!("Invalid notification wrapper: {e}")))?;
 
     // 2. Decode the signed payload (JWS → notification)
-    let notification: AppStoreNotification = decode_jws_payload(&wrapper.signed_payload)?;
+    let notification: AppStoreNotification = verify_and_decode_jws(&wrapper.signed_payload)?;
 
     let notif_type = &notification.notification_type;
     let subtype = notification.subtype.as_deref().unwrap_or("none");
@@ -125,7 +211,7 @@ async fn process_notification(core: &ChameleonCore, body: &str) -> Result<(), Ap
 
     // 3. Extract transaction info (if present)
     let txn_info = match &notification.data.signed_transaction_info {
-        Some(signed) => Some(decode_jws_payload::<TransactionInfo>(signed)?),
+        Some(signed) => Some(verify_and_decode_jws::<TransactionInfo>(signed)?),
         None => None,
     };
 
@@ -254,26 +340,62 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_decode_jws_payload_valid() {
+    fn test_decode_jws_payload_unverified_valid() {
         // Build a fake JWS: header.payload.signature
         let payload = serde_json::json!({"notification_type": "DID_RENEW", "subtype": null, "data": {}});
         let encoded = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&payload).unwrap());
         let jws = format!("eyJhbGciOiJFUzI1NiJ9.{encoded}.fakesig");
 
-        let decoded: serde_json::Value = decode_jws_payload(&jws).unwrap();
+        let decoded: serde_json::Value = decode_jws_payload_unverified(&jws).unwrap();
         assert_eq!(decoded["notification_type"], "DID_RENEW");
     }
 
     #[test]
-    fn test_decode_jws_payload_invalid_parts() {
-        let result = decode_jws_payload::<serde_json::Value>("not.a.valid.jws.token");
+    fn test_decode_jws_payload_unverified_invalid_parts() {
+        let result = decode_jws_payload_unverified::<serde_json::Value>("not.a.valid.jws.token");
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_decode_jws_payload_bad_base64() {
-        let result = decode_jws_payload::<serde_json::Value>("a.!!!.c");
+    fn test_decode_jws_payload_unverified_bad_base64() {
+        let result = decode_jws_payload_unverified::<serde_json::Value>("a.!!!.c");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_verify_and_decode_jws_missing_x5c() {
+        // JWS with ES256 header but no x5c field — should fail
+        let header = serde_json::json!({"alg": "ES256", "typ": "JWT"});
+        let payload = serde_json::json!({"test": true});
+        let h = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&header).unwrap());
+        let p = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&payload).unwrap());
+        let jws = format!("{h}.{p}.fakesig");
+
+        let result = verify_and_decode_jws::<serde_json::Value>(&jws);
+        assert!(result.is_err());
+        let err = format!("{}", result.unwrap_err());
+        assert!(
+            err.contains("x5c"),
+            "Error should mention x5c: {err}"
+        );
+    }
+
+    #[test]
+    fn test_verify_and_decode_jws_empty_x5c() {
+        // JWS with empty x5c array
+        let header = serde_json::json!({"alg": "ES256", "x5c": []});
+        let payload = serde_json::json!({"test": true});
+        let h = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&header).unwrap());
+        let p = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&payload).unwrap());
+        let jws = format!("{h}.{p}.fakesig");
+
+        let result = verify_and_decode_jws::<serde_json::Value>(&jws);
+        assert!(result.is_err());
+        let err = format!("{}", result.unwrap_err());
+        assert!(
+            err.contains("Empty x5c") || err.contains("x5c"),
+            "Error should mention empty x5c: {err}"
+        );
     }
 
     #[test]

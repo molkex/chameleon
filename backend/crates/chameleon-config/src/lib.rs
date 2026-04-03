@@ -87,6 +87,7 @@ pub struct Settings {
     pub warp_address_v6: String,
     pub warp_endpoint: String,
     pub warp_reserved: Vec<i32>,
+    pub warp_domains: Vec<String>,
 
     // === AnyTLS ===
     pub anytls_port: u16,
@@ -158,6 +159,9 @@ pub struct Settings {
 
     // === Security ===
     pub admin_ip_allowlist: Vec<String>,
+
+    // === Uploads ===
+    pub upload_dir: String,
 
     // === Environment ===
     pub environment: String,
@@ -274,6 +278,7 @@ impl Settings {
             warp_address_v6: env("WARP_ADDRESS_V6"),
             warp_endpoint: env_or("WARP_ENDPOINT", "engage.cloudflareclient.com:2408"),
             warp_reserved: parse_csv_ints(&env_or("WARP_RESERVED", "0,0,0")),
+            warp_domains: parse_csv(&env("WARP_DOMAINS")),
 
             anytls_port: env_u16("ANYTLS_PORT", 2100),
             anytls_password: env("ANYTLS_PASSWORD"),
@@ -326,6 +331,8 @@ impl Settings {
             trial_days: env_i32("TRIAL_DAYS", 7),
 
             admin_ip_allowlist: parse_csv(&env("ADMIN_IP_ALLOWLIST")),
+
+            upload_dir: env_or("UPLOAD_DIR", "/data/uploads"),
 
             environment: env_or("ENVIRONMENT", "production"),
         }
