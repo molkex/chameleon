@@ -24,7 +24,7 @@ services:
   xray-init:
     image: busybox:latest
     container_name: xray-init
-    command: sh -c "chown -R 999:999 /usr/local/etc/xray && chmod 775 /usr/local/etc/xray"
+    command: sh -c "rm -f /usr/local/etc/xray/0*.json; chown -R 999:999 /usr/local/etc/xray && chmod 775 /usr/local/etc/xray"
     volumes:
       - xray-config:/usr/local/etc/xray
     restart: "no"
@@ -124,6 +124,7 @@ services:
     image: ghcr.io/xtls/xray-core:latest
     container_name: xray
     restart: unless-stopped
+    command: ["xray", "run", "-config", "/usr/local/etc/xray/config.json"]
     ports:
       - "2096:2096"
       - "2097:2097"
