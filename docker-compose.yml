@@ -20,6 +20,15 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  # ── Init: set xray config volume permissions for backend user (uid 999) ──
+  xray-init:
+    image: busybox:latest
+    container_name: xray-init
+    command: sh -c "chown -R 999:999 /etc/xray && chmod 775 /etc/xray"
+    volumes:
+      - xray-config:/etc/xray
+    restart: "no"
+
   # ── Rust Backend ──
   backend:
     build:
@@ -39,6 +48,8 @@ services:
       - XRAY_STATS_PORT=10085
       - XRAY_CONFIG_DIR=/etc/xray
     depends_on:
+      xray-init:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
