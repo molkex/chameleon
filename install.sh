@@ -85,6 +85,15 @@ ENVEOF
     log "Reality public key: ${REALITY_PUB}"
 fi
 
+# Ensure swap exists (Rust compilation needs ~2GB RAM)
+if [[ $(swapon --show | wc -l) -eq 0 ]]; then
+    log "Creating 2GB swap for compilation..."
+    fallocate -l 2G /swapfile 2>/dev/null || dd if=/dev/zero of=/swapfile bs=1M count=2048 status=none
+    chmod 600 /swapfile
+    mkswap /swapfile >/dev/null
+    swapon /swapfile
+fi
+
 step "3/5 Building from source (first time takes ~10 min)"
 docker compose build --parallel 2>&1 | tail -5
 log "Build complete"
