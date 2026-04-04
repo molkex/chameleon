@@ -19,28 +19,15 @@ pub fn generate_all_links(
     links
 }
 
-/// Format subscription response: header lines + VPN link URIs.
+/// Format subscription response: only VPN link URIs, one per line.
+/// Metadata (brand, expiry, support) is sent via HTTP headers instead.
+/// This format is compatible with v2rayN, Streisand, Hiddify, and other clients.
 pub fn format_subscription_text(
     links: &[ClientLink],
-    expire_ts: Option<i64>,
-    branding: Option<&BrandingInfo>,
+    _expire_ts: Option<i64>,
+    _branding: Option<&BrandingInfo>,
 ) -> String {
-    let b = branding.cloned().unwrap_or_else(|| BrandingInfo::default());
-    let header = if let Some(ts) = expire_ts {
-        let dt = Utc.timestamp_opt(ts, 0).single().map(|d| d.format("%d.%m.%Y").to_string()).unwrap_or_default();
-        format!("{} | До: {dt}", b.brand_name)
-    } else {
-        format!("{} | Без ограничений", b.brand_name)
-    };
-
-    let mut lines = vec![
-        header,
-        format!("Поддержка: {}", b.support_contact),
-        format!("Канал: {}", b.channel_handle),
-        String::new(),
-    ];
-    lines.extend(links.iter().map(|l| l.uri.clone()));
-    lines.join("\n")
+    links.iter().map(|l| l.uri.clone()).collect::<Vec<_>>().join("\n")
 }
 
 /// Generate subscription response HTTP headers.
