@@ -20,15 +20,6 @@ services:
     security_opt:
       - no-new-privileges:true
 
-  # ── Init: set xray config volume permissions ──
-  xray-init:
-    image: busybox:latest
-    container_name: xray-init
-    command: sh -c "rm -f /usr/local/etc/xray/0*.json; chown -R 999:999 /usr/local/etc/xray && chmod 775 /usr/local/etc/xray"
-    volumes:
-      - xray-config:/usr/local/etc/xray
-    restart: "no"
-
   # ── Rust Backend ──
   backend:
     build:
@@ -46,16 +37,14 @@ services:
       - RUST_LOG=info,sqlx=warn
       - XRAY_GRPC_HOST=xray
       - XRAY_STATS_PORT=10085
-      - XRAY_CONFIG_DIR=/usr/local/etc/xray
+      - XRAY_CONFIG_DIR=/etc/xray
     depends_on:
-      xray-init:
-        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     volumes:
-      - xray-config:/usr/local/etc/xray
+      - xray-config:/etc/xray
       - uploads:/app/uploads
       - /proc/meminfo:/host/proc/meminfo:ro
       - /proc/loadavg:/host/proc/loadavg:ro
@@ -120,19 +109,22 @@ services:
       - SETGID
 
   # ── Xray VPN ──
+  # Custom minimal image: just xray binary + /etc/xray/config.json
+  # No split configs, no magic — backend writes config, xray reads it.
   xray:
-    image: ghcr.io/xtls/xray-core:latest
+    build:
+      context: ./infrastructure/xray
+      dockerfile: Dockerfile
     container_name: xray
     restart: unless-stopped
-    entrypoint: ["xray", "run", "-config", "/usr/local/etc/xray/config.json"]
     ports:
       - "2096:2096"
       - "2097:2097"
       - "2098:2098"
     volumes:
-      - xray-config:/usr/local/etc/xray
+      - xray-config:/etc/xray
     healthcheck:
-      test: ["CMD", "xray", "api", "statssys", "--server=127.0.0.1:10085"]
+      test: ["xray", "api", "statssys", "--server=127.0.0.1:10085"]
       interval: 15s
       timeout: 5s
       retries: 3

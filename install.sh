@@ -9,10 +9,6 @@
 #  Additional node (joins cluster):
 #    git clone https://github.com/molkex/chameleon.git
 #    cd chameleon && sudo ./install.sh --join https://first-node.com --secret CLUSTER_SECRET
-#
-#  Each node is autonomous: full API + DB + Xray.
-#  Nodes sync users between each other every 30 seconds.
-#  If one node goes down, others continue working.
 # ============================================================
 set -euo pipefail
 
@@ -39,7 +35,7 @@ done
 
 START_TIME=$(date +%s)
 
-step "1/5 Installing Docker"
+step "1/6 Installing Docker"
 if command -v docker &>/dev/null; then
     log "Docker already installed: $(docker --version)"
 else
@@ -55,7 +51,35 @@ else
     log "Docker installed: $(docker --version)"
 fi
 
-step "2/5 Generating configuration"
+# Ensure swap exists (Rust compilation needs ~2GB RAM)
+if [[ $(swapon --show | wc -l) -eq 0 ]]; then
+    log "Creating 2GB swap for compilation..."
+    fallocate -l 2G /swapfile 2>/dev/null || dd if=/dev/zero of=/swapfile bs=1M count=2048 status=none
+    chmod 600 /swapfile
+    mkswap /swapfile >/dev/null
+    swapon /swapfile
+fi
+
+step "2/6 Building Xray container"
+log "Building custom Xray image (latest binary, simple config)..."
+docker compose build xray 2>&1 | tail -3
+log "Xray image ready"
+
+step "3/6 Generating Reality keys"
+log "Generating x25519 keys via Xray..."
+KEYS=$(docker run --rm chameleon-xray xray x25519 2>/dev/null) || KEYS=""
+if [[ -z "$KEYS" ]]; then
+    # Fallback: try the built image name from compose
+    KEYS=$(docker run --rm $(docker compose config --images | grep xray) xray x25519 2>/dev/null) || KEYS=""
+fi
+REALITY_PRIV=$(echo "$KEYS" | grep "Private" | awk '{print $NF}')
+REALITY_PUB=$(echo "$KEYS" | grep -i "Public\|Password" | awk '{print $NF}')
+if [[ -z "$REALITY_PRIV" || -z "$REALITY_PUB" ]]; then
+    err "Failed to generate Reality keys"
+fi
+log "Reality keys generated"
+
+step "4/6 Generating configuration"
 if [[ -f .env ]]; then
     warn ".env already exists — skipping generation"
 else
@@ -64,22 +88,6 @@ else
     JWT_SECRET=$(openssl rand -hex 32)
     SESSION_SECRET=$(openssl rand -hex 32)
     MOBILE_JWT=$(openssl rand -hex 32)
-
-    # Generate Xray Reality x25519 keys (pure openssl, no Docker needed)
-    log "Generating Reality x25519 keys..."
-    REALITY_PRIV=$(openssl genpkey -algorithm x25519 2>/dev/null | openssl pkey -outform DER 2>/dev/null | tail -c 32 | base64 | tr '+/' '-_' | tr -d '=')
-    REALITY_PUB=$(echo -n "$REALITY_PRIV" | base64 -d 2>/dev/null | { printf '\x30\x2a\x30\x05\x06\x03\x2b\x65\x6e\x03\x21\x00'; cat; } | openssl pkey -inform DER -outform DER -pubout 2>/dev/null | tail -c 32 | base64 | tr '+/' '-_' | tr -d '=')
-    # Fallback: if openssl method fails, try docker
-    if [[ -z "$REALITY_PRIV" || -z "$REALITY_PUB" ]]; then
-        log "OpenSSL x25519 failed, trying Docker..."
-        KEYS=$(docker run --rm --pull=always ghcr.io/xtls/xray-core:latest xray x25519 2>/dev/null) || true
-        REALITY_PRIV=$(echo "$KEYS" | grep "Private" | awk '{print $NF}')
-        REALITY_PUB=$(echo "$KEYS" | grep "Public" | awk '{print $NF}')
-    fi
-    if [[ -z "$REALITY_PRIV" || -z "$REALITY_PUB" ]]; then
-        err "Failed to generate Reality keys. Install openssl >= 1.1.1 or ensure Docker works."
-    fi
-
     SERVER_IP=$(curl -sf https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')
 
     cat > .env <<ENVEOF
@@ -100,7 +108,7 @@ REALITY_SNIS=www.wildberries.ru
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=admin123
 
-VPN_SERVERS=[{"key":"node1","name":"Server","flag":"","host":"${SERVER_IP}","domain":"${SERVER_IP}"}]
+VPN_SERVERS=[{"key":"de","name":"Germany","flag":"🇩🇪","host":"${SERVER_IP}","domain":"${SERVER_IP}"}]
 
 ENVIRONMENT=production
 RUST_LOG=info,sqlx=warn
@@ -112,11 +120,14 @@ NODE_ID=$(hostname)
 CLUSTER_PEERS=${JOIN_URL}
 ENVEOF
 
+    chmod 600 .env
+    log "Configuration generated (.env)"
+    log "Reality public key: ${REALITY_PUB}"
+
     # If joining a cluster, register with the seed node
     if [[ -n "$JOIN_URL" ]]; then
         log "Joining cluster: $JOIN_URL"
         CLUSTER_SEC=$(grep CLUSTER_SECRET .env | cut -d= -f2)
-        SERVER_IP=$(curl -sf https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')
         curl -sf -X POST "${JOIN_URL}/api/v1/cluster/join" \
             -H "Content-Type: application/json" \
             -H "X-Cluster-Secret: ${CLUSTER_SEC}" \
@@ -124,30 +135,14 @@ ENVEOF
             && log "Cluster join: OK" \
             || warn "Cluster join failed — will retry after start"
     fi
-
-    chmod 600 .env
-    log "Configuration generated (.env)"
-    log "Reality public key: ${REALITY_PUB}"
 fi
 
-# Ensure swap exists (Rust compilation needs ~2GB RAM)
-if [[ $(swapon --show | wc -l) -eq 0 ]]; then
-    log "Creating 2GB swap for compilation..."
-    fallocate -l 2G /swapfile 2>/dev/null || dd if=/dev/zero of=/swapfile bs=1M count=2048 status=none
-    chmod 600 /swapfile
-    mkswap /swapfile >/dev/null
-    swapon /swapfile
-fi
-
-step "3/5 Building from source (first time takes ~10 min)"
+step "5/6 Building and starting all services"
 docker compose build --parallel 2>&1 | tail -5
-log "Build complete"
-
-step "4/5 Starting services"
 docker compose up -d
-log "Services started"
+log "All services started"
 
-step "5/5 Waiting for backend"
+step "6/6 Waiting for backend"
 for i in $(seq 1 60); do
     if curl -sf http://127.0.0.1/health >/dev/null 2>&1; then
         break
@@ -171,7 +166,7 @@ echo -e "${GREEN}========================================${NC}"
 echo ""
 echo -e "  Admin:    ${CYAN}http://${SERVER_IP}/admin/app/${NC}"
 echo -e "  API:      ${CYAN}http://${SERVER_IP}/api/v1/${NC}"
-echo -e "  Login:    admin / ${ADMIN_PASS:-$(grep ADMIN_PASSWORD .env 2>/dev/null | cut -d= -f2)}"
+echo -e "  Login:    admin / admin123"
 echo ""
 echo -e "  Update:   ${CYAN}sudo ./update.sh${NC}"
 echo -e "  Logs:     ${CYAN}docker compose logs -f${NC}"
