@@ -65,7 +65,11 @@ async fn subscription_links(
     let text = links::format_subscription_text(&all_links, expire_ts, None);
     let sub_headers = links::get_subscription_headers(expire_ts, 0, 0, None);
 
-    let mut response = text.into_response();
+    // Encode as base64 — required by v2rayN, Streisand, Hiddify, and other clients
+    use base64::Engine;
+    let encoded = base64::engine::general_purpose::STANDARD.encode(text.as_bytes());
+
+    let mut response = encoded.into_response();
     for (k, v) in sub_headers {
         if let (Ok(name), Ok(val)) = (k.parse::<header::HeaderName>(), v.parse()) {
             response.headers_mut().insert(name, val);
