@@ -24,11 +24,8 @@ async fn check_rate_limit(
         Ok(Some(c)) => c,
         Ok(None) => 0,
         Err(e) => {
-            tracing::error!(error = %e, "Rate limiter Redis error — failing closed");
-            return Some((
-                StatusCode::SERVICE_UNAVAILABLE,
-                Json(serde_json::json!({"detail": "Service temporarily unavailable"})),
-            ).into_response());
+            tracing::warn!(error = %e, "Rate limiter Redis error — failing open");
+            return None; // Allow request through if Redis is down
         }
     };
 
