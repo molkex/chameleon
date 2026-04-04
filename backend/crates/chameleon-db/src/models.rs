@@ -205,6 +205,15 @@ pub struct AdminAuditLog {
     pub created_at: Option<NaiveDateTime>,
 }
 
+// ── AppSetting ──
+
+#[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
+pub struct AppSetting {
+    pub key: String,
+    pub value: String,
+    pub updated_at: Option<NaiveDateTime>,
+}
+
 // ── SupportMessage ──
 
 #[derive(Debug, Clone, FromRow, Serialize)]

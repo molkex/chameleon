@@ -8,6 +8,7 @@
 pub mod error;
 pub mod http_utils;
 pub mod middleware;
+pub mod settings_service;
 
 use std::sync::Arc;
 
@@ -26,6 +27,7 @@ use chameleon_config::Settings;
 use chameleon_vpn::engine::ChameleonEngine;
 
 pub use error::{ApiError, ApiResult};
+pub use settings_service::SettingsService;
 
 /// Central application state. Shared by all modules via axum State extractor.
 #[derive(Clone)]
@@ -34,6 +36,7 @@ pub struct ChameleonCore {
     pub redis: fred::clients::Pool,
     pub config: Arc<Settings>,
     pub engine: Arc<ChameleonEngine>,
+    pub settings: SettingsService,
 }
 
 impl ChameleonCore {
@@ -52,11 +55,17 @@ impl ChameleonCore {
             .map_err(|e| anyhow::anyhow!("Engine init: {e}"))?;
         engine.init(&db).await;
 
+        // Initialize settings service (DB-backed cache)
+        let settings_svc = SettingsService::new(db.clone()).await;
+        settings_svc.spawn_refresh_loop();
+        tracing::info!("SettingsService initialized");
+
         Ok(Self {
             db,
             redis,
             config: Arc::new(settings.clone()),
             engine: Arc::new(engine),
+            settings: settings_svc,
         })
     }
 }
