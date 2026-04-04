@@ -90,7 +90,7 @@ REALITY_PUBLIC_KEY=${REALITY_PUB}
 REALITY_SNIS=ads.x5.ru
 
 ADMIN_USERNAME=admin
-ADMIN_PASSWORD=admin
+ADMIN_PASSWORD=admin123
 
 VPN_SERVERS=[{"key":"node1","name":"Server","flag":"","host":"${SERVER_IP}","domain":"${SERVER_IP}"}]
 
