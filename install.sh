@@ -61,17 +61,13 @@ if [[ $(swapon --show | wc -l) -eq 0 ]]; then
 fi
 
 step "2/6 Building Xray container"
-log "Building custom Xray image (latest binary, simple config)..."
-docker compose build xray 2>&1 | tail -3
+log "Building custom Xray image..."
+docker build -t chameleon-xray ./infrastructure/xray 2>&1 | tail -3
 log "Xray image ready"
 
 step "3/6 Generating Reality keys"
 log "Generating x25519 keys via Xray..."
 KEYS=$(docker run --rm chameleon-xray xray x25519 2>/dev/null) || KEYS=""
-if [[ -z "$KEYS" ]]; then
-    # Fallback: try the built image name from compose
-    KEYS=$(docker run --rm $(docker compose config --images | grep xray) xray x25519 2>/dev/null) || KEYS=""
-fi
 REALITY_PRIV=$(echo "$KEYS" | grep "Private" | awk '{print $NF}')
 REALITY_PUB=$(echo "$KEYS" | grep -i "Public\|Password" | awk '{print $NF}')
 if [[ -z "$REALITY_PRIV" || -z "$REALITY_PUB" ]]; then

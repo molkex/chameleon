@@ -124,7 +124,7 @@ services:
     volumes:
       - xray-config:/etc/xray
     healthcheck:
-      test: ["xray", "api", "statssys", "--server=127.0.0.1:10085"]
+      test: ["CMD", "xray", "api", "statssys", "--server=127.0.0.1:10085"]
       interval: 15s
       timeout: 5s
       retries: 3
