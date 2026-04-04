@@ -570,6 +570,7 @@ dependencies = [
  "fred",
  "futures",
  "hmac",
+ "prost",
  "prost-types",
  "rand",
  "reqwest",

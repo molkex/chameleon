@@ -97,20 +97,40 @@ impl XrayApi {
     pub async fn add_user(&self, inbound_tag: &str, uuid: &str, email: &str, flow: &str) -> bool {
         let Some(mut client) = self.handler_client().await else { return false; };
 
-        // Build VLESS user config as protobuf Any
-        let mut user_config = serde_json::json!({
-            "id": uuid,
-            "email": email,
-        });
-        if !flow.is_empty() {
-            user_config["flow"] = serde_json::json!(flow);
-        }
+        use prost::Message;
+
+        // Build VLESS Account as protobuf
+        let account = xray_core::proxy::vless::Account {
+            id: uuid.to_string(),
+            flow: flow.to_string(),
+            encryption: "none".to_string(),
+        };
+
+        // Encode account to protobuf bytes
+        let mut account_bytes = Vec::new();
+        account.encode(&mut account_bytes).unwrap_or_default();
+
+        // Wrap in AddUserOperation
+        let op = xray_core::app::proxyman::command::AddUserOperation {
+            user: Some(xray_core::common::protocol::User {
+                level: 0,
+                email: email.to_string(),
+                account: Some(xray_core::common::serial::TypedMessage {
+                    r#type: "xray.proxy.vless.Account".to_string(),
+                    value: account_bytes,
+                }),
+            }),
+        };
+
+        // Encode operation to protobuf bytes
+        let mut op_bytes = Vec::new();
+        op.encode(&mut op_bytes).unwrap_or_default();
 
         let request = AlterInboundRequest {
             tag: inbound_tag.to_string(),
             operation: Some(xray_core::common::serial::TypedMessage {
-                r#type: "xray.proxy.vless.Account".to_string(),
-                value: serde_json::to_vec(&user_config).unwrap_or_default(),
+                r#type: "xray.app.proxyman.command.AddUserOperation".to_string(),
+                value: op_bytes,
             }),
         };
 
@@ -118,7 +138,6 @@ impl XrayApi {
             Ok(_) => true,
             Err(e) => {
                 warn!(tag = inbound_tag, email, error = %e, "add_user gRPC failed");
-                // Reset connection on transport error
                 if e.code() == tonic::Code::Unavailable {
                     self.reset_connections().await;
                 }
@@ -130,11 +149,20 @@ impl XrayApi {
     pub async fn remove_user(&self, inbound_tag: &str, email: &str) -> bool {
         let Some(mut client) = self.handler_client().await else { return false; };
 
+        use prost::Message;
+
+        let op = xray_core::app::proxyman::command::RemoveUserOperation {
+            email: email.to_string(),
+        };
+
+        let mut op_bytes = Vec::new();
+        op.encode(&mut op_bytes).unwrap_or_default();
+
         let request = AlterInboundRequest {
             tag: inbound_tag.to_string(),
             operation: Some(xray_core::common::serial::TypedMessage {
-                r#type: "xray.proxy.RemoveUserOperation".to_string(),
-                value: email.as_bytes().to_vec(),
+                r#type: "xray.app.proxyman.command.RemoveUserOperation".to_string(),
+                value: op_bytes,
             }),
         };
 

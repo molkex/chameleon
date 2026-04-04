@@ -25,5 +25,6 @@ futures = { workspace = true }
 sqlx = { workspace = true }
 urlencoding = "2"
 tonic = "0.12"
+prost = "0.13"
 prost-types = "0.13"
 xray-core = { version = "0.2", features = ["client"] }
