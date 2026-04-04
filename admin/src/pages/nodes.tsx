@@ -66,18 +66,24 @@ export default function NodesPage() {
               </Badge>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="font-mono text-xs text-zinc-500">{node.ip}</div>
-              <div className="space-y-2">
-                <div className="flex justify-between text-xs text-zinc-400"><span>CPU</span><span>{node.cpu}%</span></div>
-                <ProgressBar value={node.cpu} />
-                <div className="flex justify-between text-xs text-zinc-400">
-                  <span>RAM</span><span>{node.ram_used}/{node.ram_total} MB</span>
-                </div>
-                <ProgressBar value={node.ram_used} max={node.ram_total} />
-                <div className="flex justify-between text-xs text-zinc-400"><span>Disk</span><span>{node.disk}%</span></div>
-                <ProgressBar value={node.disk} />
+              <div className="flex justify-between">
+                <span className="font-mono text-xs text-zinc-500">{node.ip}</span>
+                {(node as any).xray_version && <span className="text-xs text-zinc-600">Xray {(node as any).xray_version}</span>}
               </div>
-              <div className="text-xs text-zinc-500">Users: {node.user_count}</div>
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs text-zinc-400"><span>CPU</span><span>{node.cpu != null ? `${node.cpu}%` : "—"}</span></div>
+                <ProgressBar value={node.cpu ?? 0} />
+                <div className="flex justify-between text-xs text-zinc-400">
+                  <span>RAM</span><span>{node.ram_used != null ? `${node.ram_used} / ${node.ram_total} MB` : "—"}</span>
+                </div>
+                <ProgressBar value={node.ram_used ?? 0} max={node.ram_total ?? 100} />
+                <div className="flex justify-between text-xs text-zinc-400"><span>Disk</span><span>{node.disk != null ? `${node.disk}%` : "—"}</span></div>
+                <ProgressBar value={node.disk ?? 0} />
+              </div>
+              <div className="flex justify-between text-xs text-zinc-500">
+                <span>Users: {node.user_count}</span>
+                {(node as any).uptime_hours != null && <span>Uptime: {(node as any).uptime_hours}h</span>}
+              </div>
             </CardContent>
           </Card>
         ))}
