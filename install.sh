@@ -67,7 +67,7 @@ log "Xray image ready"
 
 step "3/6 Generating Reality keys"
 log "Generating x25519 keys via Xray..."
-KEYS=$(docker run --rm chameleon-xray xray x25519 2>/dev/null) || KEYS=""
+KEYS=$(docker run --rm --entrypoint xray chameleon-xray x25519 2>/dev/null) || KEYS=""
 REALITY_PRIV=$(echo "$KEYS" | grep "Private" | awk '{print $NF}')
 REALITY_PUB=$(echo "$KEYS" | grep -i "Public\|Password" | awk '{print $NF}')
 if [[ -z "$REALITY_PRIV" || -z "$REALITY_PUB" ]]; then
