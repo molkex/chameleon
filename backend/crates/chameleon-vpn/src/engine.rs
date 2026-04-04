@@ -146,21 +146,26 @@ impl ChameleonEngine {
         }).collect()
     }
 
-    /// Regenerate config and reload xray.
-    pub async fn regenerate_and_reload(&self, pool: &PgPool) {
+    /// Regenerate config file with current users (for xray restart resilience).
+    pub async fn sync_config(&self, pool: &PgPool) {
         let active = load_active_users(pool).await;
         let config = self.build_master_config(&active);
         let _ = std::fs::create_dir_all(&self.xray_config_dir);
         match std::fs::write(&self.xray_config_path, serde_json::to_string_pretty(&config).unwrap_or_default()) {
-            Ok(_) => {}
-            Err(e) => { error!(error = %e, "Failed to write config"); return; }
+            Ok(_) => info!(users = active.len(), "Xray config synced"),
+            Err(e) => error!(error = %e, "Failed to write xray config"),
         }
+    }
+
+    /// Regenerate config and reload xray.
+    pub async fn regenerate_and_reload(&self, pool: &PgPool) {
+        self.sync_config(pool).await;
         self.xray_api.reload().await;
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         if self.xray_api.health_check().await {
-            info!(users = active.len(), "Xray regenerated");
+            info!("Xray reloaded and healthy");
         } else {
-            warn!("Xray regenerated but health check failed");
+            warn!("Xray config written but health check failed");
         }
     }
 }

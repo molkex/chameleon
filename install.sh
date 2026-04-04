@@ -18,6 +18,9 @@ warn() { echo -e "${YELLOW}[!]${NC} $*"; }
 err()  { echo -e "${RED}[x]${NC} $*" >&2; exit 1; }
 step() { echo -e "\n${CYAN}=== $* ===${NC}"; }
 
+GITHUB_REPO="molkex/chameleon"
+PREBUILT=false
+
 # ── Parse args ──
 JOIN_URL=""
 CLUSTER_SECRET=""
@@ -25,6 +28,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --join) JOIN_URL="$2"; shift 2 ;;
         --secret) CLUSTER_SECRET="$2"; shift 2 ;;
+        --build) PREBUILT=false; shift ;;  # Force local build
         *) shift ;;
     esac
 done
@@ -35,7 +39,7 @@ done
 
 START_TIME=$(date +%s)
 
-step "1/6 Installing Docker"
+step "1/7 Installing Docker"
 if command -v docker &>/dev/null; then
     log "Docker already installed: $(docker --version)"
 else
@@ -51,21 +55,51 @@ else
     log "Docker installed: $(docker --version)"
 fi
 
-# Ensure swap exists (Rust compilation needs ~2GB RAM)
-if [[ $(swapon --show | wc -l) -eq 0 ]]; then
-    log "Creating 2GB swap for compilation..."
-    fallocate -l 2G /swapfile 2>/dev/null || dd if=/dev/zero of=/swapfile bs=1M count=2048 status=none
-    chmod 600 /swapfile
-    mkswap /swapfile >/dev/null
-    swapon /swapfile
+step "2/7 Downloading pre-built binaries"
+RELEASE_URL="https://github.com/${GITHUB_REPO}/releases/download/latest"
+
+# Try to download pre-built backend binary
+if [[ "$(dpkg --print-architecture 2>/dev/null)" == "amd64" ]]; then
+    if curl -sfL --connect-timeout 10 "${RELEASE_URL}/chameleon-backend-linux-amd64.tar.gz" -o /tmp/chameleon-backend.tar.gz 2>/dev/null; then
+        mkdir -p backend/bin
+        tar xzf /tmp/chameleon-backend.tar.gz -C backend/bin/
+        rm -f /tmp/chameleon-backend.tar.gz
+        PREBUILT=true
+        log "Backend binary downloaded (skipping compilation)"
+    else
+        warn "Pre-built binary not available — will compile from source"
+    fi
+else
+    warn "Architecture $(dpkg --print-architecture) — will compile from source"
 fi
 
-step "2/6 Building Xray container"
+# Try to download pre-built admin dist
+if curl -sfL --connect-timeout 10 "${RELEASE_URL}/chameleon-admin-dist.tar.gz" -o /tmp/chameleon-admin.tar.gz 2>/dev/null; then
+    mkdir -p admin/dist
+    tar xzf /tmp/chameleon-admin.tar.gz -C admin/dist/
+    rm -f /tmp/chameleon-admin.tar.gz
+    log "Admin panel downloaded (skipping npm build)"
+else
+    warn "Pre-built admin not available — will build from source"
+fi
+
+if [[ "$PREBUILT" == "false" ]]; then
+    # Ensure swap exists (Rust compilation needs ~2GB RAM)
+    if [[ $(swapon --show | wc -l) -eq 0 ]]; then
+        log "Creating 2GB swap for compilation..."
+        fallocate -l 2G /swapfile 2>/dev/null || dd if=/dev/zero of=/swapfile bs=1M count=2048 status=none
+        chmod 600 /swapfile
+        mkswap /swapfile >/dev/null
+        swapon /swapfile
+    fi
+fi
+
+step "3/7 Building Xray container"
 log "Building custom Xray image..."
 docker build -t chameleon-xray ./infrastructure/xray 2>&1 | tail -3
 log "Xray image ready"
 
-step "3/6 Generating Reality keys"
+step "4/7 Generating Reality keys"
 log "Generating x25519 keys via Xray..."
 KEYS=$(docker run --rm --entrypoint xray chameleon-xray x25519 2>/dev/null) || KEYS=""
 REALITY_PRIV=$(echo "$KEYS" | grep "Private" | awk '{print $NF}')
@@ -75,7 +109,7 @@ if [[ -z "$REALITY_PRIV" || -z "$REALITY_PUB" ]]; then
 fi
 log "Reality keys generated"
 
-step "4/6 Generating configuration"
+step "5/7 Generating configuration"
 if [[ -f .env ]]; then
     warn ".env already exists — skipping generation"
 else
@@ -133,12 +167,18 @@ ENVEOF
     fi
 fi
 
-step "5/6 Building and starting all services"
-docker compose build --parallel 2>&1 | tail -5
+step "6/7 Building and starting all services"
+if [[ "$PREBUILT" == "true" ]]; then
+    # Use prebuilt Dockerfiles (no compilation)
+    BACKEND_DOCKERFILE=Dockerfile.prebuilt ADMIN_DOCKERFILE=Dockerfile.prebuilt \
+        docker compose build --parallel 2>&1 | tail -5
+else
+    docker compose build --parallel 2>&1 | tail -5
+fi
 docker compose up -d
 log "All services started"
 
-step "6/6 Waiting for backend"
+step "7/7 Waiting for backend"
 for i in $(seq 1 60); do
     if curl -sf http://127.0.0.1/health >/dev/null 2>&1; then
         break

@@ -53,23 +53,22 @@ impl XrayApi {
         }
     }
 
-    /// Lazily connect to xray gRPC. Reconnects on failure.
-    async fn get_channel(&self) -> Result<Channel, tonic::transport::Error> {
+    /// Create a lazy channel to xray gRPC. Connection is established on first request.
+    fn get_channel(&self) -> Result<Channel, tonic::transport::Error> {
         let endpoint = format!("http://{}", self.addr);
-        Channel::from_shared(endpoint)
+        Ok(Channel::from_shared(endpoint)
             .expect("valid URI")
             .connect_timeout(std::time::Duration::from_secs(5))
             .timeout(std::time::Duration::from_secs(10))
-            .connect()
-            .await
+            .connect_lazy())
     }
 
     async fn stats_client(&self) -> Option<StatsServiceClient<Channel>> {
         let mut guard = self.stats.lock().await;
         if guard.is_none() {
-            match self.get_channel().await {
+            match self.get_channel() {
                 Ok(ch) => *guard = Some(StatsServiceClient::new(ch)),
-                Err(e) => { warn!(error = %e, "Failed to connect xray stats gRPC"); return None; }
+                Err(e) => { warn!(error = %e, "Failed to create xray stats channel"); return None; }
             }
         }
         guard.clone()
@@ -78,9 +77,9 @@ impl XrayApi {
     async fn handler_client(&self) -> Option<HandlerServiceClient<Channel>> {
         let mut guard = self.handler.lock().await;
         if guard.is_none() {
-            match self.get_channel().await {
+            match self.get_channel() {
                 Ok(ch) => *guard = Some(HandlerServiceClient::new(ch)),
-                Err(e) => { warn!(error = %e, "Failed to connect xray handler gRPC"); return None; }
+                Err(e) => { warn!(error = %e, "Failed to create xray handler channel"); return None; }
             }
         }
         guard.clone()
@@ -273,17 +272,24 @@ impl XrayApi {
 
     pub async fn health_check(&self) -> bool {
         let Some(mut client) = self.stats_client().await else { return false; };
-        client.get_sys_stats(SysStatsRequest {}).await.is_ok()
+        match client.get_sys_stats(SysStatsRequest {}).await {
+            Ok(_) => true,
+            Err(e) => {
+                warn!(error = %e, "Xray health check gRPC failed");
+                // Reset so next call creates fresh channel
+                self.reset_connections().await;
+                false
+            }
+        }
     }
 
-    /// Reload xray config. With gRPC, this requires restarting the process
-    /// or using the handler service to re-add inbounds.
+    /// Reset connections so next gRPC call reconnects fresh.
+    /// Config file is already written by the caller — this ensures gRPC clients reconnect.
     pub async fn reload(&self) -> bool {
-        // gRPC doesn't have a "reload config" command.
-        // The caller should regenerate config file and restart xray container.
-        // For hot reload, use add/remove user via HandlerService instead.
-        warn!("XrayApi::reload called — with gRPC, use add/remove user for hot changes");
-        false
+        self.reset_connections().await;
+        // Give xray a moment, then verify
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        self.health_check().await
     }
 }
 

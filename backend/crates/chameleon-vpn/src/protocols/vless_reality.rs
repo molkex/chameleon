@@ -163,12 +163,13 @@ impl Protocol for VlessReality {
                 "utls": {"enabled": true, "fingerprint": FINGERPRINT},
                 "reality": {"enabled": true, "public_key": self.public_key, "short_id": user.short_id},
             },
-            "multiplex": {"enabled": true, "protocol": "h2mux", "max_connections": 4, "padding": true},
         });
         if transport == "tcp" {
+            // flow and multiplex are mutually exclusive in sing-box — Vision operates at TLS layer
             out["flow"] = json!("xtls-rprx-vision");
         } else if transport == "grpc" {
             out["transport"] = json!({"type": "grpc", "service_name": ""});
+            // gRPC has built-in multiplexing, adding h2mux on top causes issues
         }
         Some(out)
     }

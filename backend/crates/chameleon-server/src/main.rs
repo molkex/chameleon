@@ -52,6 +52,20 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
+    // Background: xray config sync (every 5 min — keeps config.json in sync with DB)
+    {
+        let sync_db = core.db.clone();
+        let sync_engine = core.engine.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(300));
+            interval.tick().await; // skip first immediate tick
+            loop {
+                interval.tick().await;
+                sync_engine.sync_config(&sync_db).await;
+            }
+        });
+    }
+
     // Collect module routes
     let mut modules = vec![];
 
