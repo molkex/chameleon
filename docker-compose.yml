@@ -1,18 +1,20 @@
 # Chameleon VPN — Production
-# Uses pre-built images from GitHub Container Registry
-# Install: git clone + ./install.sh
-# Update:  ./update.sh
+# Builds from source, no external registry needed.
+# Install: git clone + sudo ./install.sh
+# Update:  sudo ./update.sh
 
 services:
   # ── Nginx — reverse proxy + admin SPA ──
   nginx:
-    image: ghcr.io/molkex/chameleon-nginx:latest
+    build:
+      context: ./admin
+      dockerfile: Dockerfile
     container_name: chameleon-nginx
     restart: unless-stopped
     ports:
       - "80:80"
     volumes:
-      - ./config/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./backend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - backend
     security_opt:
@@ -29,7 +31,9 @@ services:
 
   # ── Rust Backend ──
   backend:
-    image: ghcr.io/molkex/chameleon-backend:latest
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     container_name: chameleon-backend
     restart: unless-stopped
     expose:
@@ -52,6 +56,7 @@ services:
         condition: service_healthy
     volumes:
       - xray-config:/etc/xray
+      - uploads:/app/uploads
     deploy:
       resources:
         limits:
@@ -113,7 +118,7 @@ services:
 
   # ── Xray VPN ──
   xray:
-    image: teddysun/xray:latest
+    image: teddysun/xray:1.8.24
     container_name: xray
     restart: unless-stopped
     ports:
@@ -138,3 +143,4 @@ volumes:
   pgdata:
   redisdata:
   xray-config:
+  uploads:
