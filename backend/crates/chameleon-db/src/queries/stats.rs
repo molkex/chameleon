@@ -89,7 +89,7 @@ pub async fn get_today_transaction_stats(pool: &PgPool) -> anyhow::Result<TodayT
     let (today_transactions, today_paid): (i64, i64) = sqlx::query_as(
         "SELECT
             COUNT(*),
-            COALESCE(SUM(amount)::bigint, 0) FILTER (WHERE status = 'paid')
+            COALESCE(SUM(amount) FILTER (WHERE status = 'paid'), 0)::bigint
          FROM transactions
          WHERE created_at >= $1"
     )
