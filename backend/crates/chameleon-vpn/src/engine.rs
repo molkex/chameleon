@@ -133,7 +133,7 @@ impl ChameleonEngine {
         // Parse vpn_servers_raw JSON
         let servers: Vec<serde_json::Value> = serde_json::from_str(&self.settings.vpn_servers_raw).unwrap_or_default();
         servers.iter().filter_map(|srv| {
-            let ip = srv.get("ip")?.as_str()?;
+            let ip = srv.get("host").or_else(|| srv.get("ip"))?.as_str()?;
             let domain = srv.get("domain").and_then(|d| d.as_str()).unwrap_or(ip);
             Some(ServerConfig {
                 host: ip.to_string(),
