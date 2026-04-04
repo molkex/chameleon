@@ -57,6 +57,9 @@ services:
     volumes:
       - xray-config:/usr/local/etc/xray
       - uploads:/app/uploads
+      - /proc/meminfo:/host/proc/meminfo:ro
+      - /proc/loadavg:/host/proc/loadavg:ro
+      - /proc/uptime:/host/proc/uptime:ro
     deploy:
       resources:
         limits:

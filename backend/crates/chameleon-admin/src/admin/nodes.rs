@@ -67,15 +67,17 @@ fn read_system_metrics() -> (Option<f64>, Option<f64>, Option<f64>, Option<f64>,
 }
 
 fn read_cpu_usage() -> Option<f64> {
-    // Read /proc/loadavg — 1-min load average / num CPUs * 100
-    let loadavg = std::fs::read_to_string("/proc/loadavg").ok()?;
+    // Read loadavg — try host mount first, then container /proc
+    let loadavg = std::fs::read_to_string("/host/proc/loadavg")
+        .or_else(|_| std::fs::read_to_string("/proc/loadavg")).ok()?;
     let load: f64 = loadavg.split_whitespace().next()?.parse().ok()?;
     let cpus = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1) as f64;
     Some(((load / cpus) * 100.0).min(100.0).round())
 }
 
 fn read_memory() -> (Option<f64>, Option<f64>) {
-    let meminfo = std::fs::read_to_string("/proc/meminfo").ok();
+    let meminfo = std::fs::read_to_string("/host/proc/meminfo")
+        .or_else(|_| std::fs::read_to_string("/proc/meminfo")).ok();
     let meminfo = match meminfo {
         Some(m) => m,
         None => return (None, None),
@@ -116,7 +118,8 @@ fn read_disk_usage() -> Option<f64> {
 }
 
 fn read_uptime() -> Option<f64> {
-    let uptime = std::fs::read_to_string("/proc/uptime").ok()?;
+    let uptime = std::fs::read_to_string("/host/proc/uptime")
+        .or_else(|_| std::fs::read_to_string("/proc/uptime")).ok()?;
     let secs: f64 = uptime.split_whitespace().next()?.parse().ok()?;
     Some((secs / 3600.0 * 10.0).round() / 10.0) // hours, 1 decimal
 }
