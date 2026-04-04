@@ -124,7 +124,7 @@ services:
     image: ghcr.io/xtls/xray-core:latest
     container_name: xray
     restart: unless-stopped
-    command: ["xray", "run", "-config", "/usr/local/etc/xray/config.json"]
+    entrypoint: ["xray", "run", "-config", "/usr/local/etc/xray/config.json"]
     ports:
       - "2096:2096"
       - "2097:2097"
