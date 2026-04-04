@@ -117,6 +117,9 @@ services:
       dockerfile: Dockerfile
     container_name: xray
     restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
     ports:
       - "2096:2096"
       - "2097:2097"
