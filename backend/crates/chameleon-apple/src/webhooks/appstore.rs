@@ -147,17 +147,25 @@ struct TransactionInfo {
 
 /// POST /webhooks/appstore
 ///
-/// Apple always expects 200 OK — on non-200, Apple retries with exponential backoff.
-/// We must never return an error HTTP status, even if processing fails internally.
+/// Returns 200 on success or for bad requests (no point retrying).
+/// Returns 500 on internal errors (DB failures, etc.) so Apple retries.
 pub async fn handle_notification(
     State(core): State<ChameleonCore>,
     body: String,
 ) -> StatusCode {
-    if let Err(e) = process_notification(&core, &body).await {
-        tracing::error!(error = %e, "Failed to process App Store notification");
+    match process_notification(&core, &body).await {
+        Ok(()) => StatusCode::OK,
+        Err(ApiError::BadRequest(msg)) => {
+            // Bad payload from Apple — retrying won't help, return 200
+            tracing::warn!(error = %msg, "Bad App Store notification — accepting to prevent retries");
+            StatusCode::OK
+        }
+        Err(e) => {
+            // Internal error (DB, etc.) — return 500 so Apple retries
+            tracing::error!(error = %e, "Internal error processing App Store notification");
+            StatusCode::INTERNAL_SERVER_ERROR
+        }
     }
-    // Always return 200 so Apple does not retry
-    StatusCode::OK
 }
 
 async fn process_notification(core: &ChameleonCore, body: &str) -> Result<(), ApiError> {

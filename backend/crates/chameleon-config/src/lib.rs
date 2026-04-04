@@ -343,7 +343,7 @@ impl Settings {
 
             admin_ip_allowlist: parse_csv(&env("ADMIN_IP_ALLOWLIST")),
 
-            upload_dir: env_or("UPLOAD_DIR", "/data/uploads"),
+            upload_dir: env_or("UPLOAD_DIR", "/app/uploads"),
 
             cluster_secret: std::env::var("CLUSTER_SECRET")
                 .unwrap_or_else(|_| random_hex_32()),

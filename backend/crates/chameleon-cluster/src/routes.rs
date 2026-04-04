@@ -15,6 +15,9 @@ use tracing::{info, warn};
 
 use chameleon_core::ChameleonCore;
 
+/// Maximum number of users returned per sync page.
+const SYNC_PAGE_SIZE: usize = 1000;
+
 // ── Request / Response types ──
 
 #[derive(Debug, Deserialize)]
@@ -46,6 +49,8 @@ pub struct SyncResponse {
     pub users: Vec<SyncUser>,
     pub node_id: String,
     pub timestamp: i64,
+    #[serde(default)]
+    pub has_more: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -130,12 +135,14 @@ async fn get_sync(
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
+    let has_more = users.len() >= SYNC_PAGE_SIZE;
     let now = chrono::Utc::now().timestamp();
 
     Ok(Json(SyncResponse {
         users,
         node_id: core.config.node_id.clone(),
         timestamp: now,
+        has_more,
     }))
 }
 

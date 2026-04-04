@@ -1,4 +1,4 @@
-//! Redis-based per-IP rate limiting — fail-closed.
+//! Redis-based per-IP rate limiting — fail-open.
 
 use axum::{
     extract::{Request, State},

@@ -78,24 +78,43 @@ async fn sync_with_peer(
         .map(|dt| dt.and_utc().timestamp())
         .unwrap_or(0);
 
-    // Pull changes from peer
-    let resp = client
-        .get(format!("{}/api/v1/cluster/sync", peer.url))
-        .query(&[("since", since_ts.to_string())])
-        .header("X-Cluster-Secret", secret)
-        .send()
-        .await?;
+    // Pull changes from peer (with pagination)
+    let mut current_since = since_ts;
+    let mut total_pulled: usize = 0;
 
-    if !resp.status().is_success() {
-        anyhow::bail!("Peer returned status {}", resp.status());
+    loop {
+        let resp = client
+            .get(format!("{}/api/v1/cluster/sync", peer.url))
+            .query(&[("since", current_since.to_string())])
+            .header("X-Cluster-Secret", secret)
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            anyhow::bail!("Peer returned status {}", resp.status());
+        }
+
+        let sync_resp: SyncResponse = resp.json().await?;
+        let page_count = sync_resp.users.len();
+
+        if !sync_resp.users.is_empty() {
+            // Advance cursor to the latest updated_at in this page
+            if let Some(last) = sync_resp.users.last() {
+                if let Some(updated) = last.updated_at {
+                    current_since = updated.and_utc().timestamp();
+                }
+            }
+            upsert_users(&core.db, &sync_resp.users).await?;
+            total_pulled += page_count;
+        }
+
+        if !sync_resp.has_more || page_count == 0 {
+            break;
+        }
     }
 
-    let sync_resp: SyncResponse = resp.json().await?;
-    let pulled = sync_resp.users.len();
-
-    if !sync_resp.users.is_empty() {
-        upsert_users(&core.db, &sync_resp.users).await?;
-        info!(peer = %peer.node_id, pulled, "Pulled changes from peer");
+    if total_pulled > 0 {
+        info!(peer = %peer.node_id, pulled = total_pulled, "Pulled changes from peer");
     }
 
     // Push our changes to peer
@@ -115,17 +134,16 @@ async fn sync_with_peer(
             .await?;
 
         if !push_resp.status().is_success() {
-            warn!(
-                peer = %peer.node_id,
-                status = %push_resp.status(),
-                "Push to peer failed"
+            anyhow::bail!(
+                "Push to peer {} failed with status {}",
+                peer.node_id,
+                push_resp.status()
             );
-        } else {
-            info!(peer = %peer.node_id, pushed, "Pushed changes to peer");
         }
+        info!(peer = %peer.node_id, pushed, "Pushed changes to peer");
     }
 
-    // Update last_sync timestamp
+    // Update last_sync timestamp only after both pull and push succeed
     update_last_sync(&core.db, &peer.node_id).await;
 
     Ok(())

@@ -15,6 +15,7 @@ COPY crates/chameleon-core/Cargo.toml crates/chameleon-core/Cargo.toml
 COPY crates/chameleon-monitoring/Cargo.toml crates/chameleon-monitoring/Cargo.toml
 COPY crates/chameleon-admin/Cargo.toml crates/chameleon-admin/Cargo.toml
 COPY crates/chameleon-apple/Cargo.toml crates/chameleon-apple/Cargo.toml
+COPY crates/chameleon-cluster/Cargo.toml crates/chameleon-cluster/Cargo.toml
 COPY crates/chameleon-server/Cargo.toml crates/chameleon-server/Cargo.toml
 
 # Create dummy source files so cargo can resolve deps
@@ -31,7 +32,7 @@ COPY migrations/ migrations/
 # Build for real (sqlx offline mode — no DB needed at compile time)
 ENV SQLX_OFFLINE=true
 RUN touch crates/*/src/*.rs crates/chameleon-server/src/main.rs && \
-    cargo build --release --bin chameleon-server
+    cargo build --release --bin chameleon-server --features full
 
 # ── Stage 2: Runtime (minimal, no Docker CLI) ──
 FROM debian:bookworm-slim
