@@ -32,6 +32,7 @@ impl Protocol for Hysteria2 {
     fn name(&self) -> &str { "hysteria2" }
     fn display_name(&self) -> &str { "Hysteria2" }
     fn enabled(&self) -> bool { !self.password.is_empty() }
+    fn port(&self) -> u16 { self.port }
 
     fn xray_inbounds(&self, _users: &[UserCredentials], _short_ids: &[String]) -> Vec<XrayInbound> {
         vec![] // Separate binary

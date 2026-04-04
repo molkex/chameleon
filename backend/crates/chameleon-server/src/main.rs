@@ -43,6 +43,15 @@ async fn main() -> anyhow::Result<()> {
         ).await;
     });
 
+    // Background: node metrics recorder (every 5 min)
+    {
+        let mr_db = core.db.clone();
+        let mr_engine = core.engine.clone();
+        tokio::spawn(async move {
+            chameleon_monitoring::metrics_recorder::run_metrics_recorder(mr_db, mr_engine).await;
+        });
+    }
+
     // Collect module routes
     let mut modules = vec![];
 

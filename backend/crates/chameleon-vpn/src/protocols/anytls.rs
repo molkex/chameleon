@@ -20,6 +20,7 @@ impl Protocol for AnyTls {
     fn name(&self) -> &str { "anytls" }
     fn display_name(&self) -> &str { "AnyTLS" }
     fn enabled(&self) -> bool { !self.password.is_empty() }
+    fn port(&self) -> u16 { self.port }
     fn xray_inbounds(&self, _: &[UserCredentials], _: &[String]) -> Vec<XrayInbound> { vec![] }
 
     fn client_links(&self, _user: &UserCredentials, servers: &[ServerConfig]) -> Vec<ClientLink> {

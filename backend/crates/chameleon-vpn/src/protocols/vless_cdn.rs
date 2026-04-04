@@ -20,6 +20,7 @@ impl VlessCdn {
 impl Protocol for VlessCdn {
     fn name(&self) -> &str { "vless_cdn" }
     fn display_name(&self) -> &str { "VLESS CDN" }
+    fn port(&self) -> u16 { self.port }
 
     fn xray_inbounds(&self, users: &[UserCredentials], _short_ids: &[String]) -> Vec<XrayInbound> {
         let clients: Vec<_> = users.iter().map(|u| json!({"id": u.uuid, "email": format!("{}@ws", u.username)})).collect();

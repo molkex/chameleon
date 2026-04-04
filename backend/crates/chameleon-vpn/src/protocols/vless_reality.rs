@@ -115,6 +115,7 @@ impl VlessReality {
 impl Protocol for VlessReality {
     fn name(&self) -> &str { "vless_reality" }
     fn display_name(&self) -> &str { "VLESS Reality" }
+    fn port(&self) -> u16 { self.tcp_port }
 
     fn xray_inbounds(&self, users: &[UserCredentials], short_ids: &[String]) -> Vec<XrayInbound> {
         let tcp = self.build_clients(users, "xray", "xtls-rprx-vision");

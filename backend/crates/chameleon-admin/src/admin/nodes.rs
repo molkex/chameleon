@@ -1,21 +1,32 @@
 //! Node management endpoints.
-//! GET /nodes — list nodes with system metrics + TCP ping
-//! POST /nodes/sync — trigger config sync
+//! GET  /nodes                    — list nodes with system metrics, traffic, protocols
+//! POST /nodes/sync               — trigger config sync (regenerate + reload)
+//! POST /nodes/restart-xray       — regenerate xray config and reload
+//! GET  /nodes/{key}/history      — metrics time series for charts
 
 use std::time::{Duration, Instant};
-use axum::{extract::State, routing::{get, post}, Json, Router};
-use serde::Serialize;
+use axum::{
+    extract::{Path, Query, State},
+    routing::{get, post},
+    Json, Router,
+};
+use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use tokio::net::TcpStream;
-
 use chameleon_auth::AuthAdmin;
+use chameleon_config::get_settings;
 use chameleon_core::{ChameleonCore, error::ApiResult};
+use chameleon_vpn::protocols::ProtocolRegistry;
 
 pub fn router() -> Router<ChameleonCore> {
     Router::new()
         .route("/nodes", get(list_nodes))
         .route("/nodes/sync", post(sync_nodes))
+        .route("/nodes/restart-xray", post(restart_xray))
+        .route("/nodes/{key}/history", get(node_history))
 }
+
+// ── Response types ──
 
 #[derive(Serialize)]
 struct NodesResponse {
@@ -38,7 +49,22 @@ struct NodeInfo {
     user_count: i32,
     uptime_hours: Option<f64>,
     xray_version: Option<String>,
+    // New fields
+    traffic_up: i64,
+    traffic_down: i64,
+    online_users: i32,
+    protocols: Vec<ProtocolStatus>,
 }
+
+#[derive(Serialize, Clone)]
+struct ProtocolStatus {
+    name: String,
+    display_name: String,
+    enabled: bool,
+    port: u16,
+}
+
+// ── Helpers ──
 
 async fn tcp_ping(host: &str, port: u16) -> Option<f64> {
     let addr = format!("{host}:{port}");
@@ -57,7 +83,6 @@ async fn active_user_count(pool: &PgPool) -> i32 {
 }
 
 /// Read system metrics from /proc (Linux only).
-/// Returns (cpu_percent, ram_used_mb, ram_total_mb, disk_percent, uptime_hours).
 fn read_system_metrics() -> (Option<f64>, Option<f64>, Option<f64>, Option<f64>, Option<f64>) {
     let cpu = read_cpu_usage();
     let (ram_used, ram_total) = read_memory();
@@ -67,7 +92,6 @@ fn read_system_metrics() -> (Option<f64>, Option<f64>, Option<f64>, Option<f64>,
 }
 
 fn read_cpu_usage() -> Option<f64> {
-    // Read loadavg — try host mount first, then container /proc
     let loadavg = std::fs::read_to_string("/host/proc/loadavg")
         .or_else(|_| std::fs::read_to_string("/proc/loadavg")).ok()?;
     let load: f64 = loadavg.split_whitespace().next()?.parse().ok()?;
@@ -106,7 +130,6 @@ fn read_memory() -> (Option<f64>, Option<f64>) {
 }
 
 fn read_disk_usage() -> Option<f64> {
-    // Use statvfs on /
     let output = std::process::Command::new("df")
         .args(["--output=pcent", "/"])
         .output().ok()?;
@@ -121,26 +144,48 @@ fn read_uptime() -> Option<f64> {
     let uptime = std::fs::read_to_string("/host/proc/uptime")
         .or_else(|_| std::fs::read_to_string("/proc/uptime")).ok()?;
     let secs: f64 = uptime.split_whitespace().next()?.parse().ok()?;
-    Some((secs / 3600.0 * 10.0).round() / 10.0) // hours, 1 decimal
+    Some((secs / 3600.0 * 10.0).round() / 10.0)
 }
+
+/// Build protocol status list from registry.
+fn build_protocol_statuses() -> Vec<ProtocolStatus> {
+    let settings = get_settings();
+    let registry = ProtocolRegistry::new(settings);
+    registry.all().iter().map(|p| {
+        ProtocolStatus {
+            name: p.name().to_string(),
+            display_name: p.display_name().to_string(),
+            enabled: p.enabled(),
+            port: p.port(),
+        }
+    }).collect()
+}
+
+// ── Handlers ──
 
 async fn list_nodes(
     State(state): State<ChameleonCore>,
     _admin: AuthAdmin,
 ) -> ApiResult<Json<NodesResponse>> {
     let servers = state.engine.build_server_configs();
+    let protocols = build_protocol_statuses();
 
+    // Spawn parallel tasks
     let db = state.db.clone();
     let engine = state.engine.clone();
+    let engine2 = state.engine.clone();
     let user_count_handle = tokio::spawn(async move { active_user_count(&db).await });
     let xray_health_handle = tokio::spawn(async move { engine.xray_api().health_check().await });
     let metrics_handle = tokio::spawn(async { read_system_metrics() });
+    let traffic_handle = tokio::spawn(async move { engine2.xray_api().query_total_traffic().await });
+    let engine3 = state.engine.clone();
+    let online_handle = tokio::spawn(async move { engine3.xray_api().count_online_users().await });
 
     let vless_port = state.config.vless_tcp_port;
-    let mut handles = vec![];
+    let mut ping_handles = vec![];
     for srv in &servers {
         let host = srv.host.clone();
-        handles.push(tokio::spawn(async move {
+        ping_handles.push(tokio::spawn(async move {
             tcp_ping(&host, vless_port).await
         }));
     }
@@ -149,9 +194,11 @@ async fn list_nodes(
     let xray_healthy = xray_health_handle.await.unwrap_or(false);
     let (cpu, ram_used, ram_total, disk, uptime) = metrics_handle.await
         .unwrap_or((None, None, None, None, None));
+    let (traffic_up, traffic_down) = traffic_handle.await.unwrap_or((0, 0));
+    let online_users = online_handle.await.unwrap_or(0);
 
     let mut nodes = vec![];
-    for (i, handle) in handles.into_iter().enumerate() {
+    for (i, handle) in ping_handles.into_iter().enumerate() {
         let latency = handle.await.ok().flatten();
         let srv = &servers[i];
         let is_active = latency.is_some() || xray_healthy;
@@ -168,7 +215,11 @@ async fn list_nodes(
             disk,
             user_count,
             uptime_hours: uptime,
-            xray_version: Some("26.3.27".to_string()),
+            xray_version: Some(state.config.xray_version.clone()),
+            traffic_up,
+            traffic_down,
+            online_users,
+            protocols: protocols.clone(),
         });
     }
 
@@ -182,3 +233,63 @@ async fn sync_nodes(
     state.engine.regenerate_and_reload(&state.db).await;
     Ok(Json(serde_json::json!({"ok": true})))
 }
+
+async fn restart_xray(
+    State(state): State<ChameleonCore>,
+    _admin: AuthAdmin,
+) -> ApiResult<Json<serde_json::Value>> {
+    state.engine.regenerate_and_reload(&state.db).await;
+    let healthy = state.engine.xray_api().health_check().await;
+    Ok(Json(serde_json::json!({
+        "ok": true,
+        "xray_healthy": healthy,
+    })))
+}
+
+// ── History endpoint ──
+
+#[derive(Deserialize)]
+struct HistoryQuery {
+    hours: Option<i64>,
+}
+
+#[derive(Serialize, sqlx::FromRow)]
+struct MetricsPoint {
+    cpu: Option<f32>,
+    ram_used: Option<f32>,
+    ram_total: Option<f32>,
+    disk: Option<f32>,
+    traffic_up: Option<i64>,
+    traffic_down: Option<i64>,
+    online_users: Option<i32>,
+    recorded_at: chrono::DateTime<chrono::Utc>,
+}
+
+async fn node_history(
+    State(state): State<ChameleonCore>,
+    _admin: AuthAdmin,
+    Path(key): Path<String>,
+    Query(params): Query<HistoryQuery>,
+) -> ApiResult<Json<serde_json::Value>> {
+    let hours = params.hours.unwrap_or(24).min(168); // max 7 days
+    let since = chrono::Utc::now() - chrono::Duration::hours(hours);
+
+    let points: Vec<MetricsPoint> = sqlx::query_as(
+        "SELECT cpu, ram_used, ram_total, disk, traffic_up, traffic_down, online_users, recorded_at
+         FROM node_metrics_history
+         WHERE node_key = $1 AND recorded_at >= $2
+         ORDER BY recorded_at ASC"
+    )
+    .bind(&key)
+    .bind(since)
+    .fetch_all(&state.db)
+    .await
+    .unwrap_or_default();
+
+    Ok(Json(serde_json::json!({
+        "node_key": key,
+        "hours": hours,
+        "points": points,
+    })))
+}
+

@@ -202,6 +202,45 @@ impl XrayApi {
         result
     }
 
+    /// Query total server traffic (all users combined).
+    /// Returns (total_up, total_down) in bytes.
+    pub async fn query_total_traffic(&self) -> (i64, i64) {
+        let Some(mut client) = self.stats_client().await else {
+            return (0, 0);
+        };
+
+        let request = QueryStatsRequest {
+            pattern: "user>>>".to_string(),
+            reset: false,
+        };
+
+        let response = match client.query_stats(request).await {
+            Ok(r) => r.into_inner(),
+            Err(e) => {
+                warn!(error = %e, "query_total_traffic gRPC failed");
+                return (0, 0);
+            }
+        };
+
+        let mut up: i64 = 0;
+        let mut down: i64 = 0;
+        for stat in response.stat {
+            let parts: Vec<&str> = stat.name.split(">>>").collect();
+            if parts.len() == 4 {
+                if parts[3] == "uplink" { up += stat.value; }
+                else { down += stat.value; }
+            }
+        }
+        (up, down)
+    }
+
+    /// Count online users — users with any traffic in xray stats.
+    /// This counts distinct usernames that have non-zero traffic counters.
+    pub async fn count_online_users(&self) -> i32 {
+        let traffic = self.query_all_traffic().await;
+        traffic.values().filter(|s| s.up > 0 || s.down > 0).count() as i32
+    }
+
     // ── Health ──
 
     pub async fn health_check(&self) -> bool {

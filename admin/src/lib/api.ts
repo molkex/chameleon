@@ -40,18 +40,30 @@ export interface User {
   created_at: string | null;
 }
 
+export interface ProtocolStatus {
+  name: string;
+  enabled: boolean;
+  port: number;
+}
+
 export interface Node {
   key: string;
   name: string;
   flag: string;
   ip: string;
   is_active: boolean;
-  cpu: number;
-  ram_used: number;
-  ram_total: number;
-  disk: number;
   latency_ms: number;
+  cpu: number | null;
+  ram_used: number | null;
+  ram_total: number | null;
+  disk: number | null;
   user_count: number;
+  online_users: number;
+  traffic_up: number;
+  traffic_down: number;
+  uptime_hours: number | null;
+  xray_version: string | null;
+  protocols: ProtocolStatus[];
 }
 
 export interface ProtocolInfo {

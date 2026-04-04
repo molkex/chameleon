@@ -85,6 +85,8 @@ pub trait Protocol: Send + Sync {
     fn name(&self) -> &str;
     fn display_name(&self) -> &str;
     fn enabled(&self) -> bool { true }
+    /// Primary port for this protocol (0 if no dedicated port).
+    fn port(&self) -> u16 { 0 }
 
     /// Generate xray inbound configs for this protocol.
     fn xray_inbounds(&self, users: &[UserCredentials], short_ids: &[String]) -> Vec<XrayInbound>;
