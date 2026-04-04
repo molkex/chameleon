@@ -72,7 +72,7 @@ else
     REALITY_PRIV=$(echo "$KEYS" | grep "Private" | awk '{print $NF}')
     REALITY_PUB=$(echo "$KEYS" | grep "Public" | awk '{print $NF}')
 
-    ADMIN_PASS=$(openssl rand -base64 16)
+    SERVER_IP=$(curl -sf https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')
 
     cat > .env <<ENVEOF
 # Chameleon VPN — auto-generated $(date +%Y-%m-%d)
@@ -81,9 +81,6 @@ REDIS_URL=redis://:${REDIS_PASS}@redis:6379/0
 DB_PASSWORD=${DB_PASS}
 REDIS_PASSWORD=${REDIS_PASS}
 
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=${ADMIN_PASS}
-
 ADMIN_JWT_SECRET=${JWT_SECRET}
 ADMIN_SESSION_SECRET=${SESSION_SECRET}
 MOBILE_JWT_SECRET=${MOBILE_JWT}
@@ -91,6 +88,11 @@ MOBILE_JWT_SECRET=${MOBILE_JWT}
 REALITY_PRIVATE_KEY=${REALITY_PRIV}
 REALITY_PUBLIC_KEY=${REALITY_PUB}
 REALITY_SNIS=ads.x5.ru
+
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=admin
+
+VPN_SERVERS=[{"key":"node1","name":"Server","flag":"","host":"${SERVER_IP}","domain":"${SERVER_IP}"}]
 
 ENVIRONMENT=production
 RUST_LOG=info,sqlx=warn

@@ -50,7 +50,7 @@ async fn subscription_links(
 
     let raw: serde_json::Value = serde_json::from_str(&settings.vpn_servers_raw).unwrap_or_default();
     let servers: Vec<ServerConfig> = raw.as_array().unwrap_or(&vec![]).iter().filter_map(|srv| {
-        let ip = srv.get("ip")?.as_str()?;
+        let ip = srv.get("host").or_else(|| srv.get("ip"))?.as_str()?;
         let domain = srv.get("domain").and_then(|d| d.as_str()).unwrap_or(ip);
         Some(ServerConfig {
             host: ip.into(), port: settings.vless_tcp_port, domain: domain.into(),
