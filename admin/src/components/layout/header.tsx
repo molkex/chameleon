@@ -1,4 +1,4 @@
-import { LogOut, Command } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -19,11 +19,7 @@ export function Header() {
     <header className="flex h-14 items-center gap-4 border-b border-zinc-800 px-4">
       <SidebarTrigger />
       <div className="flex-1" />
-      <Button variant="outline" size="sm" className="hidden gap-2 text-xs text-zinc-400 sm:flex">
-        <Command className="h-3 w-3" />
-        <span>Search</span>
-        <kbd className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px]">K</kbd>
-      </Button>
+      {/* Search shortcut placeholder — Cmd+K navigation planned */}
       {user && (
         <>
           <span className="text-sm text-zinc-400">{user.username}</span>
