@@ -65,12 +65,20 @@ else
     SESSION_SECRET=$(openssl rand -hex 32)
     MOBILE_JWT=$(openssl rand -hex 32)
 
-    # Generate Xray Reality keys
+    # Generate Xray Reality x25519 keys (pure openssl, no Docker needed)
     log "Generating Reality x25519 keys..."
-    docker pull -q ghcr.io/xtls/xray-core:latest >/dev/null 2>&1
-    KEYS=$(docker run --rm ghcr.io/xtls/xray-core:latest xray x25519 2>/dev/null)
-    REALITY_PRIV=$(echo "$KEYS" | grep "Private" | awk '{print $NF}')
-    REALITY_PUB=$(echo "$KEYS" | grep "Public" | awk '{print $NF}')
+    REALITY_PRIV=$(openssl genpkey -algorithm x25519 2>/dev/null | openssl pkey -outform DER 2>/dev/null | tail -c 32 | base64 | tr '+/' '-_' | tr -d '=')
+    REALITY_PUB=$(echo -n "$REALITY_PRIV" | base64 -d 2>/dev/null | { printf '\x30\x2a\x30\x05\x06\x03\x2b\x65\x6e\x03\x21\x00'; cat; } | openssl pkey -inform DER -outform DER -pubout 2>/dev/null | tail -c 32 | base64 | tr '+/' '-_' | tr -d '=')
+    # Fallback: if openssl method fails, try docker
+    if [[ -z "$REALITY_PRIV" || -z "$REALITY_PUB" ]]; then
+        log "OpenSSL x25519 failed, trying Docker..."
+        KEYS=$(docker run --rm --pull=always ghcr.io/xtls/xray-core:latest xray x25519 2>/dev/null) || true
+        REALITY_PRIV=$(echo "$KEYS" | grep "Private" | awk '{print $NF}')
+        REALITY_PUB=$(echo "$KEYS" | grep "Public" | awk '{print $NF}')
+    fi
+    if [[ -z "$REALITY_PRIV" || -z "$REALITY_PUB" ]]; then
+        err "Failed to generate Reality keys. Install openssl >= 1.1.1 or ensure Docker works."
+    fi
 
     SERVER_IP=$(curl -sf https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')
 
