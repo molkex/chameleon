@@ -266,7 +266,7 @@ function NodeCard({ node }: { node: Node }) {
           </div>
         )}
 
-        {/* Footer: Action buttons */}
+        {/* Footer: Action button */}
         <div className="flex gap-2 border-t border-zinc-800 pt-3">
           <Button
             variant="ghost"
@@ -279,18 +279,6 @@ function NodeCard({ node }: { node: Node }) {
               className={`mr-1.5 h-3.5 w-3.5 ${restartMutation.isPending ? "animate-spin" : ""}`}
             />
             Restart Xray
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 text-xs"
-            onClick={() => syncMutation.mutate()}
-            disabled={syncMutation.isPending}
-          >
-            <Settings2
-              className={`mr-1.5 h-3.5 w-3.5 ${syncMutation.isPending ? "animate-spin" : ""}`}
-            />
-            Sync Config
           </Button>
         </div>
       </CardContent>

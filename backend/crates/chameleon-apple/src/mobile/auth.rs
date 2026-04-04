@@ -237,6 +237,18 @@ async fn insert_new_user(
     .fetch_one(&core.db)
     .await?;
 
+    // Add user to Xray immediately (no restart needed)
+    if let (Some(uuid), Some(uname)) = (&user.vpn_uuid, &user.vpn_username) {
+        let short_id = user.vpn_short_id.as_deref().unwrap_or("");
+        let added = core.engine.xray_api()
+            .add_user_to_all_inbounds(uuid, uname, short_id).await;
+        if added {
+            tracing::info!(username = uname, "User added to Xray (live, no restart)");
+        } else {
+            tracing::warn!(username = uname, "Failed to add user to Xray live — will be added on next restart");
+        }
+    }
+
     Ok(user)
 }
 
