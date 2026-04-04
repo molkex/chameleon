@@ -37,10 +37,11 @@ function formatBytes(bytes: number): string {
 
 function formatUptime(hours: number | null): string {
   if (hours == null) return "--";
-  if (hours < 24) return `${hours}h`;
-  const days = Math.floor(hours / 24);
-  const h = hours % 24;
-  return h > 0 ? `${days}d ${h}h` : `${days}d`;
+  const h = Math.round(hours);
+  if (h < 24) return `${h}h`;
+  const days = Math.floor(h / 24);
+  const rem = h % 24;
+  return rem > 0 ? `${days}d ${rem}h` : `${days}d`;
 }
 
 function latencyBadgeClass(ms: number, active: boolean): string {
@@ -156,7 +157,7 @@ function NodeCard({ node }: { node: Node }) {
   const queryClient = useQueryClient();
 
   const restartMutation = useMutation({
-    mutationFn: () => api.post(`/admin/nodes/${node.key}/restart-xray`),
+    mutationFn: () => api.post(`/admin/nodes/restart-xray`),
     onSuccess: () => {
       toast.success(`Xray restarted on ${node.name}`);
       queryClient.invalidateQueries({ queryKey: ["nodes"] });
@@ -165,7 +166,7 @@ function NodeCard({ node }: { node: Node }) {
   });
 
   const syncMutation = useMutation({
-    mutationFn: () => api.post(`/admin/nodes/${node.key}/sync`),
+    mutationFn: () => api.post(`/admin/nodes/sync`),
     onSuccess: () => {
       toast.success(`Config synced on ${node.name}`);
       queryClient.invalidateQueries({ queryKey: ["nodes"] });
