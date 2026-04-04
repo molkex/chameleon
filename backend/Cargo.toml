@@ -9,6 +9,7 @@ members = [
     "crates/chameleon-monitoring",
     "crates/chameleon-admin",
     "crates/chameleon-apple",
+    "crates/chameleon-cluster",
     "crates/chameleon-server",
 ]
 

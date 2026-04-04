@@ -163,6 +163,11 @@ pub struct Settings {
     // === Uploads ===
     pub upload_dir: String,
 
+    // === Cluster ===
+    pub cluster_secret: String,
+    pub cluster_peers: Vec<String>,
+    pub node_id: String,
+
     // === Environment ===
     pub environment: String,
 }
@@ -173,6 +178,12 @@ pub struct AwgServer {
     pub host: String,
     pub api_port: u16,
     pub flag: String,
+}
+
+fn hostname() -> String {
+    std::env::var("HOSTNAME")
+        .or_else(|_| std::env::var("HOST"))
+        .unwrap_or_else(|_| "unknown".to_string())
 }
 
 fn env(key: &str) -> String {
@@ -333,6 +344,12 @@ impl Settings {
             admin_ip_allowlist: parse_csv(&env("ADMIN_IP_ALLOWLIST")),
 
             upload_dir: env_or("UPLOAD_DIR", "/data/uploads"),
+
+            cluster_secret: std::env::var("CLUSTER_SECRET")
+                .unwrap_or_else(|_| random_hex_32()),
+            cluster_peers: parse_csv(&env("CLUSTER_PEERS")),
+            node_id: std::env::var("NODE_ID")
+                .unwrap_or_else(|_| hostname()),
 
             environment: env_or("ENVIRONMENT", "production"),
         }

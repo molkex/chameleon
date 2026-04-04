@@ -11,7 +11,8 @@ path = "src/main.rs"
 default = ["admin", "apple"]
 admin = ["dep:chameleon-admin"]
 apple = ["dep:chameleon-apple"]
-full = ["admin", "apple"]
+cluster = ["dep:chameleon-cluster"]
+full = ["admin", "apple", "cluster"]
 
 [dependencies]
 chameleon-config = { path = "../chameleon-config" }
@@ -21,6 +22,7 @@ chameleon-monitoring = { path = "../chameleon-monitoring" }
 # Optional modules
 chameleon-admin = { path = "../chameleon-admin", optional = true }
 chameleon-apple = { path = "../chameleon-apple", optional = true }
+chameleon-cluster = { path = "../chameleon-cluster", optional = true }
 
 tokio = { workspace = true }
 axum = { workspace = true }

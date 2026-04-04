@@ -35,6 +35,7 @@ pub struct User {
     pub subscription_token: Option<String>,
     pub activation_code: Option<String>,
     pub created_at: Option<NaiveDateTime>,
+    pub updated_at: Option<NaiveDateTime>,
 }
 
 // ── Transaction ──

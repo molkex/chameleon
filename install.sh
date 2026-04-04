@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
 # ============================================================
 #  Chameleon VPN — One-command installer
-#  Usage: git clone https://github.com/molkex/chameleon.git
-#         cd chameleon && sudo ./install.sh
 #
-#  Builds everything from source — no external registry needed.
-#  First install takes ~10 minutes (Rust compilation).
-#  Subsequent rebuilds are faster due to Docker layer caching.
+#  First node (seed):
+#    git clone https://github.com/molkex/chameleon.git
+#    cd chameleon && sudo ./install.sh
+#
+#  Additional node (joins cluster):
+#    git clone https://github.com/molkex/chameleon.git
+#    cd chameleon && sudo ./install.sh --join https://first-node.com --secret CLUSTER_SECRET
+#
+#  Each node is autonomous: full API + DB + Xray.
+#  Nodes sync users between each other every 30 seconds.
+#  If one node goes down, others continue working.
 # ============================================================
 set -euo pipefail
 
@@ -15,6 +21,17 @@ log()  { echo -e "${GREEN}[+]${NC} $*"; }
 warn() { echo -e "${YELLOW}[!]${NC} $*"; }
 err()  { echo -e "${RED}[x]${NC} $*" >&2; exit 1; }
 step() { echo -e "\n${CYAN}=== $* ===${NC}"; }
+
+# ── Parse args ──
+JOIN_URL=""
+CLUSTER_SECRET=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --join) JOIN_URL="$2"; shift 2 ;;
+        --secret) CLUSTER_SECRET="$2"; shift 2 ;;
+        *) shift ;;
+    esac
+done
 
 # ── Preflight ──
 [[ $EUID -eq 0 ]] || err "Run as root: sudo ./install.sh"
@@ -78,7 +95,25 @@ REALITY_SNIS=ads.x5.ru
 ENVIRONMENT=production
 RUST_LOG=info,sqlx=warn
 FORCE_HTTPS=0
+
+# Cluster
+CLUSTER_SECRET=${CLUSTER_SECRET:-$(openssl rand -hex 32)}
+NODE_ID=$(hostname)
+CLUSTER_PEERS=${JOIN_URL}
 ENVEOF
+
+    # If joining a cluster, register with the seed node
+    if [[ -n "$JOIN_URL" ]]; then
+        log "Joining cluster: $JOIN_URL"
+        CLUSTER_SEC=$(grep CLUSTER_SECRET .env | cut -d= -f2)
+        SERVER_IP=$(curl -sf https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')
+        curl -sf -X POST "${JOIN_URL}/api/v1/cluster/join" \
+            -H "Content-Type: application/json" \
+            -H "X-Cluster-Secret: ${CLUSTER_SEC}" \
+            -d "{\"node_id\": \"$(hostname)\", \"url\": \"http://${SERVER_IP}\", \"ip\": \"${SERVER_IP}\"}" \
+            && log "Cluster join: OK" \
+            || warn "Cluster join failed — will retry after start"
+    fi
 
     chmod 600 .env
     log "Configuration generated (.env)"

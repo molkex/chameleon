@@ -58,6 +58,14 @@ async fn main() -> anyhow::Result<()> {
         modules.push(chameleon_apple::routes(core.clone()));
     }
 
+    #[cfg(feature = "cluster")]
+    {
+        info!("Module: cluster");
+        modules.push(chameleon_cluster::routes());
+        let cluster_core = core.clone();
+        tokio::spawn(chameleon_cluster::sync::start_sync_loop(cluster_core));
+    }
+
     // Build app
     let app = chameleon_core::build_app(core, modules);
 
