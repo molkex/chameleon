@@ -27,12 +27,12 @@ pub fn generate_config(
                 outbounds.push(outbound);
             }
 
-            // VLESS Reality — also add gRPC variant
+            // VLESS Reality — also add XHTTP variant
             if proto.name() == "vless_reality" {
-                let grpc_tag = format!("{} {} gRPC", srv.flag, srv.name);
-                let grpc_opts = OutboundOpts { transport: Some("grpc".into()), ..Default::default() };
-                if let Some(ob) = proto.singbox_outbound(&grpc_tag, srv, user, &grpc_opts) {
-                    selector_tags.push(grpc_tag);
+                let xhttp_tag = format!("{} {} XHTTP", srv.flag, srv.name);
+                let xhttp_opts = OutboundOpts { transport: Some("xhttp".into()), ..Default::default() };
+                if let Some(ob) = proto.singbox_outbound(&xhttp_tag, srv, user, &xhttp_opts) {
+                    selector_tags.push(xhttp_tag);
                     outbounds.push(ob);
                 }
             }

@@ -103,12 +103,12 @@ impl VlessReality {
         ClientLink { uri, protocol: "vless".into(), transport: "tcp".into(), server_key: server_key.into(), remark: remark.into(), is_relay }
     }
 
-    fn grpc_link(&self, user: &UserCredentials, host: &str, port: u16, sni: &str, remark: &str, server_key: &str, is_relay: bool) -> ClientLink {
+    fn xhttp_link(&self, user: &UserCredentials, host: &str, port: u16, sni: &str, remark: &str, server_key: &str, is_relay: bool) -> ClientLink {
         let uri = format!(
-            "vless://{}@{}:{}?type=grpc&security=reality&sni={}&fp={}&pbk={}&sid={}&serviceName=&authority=&encryption=none#{}",
+            "vless://{}@{}:{}?type=xhttp&security=reality&sni={}&fp={}&pbk={}&sid={}&mode=auto#{}",
             user.uuid, host, port, sni, FINGERPRINT, self.public_key, user.short_id, urlencoding::encode(remark)
         );
-        ClientLink { uri, protocol: "vless".into(), transport: "grpc".into(), server_key: server_key.into(), remark: remark.into(), is_relay }
+        ClientLink { uri, protocol: "vless".into(), transport: "xhttp".into(), server_key: server_key.into(), remark: remark.into(), is_relay }
     }
 }
 
@@ -120,11 +120,11 @@ impl Protocol for VlessReality {
     fn xray_inbounds(&self, users: &[UserCredentials], short_ids: &[String]) -> Vec<XrayInbound> {
         let tcp = self.build_clients(users, "xray", "xtls-rprx-vision");
         let xhttp = self.build_clients(users, "xhttp", "");
-        let grpc = self.build_clients(users, "grpc", "");
+        let xhttp2 = self.build_clients(users, "xhttp2", "");
         vec![
             self.make_inbound("VLESS TCP REALITY", self.tcp_port, "tcp", tcp, short_ids),
             self.make_inbound("VLESS XHTTP REALITY", 2097, "xhttp", xhttp, short_ids),
-            self.make_inbound("VLESS gRPC REALITY", self.grpc_port, "grpc", grpc, short_ids),
+            self.make_inbound("VLESS XHTTP H2 REALITY", self.grpc_port, "xhttp", xhttp2, short_ids),
         ]
     }
 
@@ -140,7 +140,7 @@ impl Protocol for VlessReality {
                 let sni_label = sni.split('.').next().unwrap_or(sni);
                 links.push(self.tcp_link(user, host, self.tcp_port, sni, &format!("{base} [{sni_label}]"), &srv.key, false));
             }
-            links.push(self.grpc_link(user, host, self.grpc_port, default_sni, &format!("{base} gRPC"), &srv.key, false));
+            links.push(self.xhttp_link(user, host, self.grpc_port, default_sni, &format!("{base} XHTTP"), &srv.key, false));
         }
         links
     }
@@ -167,9 +167,8 @@ impl Protocol for VlessReality {
         if transport == "tcp" {
             // flow and multiplex are mutually exclusive in sing-box — Vision operates at TLS layer
             out["flow"] = json!("xtls-rprx-vision");
-        } else if transport == "grpc" {
-            out["transport"] = json!({"type": "grpc", "service_name": ""});
-            // gRPC has built-in multiplexing, adding h2mux on top causes issues
+        } else if transport == "xhttp" {
+            out["transport"] = json!({"type": "http", "method": "GET"});
         }
         Some(out)
     }

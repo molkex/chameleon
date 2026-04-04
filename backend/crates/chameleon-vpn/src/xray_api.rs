@@ -28,7 +28,7 @@ pub struct InboundDef {
 pub static INBOUND_DEFS: &[InboundDef] = &[
     InboundDef { tag: "VLESS TCP REALITY", suffix: "xray", flow: "xtls-rprx-vision" },
     InboundDef { tag: "VLESS XHTTP REALITY", suffix: "xhttp", flow: "" },
-    InboundDef { tag: "VLESS gRPC REALITY", suffix: "grpc", flow: "" },
+    InboundDef { tag: "VLESS XHTTP H2 REALITY", suffix: "xhttp2", flow: "" },
     InboundDef { tag: "VLESS WS CDN", suffix: "ws", flow: "" },
 ];
 

@@ -144,6 +144,10 @@ ENVIRONMENT=production
 RUST_LOG=info,sqlx=warn
 FORCE_HTTPS=0
 
+# Security
+CORS_ORIGINS=http://${SERVER_IP},http://${SERVER_IP}/admin
+NODE_API_KEY=$(openssl rand -hex 32)
+
 # Cluster
 CLUSTER_SECRET=${CLUSTER_SECRET:-$(openssl rand -hex 32)}
 NODE_ID=$(hostname)

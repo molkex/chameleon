@@ -1,6 +1,5 @@
 //! Subscription link generation — iterates protocol registry to build client links.
 
-use base64::Engine;
 use chrono::{DateTime, Utc, TimeZone};
 use tracing::warn;
 
@@ -38,10 +37,9 @@ pub fn get_subscription_headers(
     branding: Option<&BrandingInfo>,
 ) -> Vec<(String, String)> {
     let b = branding.cloned().unwrap_or_else(|| BrandingInfo::default());
-    let b64 = base64::engine::general_purpose::STANDARD;
     vec![
         ("Cache-Control".into(), "no-cache".into()),
-        ("profile-title".into(), b64.encode(b.profile_title.as_bytes())),
+        ("profile-title".into(), b.profile_title.clone()),
         ("profile-update-interval".into(), b.update_interval.clone()),
         ("support-url".into(), b.support_url.clone()),
         ("profile-web-page-url".into(), b.web_page_url.clone()),
