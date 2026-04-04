@@ -24,9 +24,9 @@ services:
   xray-init:
     image: busybox:latest
     container_name: xray-init
-    command: sh -c "chown -R 999:999 /etc/xray && chmod 775 /etc/xray"
+    command: sh -c "chown -R 999:999 /usr/local/etc/xray && chmod 775 /usr/local/etc/xray"
     volumes:
-      - xray-config:/etc/xray
+      - xray-config:/usr/local/etc/xray
     restart: "no"
 
   # ── Rust Backend ──
@@ -46,7 +46,7 @@ services:
       - RUST_LOG=info,sqlx=warn
       - XRAY_GRPC_HOST=xray
       - XRAY_STATS_PORT=10085
-      - XRAY_CONFIG_DIR=/etc/xray
+      - XRAY_CONFIG_DIR=/usr/local/etc/xray
     depends_on:
       xray-init:
         condition: service_completed_successfully
@@ -55,7 +55,7 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - xray-config:/etc/xray
+      - xray-config:/usr/local/etc/xray
       - uploads:/app/uploads
     deploy:
       resources:
@@ -118,7 +118,7 @@ services:
 
   # ── Xray VPN ──
   xray:
-    image: teddysun/xray:1.8.24
+    image: ghcr.io/xtls/xray-core:latest
     container_name: xray
     restart: unless-stopped
     ports:
@@ -126,7 +126,7 @@ services:
       - "2097:2097"
       - "2098:2098"
     volumes:
-      - xray-config:/etc/xray
+      - xray-config:/usr/local/etc/xray
     healthcheck:
       test: ["CMD", "xray", "api", "statssys", "--server=127.0.0.1:10085"]
       interval: 15s

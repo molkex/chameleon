@@ -67,8 +67,8 @@ else
 
     # Generate Xray Reality keys
     log "Generating Reality x25519 keys..."
-    docker pull -q teddysun/xray:1.8.24 >/dev/null 2>&1
-    KEYS=$(docker run --rm teddysun/xray:1.8.24 xray x25519 2>/dev/null)
+    docker pull -q ghcr.io/xtls/xray-core:latest >/dev/null 2>&1
+    KEYS=$(docker run --rm ghcr.io/xtls/xray-core:latest xray x25519 2>/dev/null)
     REALITY_PRIV=$(echo "$KEYS" | grep "Private" | awk '{print $NF}')
     REALITY_PUB=$(echo "$KEYS" | grep "Public" | awk '{print $NF}')
 
@@ -87,7 +87,7 @@ MOBILE_JWT_SECRET=${MOBILE_JWT}
 
 REALITY_PRIVATE_KEY=${REALITY_PRIV}
 REALITY_PUBLIC_KEY=${REALITY_PUB}
-REALITY_SNIS=ads.x5.ru
+REALITY_SNIS=www.wildberries.ru
 
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=admin123
