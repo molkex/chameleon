@@ -49,7 +49,7 @@ extension ExtensionPlatformInterface: LibboxPlatformInterfaceProtocol {
     private func openTunAsync(_ options: (any LibboxTunOptionsProtocol)?,
                                _ ret0: UnsafeMutablePointer<Int32>?) async throws {
         guard let tunnel = tunnel, let options = options, let ret0 = ret0 else {
-            throw NSError(domain: "MadFrog", code: 1, userInfo: [NSLocalizedDescriptionKey: "No tunnel provider"])
+            throw NSError(domain: "Chameleon", code: 1, userInfo: [NSLocalizedDescriptionKey: "No tunnel provider"])
         }
 
         let settings = try buildTunnelSettings(from: options)
@@ -76,7 +76,7 @@ extension ExtensionPlatformInterface: LibboxPlatformInterfaceProtocol {
         if tunFd != -1 {
             ret0.pointee = tunFd
         } else {
-            throw NSError(domain: "MadFrog", code: 2, userInfo: [NSLocalizedDescriptionKey: "Missing TUN file descriptor"])
+            throw NSError(domain: "Chameleon", code: 2, userInfo: [NSLocalizedDescriptionKey: "Missing TUN file descriptor"])
         }
     }
 

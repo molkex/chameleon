@@ -5,7 +5,7 @@ import Libbox
 /// Receives live traffic stats, outbound groups, and log entries.
 ///
 /// The CommandClient finds the socket at `basePath/command.sock` where basePath
-/// is set by `LibboxSetup()` in the main app (MadFrogVPNApp.init).
+/// is set by `LibboxSetup()` in the main app (ChameleonVPNApp.init).
 /// The extension's CommandServer creates the socket at the same path.
 @Observable
 final class CommandClientWrapper {

@@ -33,7 +33,7 @@ open class ExtensionProvider: NEPacketTunnelProvider {
         } else if let fileConfig = try? String(contentsOf: AppConstants.configFileURL, encoding: .utf8) {
             configJSON = fileConfig
         } else {
-            completionHandler(NSError(domain: "MadFrog", code: 1,
+            completionHandler(NSError(domain: "Chameleon", code: 1,
                                       userInfo: [NSLocalizedDescriptionKey: "No VPN config. Open app first."]))
             return
         }
@@ -121,7 +121,7 @@ open class ExtensionProvider: NEPacketTunnelProvider {
 
         var cmdError: NSError?
         guard let server = LibboxNewCommandServer(platform, platform, &cmdError) else {
-            throw cmdError ?? NSError(domain: "MadFrog", code: 2,
+            throw cmdError ?? NSError(domain: "Chameleon", code: 2,
                                        userInfo: [NSLocalizedDescriptionKey: "Failed to create CommandServer"])
         }
         self.commandServer = server
