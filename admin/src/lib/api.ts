@@ -38,6 +38,7 @@ export interface User {
   devices: number;
   device_limit: number | null;
   created_at: string | null;
+  subscription_url: string | null;
 }
 
 export interface ProtocolStatus {

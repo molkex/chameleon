@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Search, Trash2, Clock } from "lucide-react";
+import { Search, Trash2, Clock, Link } from "lucide-react";
 import { statusColor } from "@/lib/constants";
 
 function StatusBadge({ active }: { active: boolean }) {
@@ -102,6 +102,16 @@ export default function UsersPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
+                        {user.subscription_url && (
+                          <Button size="icon" variant="ghost" className="h-7 w-7"
+                            onClick={() => {
+                              const url = `${window.location.origin}${user.subscription_url}`;
+                              navigator.clipboard.writeText(url);
+                              toast.success("Subscription link copied");
+                            }} title="Copy subscription link">
+                            <Link className="h-3.5 w-3.5 text-cyan-400" />
+                          </Button>
+                        )}
                         <Button size="icon" variant="ghost" className="h-7 w-7"
                           onClick={() => extendMutation.mutate(user.vpn_username)} title="Extend 30d">
                           <Clock className="h-3.5 w-3.5 text-emerald-400" />

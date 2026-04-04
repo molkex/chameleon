@@ -43,6 +43,7 @@ struct UserItem {
     devices: i32,
     device_limit: Option<i32>,
     created_at: Option<String>,
+    subscription_url: Option<String>,
 }
 
 async fn list_users(
@@ -68,6 +69,8 @@ async fn list_users(
         let expiry_fmt = u.subscription_expiry.map(|t| t.format("%d.%m.%Y %H:%M").to_string());
         let is_active = u.is_active && u.subscription_expiry.map_or(true, |exp| exp > now);
 
+        let subscription_url = u.subscription_token.as_ref().map(|t| format!("/sub/{t}"));
+
         UserItem {
             id: u.id,
             vpn_username: u.vpn_username,
@@ -79,6 +82,7 @@ async fn list_users(
             devices: 0,
             device_limit: u.device_limit,
             created_at: u.created_at.map(|t| t.format("%d.%m.%Y %H:%M").to_string()),
+            subscription_url,
         }
     }).collect();
 
