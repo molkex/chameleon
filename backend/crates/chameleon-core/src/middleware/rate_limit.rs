@@ -57,7 +57,7 @@ pub async fn auth_rate_limit(
 ) -> Response {
     let ip = crate::http_utils::extract_client_ip(request.headers());
 
-    if let Some(reject) = check_rate_limit(&state.redis, "auth_rate", &ip, 10, 60).await {
+    if let Some(reject) = check_rate_limit(&state.redis, "auth_rate", &ip, 30, 60).await {
         return reject;
     }
 

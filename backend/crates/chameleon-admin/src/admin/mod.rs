@@ -8,6 +8,7 @@ pub mod protocols;
 pub mod settings;
 pub mod admins;
 pub mod monitor;
+pub mod shield;
 
 use axum::Router;
 use chameleon_core::ChameleonCore;
@@ -22,4 +23,5 @@ pub fn router() -> Router<ChameleonCore> {
         .merge(settings::router())
         .merge(admins::router())
         .merge(monitor::router())
+        .merge(shield::router())
 }

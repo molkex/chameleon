@@ -9,7 +9,7 @@ import { STATUS_COLORS } from "@/lib/constants";
 export default function ShieldPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["shield"],
-    queryFn: () => api.get<ShieldConfig>("/mobile/shield"),
+    queryFn: () => api.get<ShieldConfig>("/admin/shield"),
   });
 
   if (isLoading || !data) {
