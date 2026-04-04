@@ -9,6 +9,9 @@
 #  Additional node (joins cluster):
 #    git clone https://github.com/molkex/chameleon.git
 #    cd chameleon && sudo ./install.sh --join https://first-node.com --secret CLUSTER_SECRET
+#
+#  Force compile from source:
+#    sudo ./install.sh --build
 # ============================================================
 set -euo pipefail
 
@@ -19,6 +22,7 @@ err()  { echo -e "${RED}[x]${NC} $*" >&2; exit 1; }
 step() { echo -e "\n${CYAN}=== $* ===${NC}"; }
 
 GITHUB_REPO="molkex/chameleon"
+FORCE_BUILD=false
 PREBUILT=false
 
 # ── Parse args ──
@@ -28,7 +32,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --join) JOIN_URL="$2"; shift 2 ;;
         --secret) CLUSTER_SECRET="$2"; shift 2 ;;
-        --build) PREBUILT=false; shift ;;  # Force local build
+        --build) FORCE_BUILD=true; shift ;;
         *) shift ;;
     esac
 done
@@ -58,29 +62,28 @@ fi
 step "2/7 Downloading pre-built binaries"
 RELEASE_URL="https://github.com/${GITHUB_REPO}/releases/download/latest"
 
-# Try to download pre-built backend binary
-if [[ "$(dpkg --print-architecture 2>/dev/null)" == "amd64" ]]; then
-    if curl -sfL --connect-timeout 10 "${RELEASE_URL}/chameleon-backend-linux-amd64.tar.gz" -o /tmp/chameleon-backend.tar.gz 2>/dev/null; then
+if [[ "$FORCE_BUILD" == "false" && "$(dpkg --print-architecture 2>/dev/null)" == "amd64" ]]; then
+    # Download backend binary
+    if curl -sfL --connect-timeout 15 "${RELEASE_URL}/chameleon-backend-linux-amd64.tar.gz" -o /tmp/chameleon-backend.tar.gz 2>/dev/null; then
         mkdir -p backend/bin
         tar xzf /tmp/chameleon-backend.tar.gz -C backend/bin/
         rm -f /tmp/chameleon-backend.tar.gz
         PREBUILT=true
-        log "Backend binary downloaded (skipping compilation)"
+        log "Backend binary downloaded (skipping compilation!)"
     else
         warn "Pre-built binary not available — will compile from source"
     fi
-else
-    warn "Architecture $(dpkg --print-architecture) — will compile from source"
-fi
 
-# Try to download pre-built admin dist
-if curl -sfL --connect-timeout 10 "${RELEASE_URL}/chameleon-admin-dist.tar.gz" -o /tmp/chameleon-admin.tar.gz 2>/dev/null; then
-    mkdir -p admin/dist
-    tar xzf /tmp/chameleon-admin.tar.gz -C admin/dist/
-    rm -f /tmp/chameleon-admin.tar.gz
-    log "Admin panel downloaded (skipping npm build)"
+    # Download admin dist
+    if curl -sfL --connect-timeout 15 "${RELEASE_URL}/chameleon-admin-dist.tar.gz" -o /tmp/chameleon-admin.tar.gz 2>/dev/null; then
+        mkdir -p admin/dist
+        tar xzf /tmp/chameleon-admin.tar.gz -C admin/dist/
+        rm -f /tmp/chameleon-admin.tar.gz
+        log "Admin panel downloaded (skipping npm build!)"
+    fi
 else
-    warn "Pre-built admin not available — will build from source"
+    [[ "$FORCE_BUILD" == "true" ]] && log "Forced source build (--build flag)"
+    [[ "$(dpkg --print-architecture 2>/dev/null)" != "amd64" ]] && warn "Architecture $(dpkg --print-architecture) — compiling from source"
 fi
 
 if [[ "$PREBUILT" == "false" ]]; then
@@ -173,10 +176,19 @@ fi
 
 step "6/7 Building and starting all services"
 if [[ "$PREBUILT" == "true" ]]; then
-    # Use prebuilt Dockerfiles (no compilation)
-    BACKEND_DOCKERFILE=Dockerfile.prebuilt ADMIN_DOCKERFILE=Dockerfile.prebuilt \
-        docker compose build --parallel 2>&1 | tail -5
+    log "Using pre-built binaries (fast mode)"
+    # Use prebuilt Dockerfiles — no compilation
+    COMPOSE_DOCKER_CLI_BUILD=1 DOCKER_BUILDKIT=1 \
+        docker compose -f docker-compose.yml \
+        build --parallel \
+        --build-arg BUILDKIT_INLINE_CACHE=1 \
+        2>&1 | tail -5
+
+    # Override backend and nginx to use prebuilt Dockerfiles
+    docker build -f backend/Dockerfile.prebuilt -t chameleon-backend backend/ 2>&1 | tail -3
+    docker build -f admin/Dockerfile.prebuilt -t chameleon-nginx admin/ 2>&1 | tail -3
 else
+    log "Compiling from source (this takes ~3 minutes)..."
     docker compose build --parallel 2>&1 | tail -5
 fi
 docker compose up -d

@@ -1,0 +1,6 @@
+# Runtime-only image — uses pre-built admin dist from GitHub Releases.
+# No Node.js, no npm. Instant build.
+FROM nginx:1.27-alpine
+LABEL org.opencontainers.image.source=https://github.com/molkex/chameleon
+COPY dist/ /usr/share/nginx/html/admin/
+EXPOSE 80
