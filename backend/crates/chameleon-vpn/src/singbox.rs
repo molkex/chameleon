@@ -28,16 +28,44 @@ pub fn generate_config(
         }
     }
 
-    // First outbound = default route in sing-box
+    // Wrap proxy outbounds in a selector group for manual server switching
+    // and a urltest group for automatic best-ping selection
     let mut all_outbounds = Vec::new();
-    all_outbounds.extend(outbounds); // proxy servers first
+
+    if tags.len() > 1 {
+        // Selector: user picks server manually via gRPC/app UI
+        all_outbounds.push(json!({
+            "type": "selector",
+            "tag": "Proxy",
+            "outbounds": tags.iter().chain(std::iter::once(&"Auto".to_string())).collect::<Vec<_>>(),
+            "default": "Auto",
+        }));
+        // URLTest: auto-select best ping
+        all_outbounds.push(json!({
+            "type": "urltest",
+            "tag": "Auto",
+            "outbounds": tags,
+            "url": "https://www.gstatic.com/generate_204",
+            "interval": "300s",
+        }));
+    } else if tags.len() == 1 {
+        // Single server — no need for selector/urltest
+        all_outbounds.push(json!({
+            "type": "selector",
+            "tag": "Proxy",
+            "outbounds": &tags,
+            "default": &tags[0],
+        }));
+    }
+
+    all_outbounds.extend(outbounds); // actual proxy server outbounds
     all_outbounds.push(json!({"type": "direct", "tag": "direct"}));
 
     json!({
         "log": {"level": "debug"},
         "dns": {
             "servers": [
-                {"tag": "dns-direct", "address": "8.8.8.8"},
+                {"tag": "dns-direct", "address": "8.8.8.8", "detour": "direct"},
             ],
         },
         "inbounds": [

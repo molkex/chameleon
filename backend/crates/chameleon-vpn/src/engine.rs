@@ -135,13 +135,15 @@ impl ChameleonEngine {
         servers.iter().filter_map(|srv| {
             let ip = srv.get("host").or_else(|| srv.get("ip"))?.as_str()?;
             let domain = srv.get("domain").and_then(|d| d.as_str()).unwrap_or(ip);
+            let port = srv.get("port").and_then(|p| p.as_u64()).unwrap_or(self.settings.vless_tcp_port as u64) as u16;
+            let key = srv.get("key").and_then(|k| k.as_str()).unwrap_or(domain.split('.').next().unwrap_or(domain));
             Some(ServerConfig {
                 host: ip.to_string(),
-                port: self.settings.vless_tcp_port,
+                port,
                 domain: domain.to_string(),
                 flag: srv.get("flag").and_then(|f| f.as_str()).unwrap_or("").to_string(),
                 name: srv.get("name").and_then(|n| n.as_str()).unwrap_or("").to_string(),
-                key: domain.split('.').next().unwrap_or(domain).to_string(),
+                key: key.to_string(),
             })
         }).collect()
     }
