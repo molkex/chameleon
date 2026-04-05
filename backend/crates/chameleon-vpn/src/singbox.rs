@@ -41,28 +41,32 @@ pub fn generate_config(
 
     // Auto selector (uses first available)
     let auto_tag = "Auto".to_string();
-    outbounds.push(json!({
-        "type": "urltest",
-        "tag": auto_tag,
-        "outbounds": selector_tags,
-        "url": "https://www.gstatic.com/generate_204",
-        "interval": "3m",
-        "tolerance": 100,
-    }));
 
-    // Main selector
+    // Main selector — must be FIRST outbound (sing-box uses first as default)
     let mut main_outbounds = vec![auto_tag.clone()];
     main_outbounds.extend(selector_tags.clone());
-    outbounds.push(json!({
-        "type": "selector",
-        "tag": "Proxy",
-        "outbounds": main_outbounds,
-        "default": auto_tag,
-    }));
 
-    // Direct + Block
-    outbounds.push(json!({"type": "direct", "tag": "Direct"}));
-    outbounds.push(json!({"type": "block", "tag": "Block"}));
+    let mut final_outbounds = vec![
+        json!({
+            "type": "selector",
+            "tag": "Proxy",
+            "outbounds": main_outbounds,
+            "default": auto_tag,
+        }),
+        json!({"type": "direct", "tag": "Direct"}),
+        json!({"type": "block", "tag": "Block"}),
+        json!({
+            "type": "urltest",
+            "tag": auto_tag,
+            "outbounds": selector_tags,
+            "url": "https://www.gstatic.com/generate_204",
+            "interval": "3m",
+            "tolerance": 100,
+        }),
+    ];
+    // Append all server outbounds after meta outbounds
+    final_outbounds.extend(outbounds);
+    let outbounds = final_outbounds;
 
     // Build full config (sing-box 1.13 format)
     json!({
@@ -85,7 +89,6 @@ pub fn generate_config(
         "outbounds": outbounds,
         "route": {
             "default_domain_resolver": {"server": "direct-dns", "strategy": "ipv4_only"},
-            "default_outbound": "Proxy",
             "rules": [
                 {"action": "sniff"},
                 {"protocol": "dns", "action": "hijack-dns"},
