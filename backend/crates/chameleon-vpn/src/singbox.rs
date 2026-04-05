@@ -72,10 +72,6 @@ pub fn generate_config(
                 {"tag": "proxy-dns", "address": "https://1.1.1.1/dns-query", "detour": "Proxy"},
                 {"tag": "direct-dns", "address": "https://dns.google/dns-query", "detour": "Direct"},
             ],
-            "rules": [
-                {"outbound": ["any"], "server": "proxy-dns"},
-            ],
-            "strategy": "prefer_ipv4",
         },
         "inbounds": [
             {
@@ -84,13 +80,13 @@ pub fn generate_config(
                 "address": ["172.19.0.1/30", "fdfe:dcba:9876::1/126"],
                 "auto_route": true,
                 "stack": "mixed",
-                "sniff": true,
             }
         ],
         "outbounds": outbounds,
         "route": {
-            "auto_detect_interface": true,
+            "default_domain_resolver": {"server": "direct-dns", "strategy": "ipv4_only"},
             "rules": [
+                {"action": "sniff"},
                 {"protocol": "dns", "action": "hijack-dns"},
                 {"ip_is_private": true, "outbound": "Direct"},
             ],

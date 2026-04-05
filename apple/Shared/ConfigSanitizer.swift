@@ -86,20 +86,11 @@ enum ConfigSanitizer {
             config["dns"] = dns
         }
 
-        // 6. Add route.default_domain_resolver so outbounds can resolve server hostnames
+        // 6. Ensure route.default_domain_resolver exists
         if var route = config["route"] as? [String: Any] {
             if route["default_domain_resolver"] == nil {
-                // Find first DNS server tag from config
-                let dnsTag: String
-                if let dns = config["dns"] as? [String: Any],
-                   let servers = dns["servers"] as? [[String: Any]],
-                   let first = servers.first?["tag"] as? String {
-                    dnsTag = first
-                } else {
-                    dnsTag = "direct-dns"
-                }
                 route["default_domain_resolver"] = [
-                    "server": dnsTag,
+                    "server": "direct-dns",
                     "strategy": "ipv4_only"
                 ] as [String: Any]
             }
