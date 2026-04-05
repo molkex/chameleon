@@ -49,10 +49,8 @@ pub fn generate_config(
                 // Relay only forwards TCP via nginx, cannot proxy UDP/QUIC
                 let mut seen_hosts = std::collections::HashSet::new();
                 for srv in servers {
-                    // Skip relay servers (different host than domain = relay)
-                    let is_relay = !srv.domain.is_empty() && srv.host != srv.domain
-                        && srv.host != srv.domain.split('.').next().unwrap_or("");
-                    if is_relay { continue; }
+                    // Skip relay servers — their key starts with "relay"
+                    if srv.key.starts_with("relay") { continue; }
                     // Deduplicate by host IP (avoid 2 outbounds to same server)
                     if !seen_hosts.insert(srv.host.clone()) { continue; }
                     let tag = format!("🚀 {} Hysteria2", srv.name);
