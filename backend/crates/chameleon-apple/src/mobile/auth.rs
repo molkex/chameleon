@@ -189,15 +189,14 @@ fn generate_subscription_token() -> String {
 fn create_tokens(
     secret: &str,
     user: &User,
-    client_ip: &str,
+    _client_ip: &str,
 ) -> ApiResult<(String, String)> {
     let username = user.vpn_username.as_deref().unwrap_or("unknown");
-    let ip = Some(client_ip);
-
-    let access = jwt::create_access_token(secret, user.id, username, "user", ip)
+    // No IP binding for mobile — LTE networks and Cloudflare change IPs between requests
+    let access = jwt::create_access_token(secret, user.id, username, "user", None)
         .map_err(|e| ApiError::Internal(anyhow::anyhow!("JWT create error: {e}")))?;
 
-    let refresh = jwt::create_refresh_token(secret, user.id, username, "user", ip)
+    let refresh = jwt::create_refresh_token(secret, user.id, username, "user", None)
         .map_err(|e| ApiError::Internal(anyhow::anyhow!("JWT create error: {e}")))?;
 
     Ok((access, refresh))
