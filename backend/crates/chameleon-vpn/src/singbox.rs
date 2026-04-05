@@ -85,6 +85,7 @@ pub fn generate_config(
         "outbounds": outbounds,
         "route": {
             "default_domain_resolver": {"server": "direct-dns", "strategy": "ipv4_only"},
+            "default_outbound": "Proxy",
             "rules": [
                 {"action": "sniff"},
                 {"protocol": "dns", "action": "hijack-dns"},
