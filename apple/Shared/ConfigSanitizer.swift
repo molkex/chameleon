@@ -74,10 +74,14 @@ enum ConfigSanitizer {
             config["dns"] = dns
         }
 
-        // 5. Remove deprecated "outbound: any" DNS rules
+        // 5. Remove deprecated "outbound: any" DNS rules (string or array form)
         if var dns = config["dns"] as? [String: Any],
            var rules = dns["rules"] as? [[String: Any]] {
-            rules.removeAll { $0["outbound"] as? String == "any" }
+            rules.removeAll { rule in
+                if rule["outbound"] as? String == "any" { return true }
+                if let arr = rule["outbound"] as? [String], arr == ["any"] { return true }
+                return false
+            }
             dns["rules"] = rules
             config["dns"] = dns
         }
@@ -85,8 +89,17 @@ enum ConfigSanitizer {
         // 6. Add route.default_domain_resolver so outbounds can resolve server hostnames
         if var route = config["route"] as? [String: Any] {
             if route["default_domain_resolver"] == nil {
+                // Find first DNS server tag from config
+                let dnsTag: String
+                if let dns = config["dns"] as? [String: Any],
+                   let servers = dns["servers"] as? [[String: Any]],
+                   let first = servers.first?["tag"] as? String {
+                    dnsTag = first
+                } else {
+                    dnsTag = "direct-dns"
+                }
                 route["default_domain_resolver"] = [
-                    "server": "dns-resolver",
+                    "server": dnsTag,
                     "strategy": "ipv4_only"
                 ] as [String: Any]
             }
