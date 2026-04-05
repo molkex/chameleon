@@ -98,7 +98,7 @@ pub fn generate_config(
         "log": {"level": "warning"},
         "dns": {
             "servers": [
-                {"tag": "dns-remote", "address": "https://1.1.1.1/dns-query", "detour": "Proxy"},
+                {"tag": "dns-remote", "address": "https://1.1.1.1/dns-query", "detour": "Auto"},
                 {"tag": "dns-direct", "address": "https://8.8.8.8/dns-query", "detour": "direct"},
             ],
             "rules": [
