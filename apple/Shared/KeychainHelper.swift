@@ -5,7 +5,7 @@ import Security
 /// Uses kSecAttrAccessibleAfterFirstUnlock so the tunnel extension
 /// can read values even when the device is locked.
 enum KeychainHelper {
-    private static let service = AppConstants.appGroupID
+    private static let service = "com.chameleonvpn.app"
 
     static func save(key: String, value: String) {
         guard let data = value.data(using: .utf8) else { return }
@@ -13,15 +13,15 @@ enum KeychainHelper {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: key,
-            kSecAttrAccessGroup as String: AppConstants.appGroupID,
         ]
-        // Delete old value first
         SecItemDelete(query as CFDictionary)
-        // Add new
         var add = query
         add[kSecValueData as String] = data
         add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-        SecItemAdd(add as CFDictionary, nil)
+        let status = SecItemAdd(add as CFDictionary, nil)
+        if status != errSecSuccess {
+            print("[Keychain] save failed: \(status) for key: \(key)")
+        }
     }
 
     static func load(key: String) -> String? {
@@ -29,7 +29,6 @@ enum KeychainHelper {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: key,
-            kSecAttrAccessGroup as String: AppConstants.appGroupID,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne,
         ]
@@ -44,7 +43,6 @@ enum KeychainHelper {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: key,
-            kSecAttrAccessGroup as String: AppConstants.appGroupID,
         ]
         SecItemDelete(query as CFDictionary)
     }

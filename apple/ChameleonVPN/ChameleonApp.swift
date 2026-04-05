@@ -6,8 +6,9 @@ struct ChameleonApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView()
+            MainView()
                 .environment(appState)
+                .task { await appState.initialize() }
         }
     }
 }

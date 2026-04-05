@@ -48,11 +48,11 @@ class APIClient {
 
     // MARK: - Standalone Device Registration
 
-    /// Register device for trial access (3 days, no Telegram needed).
-    func registerDevice() async throws -> (username: String, expire: Int) {
+    /// Register device for trial access.
+    func registerDevice() async throws -> AuthResult {
         let deviceId = UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
 
-        let url = URL(string: "\(AppConstants.baseURL)/api/mobile/register")!
+        let url = URL(string: "\(AppConstants.baseURL)/api/mobile/auth/register")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -62,17 +62,14 @@ class APIClient {
 
         do {
             let (data, response) = try await session.data(for: request)
-            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-                let code = (response as? HTTPURLResponse)?.statusCode ?? 0
-                throw APIError.serverError(code)
+            guard let http = response as? HTTPURLResponse else {
+                throw APIError.networkError("No response")
             }
-
-            let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
-            guard let username = json["username"] as? String else {
-                throw APIError.noConfig
+            if http.statusCode == 401 { throw APIError.unauthorized }
+            guard http.statusCode == 200 || http.statusCode == 201 else {
+                throw APIError.serverError(http.statusCode)
             }
-            let expire = json["expire"] as? Int ?? 0
-            return (username, expire)
+            return try JSONDecoder().decode(AuthResult.self, from: data)
         } catch let error as APIError {
             throw error
         } catch {
@@ -82,9 +79,9 @@ class APIClient {
 
     // MARK: - Code Activation (from Telegram bot)
 
-    /// Activate with code from Telegram bot (POST to /api/mobile/activate).
+    /// Activate with code from Telegram bot (POST to /api/mobile/auth/activate).
     func activateCode(_ code: String) async throws -> String {
-        let url = URL(string: "\(AppConstants.baseURL)/api/mobile/activate")!
+        let url = URL(string: "\(AppConstants.baseURL)/api/mobile/auth/activate")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -198,94 +195,6 @@ class APIClient {
             throw APIError.serverError(http.statusCode)
         }
         return try JSONDecoder().decode(AuthResult.self, from: data)
-    }
-
-    // MARK: - Support Chat
-
-    /// Fetch support messages. Pass `beforeId` for pagination.
-    func fetchSupportMessages(accessToken: String, beforeId: Int? = nil) async throws -> SupportMessagesResponse {
-        var components = URLComponents(string: "\(AppConstants.baseURL)/api/mobile/support/messages")!
-        if let beforeId {
-            components.queryItems = [URLQueryItem(name: "before_id", value: "\(beforeId)")]
-        }
-        var request = URLRequest(url: components.url!)
-        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-        request.timeoutInterval = 15
-
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw APIError.networkError("No response")
-        }
-        if http.statusCode == 401 { throw APIError.unauthorized }
-        guard http.statusCode == 200 else { throw APIError.serverError(http.statusCode) }
-
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        return try decoder.decode(SupportMessagesResponse.self, from: data)
-    }
-
-    /// Send a support message (text and/or images). Images are sent as JPEG via multipart.
-    func sendSupportMessage(accessToken: String, content: String?, images: [UIImage]) async throws -> SupportMessage {
-        let boundary = UUID().uuidString
-        var request = URLRequest(url: URL(string: "\(AppConstants.baseURL)/api/mobile/support/messages")!)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 30
-
-        var body = Data()
-        let crlf = "\r\n"
-
-        // Append text content field if present
-        if let content, !content.isEmpty {
-            body.append("--\(boundary)\(crlf)".data(using: .utf8)!)
-            body.append("Content-Disposition: form-data; name=\"content\"\(crlf)\(crlf)".data(using: .utf8)!)
-            body.append(content.data(using: .utf8)!)
-            body.append(crlf.data(using: .utf8)!)
-        }
-
-        // Append image fields
-        for (index, image) in images.enumerated() {
-            guard let jpegData = image.jpegData(compressionQuality: 0.7) else { continue }
-            body.append("--\(boundary)\(crlf)".data(using: .utf8)!)
-            body.append("Content-Disposition: form-data; name=\"images\"; filename=\"image_\(index).jpg\"\(crlf)".data(using: .utf8)!)
-            body.append("Content-Type: image/jpeg\(crlf)\(crlf)".data(using: .utf8)!)
-            body.append(jpegData)
-            body.append(crlf.data(using: .utf8)!)
-        }
-
-        body.append("--\(boundary)--\(crlf)".data(using: .utf8)!)
-        request.httpBody = body
-
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw APIError.networkError("No response")
-        }
-        if http.statusCode == 401 { throw APIError.unauthorized }
-        guard http.statusCode == 200 || http.statusCode == 201 else {
-            throw APIError.serverError(http.statusCode)
-        }
-
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        return try decoder.decode(SupportMessage.self, from: data)
-    }
-
-    /// Get count of unread messages from admin (for badge).
-    func fetchSupportUnread(accessToken: String) async throws -> Int {
-        var request = URLRequest(url: URL(string: "\(AppConstants.baseURL)/api/mobile/support/unread")!)
-        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-        request.timeoutInterval = 10
-
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw APIError.networkError("No response")
-        }
-        if http.statusCode == 401 { throw APIError.unauthorized }
-        guard http.statusCode == 200 else { throw APIError.serverError(http.statusCode) }
-
-        let json = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
-        return json["unread_count"] as? Int ?? 0
     }
 
     // MARK: - Token Refresh

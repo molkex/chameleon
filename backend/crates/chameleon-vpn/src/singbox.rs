@@ -64,17 +64,13 @@ pub fn generate_config(
     outbounds.push(json!({"type": "direct", "tag": "Direct"}));
     outbounds.push(json!({"type": "block", "tag": "Block"}));
 
-    // DNS outbound
-    outbounds.push(json!({"type": "dns", "tag": "dns-out"}));
-
-    // Build full config
+    // Build full config (sing-box 1.13 format)
     json!({
         "log": {"level": "info"},
         "dns": {
             "servers": [
                 {"tag": "proxy-dns", "address": "https://1.1.1.1/dns-query", "detour": "Proxy"},
                 {"tag": "direct-dns", "address": "https://dns.google/dns-query", "detour": "Direct"},
-                {"tag": "block-dns", "address": "rcode://success"},
             ],
             "rules": [
                 {"outbound": ["any"], "server": "proxy-dns"},
@@ -87,28 +83,16 @@ pub fn generate_config(
                 "tag": "tun-in",
                 "address": ["172.19.0.1/30", "fdfe:dcba:9876::1/126"],
                 "auto_route": true,
-                "strict_route": true,
                 "stack": "mixed",
                 "sniff": true,
-                "sniff_override_destination": true,
             }
         ],
         "outbounds": outbounds,
         "route": {
             "auto_detect_interface": true,
             "rules": [
-                {"protocol": "dns", "outbound": "dns-out"},
+                {"protocol": "dns", "action": "hijack-dns"},
                 {"ip_is_private": true, "outbound": "Direct"},
-                {"rule_set": "geosite-ru", "outbound": "Proxy"},
-            ],
-            "rule_set": [
-                {
-                    "tag": "geosite-ru",
-                    "type": "remote",
-                    "format": "binary",
-                    "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-category-ru.srs",
-                    "download_detour": "Direct",
-                },
             ],
         },
         "experimental": {
