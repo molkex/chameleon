@@ -74,7 +74,7 @@ pub fn generate_config(
         "dns": {
             "servers": [
                 {"tag": "proxy-dns", "address": "https://1.1.1.1/dns-query", "detour": "Proxy"},
-                {"tag": "direct-dns", "address": "https://dns.google/dns-query", "detour": "Direct"},
+                {"tag": "direct-dns", "address": "8.8.8.8", "detour": "Direct"},
             ],
         },
         "inbounds": [
