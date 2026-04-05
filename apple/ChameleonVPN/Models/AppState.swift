@@ -66,7 +66,8 @@ class AppState {
         do {
             try await fetchAndSaveConfig()
         } catch {
-            AppLogger.app.debug("Config update: \(error.localizedDescription)")
+            AppLogger.app.error("Config update failed: \(error.localizedDescription)")
+            errorMessage = error.localizedDescription
         }
     }
 

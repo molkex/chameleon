@@ -118,15 +118,11 @@ class APIClient {
     /// Always uses /api/v1/mobile/config — passes username as query param, Bearer token if available.
     func fetchConfig(username: String, accessToken: String? = nil, mode: String = "smart") async throws -> (config: String, expire: Int) {
         var components = URLComponents(string: AppConstants.mobileConfigURL)!
-        var queryItems = [URLQueryItem(name: "mode", value: mode)]
-        if !username.isEmpty {
-            queryItems.append(URLQueryItem(name: "username", value: username))
-        }
-        components.queryItems = queryItems
+        components.queryItems = [
+            URLQueryItem(name: "username", value: username),
+            URLQueryItem(name: "mode", value: mode),
+        ]
         var request = URLRequest(url: components.url!)
-        if let token = accessToken, !token.isEmpty {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
         request.timeoutInterval = 30
 
         do {
