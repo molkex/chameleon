@@ -45,15 +45,20 @@ pub fn generate_config(
                 }
             }
             "hysteria2" => {
-                // Hysteria2 per-server (uses server.host for each)
+                // Hysteria2 per-server — skip relay servers (SPB etc)
+                // Relay only forwards TCP via nginx, cannot proxy UDP/QUIC
+                let mut seen_hosts = std::collections::HashSet::new();
                 for srv in servers {
-                    // Only generate for servers that have direct IPs (not relays)
-                    if srv.host == srv.domain || srv.domain.is_empty() {
-                        let tag = format!("🚀 {} Hysteria2", srv.name);
-                        if let Some(ob) = proto.singbox_outbound(&tag, srv, user, &OutboundOpts::default()) {
-                            tags.push(tag);
-                            outbounds.push(ob);
-                        }
+                    // Skip relay servers (different host than domain = relay)
+                    let is_relay = !srv.domain.is_empty() && srv.host != srv.domain
+                        && srv.host != srv.domain.split('.').next().unwrap_or("");
+                    if is_relay { continue; }
+                    // Deduplicate by host IP (avoid 2 outbounds to same server)
+                    if !seen_hosts.insert(srv.host.clone()) { continue; }
+                    let tag = format!("🚀 {} Hysteria2", srv.name);
+                    if let Some(ob) = proto.singbox_outbound(&tag, srv, user, &OutboundOpts::default()) {
+                        tags.push(tag);
+                        outbounds.push(ob);
                     }
                 }
             }
