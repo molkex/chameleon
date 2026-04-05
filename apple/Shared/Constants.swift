@@ -7,29 +7,29 @@ import Foundation
 
 enum AppConfig {
     /// Your server's base URL (with https://)
-    static let baseURL = "https://your-server.example.com"
+    static let baseURL = "https://razblokirator.ru"
 
     /// App Group ID (must match your provisioning profile)
-    static let appGroupID = "group.com.your-company.vpn"
+    static let appGroupID = "group.com.chameleonvpn.app"
 
     /// Network Extension bundle ID
-    static let tunnelBundleID = "com.your-company.vpn.tunnel"
+    static let tunnelBundleID = "com.chameleonvpn.app.tunnel"
 
     /// App name shown in UI
-    static let appName = "Chameleon VPN"
+    static let appName = "Chameleon"
 
-    /// StoreKit product IDs (set to your App Store Connect product IDs)
-    static let monthlyProductID = "com.your-company.vpn.monthly"
-    static let yearlyProductID = "com.your-company.vpn.yearly"
+    /// StoreKit product IDs
+    static let monthlyProductID = "com.chameleonvpn.app.monthly"
+    static let yearlyProductID = "com.chameleonvpn.app.yearly"
 
     /// VPN profile description shown in iOS Settings
     static let vpnProfileDescription = "Chameleon VPN"
 
     /// User-Agent for telemetry
-    static let userAgent = "ChameleonVPN-iOS"
+    static let userAgent = "Chameleon-iOS"
 
     /// Logger subsystem identifier
-    static let logSubsystem = "com.your-company.vpn"
+    static let logSubsystem = "com.chameleonvpn.app"
 }
 
 // ============================================================================
