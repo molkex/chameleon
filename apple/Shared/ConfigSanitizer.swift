@@ -13,6 +13,11 @@ import Foundation
 /// 8. deprecated sniff/sniff_override_destination on TUN — handled by route action
 enum ConfigSanitizer {
     static func sanitizeForIOS(_ configJSON: String) -> String {
+        // Pass through — backend generates sing-box 1.13 compatible config
+        return configJSON
+    }
+
+    static func _sanitizeForIOS_disabled(_ configJSON: String) -> String {
         guard let data = configJSON.data(using: .utf8),
               var config = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return configJSON

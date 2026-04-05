@@ -1,5 +1,4 @@
 //! Sing-box config generator — produces JSON config for iOS/macOS native app.
-//! Called by the mobile /config endpoint.
 
 use serde_json::json;
 
@@ -14,67 +13,35 @@ pub fn generate_config(
     servers: &[ServerConfig],
 ) -> serde_json::Value {
     let mut outbounds = vec![];
-    let mut selector_tags = vec![];
+    let mut tags = vec![];
 
-    // Generate outbounds from each enabled protocol + server
+    // Generate one VLESS Reality TCP outbound per server
     for proto in registry.enabled() {
+        if proto.name() != "vless_reality" { continue; }
         for srv in servers {
-            let tag = format!("{} {} {}", srv.flag, srv.name, proto.display_name());
-            let opts = OutboundOpts::default();
-
-            if let Some(outbound) = proto.singbox_outbound(&tag, srv, user, &opts) {
-                selector_tags.push(tag.clone());
-                outbounds.push(outbound);
-            }
-
-            // VLESS Reality — also add XHTTP variant
-            if proto.name() == "vless_reality" {
-                let xhttp_tag = format!("{} {} XHTTP", srv.flag, srv.name);
-                let xhttp_opts = OutboundOpts { transport: Some("xhttp".into()), ..Default::default() };
-                if let Some(ob) = proto.singbox_outbound(&xhttp_tag, srv, user, &xhttp_opts) {
-                    selector_tags.push(xhttp_tag);
-                    outbounds.push(ob);
-                }
+            let tag = format!("{} {}", srv.flag, srv.name);
+            let opts = OutboundOpts::default(); // TCP
+            if let Some(ob) = proto.singbox_outbound(&tag, srv, user, &opts) {
+                tags.push(tag);
+                outbounds.push(ob);
             }
         }
     }
 
-    // Auto selector (uses first available)
-    let auto_tag = "Auto".to_string();
-
-    // Main selector — must be FIRST outbound (sing-box uses first as default)
-    let mut main_outbounds = vec![auto_tag.clone()];
-    main_outbounds.extend(selector_tags.clone());
-
-    let mut final_outbounds = vec![
-        json!({
-            "type": "selector",
-            "tag": "Proxy",
-            "outbounds": main_outbounds,
-            "default": auto_tag,
-        }),
-        json!({"type": "direct", "tag": "Direct"}),
-        json!({"type": "block", "tag": "Block"}),
-        json!({
-            "type": "urltest",
-            "tag": auto_tag,
-            "outbounds": selector_tags,
-            "url": "https://www.gstatic.com/generate_204",
-            "interval": "3m",
-            "tolerance": 100,
-        }),
+    // Build outbounds: direct first (default), then proxy servers
+    let mut all_outbounds = vec![
+        json!({"type": "direct", "tag": "direct"}),
     ];
-    // Append all server outbounds after meta outbounds
-    final_outbounds.extend(outbounds);
-    let outbounds = final_outbounds;
+    all_outbounds.extend(outbounds);
 
-    // Build full config (sing-box 1.13 format)
+    // If no servers, still return a valid config
+    let proxy_tag = tags.first().cloned().unwrap_or_else(|| "direct".to_string());
+
     json!({
-        "log": {"level": "info"},
+        "log": {"level": "debug"},
         "dns": {
             "servers": [
-                {"tag": "proxy-dns", "address": "https://1.1.1.1/dns-query", "detour": "Proxy"},
-                {"tag": "direct-dns", "address": "8.8.8.8", "detour": "Direct"},
+                {"tag": "dns-direct", "address": "8.8.8.8"},
             ],
         },
         "inbounds": [
@@ -83,20 +50,18 @@ pub fn generate_config(
                 "tag": "tun-in",
                 "address": ["172.19.0.1/30", "fdfe:dcba:9876::1/126"],
                 "auto_route": true,
-                "stack": "mixed",
+                "stack": "system",
             }
         ],
-        "outbounds": outbounds,
+        "outbounds": all_outbounds,
         "route": {
-            "default_domain_resolver": {"server": "direct-dns", "strategy": "ipv4_only"},
+            "default_domain_resolver": {"server": "dns-direct", "strategy": "ipv4_only"},
             "rules": [
                 {"action": "sniff"},
                 {"protocol": "dns", "action": "hijack-dns"},
-                {"ip_is_private": true, "outbound": "Direct"},
+                {"ip_is_private": true, "outbound": "direct"},
             ],
-        },
-        "experimental": {
-            "cache_file": {"enabled": true},
+            "final": proxy_tag,
         },
     })
 }
