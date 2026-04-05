@@ -138,7 +138,6 @@ pub fn generate_config(
                 "auto_route": true,
                 "stack": "system",
                 "mtu": 1400,
-                "sniff": true,
             }
         ],
         "outbounds": all_outbounds,

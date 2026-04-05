@@ -23,12 +23,13 @@ enum ConfigSanitizer {
             config["route"] = route
         }
 
-        // 3. Remove deprecated sniff_override_destination from TUN inbound
+        // 3. Remove ALL deprecated inbound fields (sniff, sniff_override_destination, domain_strategy)
+        //    In 1.11+ these are handled by route actions instead
         if var inbounds = config["inbounds"] as? [[String: Any]] {
             for i in inbounds.indices {
-                if inbounds[i]["type"] as? String == "tun" {
-                    inbounds[i].removeValue(forKey: "sniff_override_destination")
-                }
+                inbounds[i].removeValue(forKey: "sniff")
+                inbounds[i].removeValue(forKey: "sniff_override_destination")
+                inbounds[i].removeValue(forKey: "domain_strategy")
             }
             config["inbounds"] = inbounds
         }

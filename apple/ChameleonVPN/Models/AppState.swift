@@ -58,9 +58,13 @@ class AppState {
         let hasUrltest = outbounds.contains { ($0["type"] as? String) == "urltest" }
         let hasDnsOutbound = outbounds.contains { ($0["type"] as? String) == "dns" }
 
-        if !hasSelector && !hasUrltest || hasDnsOutbound {
-            // Config is stripped or has deprecated dns outbound — delete and re-fetch
-            AppLogger.app.info("repairConfigIfNeeded: clearing outdated config (hasDns=\(hasDnsOutbound), hasSelector=\(hasSelector))")
+        // Check for deprecated inbound fields
+        let inbounds = (json["inbounds"] as? [[String: Any]]) ?? []
+        let hasLegacyInbound = inbounds.contains { $0["sniff"] != nil || $0["sniff_override_destination"] != nil }
+
+        if !hasSelector && !hasUrltest || hasDnsOutbound || hasLegacyInbound {
+            // Config has deprecated fields — delete and re-fetch
+            AppLogger.app.info("repairConfigIfNeeded: clearing outdated config")
             try? FileManager.default.removeItem(at: AppConstants.configFileURL)
             UserDefaults(suiteName: AppConstants.appGroupID)?.removeObject(forKey: AppConstants.startOptionsKey)
         }
