@@ -10,7 +10,7 @@ final class ExtensionPlatformInterface: NSObject, @unchecked Sendable {
     weak var tunnel: NEPacketTunnelProvider?
     private var pathMonitor: NWPathMonitor?
     private var interfaceListener: LibboxInterfaceUpdateListenerProtocol?
-    private var neighborListener: LibboxNeighborUpdateListenerProtocol?
+    // neighborListener removed in libbox 1.13
 
     init(tunnel: NEPacketTunnelProvider) {
         self.tunnel = tunnel
@@ -35,12 +35,11 @@ extension ExtensionPlatformInterface: LibboxPlatformInterfaceProtocol {
     }
 
     func autoDetectControl(_ fd: Int32) throws {
-        // On iOS the system handles interface binding for VPN sockets
+        TunnelFileLogger.log("autoDetectControl fd=\(fd)", category: "platform")
     }
 
     func openTun(_ options: (any LibboxTunOptionsProtocol)?, ret0_ ret0: UnsafeMutablePointer<Int32>?) throws {
-        // Use Task.detached via runBlocking to avoid deadlocking the provider queue.
-        // SFI pattern: async/await setTunnelNetworkSettings in a detached task.
+        TunnelFileLogger.log("openTun called", category: "platform")
         try runBlocking { [self] in
             try await openTunAsync(options, ret0)
         }
@@ -49,33 +48,38 @@ extension ExtensionPlatformInterface: LibboxPlatformInterfaceProtocol {
     private func openTunAsync(_ options: (any LibboxTunOptionsProtocol)?,
                                _ ret0: UnsafeMutablePointer<Int32>?) async throws {
         guard let tunnel = tunnel, let options = options, let ret0 = ret0 else {
+            TunnelFileLogger.log("ERROR: openTunAsync — no tunnel/options/ret0", category: "platform")
             throw NSError(domain: "Chameleon", code: 1, userInfo: [NSLocalizedDescriptionKey: "No tunnel provider"])
         }
 
+        TunnelFileLogger.log("openTunAsync: MTU=\(options.getMTU()), building settings...", category: "platform")
         let settings = try buildTunnelSettings(from: options)
 
-        // Use withCheckedThrowingContinuation to wrap callback-based API.
-        // This runs in a Task.detached context (via runBlocking),
-        // so the completion handler can dispatch freely without deadlock.
+        TunnelFileLogger.log("setTunnelNetworkSettings: calling...", category: "platform")
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             tunnel.setTunnelNetworkSettings(settings) { error in
                 if let error {
+                    TunnelFileLogger.log("ERROR: setTunnelNetworkSettings failed: \(error)", category: "platform")
                     continuation.resume(throwing: error)
                 } else {
+                    TunnelFileLogger.log("setTunnelNetworkSettings: OK", category: "platform")
                     continuation.resume()
                 }
             }
         }
 
         if let tunFd = tunnel.packetFlow.value(forKeyPath: "socket.fileDescriptor") as? Int32 {
+            TunnelFileLogger.log("TUN fd from packetFlow: \(tunFd)", category: "platform")
             ret0.pointee = tunFd
             return
         }
 
         let tunFd = LibboxGetTunnelFileDescriptor()
+        TunnelFileLogger.log("TUN fd from LibboxGetTunnelFileDescriptor: \(tunFd)", category: "platform")
         if tunFd != -1 {
             ret0.pointee = tunFd
         } else {
+            TunnelFileLogger.log("ERROR: Missing TUN file descriptor", category: "platform")
             throw NSError(domain: "Chameleon", code: 2, userInfo: [NSLocalizedDescriptionKey: "Missing TUN file descriptor"])
         }
     }
@@ -156,13 +160,7 @@ extension ExtensionPlatformInterface: LibboxPlatformInterfaceProtocol {
         // Not implemented for MVP
     }
 
-    func startNeighborMonitor(_ listener: (any LibboxNeighborUpdateListenerProtocol)?) throws {
-        self.neighborListener = listener
-    }
-
-    func closeNeighborMonitor(_ listener: (any LibboxNeighborUpdateListenerProtocol)?) throws {
-        self.neighborListener = nil
-    }
+    // startNeighborMonitor/closeNeighborMonitor removed in libbox 1.13
 
     func registerMyInterface(_ name: String?) {
         // Used by sing-box to register TUN interface name
@@ -242,6 +240,8 @@ extension ExtensionPlatformInterface: LibboxPlatformInterfaceProtocol {
             interfaceIndex = Int32(iface.index)
         }
 
+        TunnelFileLogger.log("pathUpdate: status=\(path.status), iface=\(interfaceName)(\(interfaceIndex)), expensive=\(path.isExpensive)", category: "network")
+
         listener.updateDefaultInterface(
             interfaceName,
             interfaceIndex: interfaceIndex,
@@ -280,7 +280,7 @@ extension ExtensionPlatformInterface: LibboxCommandServerHandlerProtocol {
     }
 
     func serviceReload() throws {
-        // Reload handled by ExtensionProvider
+        TunnelFileLogger.log("serviceReload called", category: "singbox")
     }
 
     func getSystemProxyStatus() throws -> LibboxSystemProxyStatus {
@@ -291,9 +291,35 @@ extension ExtensionPlatformInterface: LibboxCommandServerHandlerProtocol {
         // Not applicable on iOS
     }
 
+    func writeLogs(_ messageList: (any LibboxLogIteratorProtocol)?) {
+        guard let messageList else { return }
+        while messageList.hasNext() {
+            if let entry = messageList.next() {
+                let levelStr: String
+                switch entry.level {
+                case 0: levelStr = "TRACE"
+                case 1: levelStr = "DEBUG"
+                case 2: levelStr = "INFO"
+                case 3: levelStr = "WARN"
+                case 4: levelStr = "ERROR"
+                case 5: levelStr = "FATAL"
+                default: levelStr = "L\(entry.level)"
+                }
+                TunnelFileLogger.log("[\(levelStr)] \(entry.message)", category: "singbox")
+            }
+        }
+    }
+
+    func writeMessage(_ level: Int32, message: String?) {
+        guard let message else { return }
+        TunnelFileLogger.log("[L\(level)] \(message)", category: "singbox")
+    }
+
     func writeDebugMessage(_ message: String?) {
         guard let message else { return }
-        // Write to file so we can pull logs from device
+        // Forward sing-box debug messages to our file logger too
+        TunnelFileLogger.log(message, category: "singbox")
+        // Also write to singbox.log
         let logURL = AppConstants.sharedContainerURL.appendingPathComponent("singbox.log")
         let line = "\(message)\n"
         if let handle = try? FileHandle(forWritingTo: logURL) {

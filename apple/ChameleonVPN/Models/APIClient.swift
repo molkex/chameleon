@@ -64,19 +64,34 @@ class APIClient {
         fallbackSession = URLSession(configuration: fallbackConfig, delegate: InsecureDelegate(), delegateQueue: nil)
     }
 
-    /// Try primary URL, fallback to direct IP if it fails
+    /// Try primary URL, then Russian relay, then direct IP
     private func dataWithFallback(for request: URLRequest) async throws -> (Data, URLResponse) {
+        // 1. Try primary (Cloudflare)
         do {
             return try await session.data(for: request)
         } catch {
-            // Try fallback: replace baseURL with fallbackBaseURL
-            guard let url = request.url,
-                  let fallbackURL = URL(string: url.absoluteString.replacingOccurrences(
-                      of: AppConfig.baseURL, with: AppConfig.fallbackBaseURL))
+            guard let url = request.url else { throw error }
+            let urlString = url.absoluteString
+
+            // 2. Try Russian relay (SPB) — local traffic, less likely blocked
+            if let relayURL = URL(string: urlString.replacingOccurrences(
+                of: AppConfig.baseURL, with: AppConfig.russianRelayURL)) {
+                var relayRequest = request
+                relayRequest.url = relayURL
+                relayRequest.timeoutInterval = 7
+                if let result = try? await fallbackSession.data(for: relayRequest) {
+                    return result
+                }
+            }
+
+            // 3. Try direct IP (last resort)
+            guard let ipURL = URL(string: urlString.replacingOccurrences(
+                of: AppConfig.baseURL, with: AppConfig.fallbackBaseURL))
             else { throw error }
-            var fallbackRequest = request
-            fallbackRequest.url = fallbackURL
-            return try await fallbackSession.data(for: fallbackRequest)
+            var ipRequest = request
+            ipRequest.url = ipURL
+            ipRequest.timeoutInterval = 10
+            return try await fallbackSession.data(for: ipRequest)
         }
     }
 

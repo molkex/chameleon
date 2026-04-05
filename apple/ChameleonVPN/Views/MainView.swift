@@ -5,6 +5,7 @@ struct MainView: View {
     @Environment(AppState.self) private var app
 
     @State private var showServers = false
+    @State private var showDebugLogs = false
 
     var body: some View {
         ZStack {
@@ -71,6 +72,23 @@ struct MainView: View {
                 .padding(.bottom, 30)
             }
 
+            // Debug button (top-right)
+            VStack {
+                HStack {
+                    Spacer()
+                    Button {
+                        showDebugLogs = true
+                    } label: {
+                        Image(systemName: "ladybug")
+                            .font(.title3)
+                            .foregroundStyle(.gray.opacity(0.6))
+                            .padding(12)
+                    }
+                }
+                Spacer()
+            }
+            .padding(.top, 50)
+
             // Error toast
             if let error = app.errorMessage {
                 VStack {
@@ -90,6 +108,10 @@ struct MainView: View {
         .animation(.easeInOut(duration: 0.3), value: app.errorMessage != nil)
         .sheet(isPresented: $showServers) {
             ServerListView()
+                .environment(app)
+        }
+        .sheet(isPresented: $showDebugLogs) {
+            DebugLogsView()
                 .environment(app)
         }
     }

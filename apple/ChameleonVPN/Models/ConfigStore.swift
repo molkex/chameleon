@@ -231,13 +231,15 @@ class ConfigStore {
                 return ServerItem(id: tag, tag: tag, type: type, delay: 0, delayTime: 0)
             }
             if !standaloneProxies.isEmpty {
+                let savedTag = selectedServerTag
+                let selected = standaloneProxies.first(where: { $0.tag == savedTag })?.tag ?? standaloneProxies.first?.tag ?? ""
                 groups.append(ServerGroup(
-                    id: "auto",
-                    tag: "auto",
-                    type: "urltest",
-                    selected: standaloneProxies.first?.tag ?? "",
+                    id: "Proxy",
+                    tag: "Proxy",
+                    type: "selector",
+                    selected: selected,
                     items: standaloneProxies,
-                    selectable: false
+                    selectable: true
                 ))
             }
         }

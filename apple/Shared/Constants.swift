@@ -9,6 +9,12 @@ enum AppConfig {
     /// Your server's base URL (with https://)
     static let baseURL = "https://razblokirator.ru"
 
+    /// Fallback base URL (direct IP via HTTP, bypasses Cloudflare/RKN)
+    static let fallbackBaseURL = "http://162.19.242.30"
+
+    /// Russian relay (SPB) — highest priority fallback for users in Russia
+    static let russianRelayURL = "http://185.218.0.43"
+
     /// App Group ID (must match your provisioning profile)
     static let appGroupID = "group.com.chameleonvpn.app"
 

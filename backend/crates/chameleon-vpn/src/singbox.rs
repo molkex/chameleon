@@ -59,14 +59,53 @@ pub fn generate_config(
     }
 
     all_outbounds.extend(outbounds); // actual proxy server outbounds
+
+    // Hysteria2 outbound for high-speed connections (UDP/QUIC)
+    let hy2_tag = "🚀 Fast (Hysteria2)".to_string();
+    all_outbounds.push(json!({
+        "type": "hysteria2",
+        "tag": &hy2_tag,
+        "server": "162.19.242.30",
+        "server_port": 8443,
+        "password": "ChameleonHy2-2026-Secure",
+        "tls": {
+            "enabled": true,
+            "server_name": "ads.x5.ru",
+            "insecure": true,
+        },
+    }));
+    // Add Hysteria2 to selector and urltest
+    if let Some(selector) = all_outbounds.first_mut() {
+        if let Some(outs) = selector.get_mut("outbounds") {
+            if let Some(arr) = outs.as_array_mut() {
+                // Insert before "Auto"
+                let auto_pos = arr.iter().position(|v| v.as_str() == Some("Auto")).unwrap_or(arr.len());
+                arr.insert(auto_pos, json!(hy2_tag));
+            }
+        }
+    }
+    if let Some(urltest) = all_outbounds.get_mut(1) {
+        if let Some(outs) = urltest.get_mut("outbounds") {
+            if let Some(arr) = outs.as_array_mut() {
+                arr.push(json!(hy2_tag));
+            }
+        }
+    }
+
     all_outbounds.push(json!({"type": "direct", "tag": "direct"}));
 
     json!({
-        "log": {"level": "debug"},
+        "log": {"level": "warning"},
         "dns": {
             "servers": [
-                {"tag": "dns-direct", "address": "8.8.8.8", "detour": "direct"},
+                {"tag": "dns-remote", "address": "https://1.1.1.1/dns-query", "detour": "Proxy"},
+                {"tag": "dns-direct", "address": "https://8.8.8.8/dns-query", "detour": "direct"},
             ],
+            "rules": [
+                {"outbound": "direct", "server": "dns-direct"},
+            ],
+            "final": "dns-remote",
+            "strategy": "ipv4_only",
         },
         "inbounds": [
             {
@@ -75,6 +114,7 @@ pub fn generate_config(
                 "address": ["172.19.0.1/30", "fdfe:dcba:9876::1/126"],
                 "auto_route": true,
                 "stack": "system",
+                "mtu": 1400,
             }
         ],
         "outbounds": all_outbounds,
