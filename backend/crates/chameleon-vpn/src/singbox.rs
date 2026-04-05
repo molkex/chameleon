@@ -28,14 +28,10 @@ pub fn generate_config(
         }
     }
 
-    // Build outbounds: direct first (default), then proxy servers
-    let mut all_outbounds = vec![
-        json!({"type": "direct", "tag": "direct"}),
-    ];
-    all_outbounds.extend(outbounds);
-
-    // If no servers, still return a valid config
-    let proxy_tag = tags.first().cloned().unwrap_or_else(|| "direct".to_string());
+    // First outbound = default route in sing-box
+    let mut all_outbounds = Vec::new();
+    all_outbounds.extend(outbounds); // proxy servers first
+    all_outbounds.push(json!({"type": "direct", "tag": "direct"}));
 
     json!({
         "log": {"level": "debug"},
@@ -61,7 +57,6 @@ pub fn generate_config(
                 {"protocol": "dns", "action": "hijack-dns"},
                 {"ip_is_private": true, "outbound": "direct"},
             ],
-            "final": proxy_tag,
         },
     })
 }
