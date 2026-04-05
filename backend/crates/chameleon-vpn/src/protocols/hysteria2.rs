@@ -77,11 +77,14 @@ impl Protocol for Hysteria2 {
         if !self.cert_sha256.is_empty() {
             tls["certificate_sha256"] = json!(self.cert_sha256);
         }
-        Some(json!({
+        let mut out = json!({
             "type": "hysteria2", "tag": tag, "server": server.host, "server_port": self.port,
             "password": self.password,
             "tls": tls,
-            "obfs": {"type": "salamander", "password": self.obfs_password},
-        }))
+        });
+        if !self.obfs_password.is_empty() {
+            out["obfs"] = json!({"type": "salamander", "password": self.obfs_password});
+        }
+        Some(out)
     }
 }
