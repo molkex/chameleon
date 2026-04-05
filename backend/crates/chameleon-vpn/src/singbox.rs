@@ -1,4 +1,5 @@
 //! Sing-box config generator — produces JSON config for iOS/macOS native app.
+//! Generates outbounds from ALL enabled protocols in the registry.
 
 use serde_json::json;
 
@@ -15,41 +16,83 @@ pub fn generate_config(
     let mut outbounds = vec![];
     let mut tags = vec![];
 
-    // Generate one VLESS Reality TCP outbound per server
+    // ── Generate outbounds from ALL enabled protocols ──
     for proto in registry.enabled() {
-        if proto.name() != "vless_reality" { continue; }
-        for srv in servers {
-            let tag = format!("{} {}", srv.flag, srv.name);
-            let opts = OutboundOpts::default(); // TCP
-            if let Some(ob) = proto.singbox_outbound(&tag, srv, user, &opts) {
-                tags.push(tag);
-                outbounds.push(ob);
+        // Skip protocols that don't support sing-box (xdns, xicmp return None)
+        let proto_name = proto.name();
+
+        match proto_name {
+            "vless_reality" => {
+                // Generate per-server outbounds with user-specific SNI rotation
+                for srv in servers {
+                    let tag = format!("{} {}", srv.flag, srv.name);
+                    let opts = OutboundOpts::default(); // TCP + Vision
+                    if let Some(ob) = proto.singbox_outbound(&tag, srv, user, &opts) {
+                        tags.push(tag);
+                        outbounds.push(ob);
+                    }
+                }
+            }
+            "vless_cdn" => {
+                // CDN fallback — single outbound using Cloudflare domain
+                let tag = "☁️ CDN Fallback".to_string();
+                // Use first server as dummy — CDN ignores server host, uses its own domain
+                if let Some(srv) = servers.first() {
+                    if let Some(ob) = proto.singbox_outbound(&tag, srv, user, &OutboundOpts::default()) {
+                        tags.push(tag);
+                        outbounds.push(ob);
+                    }
+                }
+            }
+            "hysteria2" => {
+                // Hysteria2 per-server (uses server.host for each)
+                for srv in servers {
+                    // Only generate for servers that have direct IPs (not relays)
+                    if srv.host == srv.domain || srv.domain.is_empty() {
+                        let tag = format!("🚀 {} Hysteria2", srv.name);
+                        if let Some(ob) = proto.singbox_outbound(&tag, srv, user, &OutboundOpts::default()) {
+                            tags.push(tag);
+                            outbounds.push(ob);
+                        }
+                    }
+                }
+            }
+            "warp" | "anytls" | "naiveproxy" => {
+                // Single outbound per protocol
+                let display = proto.display_name().to_string();
+                if let Some(srv) = servers.first() {
+                    let tag = format!("🔒 {}", display);
+                    if let Some(ob) = proto.singbox_outbound(&tag, srv, user, &OutboundOpts::default()) {
+                        tags.push(tag);
+                        outbounds.push(ob);
+                    }
+                }
+            }
+            _ => {
+                // xdns, xicmp — return None from singbox_outbound, skip
             }
         }
     }
 
-    // Wrap proxy outbounds in a selector group for manual server switching
-    // and a urltest group for automatic best-ping selection
+    // ── Wrap in selector + urltest groups ──
     let mut all_outbounds = Vec::new();
 
     if tags.len() > 1 {
-        // Selector: user picks server manually via gRPC/app UI
         all_outbounds.push(json!({
             "type": "selector",
             "tag": "Proxy",
             "outbounds": tags.iter().chain(std::iter::once(&"Auto".to_string())).collect::<Vec<_>>(),
             "default": "Auto",
         }));
-        // URLTest: auto-select best ping
         all_outbounds.push(json!({
             "type": "urltest",
             "tag": "Auto",
-            "outbounds": tags,
+            "outbounds": &tags,
             "url": "https://www.gstatic.com/generate_204",
-            "interval": "300s",
+            "interval": "3m",
+            "tolerance": 50,
         }));
     } else if tags.len() == 1 {
-        // Single server — no need for selector/urltest
         all_outbounds.push(json!({
             "type": "selector",
             "tag": "Proxy",
@@ -58,54 +101,31 @@ pub fn generate_config(
         }));
     }
 
-    all_outbounds.extend(outbounds); // actual proxy server outbounds
-
-    // Hysteria2 outbound for high-speed connections (UDP/QUIC)
-    let hy2_tag = "🚀 Fast (Hysteria2)".to_string();
-    all_outbounds.push(json!({
-        "type": "hysteria2",
-        "tag": &hy2_tag,
-        "server": "162.19.242.30",
-        "server_port": 8443,
-        "password": "ChameleonHy2-2026-Secure",
-        "tls": {
-            "enabled": true,
-            "server_name": "ads.x5.ru",
-            "insecure": true,
-        },
-    }));
-    // Add Hysteria2 to selector and urltest
-    if let Some(selector) = all_outbounds.first_mut() {
-        if let Some(outs) = selector.get_mut("outbounds") {
-            if let Some(arr) = outs.as_array_mut() {
-                // Insert before "Auto"
-                let auto_pos = arr.iter().position(|v| v.as_str() == Some("Auto")).unwrap_or(arr.len());
-                arr.insert(auto_pos, json!(hy2_tag));
-            }
-        }
-    }
-    if let Some(urltest) = all_outbounds.get_mut(1) {
-        if let Some(outs) = urltest.get_mut("outbounds") {
-            if let Some(arr) = outs.as_array_mut() {
-                arr.push(json!(hy2_tag));
-            }
-        }
-    }
-
+    all_outbounds.extend(outbounds);
     all_outbounds.push(json!({"type": "direct", "tag": "direct"}));
+    all_outbounds.push(json!({"type": "dns", "tag": "dns-out"}));
 
+    // ── DNS: FakeIP + bootstrap (no death loop) ──
     json!({
         "log": {"level": "warning"},
         "dns": {
             "servers": [
-                {"tag": "dns-remote", "address": "https://1.1.1.1/dns-query", "detour": "Auto"},
-                {"tag": "dns-direct", "address": "https://8.8.8.8/dns-query", "detour": "direct"},
+                {"tag": "dns-fake", "address": "fakeip"},
+                {"tag": "dns-remote", "address": "https://1.1.1.1/dns-query", "detour": "Proxy"},
+                {"tag": "dns-direct", "address": "8.8.8.8", "detour": "direct"},
             ],
             "rules": [
+                {"outbound": "any", "server": "dns-fake"},
                 {"outbound": "direct", "server": "dns-direct"},
             ],
+            "fakeip": {
+                "enabled": true,
+                "inet4_range": "198.18.0.0/15",
+                "inet6_range": "fc00::/18",
+            },
             "final": "dns-remote",
             "strategy": "ipv4_only",
+            "independent_cache": true,
         },
         "inbounds": [
             {
@@ -115,6 +135,8 @@ pub fn generate_config(
                 "auto_route": true,
                 "stack": "system",
                 "mtu": 1400,
+                "sniff": true,
+                "sniff_override_destination": true,
             }
         ],
         "outbounds": all_outbounds,
@@ -122,7 +144,7 @@ pub fn generate_config(
             "default_domain_resolver": {"server": "dns-direct", "strategy": "ipv4_only"},
             "rules": [
                 {"action": "sniff"},
-                {"protocol": "dns", "action": "hijack-dns"},
+                {"protocol": "dns", "outbound": "dns-out"},
                 {"ip_is_private": true, "outbound": "direct"},
             ],
         },

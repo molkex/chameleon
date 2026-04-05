@@ -170,6 +170,8 @@ impl Protocol for VlessReality {
             out["flow"] = json!("xtls-rprx-vision");
         } else if transport == "xhttp" {
             out["transport"] = json!({"type": "http", "method": "GET"});
+        } else if transport == "grpc" {
+            out["transport"] = json!({"type": "grpc", "service_name": ""});
         }
         Some(out)
     }
