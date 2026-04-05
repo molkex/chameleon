@@ -18,6 +18,10 @@ class AppState {
     private var statusObserver: Any?
 
     func initialize() async {
+        // Fix: if config file is corrupted (missing selector/urltest), delete it
+        // so fresh config is fetched from API
+        repairConfigIfNeeded()
+
         servers = configStore.parseServersFromConfig()
 
         do {
@@ -38,6 +42,25 @@ class AppState {
         // Refresh config silently
         if configStore.username != nil {
             await silentConfigUpdate()
+        }
+    }
+
+    /// Delete corrupted config that only has a single direct outbound (no selector/urltest).
+    /// This forces re-download from API on next connect.
+    private func repairConfigIfNeeded() {
+        guard let config = configStore.loadConfig(),
+              let data = config.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let outbounds = json["outbounds"] as? [[String: Any]]
+        else { return }
+
+        let hasSelector = outbounds.contains { ($0["type"] as? String) == "selector" }
+        let hasUrltest = outbounds.contains { ($0["type"] as? String) == "urltest" }
+
+        if !hasSelector && !hasUrltest {
+            // Config is stripped — delete file and UserDefaults
+            try? FileManager.default.removeItem(at: AppConstants.configFileURL)
+            UserDefaults(suiteName: AppConstants.appGroupID)?.removeObject(forKey: AppConstants.startOptionsKey)
         }
     }
 
@@ -78,7 +101,19 @@ class AppState {
             commandClient.disconnect()
             vpnManager.disconnect()
         } else {
-            if !configStore.hasConfig() {
+            // If we already have a cached config, connect immediately
+            // and update config in background for next time
+            if configStore.hasConfig() {
+                let config = configStore.loadConfig()
+                do {
+                    try await vpnManager.connect(configJSON: config)
+                } catch {
+                    errorMessage = error.localizedDescription
+                }
+                // Update config in background for next connection
+                Task { await silentConfigUpdate() }
+            } else {
+                // No cached config — must fetch first
                 isLoading = true
                 await silentConfigUpdate()
                 isLoading = false
@@ -86,21 +121,68 @@ class AppState {
                     errorMessage = "No config available"
                     return
                 }
-            }
-            let config = configStore.loadConfig()
-            do {
-                try await vpnManager.connect(configJSON: config)
-            } catch {
-                errorMessage = error.localizedDescription
+                let config = configStore.loadConfig()
+                do {
+                    try await vpnManager.connect(configJSON: config)
+                } catch {
+                    errorMessage = error.localizedDescription
+                }
             }
         }
     }
 
     func selectServer(groupTag: String, serverTag: String) {
+        let previousTag = configStore.selectedServerTag
         configStore.selectedServerTag = serverTag
-        if vpnManager.isConnected {
-            commandClient.selectOutbound(groupTag: groupTag, outboundTag: serverTag)
+
+        // Update local servers array so UI reflects the change immediately
+        for i in servers.indices {
+            if servers[i].items.contains(where: { $0.tag == serverTag }) {
+                servers[i] = ServerGroup(
+                    id: servers[i].id, tag: servers[i].tag, type: servers[i].type,
+                    selected: serverTag, items: servers[i].items, selectable: servers[i].selectable
+                )
+            }
         }
+
+        guard vpnManager.isConnected, previousTag != serverTag else { return }
+
+        // Build config with selector default changed (in memory only — don't overwrite file)
+        guard let updatedConfig = buildConfigWithSelector(serverTag) else { return }
+
+        // Write to UserDefaults for On-Demand reconnects (file stays as original full config)
+        UserDefaults(suiteName: AppConstants.appGroupID)?.set(updatedConfig, forKey: AppConstants.startOptionsKey)
+
+        Task {
+            commandClient.disconnect()
+            await vpnManager.disableOnDemand()
+            vpnManager.disconnect()
+            try? await Task.sleep(for: .seconds(1))
+            try? await vpnManager.connect(configJSON: updatedConfig)
+        }
+    }
+
+    /// Build config with selector default set to the given server tag.
+    /// Does NOT modify the config file — returns config string for in-memory use only.
+    private func buildConfigWithSelector(_ serverTag: String) -> String? {
+        guard let config = configStore.loadConfig(),
+              let data = config.data(using: .utf8),
+              var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              var outbounds = json["outbounds"] as? [[String: Any]]
+        else { return nil }
+
+        for i in outbounds.indices {
+            if outbounds[i]["type"] as? String == "selector" {
+                outbounds[i]["default"] = serverTag
+            }
+        }
+        json["outbounds"] = outbounds
+
+        guard let updatedData = try? JSONSerialization.data(withJSONObject: json),
+              let updatedConfig = String(data: updatedData, encoding: .utf8)
+        else { return nil }
+
+        return updatedConfig
     }
 
     // MARK: - Status

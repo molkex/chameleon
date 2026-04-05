@@ -37,13 +37,47 @@ struct AuthResult: Codable {
     }
 }
 
+/// Delegate that trusts all certificates (for direct IP fallback)
+private class InsecureDelegate: NSObject, URLSessionDelegate {
+    func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge,
+                    completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        if challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+           let trust = challenge.protectionSpace.serverTrust {
+            completionHandler(.useCredential, URLCredential(trust: trust))
+        } else {
+            completionHandler(.performDefaultHandling, nil)
+        }
+    }
+}
+
 class APIClient {
     private let session: URLSession
+    private let fallbackSession: URLSession
 
     init() {
         let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 30
+        config.timeoutIntervalForRequest = 5
         session = URLSession(configuration: config)
+
+        let fallbackConfig = URLSessionConfiguration.default
+        fallbackConfig.timeoutIntervalForRequest = 5
+        fallbackSession = URLSession(configuration: fallbackConfig, delegate: InsecureDelegate(), delegateQueue: nil)
+    }
+
+    /// Try primary URL, fallback to direct IP if it fails
+    private func dataWithFallback(for request: URLRequest) async throws -> (Data, URLResponse) {
+        do {
+            return try await session.data(for: request)
+        } catch {
+            // Try fallback: replace baseURL with fallbackBaseURL
+            guard let url = request.url,
+                  let fallbackURL = URL(string: url.absoluteString.replacingOccurrences(
+                      of: AppConfig.baseURL, with: AppConfig.fallbackBaseURL))
+            else { throw error }
+            var fallbackRequest = request
+            fallbackRequest.url = fallbackURL
+            return try await fallbackSession.data(for: fallbackRequest)
+        }
     }
 
     // MARK: - Standalone Device Registration
@@ -61,7 +95,7 @@ class APIClient {
         request.timeoutInterval = 15
 
         do {
-            let (data, response) = try await session.data(for: request)
+            let (data, response) = try await dataWithFallback(for: request)
             guard let http = response as? HTTPURLResponse else {
                 throw APIError.networkError("No response")
             }
@@ -126,7 +160,7 @@ class APIClient {
         request.timeoutInterval = 30
 
         do {
-            let (data, response) = try await session.data(for: request)
+            let (data, response) = try await dataWithFallback(for: request)
             guard let http = response as? HTTPURLResponse else {
                 throw APIError.networkError("No response")
             }
