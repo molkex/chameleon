@@ -45,8 +45,8 @@ class AppState {
         }
     }
 
-    /// Delete corrupted config that only has a single direct outbound (no selector/urltest).
-    /// This forces re-download from API on next connect.
+    /// Delete corrupted or outdated config.
+    /// Forces re-download from API on next connect.
     private func repairConfigIfNeeded() {
         guard let config = configStore.loadConfig(),
               let data = config.data(using: .utf8),
@@ -56,9 +56,11 @@ class AppState {
 
         let hasSelector = outbounds.contains { ($0["type"] as? String) == "selector" }
         let hasUrltest = outbounds.contains { ($0["type"] as? String) == "urltest" }
+        let hasDnsOutbound = outbounds.contains { ($0["type"] as? String) == "dns" }
 
-        if !hasSelector && !hasUrltest {
-            // Config is stripped — delete file and UserDefaults
+        if !hasSelector && !hasUrltest || hasDnsOutbound {
+            // Config is stripped or has deprecated dns outbound — delete and re-fetch
+            AppLogger.app.info("repairConfigIfNeeded: clearing outdated config (hasDns=\(hasDnsOutbound), hasSelector=\(hasSelector))")
             try? FileManager.default.removeItem(at: AppConstants.configFileURL)
             UserDefaults(suiteName: AppConstants.appGroupID)?.removeObject(forKey: AppConstants.startOptionsKey)
         }
@@ -67,22 +69,31 @@ class AppState {
     private func autoRegister() async {
         isLoading = true
         defer { isLoading = false }
+        AppLogger.app.info("autoRegister: starting device registration")
         do {
             let result = try await apiClient.registerDevice()
+            AppLogger.app.info("autoRegister: registered as \(result.username)")
             configStore.accessToken = result.accessToken
             configStore.refreshToken = result.refreshToken
             configStore.username = result.username
             try await fetchAndSaveConfig()
         } catch {
+            AppLogger.app.error("autoRegister: FAILED: \(error.localizedDescription)")
             errorMessage = "Registration failed: \(error.localizedDescription)"
         }
     }
 
     private func fetchAndSaveConfig() async throws {
-        guard let username = configStore.username else { return }
+        guard let username = configStore.username else {
+            AppLogger.app.error("fetchAndSaveConfig: no username")
+            return
+        }
+        AppLogger.app.info("fetchAndSaveConfig: fetching for \(username)")
         let result = try await apiClient.fetchConfig(username: username, accessToken: configStore.accessToken)
+        AppLogger.app.info("fetchAndSaveConfig: got config, length=\(result.config.count)")
         try configStore.saveConfig(result.config)
         servers = configStore.parseServersFromConfig()
+        AppLogger.app.info("fetchAndSaveConfig: parsed \(self.servers.count) groups, total items=\(self.servers.flatMap(\.items).count)")
     }
 
     private func silentConfigUpdate() async {
