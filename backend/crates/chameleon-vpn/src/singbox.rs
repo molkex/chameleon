@@ -123,7 +123,6 @@ pub fn generate_config(
             "fakeip": {
                 "enabled": true,
                 "inet4_range": "198.18.0.0/15",
-                "inet6_range": "fc00::/18",
             },
             "final": "dns-remote",
             "independent_cache": true,
@@ -132,7 +131,7 @@ pub fn generate_config(
             {
                 "type": "tun",
                 "tag": "tun-in",
-                "address": ["172.19.0.1/30", "fdfe:dcba:9876::1/126"],
+                "address": ["172.19.0.1/30"],
                 "auto_route": true,
                 "stack": "system",
                 "mtu": 1400,
@@ -144,6 +143,7 @@ pub fn generate_config(
             "rules": [
                 {"action": "sniff"},
                 {"protocol": "dns", "action": "hijack-dns"},
+                {"network": "udp", "port": 443, "action": "reject"},
                 {"ip_is_private": true, "outbound": "direct"},
             ],
         },
