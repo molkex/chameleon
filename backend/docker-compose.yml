@@ -110,7 +110,7 @@ services:
 
   # ── Xray VPN ──
   xray:
-    image: ghcr.io/xtls/xray-core:v26.3.27
+    image: ghcr.io/xtls/xray-core:latest
     container_name: xray
     restart: unless-stopped
     ports:
