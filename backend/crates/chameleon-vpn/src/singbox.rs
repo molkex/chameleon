@@ -145,6 +145,7 @@ pub fn generate_config(
             "default_domain_resolver": {"server": "dns-direct", "strategy": "ipv4_only"},
             "rules": [
                 {"action": "sniff"},
+                {"protocol": "dns", "action": "hijack_dns"},
                 {"ip_is_private": true, "outbound": "direct"},
             ],
         },
