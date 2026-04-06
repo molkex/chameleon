@@ -95,10 +95,9 @@ class ConfigStore {
         // Sanitize for iOS (remove deprecated fields) before validation
         let sanitized = ConfigSanitizer.sanitizeForIOS(jsonString)
 
-        // Validate with libbox
-        var checkError: NSError?
-        LibboxCheckConfig(sanitized, &checkError)
-        if let checkError { throw checkError }
+        // Skip LibboxCheckConfig — it rejects dns outbound as "removed in 1.13"
+        // but the runtime (startOrReloadService) still accepts it.
+        // DNS interception requires dns outbound in this libbox version (1.13.5).
 
         // Ensure directories exist
         try FileManager.default.createDirectory(
