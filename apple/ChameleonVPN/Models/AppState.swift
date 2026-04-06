@@ -56,7 +56,8 @@ class AppState {
 
         let hasSelector = outbounds.contains { ($0["type"] as? String) == "selector" }
         let hasUrltest = outbounds.contains { ($0["type"] as? String) == "urltest" }
-        let hasDnsOutbound = outbounds.contains { ($0["type"] as? String) == "dns" }
+        // dns outbound is now expected (used for DNS interception in 1.13)
+        let hasDnsOutbound = false
 
         // Check for deprecated inbound fields
         let inbounds = (json["inbounds"] as? [[String: Any]]) ?? []

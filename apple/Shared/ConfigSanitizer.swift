@@ -9,19 +9,8 @@ enum ConfigSanitizer {
             return configJSON
         }
 
-        // 1. Remove "dns" type outbound (deprecated in 1.11, removed in 1.13)
-        if var outbounds = config["outbounds"] as? [[String: Any]] {
-            outbounds.removeAll { ($0["type"] as? String) == "dns" }
-            config["outbounds"] = outbounds
-        }
-
-        // 2. Remove route rules that reference dns-out outbound
-        if var route = config["route"] as? [String: Any],
-           var rules = route["rules"] as? [[String: Any]] {
-            rules.removeAll { ($0["outbound"] as? String) == "dns-out" }
-            route["rules"] = rules
-            config["route"] = route
-        }
+        // 1. dns outbound is needed for DNS interception in sing-box 1.13
+        // Do NOT remove it — route rule {"protocol": "dns", "outbound": "dns-out"} depends on it
 
         // 3. Remove ALL deprecated inbound fields (sniff, sniff_override_destination, domain_strategy)
         //    In 1.11+ these are handled by route actions instead

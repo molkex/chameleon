@@ -106,8 +106,7 @@ pub fn generate_config(
 
     all_outbounds.extend(outbounds);
     all_outbounds.push(json!({"type": "direct", "tag": "direct"}));
-    // No "dns" outbound — deprecated in sing-box 1.11, removed in 1.13.
-    // DNS is handled automatically via sniff + dns module.
+    all_outbounds.push(json!({"type": "dns", "tag": "dns-out"}));
 
     // ── DNS: FakeIP + bootstrap (no death loop) ──
     json!({
@@ -145,7 +144,7 @@ pub fn generate_config(
             "default_domain_resolver": {"server": "dns-direct", "strategy": "ipv4_only"},
             "rules": [
                 {"action": "sniff"},
-                {"protocol": "dns", "action": "hijack_dns"},
+                {"protocol": "dns", "outbound": "dns-out"},
                 {"ip_is_private": true, "outbound": "direct"},
             ],
         },
