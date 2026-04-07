@@ -57,6 +57,7 @@ async fn subscription_links(
             flag: srv.get("flag").and_then(|f| f.as_str()).unwrap_or("").into(),
             name: srv.get("name").and_then(|n| n.as_str()).unwrap_or("").into(),
             key: domain.split('.').next().unwrap_or(domain).into(),
+            sni: srv.get("sni").and_then(|s| s.as_str()).unwrap_or("").into(),
         })
     }).collect();
 

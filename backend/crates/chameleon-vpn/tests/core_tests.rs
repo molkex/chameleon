@@ -34,11 +34,11 @@ fn test_servers() -> Vec<ServerConfig> {
     vec![
         ServerConfig {
             host: "1.2.3.4".into(), port: 2096, domain: "vpn.example.com".into(),
-            flag: "DE".into(), name: "DE".into(), key: "de".into(),
+            flag: "DE".into(), name: "DE".into(), key: "de".into(), sni: String::new(),
         },
         ServerConfig {
             host: "5.6.7.8".into(), port: 2096, domain: "vpn2.example.com".into(),
-            flag: "NL".into(), name: "NL".into(), key: "nl".into(),
+            flag: "NL".into(), name: "NL".into(), key: "nl".into(), sni: String::new(),
         },
     ]
 }

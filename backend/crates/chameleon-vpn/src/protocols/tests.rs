@@ -26,7 +26,7 @@ mod tests {
     }
 
     fn test_servers() -> Vec<ServerConfig> {
-        vec![ServerConfig { host: "1.2.3.4".into(), port: 2096, domain: "vpn.example.com".into(), flag: "DE".into(), name: "DE".into(), key: "de".into() }]
+        vec![ServerConfig { host: "1.2.3.4".into(), port: 2096, domain: "vpn.example.com".into(), flag: "DE".into(), name: "DE".into(), key: "de".into(), sni: String::new() }]
     }
 
     #[test]
