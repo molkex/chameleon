@@ -144,6 +144,7 @@ impl ChameleonEngine {
                 flag: srv.get("flag").and_then(|f| f.as_str()).unwrap_or("").to_string(),
                 name: srv.get("name").and_then(|n| n.as_str()).unwrap_or("").to_string(),
                 key: key.to_string(),
+                sni: srv.get("sni").and_then(|s| s.as_str()).unwrap_or("").to_string(),
             })
         }).collect()
     }

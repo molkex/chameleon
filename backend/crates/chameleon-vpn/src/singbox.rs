@@ -28,7 +28,11 @@ pub fn generate_config(
                 for srv in servers {
                     if !srv.key.starts_with("relay") { continue; }
                     let tag = format!("{} {}", srv.flag, srv.name);
-                    let opts = OutboundOpts::default(); // TCP + Vision
+                    let mut opts = OutboundOpts::default(); // TCP + Vision
+                    // Per-server SNI override (e.g. NL uses different Reality dest than DE)
+                    if !srv.sni.is_empty() {
+                        opts.sni = Some(srv.sni.clone());
+                    }
                     if let Some(ob) = proto.singbox_outbound(&tag, srv, user, &opts) {
                         tags.push(tag);
                         outbounds.push(ob);

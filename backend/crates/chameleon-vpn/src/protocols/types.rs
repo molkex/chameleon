@@ -13,6 +13,8 @@ pub struct ServerConfig {
     pub flag: String,
     pub name: String,
     pub key: String, // e.g. "msk", "nl", "de"
+    #[serde(default)]
+    pub sni: String, // per-server Reality SNI override (empty = use global)
 }
 
 /// VPN user credentials.
