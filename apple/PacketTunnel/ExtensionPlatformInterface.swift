@@ -10,6 +10,7 @@ final class ExtensionPlatformInterface: NSObject, @unchecked Sendable {
     weak var tunnel: NEPacketTunnelProvider?
     private var pathMonitor: NWPathMonitor?
     private var interfaceListener: LibboxInterfaceUpdateListenerProtocol?
+    private var lastInterfaceName: String = ""
     // neighborListener removed in libbox 1.13
 
     init(tunnel: NEPacketTunnelProvider) {
@@ -227,8 +228,6 @@ extension ExtensionPlatformInterface: LibboxPlatformInterfaceProtocol {
     }
 
     // MARK: - Network Path Monitoring
-
-    private var lastInterfaceName: String = ""
 
     private func handlePathUpdate(_ path: Network.NWPath) {
         guard let listener = interfaceListener else { return }
