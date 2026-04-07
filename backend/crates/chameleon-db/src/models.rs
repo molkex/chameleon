@@ -214,6 +214,24 @@ pub struct AppSetting {
     pub updated_at: Option<NaiveDateTime>,
 }
 
+// ── VpnServer ──
+
+#[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
+pub struct VpnServer {
+    pub id: i32,
+    pub key: String,
+    pub name: String,
+    pub flag: String,
+    pub host: String,
+    pub port: i32,
+    pub domain: String,
+    pub sni: String,
+    pub is_active: bool,
+    pub sort_order: i32,
+    pub created_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub updated_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
 // ── SupportMessage ──
 
 #[derive(Debug, Clone, FromRow, Serialize)]

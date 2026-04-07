@@ -71,7 +71,7 @@ pub async fn record_metrics_snapshot(
     pool: &PgPool,
     engine: &ChameleonEngine,
 ) {
-    let servers = engine.build_server_configs();
+    let servers = engine.build_server_configs_from_db(pool).await;
     let (traffic_up, traffic_down) = engine.xray_api().query_total_traffic().await;
     let online_users = engine.xray_api().count_online_users().await;
     let (cpu, ram_used, ram_total, disk) = read_system_metrics();

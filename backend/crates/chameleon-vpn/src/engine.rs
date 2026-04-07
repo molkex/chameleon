@@ -128,14 +128,43 @@ impl ChameleonEngine {
         })
     }
 
-    /// Build server configs from settings.
+    /// Build server configs from settings (env fallback).
     pub fn build_server_configs(&self) -> Vec<ServerConfig> {
-        // Parse vpn_servers_raw JSON
-        let servers: Vec<serde_json::Value> = serde_json::from_str(&self.settings.vpn_servers_raw).unwrap_or_default();
+        Self::parse_server_configs_from_env(&self.settings.vpn_servers_raw, self.settings.vless_tcp_port)
+    }
+
+    /// Build server configs from DB rows. Falls back to env if DB list is empty.
+    pub async fn build_server_configs_from_db(&self, pool: &PgPool) -> Vec<ServerConfig> {
+        match chameleon_db::queries::servers::list_active(pool).await {
+            Ok(db_servers) if !db_servers.is_empty() => {
+                db_servers.iter().map(|s| ServerConfig {
+                    host: s.host.clone(),
+                    port: s.port as u16,
+                    domain: s.domain.clone(),
+                    flag: s.flag.clone(),
+                    name: s.name.clone(),
+                    key: s.key.clone(),
+                    sni: s.sni.clone(),
+                }).collect()
+            }
+            Ok(_) => {
+                warn!("No active servers in DB — falling back to VPN_SERVERS env");
+                self.build_server_configs()
+            }
+            Err(e) => {
+                error!(error = %e, "Failed to load servers from DB — falling back to VPN_SERVERS env");
+                self.build_server_configs()
+            }
+        }
+    }
+
+    /// Parse server configs from raw JSON env string.
+    fn parse_server_configs_from_env(raw: &str, default_port: u16) -> Vec<ServerConfig> {
+        let servers: Vec<serde_json::Value> = serde_json::from_str(raw).unwrap_or_default();
         servers.iter().filter_map(|srv| {
             let ip = srv.get("host").or_else(|| srv.get("ip"))?.as_str()?;
             let domain = srv.get("domain").and_then(|d| d.as_str()).unwrap_or(ip);
-            let port = srv.get("port").and_then(|p| p.as_u64()).unwrap_or(self.settings.vless_tcp_port as u64) as u16;
+            let port = srv.get("port").and_then(|p| p.as_u64()).unwrap_or(default_port as u64) as u16;
             let key = srv.get("key").and_then(|k| k.as_str()).unwrap_or(domain.split('.').next().unwrap_or(domain));
             Some(ServerConfig {
                 host: ip.to_string(),

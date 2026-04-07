@@ -43,7 +43,7 @@ async fn get_config(
     let settings = get_settings();
     let registry = ProtocolRegistry::new(settings);
     let creds = UserCredentials { username: vpn_username, uuid, short_id: short_id.unwrap_or_default() };
-    let servers = core.engine.build_server_configs();
+    let servers = core.engine.build_server_configs_from_db(&core.db).await;
 
     let config = singbox::generate_config(&registry, &creds, &servers);
     Json(config)
@@ -52,7 +52,7 @@ async fn get_config(
 async fn get_servers(
     State(core): State<ChameleonCore>,
 ) -> Json<serde_json::Value> {
-    let servers = core.engine.build_server_configs();
+    let servers = core.engine.build_server_configs_from_db(&core.db).await;
     let list: Vec<serde_json::Value> = servers.iter().map(|s| {
         serde_json::json!({
             "key": s.key,

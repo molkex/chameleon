@@ -167,7 +167,7 @@ async fn list_nodes(
     State(state): State<ChameleonCore>,
     _admin: AuthAdmin,
 ) -> ApiResult<Json<NodesResponse>> {
-    let servers = state.engine.build_server_configs();
+    let servers = state.engine.build_server_configs_from_db(&state.db).await;
     let protocols = build_protocol_statuses();
 
     // Spawn parallel tasks
