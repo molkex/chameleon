@@ -228,6 +228,8 @@ extension ExtensionPlatformInterface: LibboxPlatformInterfaceProtocol {
 
     // MARK: - Network Path Monitoring
 
+    private var lastInterfaceName: String = ""
+
     private func handlePathUpdate(_ path: Network.NWPath) {
         guard let listener = interfaceListener else { return }
 
@@ -239,14 +241,25 @@ extension ExtensionPlatformInterface: LibboxPlatformInterfaceProtocol {
             interfaceIndex = Int32(iface.index)
         }
 
-        TunnelFileLogger.log("pathUpdate: status=\(path.status), iface=\(interfaceName)(\(interfaceIndex)), expensive=\(path.isExpensive)", category: "network")
+        let networkChanged = !lastInterfaceName.isEmpty && interfaceName != lastInterfaceName
+        lastInterfaceName = interfaceName
 
+        TunnelFileLogger.log("pathUpdate: status=\(path.status), iface=\(interfaceName)(\(interfaceIndex)), expensive=\(path.isExpensive)\(networkChanged ? " [NETWORK CHANGED]" : "")", category: "network")
+
+        // Notify sing-box of interface change
         listener.updateDefaultInterface(
             interfaceName,
             interfaceIndex: interfaceIndex,
             isExpensive: path.isExpensive,
             isConstrained: path.isConstrained
         )
+
+        // Force iOS to re-evaluate tunnel on network change (WiFi↔LTE)
+        if networkChanged {
+            TunnelFileLogger.log("Network switch detected, triggering reassert", category: "network")
+            tunnel?.reasserting = true
+            tunnel?.reasserting = false
+        }
     }
 }
 

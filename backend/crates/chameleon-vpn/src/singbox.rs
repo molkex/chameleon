@@ -82,6 +82,7 @@ pub fn generate_config(
             "tag": "Proxy",
             "outbounds": tags.iter().chain(std::iter::once(&"Auto".to_string())).collect::<Vec<_>>(),
             "default": "Auto",
+            "interrupt_exist_connections": true,
         }));
         all_outbounds.push(json!({
             "type": "urltest",
@@ -90,6 +91,7 @@ pub fn generate_config(
             "url": "https://www.gstatic.com/generate_204",
             "interval": "3m",
             "tolerance": 50,
+            "interrupt_exist_connections": true,
         }));
     } else if tags.len() == 1 {
         all_outbounds.push(json!({
