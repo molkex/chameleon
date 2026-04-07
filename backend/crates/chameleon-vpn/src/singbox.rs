@@ -23,8 +23,10 @@ pub fn generate_config(
 
         match proto_name {
             "vless_reality" => {
-                // Generate per-server outbounds with user-specific SNI rotation
+                // Generate per-server outbounds — only relay servers for iOS
+                // Direct DE/NL IPs are blocked by RKN from Russia
                 for srv in servers {
+                    if !srv.key.starts_with("relay") { continue; }
                     let tag = format!("{} {}", srv.flag, srv.name);
                     let opts = OutboundOpts::default(); // TCP + Vision
                     if let Some(ob) = proto.singbox_outbound(&tag, srv, user, &opts) {
