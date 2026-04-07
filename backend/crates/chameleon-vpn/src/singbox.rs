@@ -109,8 +109,8 @@ pub fn generate_config(
         "dns": {
             "servers": [
                 {"tag": "dns-fake", "address": "fakeip"},
-                {"tag": "dns-remote", "address": "1.1.1.1", "address_strategy": "ipv4_only", "detour": "Proxy"},
-                {"tag": "dns-direct", "address": "8.8.8.8", "address_strategy": "ipv4_only", "detour": "direct"},
+                {"tag": "dns-remote", "address": "https://1.1.1.1/dns-query", "address_strategy": "ipv4_only", "detour": "Proxy"},
+                {"tag": "dns-direct", "address": "https://8.8.8.8/dns-query", "address_strategy": "ipv4_only", "detour": "direct"},
             ],
             "rules": [
                 {"outbound": "any", "server": "dns-fake"},
