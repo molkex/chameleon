@@ -23,10 +23,8 @@ pub fn generate_config(
 
         match proto_name {
             "vless_reality" => {
-                // Generate per-server outbounds — only relay servers for iOS
-                // Direct DE/NL IPs are blocked by RKN from Russia
+                // Generate per-server outbounds — relay + direct servers
                 for srv in servers {
-                    if !srv.key.starts_with("relay") { continue; }
                     let tag = format!("{} {}", srv.flag, srv.name);
                     let mut opts = OutboundOpts::default(); // TCP + Vision
                     // Per-server SNI override (e.g. NL uses different Reality dest than DE)
