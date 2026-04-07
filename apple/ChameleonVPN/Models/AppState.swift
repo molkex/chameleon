@@ -125,32 +125,18 @@ class AppState {
             commandClient.disconnect()
             vpnManager.disconnect()
         } else {
-            // If we already have a cached config, connect immediately
-            // and update config in background for next time
-            if configStore.hasConfig() {
-                let config = configStore.loadConfig()
-                do {
-                    try await vpnManager.connect(configJSON: config)
-                } catch {
-                    errorMessage = error.localizedDescription
-                }
-                // Update config in background for next connection
-                Task { await silentConfigUpdate() }
-            } else {
-                // No cached config — must fetch first
-                isLoading = true
-                await silentConfigUpdate()
-                isLoading = false
-                guard configStore.hasConfig() else {
-                    errorMessage = "No config available"
-                    return
-                }
-                let config = configStore.loadConfig()
-                do {
-                    try await vpnManager.connect(configJSON: config)
-                } catch {
-                    errorMessage = error.localizedDescription
-                }
+            // Always fetch fresh config before connecting
+            // (fast — single HTTP request, ensures latest server list)
+            await silentConfigUpdate()
+            guard configStore.hasConfig() else {
+                errorMessage = "No config available"
+                return
+            }
+            let config = configStore.loadConfig()
+            do {
+                try await vpnManager.connect(configJSON: config)
+            } catch {
+                errorMessage = error.localizedDescription
             }
         }
     }
