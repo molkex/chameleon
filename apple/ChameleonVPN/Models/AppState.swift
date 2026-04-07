@@ -112,6 +112,15 @@ class AppState {
     private func silentConfigUpdate() async {
         do {
             try await fetchAndSaveConfig()
+            if let config = configStore.loadConfig() {
+                let configForUD: String
+                if let tag = configStore.selectedServerTag {
+                    configForUD = buildConfigWithSelector(tag) ?? config
+                } else {
+                    configForUD = config
+                }
+                UserDefaults(suiteName: AppConstants.appGroupID)?.set(configForUD, forKey: AppConstants.startOptionsKey)
+            }
         } catch {
             AppLogger.app.error("Config update failed: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
@@ -125,11 +134,18 @@ class AppState {
             commandClient.disconnect()
             vpnManager.disconnect()
         } else {
-            // Always fetch fresh config before connecting
-            // (fast — single HTTP request, ensures latest server list)
-            await silentConfigUpdate()
             guard configStore.hasConfig() else {
-                errorMessage = "No config available"
+                await silentConfigUpdate()
+                guard configStore.hasConfig() else {
+                    errorMessage = "No config available"
+                    return
+                }
+                let config = configStore.loadConfig()
+                do {
+                    try await vpnManager.connect(configJSON: config)
+                } catch {
+                    errorMessage = error.localizedDescription
+                }
                 return
             }
             let config = configStore.loadConfig()
@@ -138,6 +154,7 @@ class AppState {
             } catch {
                 errorMessage = error.localizedDescription
             }
+            await silentConfigUpdate()
         }
     }
 
