@@ -47,20 +47,10 @@ pub fn generate_config(
                 }
             }
             "hysteria2" => {
-                // Hysteria2 per-server — skip relay servers (SPB etc)
-                // Relay only forwards TCP via nginx, cannot proxy UDP/QUIC
-                let mut seen_hosts = std::collections::HashSet::new();
-                for srv in servers {
-                    // Skip relay servers — their key starts with "relay"
-                    if srv.key.starts_with("relay") { continue; }
-                    // Deduplicate by host IP (avoid 2 outbounds to same server)
-                    if !seen_hosts.insert(srv.host.clone()) { continue; }
-                    let tag = format!("🚀 {} Hysteria2", srv.name);
-                    if let Some(ob) = proto.singbox_outbound(&tag, srv, user, &OutboundOpts::default()) {
-                        tags.push(tag);
-                        outbounds.push(ob);
-                    }
-                }
+                // Hysteria2 disabled in iOS config:
+                // Direct server IPs blocked by RKN, UDP cannot go through TCP relay.
+                // Causes urltest timeouts and degrades Auto selection.
+                continue;
             }
             "warp" | "anytls" | "naiveproxy" => {
                 // Single outbound per protocol
