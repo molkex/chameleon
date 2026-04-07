@@ -87,7 +87,8 @@ pub fn generate_config(
             "tag": "Auto",
             "outbounds": &tags,
             "url": "https://www.gstatic.com/generate_204",
-            "interval": "3m",
+            "interval": "1m",
+            "idle_timeout": "30m",
             "tolerance": 50,
             "interrupt_exist_connections": true,
         }));

@@ -133,5 +133,8 @@ services:
 
 volumes:
   pgdata:
+    name: chameleon-pgdata
   redisdata:
+    name: chameleon-redisdata
   xray-config:
+    name: chameleon-xray-config

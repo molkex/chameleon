@@ -254,8 +254,11 @@ extension ExtensionPlatformInterface: LibboxPlatformInterfaceProtocol {
         )
 
         // Force iOS to re-evaluate tunnel on network change (WiFi↔LTE)
-        if networkChanged {
-            TunnelFileLogger.log("Network switch detected, triggering reassert", category: "network")
+        // Only reassert when switching between interfaces with connectivity,
+        // not when going offline (unsatisfied) — avoids unnecessary restart
+        if networkChanged && path.status == .satisfied {
+            TunnelFileLogger.log("Network switch detected, triggering reassert + DNS flush", category: "network")
+            clearDNSCache()
             tunnel?.reasserting = true
             tunnel?.reasserting = false
         }

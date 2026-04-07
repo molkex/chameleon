@@ -102,11 +102,58 @@ class AppState {
             return
         }
         AppLogger.app.info("fetchAndSaveConfig: fetching for \(username)")
+
+        do {
+            try await doFetchAndSave(username: username)
+        } catch APIError.unauthorized {
+            AppLogger.app.info("fetchAndSaveConfig: 401, attempting token refresh")
+            let refreshed = await tryRefreshToken()
+            if refreshed {
+                try await doFetchAndSave(username: username)
+            } else {
+                AppLogger.app.info("fetchAndSaveConfig: refresh failed, re-registering device")
+                try await reRegisterDevice()
+            }
+        } catch let error as APIError where isNetworkError(error) {
+            AppLogger.app.info("fetchAndSaveConfig: network error, retrying once")
+            try await Task.sleep(for: .seconds(2))
+            try await doFetchAndSave(username: username)
+        }
+    }
+
+    private func doFetchAndSave(username: String) async throws {
         let result = try await apiClient.fetchConfig(username: username, accessToken: configStore.accessToken)
         AppLogger.app.info("fetchAndSaveConfig: got config, length=\(result.config.count)")
         try configStore.saveConfig(result.config)
         servers = configStore.parseServersFromConfig()
         AppLogger.app.info("fetchAndSaveConfig: parsed \(self.servers.count) groups, total items=\(self.servers.flatMap(\.items).count)")
+    }
+
+    private func tryRefreshToken() async -> Bool {
+        guard let refreshToken = configStore.refreshToken else { return false }
+        do {
+            let newAccessToken = try await apiClient.refreshAccessToken(refreshToken)
+            configStore.accessToken = newAccessToken
+            AppLogger.app.info("tryRefreshToken: success")
+            return true
+        } catch {
+            AppLogger.app.error("tryRefreshToken: failed: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    private func reRegisterDevice() async throws {
+        let result = try await apiClient.registerDevice()
+        AppLogger.app.info("reRegisterDevice: registered as \(result.username)")
+        configStore.accessToken = result.accessToken
+        configStore.refreshToken = result.refreshToken
+        configStore.username = result.username
+        try await doFetchAndSave(username: result.username)
+    }
+
+    private func isNetworkError(_ error: APIError) -> Bool {
+        if case .networkError = error { return true }
+        return false
     }
 
     private func silentConfigUpdate() async {
