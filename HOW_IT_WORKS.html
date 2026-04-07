@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chameleon VPN — How It Works (2026-04-07)</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0a0a0a; color: #e0e0e0; padding: 20px; max-width: 1000px; margin: 0 auto; line-height: 1.6; }
+h1 { text-align: center; font-size: 28px; margin: 20px 0 5px; color: #fff; }
+h2 { font-size: 20px; margin: 35px 0 15px; color: #4fc3f7; border-bottom: 1px solid #333; padding-bottom: 8px; }
+h3 { font-size: 16px; margin: 20px 0 8px; color: #81c784; }
+p, li { font-size: 14px; margin-bottom: 8px; }
+a { color: #4fc3f7; }
+code { background: #1a1a1a; padding: 2px 6px; border-radius: 4px; font-size: 13px; color: #4fc3f7; }
+pre { background: #111; border: 1px solid #333; border-radius: 8px; padding: 15px; overflow-x: auto; font-size: 13px; margin: 10px 0; color: #aaa; }
+pre strong { color: #4caf50; }
+pre .err { color: #ff5252; }
+pre .warn { color: #ffc107; }
+pre .comment { color: #666; }
+table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+th, td { padding: 8px 12px; border: 1px solid #333; text-align: left; font-size: 13px; }
+th { background: #1a1a1a; color: #4fc3f7; }
+td { background: #111; }
+.ok { color: #4caf50; }
+.err { color: #ff5252; }
+.warn { color: #ffc107; }
+.box { border-radius: 8px; padding: 14px 18px; margin: 12px 0; }
+.box-green { background: #102a10; border: 1px solid #4caf50; }
+.box-green strong { color: #4caf50; }
+.box-red { background: #2a1010; border: 1px solid #ff5252; }
+.box-red strong { color: #ff5252; }
+.box-blue { background: #0a1a2a; border: 1px solid #42a5f5; }
+.box-blue strong { color: #42a5f5; }
+.box-yellow { background: #2a2a10; border: 1px solid #ffc107; }
+.box-yellow strong { color: #ffc107; }
+.back { display: inline-block; margin-bottom: 20px; color: #4fc3f7; text-decoration: none; font-size: 13px; }
+.back:hover { text-decoration: underline; }
+ul { padding-left: 20px; }
+</style>
+</head>
+<body>
+
+<a href="ARCHITECTURE_DIAGRAM.html" class="back">← Architecture Diagram</a>
+
+<h1>How It Works</h1>
+<p style="text-align:center; color:#888; margin-bottom:5px;">Chameleon VPN — полное описание работающей системы</p>
+<p style="text-align:center; color:#666; font-size:12px; margin-bottom:30px;">
+  Обновлено: 2026-04-07 | Стабильный коммит: <code>ec1c25b</code> | Откат: <code>git checkout 6038e66</code>
+</p>
+
+<!-- ==================== -->
+<h2>1. Стек и версии</h2>
+
+<div class="box box-green">
+  <strong>Это работающая комбинация. Не менять версии без проверки совместимости.</strong>
+</div>
+
+<table>
+<tr><th>Компонент</th><th>Версия</th><th>Docker / Source</th><th>Заметки</th></tr>
+<tr>
+  <td>Xray-core (сервер)</td>
+  <td class="ok"><strong>25.12.8</strong></td>
+  <td><code>teddysun/xray:25.12.8</code></td>
+  <td>Config dir: <code>/etc/xray/</code>. Поддерживает xhttp, Reality, gRPC, Vision flow.</td>
+</tr>
+<tr>
+  <td>libbox (iOS клиент)</td>
+  <td class="ok"><strong>1.13.5</strong></td>
+  <td><code>Frameworks/libbox.xcframework</code></td>
+  <td>sing-box 1.13. Поддерживает hijack-dns, FakeIP, VLESS Reality + Vision.</td>
+</tr>
+<tr>
+  <td>Rust backend</td>
+  <td>1.88</td>
+  <td><code>rust:1.88</code> (Docker build)</td>
+  <td>Axum 0.8, SQLx 0.8, edition 2024.</td>
+</tr>
+<tr>
+  <td>PostgreSQL</td>
+  <td>16-alpine</td>
+  <td><code>postgres:16-alpine</code></td>
+  <td>Volume: <code>backend_pgdata</code>. НЕ удалять!</td>
+</tr>
+<tr>
+  <td>Redis</td>
+  <td>7-alpine</td>
+  <td><code>redis:7-alpine</code></td>
+  <td>AOF, 128MB LRU. Volume: <code>backend_redisdata</code>.</td>
+</tr>
+<tr>
+  <td>Nginx (admin)</td>
+  <td>1.27-alpine</td>
+  <td><code>nginx:1.27-alpine</code></td>
+  <td>Reverse proxy + React admin SPA.</td>
+</tr>
+<tr>
+  <td>iOS app</td>
+  <td>Swift 6, iOS 17+</td>
+  <td><code>apple/Chameleon.xcodeproj</code></td>
+  <td>SwiftUI, NetworkExtension, StoreKit 2.</td>
+</tr>
+</table>
+
+<!-- ==================== -->
+<h2>2. Серверная инфраструктура</h2>
+
+<table>
+<tr><th>Сервер</th><th>IP</th><th>Роль</th><th>Порты</th></tr>
+<tr>
+  <td>DE (Germany, OVH)</td>
+  <td><code>162.19.242.30</code></td>
+  <td>Backend API + Xray + DB</td>
+  <td>80 (nginx), 2096 (VLESS TCP), 2097 (xhttp), 2098 (xhttp H2), 8443 (HY2)</td>
+</tr>
+<tr>
+  <td>NL (Netherlands, Timeweb)</td>
+  <td><code>194.135.38.90</code></td>
+  <td>VPN node (Xray)</td>
+  <td>2096 (VLESS TCP), 8443 (HY2)</td>
+</tr>
+<tr>
+  <td>SPB Relay (SprintHost)</td>
+  <td><code>185.218.0.43</code></td>
+  <td>nginx stream TCP relay</td>
+  <td>2096 → DE:2096, 2098 → NL:2096</td>
+</tr>
+</table>
+
+<h3>Как relay работает</h3>
+<p>iPhone из России не может подключиться напрямую к DE/NL (заблокированы РКН).
+SPB relay — это nginx в режиме <code>stream</code>, который прозрачно проксирует TCP:</p>
+<pre>
+stream {
+    upstream chameleon_de_tcp {
+        server 162.19.242.30:2096;   <span class="comment"># DE Xray VLESS</span>
+    }
+    upstream chameleon_nl_tcp {
+        server 194.135.38.90:2096;   <span class="comment"># NL Xray VLESS</span>
+    }
+    server {
+        listen 2096;                  <span class="comment"># iPhone → SPB:2096 → DE:2096</span>
+        proxy_pass chameleon_de_tcp;
+    }
+    server {
+        listen 2098;                  <span class="comment"># iPhone → SPB:2098 → NL:2096</span>
+        proxy_pass chameleon_nl_tcp;
+    }
+}
+</pre>
+<div class="box box-yellow">
+  <strong>Ограничения relay:</strong> Только TCP. Не поддерживает UDP (Hysteria2, QUIC) и IPv6.
+  Поэтому в конфиге клиента блокируется QUIC и отключён IPv6.
+</div>
+
+<!-- ==================== -->
+<h2>3. Путь пакета: от iPhone до сайта</h2>
+
+<pre>
+<strong>1. iOS App</strong> хочет открыть google.com
+   ↓
+<strong>2. DNS запрос</strong> → 172.19.0.2:53 (TUN DNS)
+   ↓
+<strong>3. sing-box Router</strong> применяет правила:
+   Rule 1: <strong>sniff</strong> → определяет протокол (DNS/TLS)
+   Rule 2: <strong>protocol=dns → hijack-dns</strong> → перехват DNS
+   ↓
+<strong>4. sing-box DNS модуль</strong>
+   → FakeIP возвращает 198.18.x.x мгновенно
+   → Реальный DNS через dns-remote (1.1.1.1) через Proxy (VLESS)
+   ↓
+<strong>5. iOS App</strong> подключается к 198.18.x.x:443 (фейковый IP google.com)
+   ↓
+<strong>6. sing-box Router</strong> снова:
+   Rule 1: <strong>sniff</strong> → TLS, domain: google.com
+   Rule 2: не DNS → пропуск
+   Rule 3: <strong>udp:443 → reject</strong> (если QUIC — блокируем)
+   Rule 4: не приватный IP → пропуск
+   Default: → <strong>Proxy (selector → Auto urltest)</strong>
+   ↓
+<strong>7. VLESS outbound</strong> (лучший по urltest, напр. "Russia → DE")
+   → TCP соединение к <strong>185.218.0.43:2096</strong> (SPB relay)
+   → Reality TLS handshake (SNI: ads.x5.ru, Vision flow)
+   ↓
+<strong>8. SPB Relay</strong> (nginx stream)
+   → Прозрачный проброс TCP к <strong>162.19.242.30:2096</strong> (DE Xray)
+   ↓
+<strong>9. Xray на DE</strong>
+   → Принимает VLESS Reality
+   → Расшифровывает трафик
+   → Отправляет запрос к google.com
+   ↓
+<strong>10. google.com</strong> отвечает → обратный путь
+</pre>
+
+<!-- ==================== -->
+<h2>4. sing-box конфиг (что генерирует backend)</h2>
+
+<p>Backend (<code>singbox.rs::generate_config()</code>) генерирует JSON конфиг для iOS клиента:</p>
+
+<h3>4.1 Inbound (TUN)</h3>
+<pre>
+{
+  "type": "tun",
+  "tag": "tun-in",
+  "address": ["172.19.0.1/30"],        <span class="comment">// IPv4 only! Без IPv6.</span>
+  "auto_route": true,
+  "stack": "system",
+  "mtu": 1400
+}
+</pre>
+
+<h3>4.2 DNS</h3>
+<pre>
+{
+  "servers": [
+    {"tag": "dns-fake", "address": "fakeip"},
+    {"tag": "dns-remote", "address": "https://1.1.1.1/dns-query",
+     "address_strategy": "ipv4_only", "detour": "Proxy"},
+    {"tag": "dns-direct", "address": "8.8.8.8",
+     "address_strategy": "ipv4_only", "detour": "direct"}
+  ],
+  "rules": [
+    {"outbound": "any", "server": "dns-fake"},
+    {"outbound": "direct", "server": "dns-direct"}
+  ],
+  "fakeip": {
+    "enabled": true,
+    "inet4_range": "198.18.0.0/15"     <span class="comment">// Без inet6_range!</span>
+  },
+  "final": "dns-remote",
+  "independent_cache": true
+}
+</pre>
+<div class="box box-blue">
+  <strong>Почему FakeIP:</strong> FakeIP мгновенно возвращает фейковый IP (198.18.x.x) для любого домена.
+  Реальный DNS-запрос идёт параллельно через VPN туннель (dns-remote → 1.1.1.1 через Proxy).
+  Это убирает задержку на DNS resolution при открытии сайтов.
+</div>
+
+<h3>4.3 Route Rules (порядок критичен!)</h3>
+<pre>
+{
+  "default_domain_resolver": {"server": "dns-direct", "strategy": "ipv4_only"},
+  "rules": [
+    <strong>{"action": "sniff"}</strong>,                                    <span class="comment">// 1. Определить протокол</span>
+    <strong>{"protocol": "dns", "action": "hijack-dns"}</strong>,            <span class="comment">// 2. DNS → встроенный модуль</span>
+    <strong>{"network": "udp", "port": 443, "action": "reject"}</strong>,    <span class="comment">// 3. Блок QUIC</span>
+    {"ip_is_private": true, "outbound": "direct"}             <span class="comment">// 4. Локальный трафик</span>
+  ]
+}
+</pre>
+<div class="box box-red">
+  <strong>Порядок правил критичен!</strong><br>
+  - hijack-dns ДОЛЖЕН быть ДО ip_is_private (иначе DNS к 172.19.0.2 уйдёт в direct и умрёт)<br>
+  - QUIC reject ДОЛЖЕН быть ДО default route (иначе UDP 443 пойдёт через VLESS TCP и зависнет)
+</div>
+
+<h3>4.4 Outbounds</h3>
+<pre>
+1. <strong>selector "Proxy"</strong>     — пользователь выбирает сервер (или Auto)
+2. <strong>urltest "Auto"</strong>       — автовыбор лучшего по пингу (gstatic.com/generate_204)
+3. <strong>vless "Russia → DE"</strong>  — 185.218.0.43:2096 (relay → DE)
+4. <strong>vless "Russia → NL"</strong>  — 185.218.0.43:2098 (relay → NL)
+5. <strong>vless "Germany"</strong>      — 162.19.242.30:2096 (direct, заблокирован из РФ)
+6. <strong>vless "Netherlands"</strong>  — 194.135.38.90:2096 (direct, заблокирован из РФ)
+7. <strong>hysteria2 "DE HY2"</strong>  — 162.19.242.30:8443 (UDP, timeout)
+8. <strong>hysteria2 "NL HY2"</strong>  — 194.135.38.90:8443 (UDP, timeout)
+9. <strong>direct</strong>               — прямое соединение (для приватных IP)
+</pre>
+
+<p>Каждый VLESS outbound содержит:</p>
+<pre>
+{
+  "type": "vless",
+  "server": "185.218.0.43",           <span class="comment">// SPB relay IP</span>
+  "server_port": 2096,
+  "uuid": "...",                       <span class="comment">// UUID пользователя из БД</span>
+  "flow": "xtls-rprx-vision",         <span class="comment">// Vision flow (без multiplex!)</span>
+  "tls": {
+    "enabled": true,
+    "server_name": "ads.x5.ru",       <span class="comment">// SNI для Reality</span>
+    "utls": {"enabled": true, "fingerprint": "chrome"},
+    "reality": {
+      "enabled": true,
+      "public_key": "...",             <span class="comment">// X25519 public key (совпадает с Xray private key)</span>
+      "short_id": "..."               <span class="comment">// Short ID пользователя из БД</span>
+    }
+  }
+}
+</pre>
+
+<!-- ==================== -->
+<h2>5. iOS приложение — ключевые файлы</h2>
+
+<table>
+<tr><th>Файл</th><th>Что делает</th></tr>
+<tr><td><code>AppState.swift</code></td><td>Главный стейт. initialize() → repairConfig → autoRegister → fetchConfig → toggleVPN</td></tr>
+<tr><td><code>ConfigStore.swift</code></td><td>Хранение конфига в App Group. saveConfig() → sanitize → write file + UserDefaults</td></tr>
+<tr><td><code>APIClient.swift</code></td><td>HTTP к backend. registerDevice(), fetchConfig(), signInWithApple()</td></tr>
+<tr><td><code>VPNManager.swift</code></td><td>NetworkExtension: load/connect/disconnect NETunnelProviderManager</td></tr>
+<tr><td><code>ConfigSanitizer.swift</code></td><td>Убирает deprecated поля (sniff, domain_strategy, clash_api, auto_detect_interface)</td></tr>
+<tr><td><code>ExtensionProvider.swift</code></td><td>PacketTunnel extension. startTunnel → sanitize → startSingBox</td></tr>
+<tr><td><code>ExtensionPlatformInterface.swift</code></td><td>Мост libbox ↔ iOS. buildTunnelSettings(), openTun(), pathUpdate()</td></tr>
+</table>
+
+<h3>Поток подключения VPN</h3>
+<pre>
+1. User taps "Connect"
+   → AppState.toggleVPN()
+   → VPNManager.connect(configJSON)
+   ↓
+2. iOS creates PacketTunnel process
+   → ExtensionProvider.startTunnel(options)
+   → ConfigSanitizer.sanitizeForIOS(config)
+   ↓
+3. ExtensionProvider.startSingBox(config)
+   → LibboxSetup(basePath, workingPath, tempPath, logFile)
+   → CommandServer.start()
+   → startOrReloadService(config)    <span class="comment">// blocks until started</span>
+   ↓
+4. sing-box creates TUN (utun11)
+   → ExtensionPlatformInterface.openTun()
+   → buildTunnelSettings() — IPv4 only, DNS 172.19.0.2
+   → setTunnelNetworkSettings()
+   ↓
+5. urltest pings all servers (gstatic.com/generate_204)
+   → Best server selected (e.g. "Russia → NL" 157ms)
+   ↓
+6. NEVPNStatus → Connected
+   → AppState.handleStatus() → commandClient.connect()
+   → Background: silentConfigUpdate() (обновляет конфиг для след. раза)
+</pre>
+
+<!-- ==================== -->
+<h2>6. Xray конфиг на сервере (что генерирует backend)</h2>
+
+<p>Backend (<code>engine.rs</code>) генерирует Xray JSON конфиг при старте и при изменении пользователей:</p>
+
+<pre>
+{
+  "log": {"loglevel": "warning"},      <span class="comment">// debug для отладки</span>
+  "api": { ... },                       <span class="comment">// gRPC stats API на :10085</span>
+  "inbounds": [
+    {
+      "port": 2096,                     <span class="comment">// VLESS Reality TCP</span>
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {"id": "uuid-...", "flow": "xtls-rprx-vision", "email": "user@xray"}
+        ],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "reality",
+        "realitySettings": {
+          "dest": "ads.x5.ru:443",      <span class="comment">// Reality camouflage target</span>
+          "serverNames": ["ads.x5.ru"],
+          "privateKey": "...",           <span class="comment">// X25519 private key</span>
+          "shortIds": ["", "9573cd02"]
+        }
+      }
+    },
+    { "port": 2097, "network": "xhttp", ... },   <span class="comment">// XHTTP</span>
+    { "port": 2098, "network": "xhttp", ... }    <span class="comment">// XHTTP H2</span>
+  ]
+}
+</pre>
+
+<!-- ==================== -->
+<h2>7. Docker на DE сервере</h2>
+
+<pre>
+<span class="comment"># Путь: /home/ubuntu/chameleon/backend/</span>
+<span class="comment"># .env: /home/ubuntu/chameleon/.env (symlink в backend/.env)</span>
+<span class="comment"># Docker compose project name: "backend" (по имени папки)</span>
+
+$ docker compose --env-file /home/ubuntu/chameleon/.env up -d
+
+CONTAINER          IMAGE                      STATUS
+chameleon-backend  backend-backend:latest      Up (healthy)
+chameleon-nginx    backend-nginx:latest        Up
+chameleon-postgres postgres:16-alpine          Up (healthy)
+chameleon-redis    redis:7-alpine              Up (healthy)
+xray              teddysun/xray:25.12.8       Up (healthy)
+
+<span class="comment"># Volumes (НЕ удалять!):</span>
+backend_pgdata        <span class="comment"># PostgreSQL данные</span>
+backend_redisdata     <span class="comment"># Redis AOF</span>
+backend_xray-config   <span class="comment"># /etc/xray/config.json</span>
+</pre>
+
+<div class="box box-red">
+  <strong>НИКОГДА не делать:</strong><br>
+  - <code>docker compose down -v</code> — удалит volumes с БД<br>
+  - <code>docker compose -p chameleon ...</code> — создаст новые пустые volumes<br>
+  - Всегда запускать из <code>/home/ubuntu/chameleon/backend/</code>
+</div>
+
+<!-- ==================== -->
+<h2>8. Совместимость версий</h2>
+
+<table>
+<tr><th>Xray</th><th>sing-box/libbox</th><th>Результат</th></tr>
+<tr><td>1.8.24</td><td>1.13.5</td><td class="err">CRASH — не знает xhttp transport</td></tr>
+<tr><td class="ok"><strong>25.12.8</strong></td><td class="ok"><strong>1.13.5</strong></td><td class="ok"><strong>РАБОТАЕТ</strong></td></tr>
+<tr><td>26.3.27</td><td>1.13.5</td><td class="err">reality verification failed — протокол изменён</td></tr>
+</table>
+
+<div class="box box-yellow">
+  <strong>Правило:</strong> Не обновлять Xray до v26+ пока libbox не обновлён до версии, поддерживающей новый Reality.
+  Сначала обновить и проверить libbox, потом Xray.
+</div>
+
+<!-- ==================== -->
+<h2>9. Частые проблемы и решения</h2>
+
+<h3>VPN "Connected" но сайты не грузят</h3>
+<ul>
+  <li>Проверить DNS: в логах должно быть <code>hijack-dns</code>. Если нет — правило отсутствует или использован underscore.</li>
+  <li>Проверить <code>reality verification failed</code> — версия Xray несовместима с libbox.</li>
+  <li>Проверить IPv6/QUIC таймауты — должны быть заблокированы в route rules.</li>
+</ul>
+
+<h3>App не подключается вообще</h3>
+<ul>
+  <li>Конфиг <code>{"error":"User not found"}</code> — юзер не в БД. Переустановить приложение.</li>
+  <li><code>unknown outbound type "dns"</code> — dns outbound в конфиге. Удалить, использовать hijack-dns.</li>
+</ul>
+
+<h3>Xray в restart loop</h3>
+<ul>
+  <li><code>unknown transport protocol: xhttp</code> — Xray слишком старый (1.8.x). Нужен 25.x+.</li>
+  <li>Проверить <code>docker logs xray</code> для конкретной ошибки.</li>
+</ul>
+
+<h3>БД пустая после перезапуска</h3>
+<ul>
+  <li>Проверить <code>docker volume ls | grep pg</code> — volume должен быть <code>backend_pgdata</code>.</li>
+  <li>Если был <code>docker compose down -v</code> — данные потеряны. Юзеры перерегистрируются автоматически.</li>
+</ul>
+
+<!-- ==================== -->
+<h2>10. Полезные команды</h2>
+
+<pre>
+<span class="comment"># SSH на DE сервер</span>
+sshpass -p 'ChameleonDE2026Secure' ssh ubuntu@162.19.242.30
+
+<span class="comment"># SSH на SPB relay</span>
+sshpass -p 'MadFrog_SPB_2026!' ssh root@185.218.0.43
+
+<span class="comment"># Проверить здоровье</span>
+curl -sf http://162.19.242.30/health
+
+<span class="comment"># Логи Xray (debug)</span>
+sudo docker logs xray --tail 50 2>&1 | grep -v 'api ->'
+
+<span class="comment"># Проверить юзеров в БД</span>
+sudo docker exec chameleon-postgres psql -U chameleon -c "SELECT id, vpn_username, vpn_uuid, is_active FROM users;"
+
+<span class="comment"># Пересобрать backend (⚠️ долго, может OOM)</span>
+cd /home/ubuntu/chameleon/backend
+sudo docker compose --env-file ../chameleon/.env build --no-cache backend
+
+<span class="comment"># Перезапустить Xray</span>
+sudo docker rm -f xray xray-init
+sudo docker compose --env-file ../chameleon/.env up -d xray-init xray
+
+<span class="comment"># Установить iOS app</span>
+cd apple && xcodebuild -project Chameleon.xcodeproj -scheme Chameleon -destination 'generic/platform=iOS' build
+ios-deploy --bundle ~/Library/Developer/Xcode/DerivedData/Chameleon-*/Build/Products/Debug-iphoneos/Chameleon.app
+
+<span class="comment"># Откат к рабочему состоянию</span>
+git checkout 6038e66 -- backend/docker-compose.yml backend/crates/chameleon-vpn/src/singbox.rs
+</pre>
+
+<p style="text-align:center; color:#666; margin-top:40px; font-size:12px;">
+  <a href="ARCHITECTURE_DIAGRAM.html">← Architecture Diagram</a>
+</p>
+
+</body>
+</html>
