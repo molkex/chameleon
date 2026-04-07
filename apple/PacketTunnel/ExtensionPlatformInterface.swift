@@ -204,14 +204,13 @@ extension ExtensionPlatformInterface: LibboxPlatformInterfaceProtocol {
                 ipv6Prefixes.append(NSNumber(value: prefix.prefix()))
             }
         }
-        if ipv6Addresses.isEmpty {
-            ipv6Addresses = ["fdfe:dcba:9876::1"]
-            ipv6Prefixes = [126]
+        // Only set up IPv6 if the config provides IPv6 addresses
+        // (relay servers don't support IPv6 forwarding)
+        if !ipv6Addresses.isEmpty {
+            let ipv6Settings = NEIPv6Settings(addresses: ipv6Addresses, networkPrefixLengths: ipv6Prefixes)
+            ipv6Settings.includedRoutes = [NEIPv6Route.default()]
+            settings.ipv6Settings = ipv6Settings
         }
-
-        let ipv6Settings = NEIPv6Settings(addresses: ipv6Addresses, networkPrefixLengths: ipv6Prefixes)
-        ipv6Settings.includedRoutes = [NEIPv6Route.default()]
-        settings.ipv6Settings = ipv6Settings
 
         // DNS
         let dnsAddress = (try? options.getDNSServerAddress())?.value ?? "1.1.1.1"

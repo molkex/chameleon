@@ -186,6 +186,10 @@ class APIClient {
             guard let config = String(data: data, encoding: .utf8), !config.isEmpty else {
                 throw APIError.noConfig
             }
+            // Reject error responses disguised as 200 OK
+            if config.contains("\"error\"") && !config.contains("\"outbounds\"") {
+                throw APIError.serverError(404)
+            }
             let expire = Int(http.value(forHTTPHeaderField: "X-Expire") ?? "0") ?? 0
             return (config, expire)
         } catch let error as APIError {

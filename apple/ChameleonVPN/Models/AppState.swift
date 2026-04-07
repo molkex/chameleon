@@ -22,6 +22,14 @@ class AppState {
         // so fresh config is fetched from API
         repairConfigIfNeeded()
 
+        // Fix: if cached config is an error response (not a valid sing-box config),
+        // clear everything and force re-registration.
+        // App Group UserDefaults and Keychain survive app reinstall on iOS.
+        if let cached = configStore.loadConfig(), cached.contains("\"error\""), !cached.contains("\"outbounds\"") {
+            AppLogger.app.info("initialize: cached config is error response, clearing all")
+            configStore.clear()
+        }
+
         servers = configStore.parseServersFromConfig()
 
         do {

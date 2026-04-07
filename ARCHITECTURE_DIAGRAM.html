@@ -40,7 +40,8 @@ td { background: #111; }
 <body>
 
 <h1>Chameleon VPN — Architecture Diagram</h1>
-<p style="text-align:center; color:#888; margin-bottom:30px;">Updated 2026-04-06 | libbox 1.13.5 | Xray v26.3.27 | sing-box config v2</p>
+<p style="text-align:center; color:#888; margin-bottom:30px;">Updated 2026-04-07 | libbox 1.13.5 | Xray 25.12.8 | sing-box config v2 | <strong style="color:#4caf50">WORKING</strong></p>
+<p style="text-align:center; color:#666; font-size:12px;">Stable commit: <code>6038e66</code> — "Fix: downgrade Xray to 25.12.8"</p>
 
 <!-- ===== SCHEMA 1: FULL NETWORK TOPOLOGY ===== -->
 <h2>1. Network Topology</h2>
@@ -403,9 +404,9 @@ td { background: #111; }
 <tr><th>Component</th><th>Version</th><th>Image / Source</th><th>Compatibility Notes</th></tr>
 <tr>
   <td>Xray-core (server)</td>
-  <td class="tag-ok">v26.3.27</td>
-  <td><code>ghcr.io/xtls/xray-core:v26.3.27</code></td>
-  <td>Supports xhttp, VLESS Reality, gRPC. Config dir: <code>/usr/local/etc/xray/</code></td>
+  <td class="tag-ok">25.12.8</td>
+  <td><code>teddysun/xray:25.12.8</code></td>
+  <td>Supports xhttp, VLESS Reality, gRPC. Config dir: <code>/etc/xray/</code>. <strong>v26.x INCOMPATIBLE with sing-box 1.13!</strong></td>
 </tr>
 <tr>
   <td>libbox (iOS client)</td>
@@ -445,90 +446,107 @@ td { background: #111; }
 </tr>
 </table>
 
-<div class="warn-box">
-  <strong>COMPATIBILITY NOTES:</strong><br>
-  - <strong>Xray xhttp:</strong> Backend generates xhttp transport config — requires Xray &ge; v24.x (was broken with teddysun/xray:1.8.24)<br>
-  - <strong>sing-box hijack-dns:</strong> Route action available since sing-box 1.11+ (libbox 1.13.5 OK)<br>
-  - <strong>sing-box dns outbound:</strong> REMOVED in 1.13 — both validation and runtime reject it<br>
-  - <strong>VLESS Vision flow:</strong> Supported by both Xray v26 (server) and libbox 1.13.5 (client)
+<div class="problem-box">
+  <strong>CRITICAL COMPATIBILITY:</strong><br>
+  - <strong>Xray v26.x + sing-box 1.13 = BROKEN:</strong> "reality verification failed". Server accepts TLS but client rejects ServerHello. Cause: Xray v26 changed Reality protocol.<br>
+  - <strong>Xray 25.12.8 + sing-box 1.13.5 = WORKING:</strong> This is the tested, working combination.<br>
+  - <strong>Xray 1.8.24 = BROKEN:</strong> Doesn't support xhttp transport — crashes on startup.<br>
+  - <strong>sing-box dns outbound:</strong> REMOVED in 1.13 — both validation and runtime reject it. Use <code>hijack-dns</code> action instead.
 </div>
 
 <!-- ===== STATUS TABLE ===== -->
-<h2>7. Current Status</h2>
+<h2>7. Current Status (2026-04-07) — WORKING</h2>
 
 <table>
 <tr><th>Component</th><th>Status</th><th>Details</th></tr>
-<tr>
-  <td>libbox version</td>
-  <td class="tag-ok">1.13.5</td>
-  <td>Supports action:sniff, action:hijack-dns, FakeIP. dns outbound REMOVED.</td>
-</tr>
-<tr>
-  <td>VLESS Reality (relay)</td>
-  <td class="tag-ok">WORKING</td>
-  <td>Russia→DE 187ms, Russia→NL 157ms, DE 172ms, NL 378ms</td>
-</tr>
-<tr>
-  <td>Hysteria2</td>
-  <td class="tag-err">TIMEOUT</td>
-  <td>Both DE and NL timeout — UDP likely blocked or HY2 not running</td>
-</tr>
-<tr>
-  <td>DNS resolution</td>
-  <td class="tag-fixed">FIXED (2026-04-06)</td>
-  <td>Was: dns→ip_is_private→direct→nowhere. Now: dns→hijack-dns→FakeIP</td>
-</tr>
-<tr>
-  <td>hijack-dns action</td>
-  <td class="tag-ok">ACTIVE</td>
-  <td>Route action intercepts DNS → built-in DNS module (no dns outbound)</td>
-</tr>
-<tr>
-  <td>Route rule: protocol dns</td>
-  <td class="tag-ok">PRESENT</td>
-  <td>{"protocol":"dns","action":"hijack-dns"} before ip_is_private</td>
-</tr>
-<tr>
-  <td>ConfigSanitizer</td>
-  <td class="tag-ok">UPDATED</td>
-  <td>Strips deprecated inbound fields (sniff, sniff_override_destination), clash_api, auto_detect_interface</td>
-</tr>
-<tr>
-  <td>LibboxCheckConfig</td>
-  <td class="tag-warn">SKIPPED</td>
-  <td>Validation disabled — too strict, rejects valid configs in 1.13.5</td>
-</tr>
-<tr>
-  <td>repairConfigIfNeeded</td>
-  <td class="tag-ok">UPDATED</td>
-  <td>Deletes configs with legacy inbound fields (sniff etc.)</td>
-</tr>
-<tr>
-  <td>Backend API</td>
-  <td class="tag-ok">DEPLOYED</td>
-  <td>DE server, chameleon-backend Up (healthy)</td>
-</tr>
+<tr><td>VPN</td><td class="tag-ok"><strong>WORKING</strong></td><td>Sites load through VLESS Reality via SPB relay</td></tr>
+<tr><td>Xray-core</td><td class="tag-ok">25.12.8</td><td>teddysun/xray:25.12.8 — Reality compatible with sing-box 1.13</td></tr>
+<tr><td>libbox (iOS)</td><td class="tag-ok">1.13.5</td><td>hijack-dns, FakeIP IPv4-only, QUIC blocked</td></tr>
+<tr><td>VLESS Reality</td><td class="tag-ok">WORKING</td><td>SPB→DE :2096, SPB→NL :2098 via nginx stream TCP</td></tr>
+<tr><td>DNS</td><td class="tag-ok">WORKING</td><td>sniff → hijack-dns → FakeIP → dns-remote (1.1.1.1 via Proxy)</td></tr>
+<tr><td>QUIC</td><td class="tag-ok">BLOCKED</td><td>udp:443 → reject. Forces TCP fallback. Required for TCP-only relay.</td></tr>
+<tr><td>IPv6</td><td class="tag-ok">DISABLED</td><td>No inet6 in TUN/FakeIP. Relay can't forward IPv6.</td></tr>
+<tr><td>Hysteria2</td><td class="tag-err">TIMEOUT</td><td>UDP blocked by ISP or HY2 not running</td></tr>
+<tr><td>Backend</td><td class="tag-ok">HEALTHY</td><td>DE server, Rust backend, PostgreSQL 16, Redis 7</td></tr>
 </table>
 
+<!-- ===== TROUBLESHOOTING ===== -->
+<h2>8. Troubleshooting History (2026-04-06 → 07)</h2>
+<p style="color:#888; margin-bottom:15px;">Complete path from "VPN connects but no sites" to working. Reference for future debugging.</p>
+
+<h3 style="color:#ff5252">Problem 1: DNS goes nowhere</h3>
+<div class="step"><div class="step-num" style="background:#ff5252">!</div><div class="step-text">
+  <strong>Symptom:</strong> VPN Connected, zero sites load<br>
+  <strong>Cause:</strong> DNS to 172.19.0.2 matched <code>ip_is_private</code> → direct → died<br>
+  <strong>Fix:</strong> <code>{"protocol":"dns","action":"hijack-dns"}</code> BEFORE ip_is_private<br>
+  <strong>Gotcha:</strong> <code>hijack-dns</code> (HYPHEN), not <code>hijack_dns</code> (underscore)<br>
+  <strong>Commit:</strong> <code>688fd52</code>
+</div></div>
+
+<h3 style="color:#ff5252">Problem 2: dns outbound removed in sing-box 1.13</h3>
+<div class="step"><div class="step-num" style="background:#ff5252">!</div><div class="step-text">
+  <strong>Symptom:</strong> App crashes — <code>unknown outbound type "dns"</code><br>
+  <strong>Cause:</strong> sing-box 1.13 removed dns outbound. Both validation AND runtime reject it.<br>
+  <strong>Fix:</strong> Use <code>hijack-dns</code> action instead. LibboxCheckConfig also disabled (too strict).
+</div></div>
+
+<h3 style="color:#ff9800">Problem 3: IPv6 + QUIC timeout through relay</h3>
+<div class="step"><div class="step-num" style="background:#ff9800">!</div><div class="step-text">
+  <strong>Symptom:</strong> DNS works, but QUIC/IPv6 connections timeout<br>
+  <strong>Cause:</strong> SPB relay (nginx stream TCP) can't forward IPv6 or UDP/QUIC<br>
+  <strong>Fix:</strong> 1) Block QUIC: <code>udp:443→reject</code> 2) Remove inet6 from TUN+FakeIP 3) iOS no IPv6 fallback<br>
+  <strong>Commit:</strong> <code>9a532b3</code>
+</div></div>
+
+<h3 style="color:#ff5252">Problem 4: Xray 1.8.24 crashes on xhttp</h3>
+<div class="step"><div class="step-num" style="background:#ff5252">!</div><div class="step-text">
+  <strong>Symptom:</strong> Xray restart loop — <code>unknown transport protocol: xhttp</code><br>
+  <strong>Cause:</strong> teddysun/xray:1.8.24 too old, no xhttp<br>
+  <strong>Fix:</strong> Upgrade to <code>teddysun/xray:25.12.8</code>. NOT v26 — see Problem 5.
+</div></div>
+
+<h3 style="color:#ff5252">Problem 5: Xray v26 Reality INCOMPATIBLE with sing-box 1.13</h3>
+<div class="step"><div class="step-num" style="background:#ff5252">!</div><div class="step-text">
+  <strong>Symptom:</strong> ALL connections: <code>reality verification failed</code><br>
+  <strong>Cause:</strong> Xray v26.3.27 changed Reality ServerHello. sing-box 1.13.5 client rejects it. Server-side shows connections accepted OK.<br>
+  <strong>Proof:</strong> Xray debug logs: <code>accepted tcp ... [VLESS TCP REALITY >> DIRECT]</code> — server OK, client rejects<br>
+  <strong>Fix:</strong> Downgrade to <code>teddysun/xray:25.12.8</code>. Works immediately.<br>
+  <strong>Commit:</strong> <code>6038e66</code><br>
+  <strong style="color:#ff5252">DO NOT UPGRADE to Xray v26 until sing-box/libbox supports it!</strong>
+</div></div>
+
+<h3 style="color:#ff9800">Problem 6: DB lost after docker compose project name mismatch</h3>
+<div class="step"><div class="step-num" style="background:#ff9800">!</div><div class="step-text">
+  <strong>Symptom:</strong> <code>{"error":"User not found"}</code> saved as VPN config<br>
+  <strong>Cause:</strong> <code>docker compose -p chameleon down -v</code> deleted original DB volume<br>
+  <strong>Fix:</strong> App auto-registers new user. Added validation for error responses in cached config.<br>
+  <strong>Prevention:</strong> Always use same project name. Don't use <code>-v</code> flag with down.
+</div></div>
+
+<!-- ===== ROLLBACK POINT ===== -->
+<h2>9. Known Working State — Rollback Point</h2>
+
 <div class="ok-box">
-  <strong>WORKING:</strong> DNS resolves correctly via hijack-dns → FakeIP → dns-remote (1.1.1.1 via Proxy).
-  Backend deployed on DE. Config generation uses hijack-dns action (no dns outbound).
+  <strong>STABLE COMMIT: <code>6038e66</code></strong> — "Fix: downgrade Xray to 25.12.8 — v26 Reality incompatible with sing-box 1.13"<br><br>
+  <strong>To rollback:</strong> <code>git checkout 6038e66 -- backend/docker-compose.yml backend/crates/chameleon-vpn/src/singbox.rs</code>
 </div>
 
 <div class="fixed-box">
-  <strong>FIX APPLIED (2026-04-06):</strong> 4 changes to resolve "sites don't load":<br>
-  1. <strong>QUIC blocked:</strong> Route rule <code>{"network":"udp","port":443,"action":"reject"}</code> — forces TCP fallback (~300ms)<br>
-  2. <strong>IPv6 FakeIP removed:</strong> No more <code>inet6_range</code> — only IPv4 FakeIP (198.18.0.0/15)<br>
-  3. <strong>IPv6 TUN removed:</strong> Address is now IPv4 only (172.19.0.1/30)<br>
-  4. <strong>iOS extension:</strong> No IPv6 fallback — only sets up IPv6 if config provides it
+  <strong>WORKING SING-BOX CONFIG:</strong><br>
+  <code>TUN:</code> 172.19.0.1/30 (IPv4 only)<br>
+  <code>DNS:</code> FakeIP 198.18.0.0/15 → dns-remote 1.1.1.1 via Proxy → dns-direct 8.8.8.8<br>
+  <code>Route:</code> sniff → hijack-dns → udp:443 reject → ip_is_private direct<br>
+  <code>Outbounds:</code> selector → urltest → VLESS×4 + HY2×2 + direct
 </div>
 
 <div class="warn-box">
-  <strong>REMAINING ISSUES:</strong><br>
-  - <strong>Xray v26.3.27:</strong> Updated from teddysun/xray:1.8.24 — config dir changed to /usr/local/etc/xray/<br>
-  - <strong>DB reset:</strong> backend_pgdata was empty after docker compose project name mismatch — users need to re-register<br>
-  - <strong>Hysteria2:</strong> Both DE/NL timeout — UDP blocked or HY2 service not running<br>
-  - <strong>LibboxCheckConfig:</strong> Validation skipped — too aggressive in 1.13.5, rejects valid configs
+  <strong>THINGS THAT WILL BREAK IT:</strong><br>
+  - Xray v26.x → "reality verification failed"<br>
+  - Adding <code>dns</code> outbound → sing-box 1.13 crash<br>
+  - <code>hijack_dns</code> (underscore) → silently fails<br>
+  - IPv6 in TUN/FakeIP → timeouts through relay<br>
+  - <code>docker compose down -v</code> → deletes DB<br>
+  - Wrong docker compose project name → creates empty volumes
 </div>
 
 </body>
