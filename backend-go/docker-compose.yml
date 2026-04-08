@@ -2,7 +2,7 @@
 # Chameleon VPN — Docker Compose (single autonomous node)
 # ============================================================================
 # Each node runs: chameleon (Go backend) + singbox + postgres + redis + nginx
-# sing-box is managed by chameleon but runs as a separate container for now.
+# sing-box is managed by chameleon via config writes + docker signals.
 # ============================================================================
 
 services:
@@ -17,12 +17,13 @@ services:
     volumes:
       - ./config.yaml:/etc/chameleon/config.yaml:ro
       - singbox-config:/etc/singbox
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - DATABASE_URL=postgres://chameleon:${DB_PASSWORD}@localhost:5432/chameleon?sslmode=disable
       - REDIS_URL=redis://:${REDIS_PASSWORD}@localhost:6379/0
       - JWT_SECRET=${JWT_SECRET}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - REALITY_PRIVATE_KEY=${REALITY_PRIVATE_KEY}
+      - REALITY_PUBLIC_KEY=${REALITY_PUBLIC_KEY}
     depends_on:
       postgres:
         condition: service_healthy
@@ -36,7 +37,7 @@ services:
 
   # ---------- sing-box (VPN engine) ----------
   singbox:
-    image: sing-box-custom:v1.13.6
+    image: ghcr.io/sagernet/sing-box:v1.13.6
     container_name: singbox
     restart: unless-stopped
     network_mode: host
@@ -47,7 +48,7 @@ services:
       - NET_BIND_SERVICE
     volumes:
       - singbox-config:/etc/singbox:ro
-    command: ["run", "-c", "/etc/singbox/config.json"]
+    command: ["run", "-c", "/etc/singbox/singbox-config.json"]
     depends_on:
       chameleon:
         condition: service_healthy
@@ -65,6 +66,7 @@ services:
       POSTGRES_DB: chameleon
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./migrations/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     ports:
       - "127.0.0.1:5432:5432"
     healthcheck:
@@ -91,9 +93,11 @@ services:
       timeout: 3s
       retries: 5
 
-  # ---------- Nginx (reverse proxy) ----------
+  # ---------- Nginx (reverse proxy + admin SPA) ----------
   nginx:
-    image: nginx:alpine
+    build:
+      context: ../admin
+      dockerfile: Dockerfile
     container_name: chameleon-nginx
     restart: unless-stopped
     security_opt:
@@ -108,5 +112,8 @@ services:
 
 volumes:
   pgdata:
+    name: chameleon-pgdata
   redisdata:
+    name: chameleon-redisdata
   singbox-config:
+    name: chameleon-singbox-config

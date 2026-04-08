@@ -74,6 +74,7 @@ type VPNConfig struct {
 // RealityConfig holds VLESS Reality protocol settings.
 type RealityConfig struct {
 	PrivateKey string            `yaml:"private_key"` // required; supports ${ENV_VAR}
+	PublicKey  string            `yaml:"public_key"`  // required; supports ${ENV_VAR}
 	ShortIDs   []string          `yaml:"short_ids"`
 	SNIs       map[string]string `yaml:"snis"` // key -> SNI hostname
 }
@@ -192,6 +193,7 @@ func (c *Config) resolveAllEnvVars() {
 
 	// VPN Reality
 	c.VPN.Reality.PrivateKey = resolveEnvVars(c.VPN.Reality.PrivateKey)
+	c.VPN.Reality.PublicKey = resolveEnvVars(c.VPN.Reality.PublicKey)
 }
 
 // applyDefaults sets sensible default values for fields that were not

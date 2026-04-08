@@ -1,5 +1,4 @@
-# Chameleon VPN — Configuration
-# Secrets use ${ENV_VAR} syntax and are resolved from environment variables.
+# Chameleon VPN — Production Configuration (DE node)
 
 server:
   host: "0.0.0.0"
@@ -39,10 +38,11 @@ vpn:
       default: "ads.x5.ru"
 
   servers: []
+  # Servers are loaded from the database (vpn_servers table).
 
 cluster:
   enabled: false
-  node_id: ""
+  node_id: "de-1"
   sync_interval: "30s"
   reconcile_interval: "5m"
   pubsub_channel: "chameleon:sync"

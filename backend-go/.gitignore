@@ -1,9 +1,8 @@
 # Secrets
 .env
 
-# Build output
-chameleon
-/cmd/chameleon/chameleon
+# Build output (compiled binary at project root)
+/chameleon
 
 # IDE
 .idea/

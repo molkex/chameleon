@@ -56,7 +56,7 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 				},
 				Reality: &clientReality{
 					Enabled:   true,
-					PublicKey: engineCfg.Reality.PrivateKey, // NOTE: caller must provide public key here
+					PublicKey: engineCfg.Reality.PublicKey,
 					ShortID:   shortID,
 				},
 			},

@@ -27,15 +27,9 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
 # --- Runtime stage ---
 FROM alpine:3.20
 
-RUN apk add --no-cache ca-certificates tzdata wget
-
-# Non-root user for security.
-RUN adduser -D -u 1000 chameleon
+RUN apk add --no-cache ca-certificates tzdata wget docker-cli
 
 COPY --from=builder /chameleon /usr/local/bin/chameleon
-
-# Drop all capabilities, run as non-root.
-USER chameleon
 
 EXPOSE 8000
 

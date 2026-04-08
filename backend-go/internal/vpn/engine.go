@@ -50,6 +50,7 @@ type EngineConfig struct {
 // RealityConfig holds VLESS Reality TLS settings.
 type RealityConfig struct {
 	PrivateKey string
+	PublicKey  string   // public key sent to clients for TLS verification
 	ShortIDs   []string
 	SNI        string // server name for TLS handshake destination
 }
