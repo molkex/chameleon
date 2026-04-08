@@ -36,15 +36,19 @@ pub fn generate_config(
                         outbounds.push(ob);
                     }
 
-                    // XHTTP + mux outbound (experimental) — only for direct servers (no relay)
-                    if srv.port == 0 {
+                    // XHTTP + mux outbound (experimental)
+                    // For direct servers: uses xhttp port (grpc_port) directly
+                    // For relay servers: won't connect (relay doesn't proxy xhttp port), Auto will skip
+                    {
                         let tag_xhttp = format!("{} {} XHTTP", srv.flag, srv.name);
+                        let mut xhttp_srv = srv.clone();
+                        xhttp_srv.port = 0; // force protocol default port (grpc_port = 2098)
                         let opts_xhttp = OutboundOpts {
                             transport: Some("xhttp".to_string()),
                             sni: if !srv.sni.is_empty() { Some(srv.sni.clone()) } else { None },
                             ..Default::default()
                         };
-                        if let Some(ob) = proto.singbox_outbound(&tag_xhttp, srv, user, &opts_xhttp) {
+                        if let Some(ob) = proto.singbox_outbound(&tag_xhttp, &xhttp_srv, user, &opts_xhttp) {
                             tags.push(tag_xhttp);
                             outbounds.push(ob);
                         }
