@@ -225,6 +225,19 @@ struct DebugLogsView: View {
         let now = DateFormatter.localizedString(from: Date(), dateStyle: .short, timeStyle: .medium)
         report += "Time: \(now)\n"
         report += "VPN: \(app.vpnManager.isConnected ? "connected" : "disconnected")\n"
+
+        // App version
+        let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        let buildNumber = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
+        report += "App: v\(appVersion) (\(buildNumber))\n"
+
+        // Config version from sing-box config JSON
+        if let configData = try? Data(contentsOf: AppConstants.configFileURL),
+           let json = try? JSONSerialization.jsonObject(with: configData) as? [String: Any],
+           let configVersion = json["config_version"] as? String {
+            report += "Config: \(configVersion)\n"
+        }
+
         if let connectedAt = app.vpnConnectedAt {
             let uptime = Int(Date().timeIntervalSince(connectedAt))
             let h = uptime / 3600; let m = (uptime % 3600) / 60; let s = uptime % 60

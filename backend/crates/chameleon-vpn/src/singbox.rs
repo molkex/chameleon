@@ -104,8 +104,12 @@ pub fn generate_config(
     all_outbounds.extend(outbounds);
     all_outbounds.push(json!({"type": "direct", "tag": "direct"}));
 
+    // ── Build config version from timestamp ──
+    let config_version = chrono::Utc::now().format("%Y%m%d-%H%M%S").to_string();
+
     // ── DNS: FakeIP + bootstrap (no death loop) ──
     json!({
+        "config_version": config_version,
         "log": {"level": "debug"},
         "dns": {
             "servers": [
