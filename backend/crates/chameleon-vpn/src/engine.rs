@@ -151,7 +151,7 @@ impl ChameleonEngine {
             "log": {"level": "info"},
             "dns": {
                 "servers": [
-                    {"tag": "dns-direct", "address": "1.1.1.1", "strategy": "ipv4_only"}
+                    {"tag": "dns-direct", "address": "1.1.1.1", "address_strategy": "ipv4_only"}
                 ]
             },
             "inbounds": [{
