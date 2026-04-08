@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chameleon Wiki — Server Setup</title>
+<style>
+  :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9; --heading: #f0f6fc; --accent: #58a6ff; --green: #3fb950; --red: #f85149; --yellow: #d29922; --orange: #db6d28; --code-bg: #1c2128; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; padding: 24px; max-width: 960px; margin: 0 auto; }
+  h1 { color: var(--heading); font-size: 28px; margin-bottom: 4px; }
+  h2 { color: var(--heading); font-size: 22px; margin: 32px 0 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  h3 { color: var(--accent); font-size: 17px; margin: 20px 0 8px; }
+  .subtitle { color: var(--text); opacity: 0.7; margin-bottom: 24px; }
+  .back { color: var(--accent); text-decoration: none; font-size: 14px; }
+  a { color: var(--accent); text-decoration: none; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin: 12px 0; }
+  code { font-family: 'SF Mono', Consolas, monospace; background: var(--code-bg); padding: 1px 6px; border-radius: 4px; font-size: 13px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 16px; overflow-x: auto; font-size: 13px; line-height: 1.5; margin: 8px 0; }
+  pre code { background: none; padding: 0; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  th { color: var(--heading); font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; }
+  ul { margin-left: 20px; }
+  li { margin: 4px 0; }
+  .warning { background: #2d2200; border: 1px solid #5c4800; border-radius: 6px; padding: 12px 16px; margin: 12px 0; font-size: 14px; }
+  .warning::before { content: "!! "; color: var(--yellow); font-weight: 700; }
+  .good { background: #132e1a; border: 1px solid #1f5c2e; border-radius: 6px; padding: 12px 16px; margin: 12px 0; font-size: 14px; }
+  .good::before { content: "OK "; color: var(--green); font-weight: 700; }
+</style>
+</head>
+<body>
+
+<a class="back" href="index.html">&larr; Wiki Home</a>
+<h1>Server Setup</h1>
+<p class="subtitle">Infrastructure overview, configuration, and diagnostic commands</p>
+
+<h2>Server Map</h2>
+<table>
+  <tr><th>Server</th><th>IP</th><th>Role</th><th>Hosting</th><th>Xray Port</th><th>SSH</th></tr>
+  <tr><td>DE (Germany)</td><td><code>162.19.242.30</code></td><td>Full backend + VPN</td><td>OVH VPS</td><td>2096</td><td>ubuntu + password</td></tr>
+  <tr><td>NL (Netherlands)</td><td><code>194.135.38.90</code></td><td>Full backend + VPN</td><td>Timeweb Cloud</td><td>2096</td><td>&mdash;</td></tr>
+  <tr><td>SPB Relay</td><td><code>185.218.0.43</code></td><td>TCP relay (nginx stream)</td><td>SprintHost</td><td>&mdash;</td><td>&mdash;</td></tr>
+</table>
+
+<h2>SPB Relay Port Mapping</h2>
+<table>
+  <tr><th>Relay Port</th><th>Destination</th><th>Protocol</th></tr>
+  <tr><td>:443</td><td>DE:2096</td><td>VLESS Reality TCP</td></tr>
+  <tr><td>:2096</td><td>DE:2096</td><td>VLESS Reality TCP (legacy)</td></tr>
+  <tr><td>:2098</td><td>NL:2096</td><td>VLESS Reality TCP</td></tr>
+  <tr><td>:80</td><td>DE:80</td><td>HTTP API proxy</td></tr>
+</table>
+
+<h2>DE Server (162.19.242.30)</h2>
+
+<h3>Docker services</h3>
+<table>
+  <tr><th>Container</th><th>Network</th><th>Ports</th></tr>
+  <tr><td>xray</td><td><code>host</code></td><td>2096-2098 (direct on host)</td></tr>
+  <tr><td>chameleon-backend</td><td>bridge</td><td>8000 (internal)</td></tr>
+  <tr><td>chameleon-nginx</td><td>bridge</td><td>80</td></tr>
+  <tr><td>chameleon-postgres</td><td>bridge</td><td>127.0.0.1:5432</td></tr>
+  <tr><td>chameleon-redis</td><td>bridge</td><td>127.0.0.1:6379</td></tr>
+  <tr><td>telemt (MTProxy)</td><td>bridge</td><td>443, 2053, 8443</td></tr>
+</table>
+
+<div class="warning">Xray MUST use <code>network_mode: host</code>. Bridge NAT causes packet flooding and connection failures for VPN traffic.</div>
+
+<h3>Xray config requirements</h3>
+<pre><code>{
+  "dns": {
+    "queryStrategy": "UseIPv4",    // DNS resolution IPv4 only
+    "servers": ["1.1.1.1", "8.8.8.8"]
+  },
+  "outbounds": [
+    {
+      "protocol": "freedom",
+      "tag": "DIRECT",
+      "settings": {
+        "domainStrategy": "UseIPv4"  // Outbound connections IPv4 only
+      }
+    }
+  ]
+}</code></pre>
+
+<div class="warning">Both <code>dns.queryStrategy</code> AND <code>outbounds.DIRECT.settings.domainStrategy</code> must be UseIPv4. The first controls DNS, the second controls outbound connections after sniffing re-resolves domains.</div>
+
+<h3>Reality SNI</h3>
+<table>
+  <tr><th>Server</th><th>SNI</th><th>Notes</th></tr>
+  <tr><td>DE</td><td><code>ads.x5.ru</code></td><td>Russian ad network, not blocked by RKN</td></tr>
+  <tr><td>NL</td><td><code>rutube.ru</code></td><td>Russian video platform</td></tr>
+</table>
+
+<div class="warning">Never use google.com or cloudflare.com as SNI &mdash; they're flagged by DPI systems.</div>
+
+<h3>File locations on DE</h3>
+<pre><code>Compose:     /home/ubuntu/chameleon/backend/docker-compose.yml
+Xray config: /var/lib/docker/volumes/chameleon-xray-config/_data/config.json
+Nginx conf:  (inside chameleon-nginx container)
+Backend env: /home/ubuntu/chameleon/backend/.env</code></pre>
+
+<h3>SSH access</h3>
+<pre><code># DE server
+sshpass -p "ChameleonDE2026Secure" ssh ubuntu@162.19.242.30</code></pre>
+
+<h2>Diagnostic Commands</h2>
+
+<h3>Quick health check</h3>
+<pre><code># Check all services running
+sudo docker ps --format 'table {{.Names}}\t{{.Status}}'
+
+# Check Xray network mode (must be "host")
+sudo docker inspect xray --format='NetworkMode: {{.HostConfig.NetworkMode}}'
+
+# Check Xray accepts connections
+sudo docker logs xray --since 2m 2>&1 | grep -v api | tail -10
+
+# Test outbound connectivity
+curl -4 -sk --max-time 5 -w "HTTP:%{http_code} TIME:%{time_total}s\n" \
+  -o /dev/null https://www.gstatic.com/generate_204
+
+# Test IPv6 (should work but we force IPv4)
+curl -6 -sk --max-time 5 https://ifconfig.me</code></pre>
+
+<h3>Debug Xray connections</h3>
+<pre><code># Enable debug logging (TEMPORARY!)
+sudo python3 -c "
+import json
+path='/var/lib/docker/volumes/chameleon-xray-config/_data/config.json'
+with open(path) as f: c = json.load(f)
+c['log'] = {'loglevel': 'debug'}
+with open(path, 'w') as f: json.dump(c, f, indent=2)
+"
+sudo docker restart xray
+
+# Watch debug logs
+sudo docker logs -f xray 2>&1 | grep -v api
+
+# IMPORTANT: revert to warning level after debugging!
+# Change 'debug' back to 'warning' and restart</code></pre>
+
+<h3>Check for new server deployment</h3>
+<pre><code># After deploying a new VPN node, verify:
+# 1. Xray uses host networking
+sudo docker inspect xray --format='NetworkMode: {{.HostConfig.NetworkMode}}'
+
+# 2. DIRECT outbound has UseIPv4
+sudo docker exec xray cat /etc/xray/config.json | \
+  python3 -c "import json,sys; c=json.load(sys.stdin); \
+  [print(json.dumps(o,indent=2)) for o in c['outbounds'] if o.get('tag')=='DIRECT']"
+
+# 3. IPv6 test
+curl -6 -sk --max-time 5 https://www.gstatic.com/generate_204 -w "%{http_code}\n" -o /dev/null
+# If this fails, IPv6 is broken — UseIPv4 is mandatory</code></pre>
+
+</body>
+</html>

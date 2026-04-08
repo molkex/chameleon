@@ -1,0 +1,119 @@
+# Chameleon Wiki Summary (for Claude context)
+
+## Current Architecture (2026-04-08)
+
+### Traffic Flow
+```
+iPhone (sing-box 1.13.6)
+  ├─ Proxy selector (user picks server)
+  │   ├─ 🇷🇺 Russia → DE  : 185.218.0.43:443  → relay → 162.19.242.30:2096
+  │   ├─ 🇷🇺 Russia → NL  : 185.218.0.43:2098 → relay → 194.135.38.90:2096
+  │   ├─ 🇩🇪 Germany      : 162.19.242.30:2096 (direct)
+  │   ├─ 🇳🇱 Netherlands  : 194.135.38.90:2096 (direct)
+  │   └─ Auto (urltest, 60s interval, 50ms tolerance)
+  │
+  ├─ DNS: DoH 1.1.1.1 via Auto (fastest server)
+  └─ Protocol: VLESS Reality TCP, Xray 25.12.8
+```
+
+### Servers
+| Server | IP | Xray Port | Network Mode | SSH |
+|---|---|---|---|---|
+| DE | 162.19.242.30 | 2096 | host | ubuntu + ChameleonDE2026Secure |
+| NL | 194.135.38.90 | 2096 | host | — |
+| SPB Relay | 185.218.0.43 | — (nginx stream) | — | — |
+
+### Critical Rules
+1. **Xray Docker**: MUST use `network_mode: host` (bridge NAT causes flooding/EOF)
+2. **Xray DIRECT outbound**: MUST have `domainStrategy: UseIPv4` (IPv6 broken on OVH)
+3. **Xray version**: 25.12.8 (v26 INCOMPATIBLE with sing-box 1.13)
+4. **SNI**: ads.x5.ru (DE), rutube.ru (NL) — never use google.com/cloudflare.com
+5. **DNS**: dns.queryStrategy=UseIPv4 AND outbound.DIRECT.domainStrategy=UseIPv4 (both needed)
+
+### iOS Server Selection
+- `selectServer()` modifies selector `default` in config JSON, saves to UserDefaults, disconnect → poll until disconnected → reconnect
+- Auto button calls `selectServer(groupTag: "Proxy", serverTag: "Auto")`
+- Config sources: 1) tunnel options (manual connect), 2) UserDefaults (on-demand), 3) file (fallback)
+
+## Stable Tags
+- **`v0.3-stable-no-flooding`** (commit b385e56, 2026-04-08) — текущий стабильный. no_drop fix + system stack, MUX outbounds убраны из конфига.
+- **`v0.4-clean`** — следующий тег после cleanup (удаление MUX кода из Rust, обновление sing-box сервера до 1.13.6).
+
+## Stable Baseline: `v0.1-stable-system-stack` (commit 6f584b6, 2026-04-08)
+
+### Что работает
+| Сервер | Скорость | Статус |
+|--------|----------|--------|
+| 🇩🇪 Germany direct | 48 Mbps | ✅ |
+| 🇳🇱 Netherlands direct | 62 Mbps | ✅ |
+| 🇷🇺 Russia → DE (relay) | 50 Mbps | ✅ |
+| 🇷🇺 Russia → NL (relay) | ~50 Mbps | ✅ |
+
+### Конфигурация sing-box (iOS)
+- **TUN stack**: `system` (единственный работающий для всех серверов)
+- **Protocol**: VLESS Reality TCP + xtls-rprx-vision (порт 2096)
+- **DNS**: FakeIP + DoH 1.1.1.1 via Auto
+- **QUIC**: reject (UDP 443 блокируется, браузеры используют TCP/H2)
+- **MTU**: 1400
+- **Log level**: info
+- **config_version**: timestamp в JSON (убирается ConfigSanitizer перед sing-box)
+
+### Известные проблемы (RESOLVED)
+1. ~~**Flooding** (`dropped due to flooding`)~~ — **РЕШЕНО** в v0.3: `no_drop: true` на QUIC reject правиле. Причина: sing-box после 50 reject'ов/30с переключался с ICMP→drop, браузер ждал QUIC таймаут. `no_drop` гарантирует мгновенный ICMP ответ всегда.
+2. **QUIC fallback задержка** — браузер пытает QUIC → reject → fallback на TCP. На iOS TUN ICMP может не доходить до приложения, поэтому fallback ~3-5с. Если убрать reject — весь трафик идёт QUIC-over-TCP, что ещё медленнее.
+3. **DE urltest EOF** — иногда urltest для DE показывает EOF, но реальный трафик работает.
+
+### Что пробовали и не работает
+| Подход | Результат | Почему |
+|--------|-----------|--------|
+| `stack: "mixed"` | Трафик не идёт | gVisor TCP + system UDP конфликтует с NetworkExtension |
+| `stack: "gvisor"` | DE direct 4.2 Kbps | Чистый userspace ломает DE, NL работает 62 Mbps |
+| Убрать QUIC reject | Медленнее | QUIC-over-TCP хуже чем HTTP/2-over-TCP |
+| `reject method: "port_unreachable"` | VPN не стартует | Невалидное значение в sing-box 1.13 |
+| `log: "debug"` | VPN не стартует или OOM | Extension убивается системой из-за объёма логов |
+
+### Следующий шаг: Миграция с Xray на sing-box сервер
+sing-box сервер уже развёрнут на DE:2094 и протестирован. Нужно перевести основной трафик с Xray (порт 2096) на sing-box сервер. Преимущества: нативная совместимость с sing-box клиентом (iOS), поддержка MUX, единый стек.
+
+## Resolved Issues Log
+
+### 2026-04-08: Cleanup + sing-box server update (session 3)
+- **MTProxy**: проверено — отсутствует на DE сервере, ничего удалять не нужно
+- **Порт 2095 (MUX inbound)**: уже убран из Xray конфига ранее
+- **MUX код в Rust**: удалён из `vless_reality.rs` (tcp-mux ветка, порт 2094 hardcode, multiplex конфиг)
+- **sing-box сервер**: обновлён до v1.13.6 в docker-compose
+- **singbox.rs**: уже был очищен от MUX outbounds в коммите b385e56
+- **Стабильный тег**: v0.3-stable-no-flooding (b385e56) остаётся текущим; после cleanup будет v0.4-clean
+
+### 2026-04-08: Flooding + DE performance (session 2)
+- **Flooding**: `system` stack → `dropped due to flooding` при speedtest. `gvisor` убирает flooding но ломает DE. Решение: оставить `system`, планировать переход на XHTTP+mux.
+- **DE DIRECT outbound без UseIPv4**: engine.rs генерировал DIRECT без domainStrategy → Xray использовал IPv6 (сломано на OVH) → EOF. Фикс в commit 92bdd9e.
+- **config_version**: добавлен timestamp в JSON конфиг + отображение в debug report. ConfigSanitizer убирает перед sing-box.
+- **Appium**: настроен для remote control iPhone. Team ID: 99W3C374T2, WDA bundle: com.chameleonvpn.wda.
+
+### 2026-04-08: DE direct не грузит (commit 0290013)
+- **Cause 1**: Xray freedom outbound used IPv6 (broken on OVH) → `domainStrategy: UseIPv4`
+- **Cause 2**: Xray in Docker bridge (172.18.0.3) → switched to `network_mode: host`
+- **Cause 3**: iOS Auto button didn't reconnect → now calls `selectServer()`
+
+### 2026-04-07: DNS slow 9-14s (commit beee3ff)
+- DNS detour hardcoded to "Proxy" selector → changed to "Auto" urltest
+
+### 2026-04-07: Connection drops (commit 4f7a2a3)
+- JWT token expiry not handled → auto-refresh + re-register
+- Fixed WiFi/LTE handover, Docker volumes for config persistence
+
+## Diagnostic Cheatsheet
+```bash
+# SSH to DE
+sshpass -p "ChameleonDE2026Secure" ssh ubuntu@162.19.242.30
+
+# Check xray health
+sudo docker inspect xray --format='NetworkMode: {{.HostConfig.NetworkMode}}'  # must be: host
+sudo docker logs xray --since 2m 2>&1 | grep -v api | tail -10
+
+# Test outbound
+curl -4 -sk --max-time 5 -w "HTTP:%{http_code} TIME:%{time_total}s\n" -o /dev/null https://www.gstatic.com/generate_204
+
+# iOS debug: ladybug icon → copy button → paste to Claude
+```

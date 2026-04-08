@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chameleon VPN — Wiki</title>
+<style>
+  :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9; --heading: #f0f6fc; --accent: #58a6ff; --green: #3fb950; --red: #f85149; --yellow: #d29922; --orange: #db6d28; --code-bg: #1c2128; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; padding: 24px; max-width: 1060px; margin: 0 auto; }
+  h1 { color: var(--heading); font-size: 28px; margin-bottom: 8px; }
+  h2 { color: var(--heading); font-size: 22px; margin: 36px 0 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  h3 { color: var(--accent); font-size: 17px; margin: 20px 0 8px; }
+  .subtitle { color: var(--text); opacity: 0.7; margin-bottom: 24px; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin: 12px 0; }
+  .card-title { font-size: 18px; font-weight: 600; color: var(--heading); margin-bottom: 4px; }
+  .card-date { font-size: 13px; color: var(--text); opacity: 0.5; }
+  .card-desc { margin-top: 8px; font-size: 14px; }
+  .tag { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 12px; font-weight: 600; margin-right: 4px; }
+  .tag-fix { background: #1f3225; color: var(--green); }
+  .tag-infra { background: #2a1f0d; color: var(--orange); }
+  .tag-ios { background: #1c2333; color: var(--accent); }
+  .tag-server { background: #2d1520; color: var(--red); }
+  .nav { display: flex; gap: 12px; margin: 16px 0; flex-wrap: wrap; }
+  .nav a { background: var(--card); border: 1px solid var(--border); padding: 8px 16px; border-radius: 6px; font-size: 14px; }
+  .nav a:hover { border-color: var(--accent); text-decoration: none; }
+  code { font-family: 'SF Mono', Consolas, monospace; background: var(--code-bg); padding: 1px 6px; border-radius: 4px; font-size: 13px; }
+
+  /* Architecture diagram */
+  .diagram { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 24px; margin: 16px 0; overflow-x: auto; }
+  .diagram svg { width: 100%; max-width: 920px; display: block; margin: 0 auto; }
+  .box { rx: 6; ry: 6; }
+  .box-phone { fill: #1c2333; stroke: var(--accent); stroke-width: 1.5; }
+  .box-relay { fill: #2d1520; stroke: var(--red); stroke-width: 1.5; }
+  .box-server { fill: #1f3225; stroke: var(--green); stroke-width: 1.5; }
+  .box-service { fill: #1e1e2e; stroke: #6c6caa; stroke-width: 1; }
+  .box-internet { fill: #2a1f0d; stroke: var(--orange); stroke-width: 1.5; }
+  .label { font-family: -apple-system, BlinkMacSystemFont, sans-serif; font-size: 13px; fill: var(--heading); text-anchor: middle; dominant-baseline: central; }
+  .label-sm { font-size: 11px; fill: var(--text); opacity: 0.8; }
+  .label-port { font-family: 'SF Mono', Consolas, monospace; font-size: 10px; fill: var(--green); }
+  .arrow { stroke: var(--text); stroke-width: 1.2; fill: none; opacity: 0.6; marker-end: url(#arrowhead); }
+  .arrow-active { stroke: var(--green); opacity: 0.9; stroke-width: 1.5; }
+  .arrow-dns { stroke: var(--yellow); stroke-dasharray: 4,3; opacity: 0.5; }
+  .group-label { font-size: 11px; fill: var(--text); opacity: 0.4; text-anchor: start; text-transform: uppercase; letter-spacing: 1px; }
+</style>
+</head>
+<body>
+
+<h1>Chameleon VPN — Wiki</h1>
+<p class="subtitle">Knowledge base: architecture, commits, troubleshooting</p>
+
+<div class="nav">
+  <a href="commits.html">Commits Log</a>
+  <a href="server-setup.html">Server Setup</a>
+  <a href="ios-architecture.html">iOS Architecture</a>
+  <a href="architecture-diagram.html">Architecture Diagram</a>
+  <a href="how-it-works.html">How It Works</a>
+</div>
+
+<h2>System Architecture (current state)</h2>
+
+<div class="diagram">
+<svg viewBox="0 0 920 520" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#c9d1d9" opacity="0.6"/>
+    </marker>
+    <marker id="arrowgreen" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#3fb950" opacity="0.9"/>
+    </marker>
+  </defs>
+
+  <!-- Group labels -->
+  <text x="20" y="25" class="group-label">Client</text>
+  <text x="280" y="25" class="group-label">Relay (Russia)</text>
+  <text x="530" y="25" class="group-label">VPN Nodes</text>
+  <text x="800" y="25" class="group-label">Internet</text>
+
+  <!-- iPhone -->
+  <rect x="20" y="180" width="160" height="160" class="box box-phone"/>
+  <text x="100" y="200" class="label">iPhone</text>
+  <text x="100" y="220" class="label label-sm">sing-box 1.13</text>
+  <line x1="40" y1="238" x2="160" y2="238" stroke="#30363d" stroke-width="0.5"/>
+  <text x="100" y="258" class="label label-sm">Proxy (selector)</text>
+  <text x="100" y="276" class="label label-sm">Auto (urltest)</text>
+  <text x="100" y="294" class="label label-sm">DNS: DoH via Auto</text>
+  <text x="100" y="312" class="label label-sm">FakeIP + TUN</text>
+  <text x="100" y="330" class="label label-port">VLESS Reality TCP</text>
+
+  <!-- SPB Relay -->
+  <rect x="280" y="140" width="160" height="130" class="box box-relay"/>
+  <text x="360" y="162" class="label">SPB Relay</text>
+  <text x="360" y="180" class="label label-sm">185.218.0.43</text>
+  <text x="360" y="198" class="label label-sm">nginx stream</text>
+  <line x1="300" y1="210" x2="420" y2="210" stroke="#30363d" stroke-width="0.5"/>
+  <text x="360" y="228" class="label-port" text-anchor="middle">:443 &rarr; DE:2096</text>
+  <text x="360" y="244" class="label-port" text-anchor="middle">:2098 &rarr; NL:2096</text>
+  <text x="360" y="260" class="label-port" text-anchor="middle">:80 &rarr; DE:80 (API)</text>
+
+  <!-- DE Server -->
+  <rect x="530" y="40" width="190" height="210" class="box box-server"/>
+  <text x="625" y="62" class="label">DE (Germany)</text>
+  <text x="625" y="80" class="label label-sm">162.19.242.30 &middot; OVH</text>
+  <line x1="545" y1="92" x2="705" y2="92" stroke="#30363d" stroke-width="0.5"/>
+  <!-- Services inside DE -->
+  <rect x="545" y="100" width="80" height="28" class="box box-service"/>
+  <text x="585" y="114" class="label label-sm">Xray</text>
+  <text x="585" y="136" class="label-port" text-anchor="middle">:2096 host</text>
+  <rect x="635" y="100" width="80" height="28" class="box box-service"/>
+  <text x="675" y="114" class="label label-sm">Backend</text>
+  <rect x="545" y="152" width="80" height="28" class="box box-service"/>
+  <text x="585" y="166" class="label label-sm">Postgres</text>
+  <rect x="635" y="152" width="80" height="28" class="box box-service"/>
+  <text x="675" y="166" class="label label-sm">Redis</text>
+  <rect x="545" y="196" width="80" height="28" class="box box-service"/>
+  <text x="585" y="210" class="label label-sm">Nginx</text>
+  <text x="585" y="240" class="label-port" text-anchor="middle">:80 API</text>
+  <rect x="635" y="196" width="80" height="28" class="box box-service"/>
+  <text x="675" y="210" class="label label-sm">MTProxy</text>
+  <text x="675" y="240" class="label-port" text-anchor="middle">:443 TG</text>
+
+  <!-- NL Server -->
+  <rect x="530" y="290" width="190" height="130" class="box box-server"/>
+  <text x="625" y="312" class="label">NL (Netherlands)</text>
+  <text x="625" y="330" class="label label-sm">194.135.38.90 &middot; Timeweb</text>
+  <line x1="545" y1="342" x2="705" y2="342" stroke="#30363d" stroke-width="0.5"/>
+  <rect x="545" y="350" width="80" height="28" class="box box-service"/>
+  <text x="585" y="364" class="label label-sm">Xray</text>
+  <text x="585" y="388" class="label-port" text-anchor="middle">:2096 host</text>
+  <rect x="635" y="350" width="80" height="28" class="box box-service"/>
+  <text x="675" y="364" class="label label-sm">Backend</text>
+
+  <!-- Internet -->
+  <rect x="800" y="150" width="100" height="70" class="box box-internet"/>
+  <text x="850" y="180" class="label">Internet</text>
+  <text x="850" y="198" class="label label-sm">IPv4 only</text>
+
+  <!-- Arrows: iPhone → Relay (Russia → DE) -->
+  <path d="M 180 230 L 280 205" class="arrow arrow-active" marker-end="url(#arrowgreen)"/>
+  <text x="230" y="205" class="label-port" text-anchor="middle">:443</text>
+
+  <!-- Arrows: iPhone → Relay (Russia → NL) -->
+  <path d="M 180 270 L 280 245" class="arrow"/>
+  <text x="225" y="255" class="label-port" text-anchor="middle">:2098</text>
+
+  <!-- Arrows: iPhone → DE direct -->
+  <path d="M 180 220 Q 350 60 530 120" class="arrow" stroke-dasharray="6,3"/>
+  <text x="340" y="90" class="label label-sm" text-anchor="middle" style="opacity:0.5">direct (if not blocked)</text>
+
+  <!-- Arrows: iPhone → NL direct -->
+  <path d="M 180 310 Q 350 420 530 370" class="arrow" stroke-dasharray="6,3"/>
+
+  <!-- Arrows: Relay → DE -->
+  <path d="M 440 180 L 530 130" class="arrow arrow-active" marker-end="url(#arrowgreen)"/>
+
+  <!-- Arrows: Relay → NL -->
+  <path d="M 440 240 L 530 340" class="arrow"/>
+
+  <!-- Arrows: DE → Internet -->
+  <path d="M 720 140 L 800 170" class="arrow arrow-active" marker-end="url(#arrowgreen)"/>
+
+  <!-- Arrows: NL → Internet -->
+  <path d="M 720 360 L 800 200" class="arrow"/>
+
+  <!-- Legend -->
+  <rect x="20" y="440" width="880" height="70" rx="6" fill="#161b22" stroke="#30363d"/>
+  <text x="40" y="462" class="label label-sm">Legend:</text>
+  <line x1="100" y1="458" x2="140" y2="458" stroke="#3fb950" stroke-width="2"/>
+  <text x="148" y="462" class="label label-sm">Primary path (Russia &rarr; DE)</text>
+  <line x1="340" y1="458" x2="380" y2="458" stroke="#c9d1d9" stroke-width="1.2" opacity="0.6"/>
+  <text x="388" y="462" class="label label-sm">Alternative paths</text>
+  <line x1="560" y1="458" x2="600" y2="458" stroke="#c9d1d9" stroke-width="1.2" opacity="0.6" stroke-dasharray="6,3"/>
+  <text x="608" y="462" class="label label-sm">Direct (may be blocked by ISP)</text>
+  <text x="40" y="492" class="label label-sm" style="fill: #d29922">Config: VLESS Reality TCP &middot; SNI: ads.x5.ru (DE), rutube.ru (NL) &middot; Xray 25.12.8 &middot; sing-box 1.13.5 &middot; DNS: DoH 1.1.1.1 via Auto urltest</text>
+</svg>
+</div>
+
+<h2>How Traffic Flows</h2>
+
+<div class="card">
+  <h3>Default (Auto mode)</h3>
+  <p>sing-box urltest probes all 4 servers every 60s. Picks fastest (tolerance 50ms). Usually NL or Russia&rarr;DE.</p>
+  <p><code>iPhone &rarr; Relay 185.218.0.43:443 &rarr; DE 162.19.242.30:2096 &rarr; Internet</code></p>
+</div>
+
+<div class="card">
+  <h3>Manual server selection (e.g. Germany)</h3>
+  <p>Selector <code>default</code> changed to "Germany". VPN disconnects, reconnects with new config.</p>
+  <p><code>iPhone &rarr; DE 162.19.242.30:2096 &rarr; Internet</code> (direct, no relay)</p>
+</div>
+
+<div class="card">
+  <h3>DNS resolution</h3>
+  <p>Always goes through <code>Auto</code> urltest (fastest server), independent of Proxy selector.</p>
+  <p><code>dns-remote: DoH 1.1.1.1 (detour: Auto)</code><br>
+     <code>dns-direct: DoH 8.8.8.8 (detour: direct)</code><br>
+     <code>dns-fake: fakeip 198.18.0.0/15</code></p>
+</div>
+
+<h2>Recent Changes</h2>
+
+<div class="card">
+  <div class="card-title">Fix: server selector reconnect + DE server networking</div>
+  <div class="card-date">2026-04-08 &middot; commit <code>0290013</code></div>
+  <div class="card-desc">
+    <span class="tag tag-fix">fix</span>
+    <span class="tag tag-ios">iOS</span>
+    <span class="tag tag-server">server</span>
+    <span class="tag tag-infra">infra</span>
+    <br><br>
+    Fixed 3 issues: Xray IPv6 outbound, Docker bridge NAT, iOS Auto button reconnect.
+    <a href="commits.html#2026-04-08-selector-fix">Details &rarr;</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">DNS detour: Auto selector instead of hardcoded Proxy</div>
+  <div class="card-date">2026-04-07 &middot; commit <code>beee3ff</code></div>
+  <div class="card-desc">
+    <span class="tag tag-fix">fix</span>
+    <span class="tag tag-ios">iOS</span>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">Reliability: token refresh, failover, WiFi/LTE handover</div>
+  <div class="card-date">2026-04-07 &middot; commit <code>4f7a2a3</code></div>
+  <div class="card-desc">
+    <span class="tag tag-fix">fix</span>
+    <span class="tag tag-ios">iOS</span>
+    <span class="tag tag-infra">infra</span>
+  </div>
+</div>
+
+<h2>Quick Links</h2>
+<ul style="margin-left: 20px; line-height: 2.2;">
+  <li><a href="commits.html">Full commit history with root causes</a></li>
+  <li><a href="server-setup.html">Server setup, Docker, diagnostics</a></li>
+  <li><a href="ios-architecture.html">iOS app: config flow, selector logic, debug tips</a></li>
+  <li><a href="architecture-diagram.html">Detailed architecture diagram</a></li>
+  <li><a href="how-it-works.html">How the full system works</a></li>
+  <li><a href="TROUBLESHOOTING.md">Troubleshooting (markdown)</a></li>
+</ul>
+
+</body>
+</html>

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chameleon Wiki — iOS Architecture</title>
+<style>
+  :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9; --heading: #f0f6fc; --accent: #58a6ff; --green: #3fb950; --red: #f85149; --yellow: #d29922; --code-bg: #1c2128; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; padding: 24px; max-width: 960px; margin: 0 auto; }
+  h1 { color: var(--heading); font-size: 28px; margin-bottom: 4px; }
+  h2 { color: var(--heading); font-size: 22px; margin: 32px 0 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  h3 { color: var(--accent); font-size: 17px; margin: 20px 0 8px; }
+  .subtitle { color: var(--text); opacity: 0.7; margin-bottom: 24px; }
+  .back { color: var(--accent); text-decoration: none; font-size: 14px; }
+  a { color: var(--accent); text-decoration: none; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin: 12px 0; }
+  code { font-family: 'SF Mono', Consolas, monospace; background: var(--code-bg); padding: 1px 6px; border-radius: 4px; font-size: 13px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 16px; overflow-x: auto; font-size: 13px; line-height: 1.5; margin: 8px 0; }
+  pre code { background: none; padding: 0; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  th { color: var(--heading); font-size: 13px; text-transform: uppercase; }
+  ul, ol { margin-left: 20px; }
+  li { margin: 4px 0; }
+  .flow { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 16px; margin: 12px 0; font-family: 'SF Mono', Consolas, monospace; font-size: 13px; line-height: 1.8; white-space: pre; overflow-x: auto; }
+</style>
+</head>
+<body>
+
+<a class="back" href="index.html">&larr; Wiki Home</a>
+<h1>iOS Architecture</h1>
+<p class="subtitle">VPN connection flow, server selection, config management</p>
+
+<h2>sing-box Config Structure</h2>
+<div class="flow">Proxy (selector)
+ |-- Auto (urltest, interval=1m, tolerance=50ms)
+ |    |-- Russia &rarr; DE   (185.218.0.43:443  &rarr; relay to DE)
+ |    |-- Russia &rarr; NL   (185.218.0.43:2098 &rarr; relay to NL)
+ |    |-- Germany        (162.19.242.30:2096  &rarr; direct)
+ |    '-- Netherlands    (194.135.38.90:2096  &rarr; direct)
+ |-- Russia &rarr; DE
+ |-- Russia &rarr; NL
+ |-- Germany
+ |-- Netherlands
+ '-- Auto
+
+DNS:
+  dns-remote: DoH 1.1.1.1  (detour: Auto)
+  dns-direct: DoH 8.8.8.8  (detour: direct)
+  dns-fake:   fakeip 198.18.0.0/15</div>
+
+<h2>Server Selection Flow</h2>
+<ol>
+  <li>User taps server in <code>ServerListView</code></li>
+  <li><code>selectServer(groupTag, serverTag)</code> called</li>
+  <li>Saves <code>selectedServerTag</code> to <code>ConfigStore</code> (nil for Auto)</li>
+  <li>Updates UI immediately (checkmark moves)</li>
+  <li>If VPN connected and server changed:
+    <ol>
+      <li>Builds new config with <code>buildConfigWithSelector(tag)</code> &mdash; modifies selector <code>default</code></li>
+      <li>Saves to UserDefaults for On-Demand reconnects</li>
+      <li>Disconnects: <code>commandClient.disconnect()</code>, <code>disableOnDemand()</code>, <code>vpnManager.disconnect()</code></li>
+      <li>Polls <code>vpnManager.isConnected</code> every 200ms (max 6s) until disconnected</li>
+      <li>Reconnects with new config: <code>vpnManager.connect(configJSON: updatedConfig)</code></li>
+    </ol>
+  </li>
+</ol>
+
+<h2>Config Sources (priority order)</h2>
+<table>
+  <tr><th>#</th><th>Source</th><th>When used</th></tr>
+  <tr><td>1</td><td><code>tunnel options</code> (configContent)</td><td>Manual connect from app (fresh config passed via startTunnel options)</td></tr>
+  <tr><td>2</td><td><code>persisted UserDefaults</code></td><td>On-Demand reconnect (iOS auto-reconnects after network change)</td></tr>
+  <tr><td>3</td><td><code>config file</code></td><td>Fallback if UserDefaults empty</td></tr>
+</table>
+
+<h2>Key Files</h2>
+<table>
+  <tr><th>File</th><th>Role</th></tr>
+  <tr><td><code>AppState.swift</code></td><td>Main state: init, register, config fetch, selectServer, toggleVPN</td></tr>
+  <tr><td><code>ConfigStore.swift</code></td><td>Persistence: tokens, config file, UserDefaults, server parsing</td></tr>
+  <tr><td><code>VPNManager.swift</code></td><td>NEVPNManager wrapper: connect, disconnect, On-Demand</td></tr>
+  <tr><td><code>CommandClientWrapper.swift</code></td><td>gRPC to sing-box (urltest results, stats)</td></tr>
+  <tr><td><code>ExtensionProvider.swift</code></td><td>PacketTunnel: reads config, starts sing-box</td></tr>
+  <tr><td><code>MainView.swift</code></td><td>UI: connect button, server selector, debug logs</td></tr>
+  <tr><td><code>DebugLogsView.swift</code></td><td>Logs viewer: tunnel/stderr/diagnostics/network test</td></tr>
+</table>
+
+<h2>Debug Tips</h2>
+<div class="card">
+  <h3>Claude Report Button</h3>
+  <p>In Debug Logs (ladybug icon), tap the copy icon (top right). This creates a compact report with:</p>
+  <ul>
+    <li>VPN status and uptime</li>
+    <li>Key events (tunnel start, config source, sing-box start)</li>
+    <li>Errors and warnings</li>
+    <li>Last 30 meaningful log lines (filtered from noise)</li>
+  </ul>
+  <p>Paste directly to Claude for analysis.</p>
+</div>
+
+<div class="card">
+  <h3>Common Log Patterns</h3>
+  <pre><code># Good: traffic flowing through selected server
+outbound/vless[Germany]: outbound connection to 142.251.20.156:443
+
+# Bad: server timeout
+outbound/urltest[Auto]: outbound Germany unavailable: context deadline exceeded
+
+# Bad: connection failure
+ERROR connection: open connection to X using outbound/vless[Germany]: EOF
+
+# Bad: packet flooding (Docker NAT or network issue)
+router: dropped due to flooding</code></pre>
+</div>
+
+</body>
+</html>

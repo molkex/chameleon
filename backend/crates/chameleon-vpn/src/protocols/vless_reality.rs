@@ -150,9 +150,7 @@ impl Protocol for VlessReality {
         let sni = opts.sni.as_deref().unwrap_or_else(|| self.snis.first().map(|s| s.as_str()).unwrap_or("ads.x5.ru"));
         let host = server.effective_host();
         // Use server-specific port if set, otherwise fall back to protocol default
-        let port = if transport == "tcp-mux" {
-            2094 // dedicated sing-box server for mux connections (h2mux)
-        } else if server.port != 0 {
+        let port = if server.port != 0 {
             server.port
         } else if transport == "tcp" {
             self.tcp_port
@@ -176,15 +174,6 @@ impl Protocol for VlessReality {
         if transport == "tcp" {
             // flow and multiplex are mutually exclusive in sing-box — Vision operates at TLS layer
             out["flow"] = json!("xtls-rprx-vision");
-        } else if transport == "tcp-mux" {
-            // TCP without flow, with multiplex — no Vision but mux reduces connection count
-            out["multiplex"] = json!({
-                "enabled": true,
-                "protocol": "h2mux",
-                "max_connections": 4,
-                "min_streams": 4,
-                "padding": true,
-            });
         } else if transport == "xhttp" {
             out["transport"] = json!({"type": "http", "method": "GET"});
         } else if transport == "grpc" {

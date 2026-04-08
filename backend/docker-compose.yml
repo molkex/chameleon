@@ -133,7 +133,7 @@ services:
 
   # ── sing-box Server (MUX support) ──
   singbox:
-    image: ghcr.io/sagernet/sing-box:v1.13.5
+    image: ghcr.io/sagernet/sing-box:v1.13.6
     container_name: singbox
     restart: unless-stopped
     network_mode: host

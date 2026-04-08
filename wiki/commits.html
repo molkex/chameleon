@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chameleon Wiki — Commits</title>
+<style>
+  :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9; --heading: #f0f6fc; --accent: #58a6ff; --green: #3fb950; --red: #f85149; --yellow: #d29922; --orange: #db6d28; --code-bg: #1c2128; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; padding: 24px; max-width: 960px; margin: 0 auto; }
+  h1 { color: var(--heading); font-size: 28px; margin-bottom: 4px; }
+  h2 { color: var(--heading); font-size: 22px; margin: 40px 0 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  h3 { color: var(--accent); font-size: 17px; margin: 20px 0 8px; }
+  .subtitle { color: var(--text); opacity: 0.7; margin-bottom: 24px; }
+  .back { color: var(--accent); text-decoration: none; font-size: 14px; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .commit { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 24px; margin: 16px 0; }
+  .commit-hash { font-family: 'SF Mono', Consolas, monospace; font-size: 13px; color: var(--green); background: #1f3225; padding: 2px 8px; border-radius: 4px; }
+  .commit-date { font-size: 13px; color: var(--text); opacity: 0.5; margin-left: 8px; }
+  .commit-title { font-size: 20px; font-weight: 600; color: var(--heading); margin: 12px 0 8px; }
+  .tag { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 12px; font-weight: 600; margin-right: 4px; }
+  .tag-fix { background: #1f3225; color: var(--green); }
+  .tag-infra { background: #2a1f0d; color: var(--orange); }
+  .tag-ios { background: #1c2333; color: var(--accent); }
+  .tag-server { background: #2d1520; color: var(--red); }
+  .section { margin: 16px 0; }
+  .section-title { font-weight: 600; color: var(--heading); font-size: 15px; margin-bottom: 6px; }
+  code { font-family: 'SF Mono', Consolas, monospace; background: var(--code-bg); padding: 1px 6px; border-radius: 4px; font-size: 13px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 16px; overflow-x: auto; font-size: 13px; line-height: 1.5; margin: 8px 0; }
+  pre code { background: none; padding: 0; }
+  ul { margin-left: 20px; }
+  li { margin: 4px 0; }
+  .warning { background: #2d2200; border: 1px solid #5c4800; border-radius: 6px; padding: 12px 16px; margin: 12px 0; font-size: 14px; }
+  .warning::before { content: "!! "; color: var(--yellow); font-weight: 700; }
+  .good { background: #132e1a; border: 1px solid #1f5c2e; border-radius: 6px; padding: 12px 16px; margin: 12px 0; font-size: 14px; }
+  .good::before { content: "OK "; color: var(--green); font-weight: 700; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  th { color: var(--heading); font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; }
+</style>
+</head>
+<body>
+
+<a class="back" href="index.html">&larr; Wiki Home</a>
+<h1>Commit History</h1>
+<p class="subtitle">Detailed changelog with root causes, fixes, and lessons learned</p>
+
+<!-- ============================================================ -->
+<div class="commit" id="2026-04-08-selector-fix">
+  <span class="commit-hash">0290013</span>
+  <span class="commit-date">2026-04-08</span>
+  <div class="commit-title">Fix: server selector reconnect + DE server networking</div>
+  <span class="tag tag-fix">fix</span>
+  <span class="tag tag-ios">iOS</span>
+  <span class="tag tag-server">server</span>
+  <span class="tag tag-infra">infra</span>
+
+  <div class="section">
+    <div class="section-title">Problem</div>
+    <p>When user selects "Germany" directly in the iOS app, pages don't load.
+    Through "Russia &rarr; DE" relay &mdash; everything works fine. Three separate issues found:</p>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Root Cause 1: Xray IPv6 on DE server</div>
+    <p>Xray's <code>freedom</code> outbound had no <code>domainStrategy</code>, so it used whatever the OS resolved &mdash; including IPv6.
+    OVH VPS has partially broken IPv6: <code>curl -6 https://1.1.1.1</code> fails, IPv6 to Google is 6x slower than IPv4.</p>
+    <p>With sniffing enabled (<code>destOverride: ["http","tls"]</code>), Xray re-resolves domains from SNI and may get AAAA records &rarr; tries IPv6 &rarr; connection fails with EOF on client side.</p>
+
+    <div class="warning">Xray <code>dns.queryStrategy: UseIPv4</code> only affects DNS resolution, NOT the freedom outbound. You need BOTH.</div>
+
+    <p><strong>Fix:</strong></p>
+    <pre><code>// In Xray config.json, DIRECT outbound:
+{
+  "protocol": "freedom",
+  "tag": "DIRECT",
+  "settings": {
+    "domainStrategy": "UseIPv4"
+  }
+}</code></pre>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Root Cause 2: Xray in Docker bridge network</div>
+    <p>Xray was running in Docker's default bridge network (<code>172.18.0.3</code>) with port mapping <code>2096:2096</code>.
+    Every VPN packet went through Docker's userspace NAT proxy + conntrack. This caused:</p>
+    <ul>
+      <li>Extra latency on every packet</li>
+      <li>Conntrack table pressure under many concurrent connections</li>
+      <li>sing-box on iPhone reported <code>dropped due to flooding</code> and <code>EOF</code></li>
+    </ul>
+
+    <div class="warning">VPN/proxy servers should ALWAYS use <code>network_mode: host</code> in Docker. Bridge NAT is for web apps, not for high-throughput packet forwarding.</div>
+
+    <p><strong>Fix in docker-compose.yml:</strong></p>
+    <pre><code># BEFORE (broken):
+xray:
+  ports:
+    - "2096:2096"
+    - "2097:2097"
+    - "2098:2098"
+  cap_drop:
+    - ALL
+  cap_add:
+    - NET_BIND_SERVICE
+
+# AFTER (fixed):
+xray:
+  network_mode: host</code></pre>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Root Cause 3: iOS Auto button didn't reconnect</div>
+    <p>When switching from Germany &rarr; Auto, the "Auto (best ping)" button only set <code>selectedServerTag = nil</code>
+    without triggering VPN reconnect. User stayed on Germany until manual disconnect/connect.</p>
+
+    <p><strong>Fix in MainView.swift:</strong></p>
+    <pre><code>// BEFORE:
+Button {
+    app.configStore.selectedServerTag = nil
+    dismiss()
+}
+
+// AFTER:
+Button {
+    app.selectServer(groupTag: "Proxy", serverTag: "Auto")
+    dismiss()
+}</code></pre>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Other iOS improvements in this commit</div>
+    <ul>
+      <li><code>selectServer()</code> &mdash; waits for actual disconnect (poll loop, max 6s) before reconnecting</li>
+      <li><code>buildConfigWithSelector()</code> &mdash; validates serverTag exists in selector's members list</li>
+      <li>Debug logs: lazy rendering with <code>LazyVStack</code>, ANSI escape stripping, color-coded lines</li>
+      <li>Claude report button: copies compact diagnostic to clipboard for pasting to AI</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Files changed</div>
+    <table>
+      <tr><th>File</th><th>What</th></tr>
+      <tr><td><code>AppState.swift</code></td><td>selectServer(), buildConfigWithSelector() rewrite</td></tr>
+      <tr><td><code>MainView.swift</code></td><td>Auto button calls selectServer(), preloads logs</td></tr>
+      <tr><td><code>DebugLogsView.swift</code></td><td>Lazy rendering, Claude report, ANSI strip</td></tr>
+      <tr><td colspan="2" style="color:var(--orange)"><em>Server-side (not in git):</em></td></tr>
+      <tr><td><code>DE: docker-compose.yml</code></td><td>xray &rarr; network_mode: host</td></tr>
+      <tr><td><code>DE: xray config.json</code></td><td>DIRECT outbound + domainStrategy: UseIPv4</td></tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <div class="section-title">How to verify</div>
+    <pre><code># On DE server (162.19.242.30):
+sudo docker inspect xray --format='NetworkMode: {{.HostConfig.NetworkMode}}'
+# Expected: host
+
+sudo docker exec xray cat /etc/xray/config.json | python3 -c "
+import json,sys; c=json.load(sys.stdin)
+for o in c['outbounds']:
+  if o.get('tag')=='DIRECT': print(json.dumps(o,indent=2))
+"
+# Expected: {"domainStrategy": "UseIPv4"}
+
+# On iPhone:
+# 1. Connect VPN (Auto)
+# 2. Switch to Germany &rarr; should reconnect and load pages
+# 3. Switch to Auto &rarr; should reconnect
+# 4. Check debug logs: outbound/vless[Germany] in connections</code></pre>
+  </div>
+
+  <div class="good">After all 3 fixes: Germany direct loads pages, urltest passes at ~125ms, no more flooding.</div>
+</div>
+
+<!-- ============================================================ -->
+<div class="commit">
+  <span class="commit-hash">beee3ff</span>
+  <span class="commit-date">2026-04-07</span>
+  <div class="commit-title">Fix: DNS detour use Auto selector instead of hardcoded Proxy</div>
+  <span class="tag tag-fix">fix</span>
+  <span class="tag tag-ios">iOS</span>
+
+  <div class="section">
+    <div class="section-title">Problem</div>
+    <p>DNS detour was hardcoded to "Proxy" selector. When Proxy selected a slow server, DNS became slow too (9-14 seconds).</p>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Fix</div>
+    <p>Changed DNS remote detour from <code>"Proxy"</code> to <code>"Auto"</code> (urltest group). DNS now always goes through the fastest available server, regardless of which server is selected in the Proxy selector.</p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="commit">
+  <span class="commit-hash">4f7a2a3</span>
+  <span class="commit-date">2026-04-07</span>
+  <div class="commit-title">Improve reliability: token refresh, faster failover, WiFi/LTE handover, Docker volumes</div>
+  <span class="tag tag-fix">fix</span>
+  <span class="tag tag-ios">iOS</span>
+  <span class="tag tag-infra">infra</span>
+
+  <div class="section">
+    <div class="section-title">Changes</div>
+    <ul>
+      <li>JWT access token auto-refresh when 401 received</li>
+      <li>Re-registration flow if refresh token also expired</li>
+      <li>Faster VPN failover: urltest interval 1m, tolerance 50ms</li>
+      <li>WiFi/LTE seamless handover via On-Demand rules</li>
+      <li>Docker named volumes for Xray config persistence across container recreation</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="commit">
+  <span class="commit-hash">fb63b5f</span>
+  <span class="commit-date">2026-04-06</span>
+  <div class="commit-title">Move VPN servers from .env to database with admin CRUD</div>
+  <span class="tag tag-infra">infra</span>
+
+  <div class="section">
+    <p>VPN server definitions moved from hardcoded .env to PostgreSQL table <code>vpn_servers</code>.
+    Admin panel can now add/edit/delete servers without redeploying.</p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="commit">
+  <span class="commit-hash">4560b52</span>
+  <span class="commit-date">2026-04-05</span>
+  <div class="commit-title">Fix: instant VPN connect + persist fresh config to UserDefaults</div>
+  <span class="tag tag-fix">fix</span>
+  <span class="tag tag-ios">iOS</span>
+
+  <div class="section">
+    <p>VPN now connects instantly using cached config from UserDefaults, then silently refreshes in background.
+    Previously the app would fetch config from API before every connect, adding 2-5 seconds delay.</p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="commit">
+  <span class="commit-hash">d3b6a3a</span>
+  <span class="commit-date">2026-04-04</span>
+  <div class="commit-title">Fix DNS: switch from plain UDP to DoH to eliminate truncation</div>
+  <span class="tag tag-fix">fix</span>
+  <span class="tag tag-ios">iOS</span>
+
+  <div class="section">
+    <p>DNS over UDP was getting truncated responses for large records (HTTPS, SVCB).
+    Switched to DNS-over-HTTPS (1.1.1.1 remote, 8.8.8.8 direct) which handles any response size.</p>
+  </div>
+</div>
+
+<h2 style="margin-top: 48px;">Lessons Learned</h2>
+
+<div class="card">
+  <h3>Docker networking for VPN/proxy</h3>
+  <p>Always use <code>network_mode: host</code> for Xray/sing-box/proxy containers. Bridge mode adds NAT overhead that kills VPN throughput and causes connection flooding.</p>
+</div>
+
+<div class="card">
+  <h3>IPv6 on VPS</h3>
+  <p>Always test IPv6 outbound on new servers. OVH VPS can have broken IPv6. Add <code>domainStrategy: UseIPv4</code> to both Xray DNS config AND freedom outbound.</p>
+</div>
+
+<div class="card">
+  <h3>sing-box selector vs urltest</h3>
+  <p>If urltest marks a server as "unavailable", the selector may not respect its <code>default</code> setting. Always ensure the selected server passes health checks, or DNS will work (via Auto) but pages won't load (via broken selector target).</p>
+</div>
+
+<div class="card">
+  <h3>iOS VPN reconnect</h3>
+  <p>When switching servers on a connected VPN: must disconnect, <strong>wait for actual disconnect</strong> (poll status), then reconnect. Using <code>Task.sleep</code> with fixed delay is unreliable.</p>
+</div>
+
+</body>
+</html>
