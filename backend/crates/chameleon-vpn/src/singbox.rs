@@ -153,7 +153,7 @@ pub fn generate_config(
                 "tag": "tun-in",
                 "address": ["172.19.0.1/30"],
                 "auto_route": true,
-                "stack": "gvisor",
+                "stack": "system",
                 "mtu": 1400,
             }
         ],
@@ -163,7 +163,7 @@ pub fn generate_config(
             "rules": [
                 {"action": "sniff"},
                 {"protocol": "dns", "action": "hijack-dns"},
-                {"network": "udp", "port": 443, "action": "reject"},
+                {"network": "udp", "port": 443, "action": "reject", "no_drop": true},
                 {"ip_is_private": true, "outbound": "direct"},
             ],
         },
