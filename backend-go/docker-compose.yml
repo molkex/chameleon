@@ -112,7 +112,9 @@ services:
 volumes:
   pgdata:
     name: chameleon-pgdata
+    external: true
   redisdata:
     name: chameleon-redisdata
+    external: true
   singbox-config:
     name: chameleon-singbox-config
