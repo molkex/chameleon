@@ -168,8 +168,8 @@ impl Protocol for VlessReality {
         if transport == "tcp" {
             // flow and multiplex are mutually exclusive in sing-box — Vision operates at TLS layer
             out["flow"] = json!("xtls-rprx-vision");
-        } else if transport == "xhttp" {
-            out["transport"] = json!({"type": "http", "method": "GET"});
+        } else if transport == "tcp-mux" {
+            // TCP without flow, with multiplex — no Vision but mux reduces connection count
             out["multiplex"] = json!({
                 "enabled": true,
                 "protocol": "h2mux",
@@ -177,6 +177,8 @@ impl Protocol for VlessReality {
                 "min_streams": 4,
                 "padding": true,
             });
+        } else if transport == "xhttp" {
+            out["transport"] = json!({"type": "http", "method": "GET"});
         } else if transport == "grpc" {
             out["transport"] = json!({"type": "grpc", "service_name": ""});
         }

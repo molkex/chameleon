@@ -36,20 +36,17 @@ pub fn generate_config(
                         outbounds.push(ob);
                     }
 
-                    // XHTTP + mux outbound (experimental)
-                    // For direct servers: uses xhttp port (grpc_port) directly
-                    // For relay servers: won't connect (relay doesn't proxy xhttp port), Auto will skip
+                    // TCP + mux outbound (no Vision flow, uses multiplex instead)
+                    // Same port 2096, same Xray inbound — but mux reduces connection flooding
                     {
-                        let tag_xhttp = format!("{} {} XHTTP", srv.flag, srv.name);
-                        let mut xhttp_srv = srv.clone();
-                        xhttp_srv.port = 0; // force protocol default port (grpc_port = 2098)
-                        let opts_xhttp = OutboundOpts {
-                            transport: Some("xhttp".to_string()),
+                        let tag_mux = format!("{} {} MUX", srv.flag, srv.name);
+                        let opts_mux = OutboundOpts {
+                            transport: Some("tcp-mux".to_string()),
                             sni: if !srv.sni.is_empty() { Some(srv.sni.clone()) } else { None },
                             ..Default::default()
                         };
-                        if let Some(ob) = proto.singbox_outbound(&tag_xhttp, &xhttp_srv, user, &opts_xhttp) {
-                            tags.push(tag_xhttp);
+                        if let Some(ob) = proto.singbox_outbound(&tag_mux, srv, user, &opts_mux) {
+                            tags.push(tag_mux);
                             outbounds.push(ob);
                         }
                     }
