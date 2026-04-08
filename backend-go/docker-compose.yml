@@ -100,10 +100,9 @@ services:
       dockerfile: Dockerfile
     container_name: chameleon-nginx
     restart: unless-stopped
+    network_mode: host
     security_opt:
       - no-new-privileges:true
-    ports:
-      - "80:80"
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:

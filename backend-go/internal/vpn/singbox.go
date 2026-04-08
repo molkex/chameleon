@@ -416,9 +416,8 @@ func (e *SingboxEngine) buildServerConfig() ([]byte, error) {
 		},
 		Outbounds: []singboxOutbound{
 			{
-				Type:           "direct",
-				Tag:            "direct",
-				DomainStrategy: "ipv4_only",
+				Type: "direct",
+				Tag:  "direct",
 			},
 		},
 		Route: singboxRoute{
