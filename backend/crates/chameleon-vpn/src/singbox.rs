@@ -130,7 +130,7 @@ pub fn generate_config(
                 "tag": "tun-in",
                 "address": ["172.19.0.1/30"],
                 "auto_route": true,
-                "stack": "mixed",
+                "stack": "system",
                 "mtu": 1400,
             }
         ],
