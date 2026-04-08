@@ -9,6 +9,9 @@ enum ConfigSanitizer {
             return configJSON
         }
 
+        // 0. Remove custom metadata fields that sing-box doesn't understand
+        config.removeValue(forKey: "config_version")
+
         // 1. dns outbound is needed for DNS interception in sing-box 1.13
         // Do NOT remove it — route rule {"protocol": "dns", "outbound": "dns-out"} depends on it
 
