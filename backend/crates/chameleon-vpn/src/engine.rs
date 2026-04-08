@@ -181,7 +181,7 @@ impl ChameleonEngine {
                 "default_domain_resolver": {"server": "dns-local", "strategy": "ipv4_only"},
             },
             "dns": {
-                "servers": [{"tag": "dns-local", "address": "local"}],
+                "servers": [{"tag": "dns-local", "type": "local"}],
             },
         })
     }
