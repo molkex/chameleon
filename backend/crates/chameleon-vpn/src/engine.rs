@@ -15,6 +15,7 @@ pub struct ChameleonEngine {
     settings: Settings,
     xray_config_dir: PathBuf,
     xray_config_path: PathBuf,
+    singbox_config_path: PathBuf,
     xray_api: XrayApi,
     registry: ProtocolRegistry,
 }
@@ -28,6 +29,7 @@ impl ChameleonEngine {
 
         Ok(Self {
             xray_config_path: PathBuf::from(&dir).join("config.json"),
+            singbox_config_path: PathBuf::from(&dir).join("singbox-config.json"),
             xray_config_dir: PathBuf::from(&dir),
             xray_api: XrayApi::new(&grpc_addr),
             registry: ProtocolRegistry::new(settings),
@@ -57,6 +59,13 @@ impl ChameleonEngine {
             match std::fs::write(&self.xray_config_path, serde_json::to_string_pretty(&config).unwrap_or_default()) {
                 Ok(_) => info!(path = %self.xray_config_path.display(), "Initial xray config written"),
                 Err(e) => error!(error = %e, "Failed to write xray config"),
+            }
+
+            // Write sing-box server config for MUX
+            let sb_config = self.build_singbox_server_config(&active);
+            match std::fs::write(&self.singbox_config_path, serde_json::to_string_pretty(&sb_config).unwrap_or_default()) {
+                Ok(_) => info!(path = %self.singbox_config_path.display(), "sing-box server config written"),
+                Err(e) => error!(error = %e, "Failed to write sing-box server config"),
             }
         }
 
@@ -128,6 +137,55 @@ impl ChameleonEngine {
         })
     }
 
+    /// Build sing-box server config for MUX support (port 2094).
+    pub fn build_singbox_server_config(&self, users: &[ActiveUser]) -> serde_json::Value {
+        let (creds, short_ids) = to_credentials(users);
+        let sni = self.settings.reality_snis.first()
+            .map(|s| s.as_str()).unwrap_or("ads.x5.ru");
+
+        let sb_users: Vec<serde_json::Value> = creds.iter().map(|u| {
+            json!({"name": &u.username, "uuid": &u.uuid})
+        }).collect();
+
+        json!({
+            "log": {"level": "info"},
+            "dns": {
+                "servers": [
+                    {"tag": "dns-direct", "address": "1.1.1.1", "strategy": "ipv4_only"}
+                ]
+            },
+            "inbounds": [{
+                "type": "vless",
+                "tag": "vless-reality-mux",
+                "listen": "0.0.0.0",
+                "listen_port": 2094,
+                "users": sb_users,
+                "tls": {
+                    "enabled": true,
+                    "server_name": sni,
+                    "reality": {
+                        "enabled": true,
+                        "handshake": {
+                            "server": sni,
+                            "server_port": 443
+                        },
+                        "private_key": &self.settings.reality_private_key,
+                        "short_id": short_ids,
+                    }
+                },
+                "multiplex": {
+                    "enabled": true,
+                    "padding": true,
+                }
+            }],
+            "outbounds": [{
+                "type": "direct",
+                "tag": "direct",
+                "domain_strategy": "ipv4_only",
+            }],
+        })
+    }
+
     /// Build server configs from settings (env fallback).
     pub fn build_server_configs(&self) -> Vec<ServerConfig> {
         Self::parse_server_configs_from_env(&self.settings.vpn_servers_raw, self.settings.vless_tcp_port)
@@ -186,6 +244,13 @@ impl ChameleonEngine {
         match std::fs::write(&self.xray_config_path, serde_json::to_string_pretty(&config).unwrap_or_default()) {
             Ok(_) => info!(users = active.len(), "Xray config synced"),
             Err(e) => error!(error = %e, "Failed to write xray config"),
+        }
+
+        // Sync sing-box server config
+        let sb_config = self.build_singbox_server_config(&active);
+        match std::fs::write(&self.singbox_config_path, serde_json::to_string_pretty(&sb_config).unwrap_or_default()) {
+            Ok(_) => info!("sing-box server config synced"),
+            Err(e) => error!(error = %e, "Failed to write sing-box server config"),
         }
     }
 

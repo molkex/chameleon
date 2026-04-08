@@ -151,7 +151,7 @@ impl Protocol for VlessReality {
         let host = server.effective_host();
         // Use server-specific port if set, otherwise fall back to protocol default
         let port = if transport == "tcp-mux" {
-            2095 // dedicated Xray inbound without flow, for mux connections
+            2094 // dedicated sing-box server for mux connections (h2mux)
         } else if server.port != 0 {
             server.port
         } else if transport == "tcp" {

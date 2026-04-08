@@ -131,6 +131,25 @@ services:
     cap_add:
       - NET_BIND_SERVICE
 
+  # ── sing-box Server (MUX support) ──
+  singbox:
+    image: ghcr.io/sagernet/sing-box:v1.13.5
+    container_name: singbox
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - xray-config:/etc/xray:ro
+    command: ["run", "-c", "/etc/xray/singbox-config.json"]
+    depends_on:
+      backend:
+        condition: service_started
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+
 volumes:
   pgdata:
     name: chameleon-pgdata
