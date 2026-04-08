@@ -6,6 +6,8 @@ struct MainView: View {
 
     @State private var showServers = false
     @State private var showDebugLogs = false
+    @State private var preloadedTunnelLines: [String] = []
+    @State private var preloadedStderrLines: [String] = []
 
     var body: some View {
         ZStack {
@@ -77,6 +79,9 @@ struct MainView: View {
                 HStack {
                     Spacer()
                     Button {
+                        // Preload logs before opening sheet
+                        preloadedTunnelLines = TunnelFileLogger.readLog().components(separatedBy: "\n")
+                        preloadedStderrLines = TunnelFileLogger.readStderrLog().components(separatedBy: "\n")
                         showDebugLogs = true
                     } label: {
                         Image(systemName: "ladybug")
@@ -111,8 +116,11 @@ struct MainView: View {
                 .environment(app)
         }
         .sheet(isPresented: $showDebugLogs) {
-            DebugLogsView()
-                .environment(app)
+            DebugLogsView(
+                preloadedTunnelLines: preloadedTunnelLines,
+                preloadedStderrLines: preloadedStderrLines
+            )
+            .environment(app)
         }
     }
 
@@ -200,7 +208,7 @@ struct ServerListView: View {
             List {
                 // Auto option
                 Button {
-                    app.configStore.selectedServerTag = nil
+                    app.selectServer(groupTag: "Proxy", serverTag: "Auto")
                     dismiss()
                 } label: {
                     HStack {

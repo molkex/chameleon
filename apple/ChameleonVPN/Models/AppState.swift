@@ -207,7 +207,9 @@ class AppState {
 
     func selectServer(groupTag: String, serverTag: String) {
         let previousTag = configStore.selectedServerTag
-        configStore.selectedServerTag = serverTag
+        let isAuto = serverTag == "Auto"
+        configStore.selectedServerTag = isAuto ? nil : serverTag
+        AppLogger.app.info("selectServer: '\(previousTag ?? "Auto")' → '\(isAuto ? "Auto" : serverTag)', vpnConnected=\(self.vpnManager.isConnected)")
 
         // Update local servers array so UI reflects the change immediately
         for i in servers.indices {
@@ -219,10 +221,20 @@ class AppState {
             }
         }
 
-        guard vpnManager.isConnected, previousTag != serverTag else { return }
+        let effectiveNew = isAuto ? nil : serverTag
+        guard vpnManager.isConnected, previousTag != effectiveNew else {
+            AppLogger.app.info("selectServer: skipped reconnect (connected=\(self.vpnManager.isConnected), same=\(previousTag == effectiveNew))")
+            return
+        }
 
         // Build config with selector default changed (in memory only — don't overwrite file)
-        guard let updatedConfig = buildConfigWithSelector(serverTag) else { return }
+        let selectorTarget = isAuto ? "Auto" : serverTag
+        guard let updatedConfig = buildConfigWithSelector(selectorTarget) else {
+            AppLogger.app.error("selectServer: buildConfigWithSelector returned nil for '\(serverTag)'")
+            return
+        }
+
+        AppLogger.app.info("selectServer: config built, selector default='\(selectorTarget)', reconnecting...")
 
         // Write to UserDefaults for On-Demand reconnects (file stays as original full config)
         UserDefaults(suiteName: AppConstants.appGroupID)?.set(updatedConfig, forKey: AppConstants.startOptionsKey)
@@ -231,7 +243,13 @@ class AppState {
             commandClient.disconnect()
             await vpnManager.disableOnDemand()
             vpnManager.disconnect()
-            try? await Task.sleep(for: .seconds(1))
+            // Wait for actual disconnect
+            var waitCount = 0
+            while vpnManager.isConnected && waitCount < 30 {
+                try? await Task.sleep(for: .milliseconds(200))
+                waitCount += 1
+            }
+            AppLogger.app.info("selectServer: disconnected after \(waitCount * 200)ms, reconnecting with new config")
             try? await vpnManager.connect(configJSON: updatedConfig)
         }
     }
@@ -243,18 +261,41 @@ class AppState {
               let data = config.data(using: .utf8),
               var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               var outbounds = json["outbounds"] as? [[String: Any]]
-        else { return nil }
+        else {
+            AppLogger.app.error("buildConfigWithSelector: failed to load/parse config")
+            return nil
+        }
 
+        var modified = false
         for i in outbounds.indices {
             if outbounds[i]["type"] as? String == "selector" {
-                outbounds[i]["default"] = serverTag
+                let selectorTag = outbounds[i]["tag"] as? String ?? "unknown"
+                let members = outbounds[i]["outbounds"] as? [String] ?? []
+                let oldDefault = outbounds[i]["default"] as? String ?? "nil"
+                // Only modify selector that contains this serverTag
+                if members.contains(serverTag) {
+                    outbounds[i]["default"] = serverTag
+                    modified = true
+                    AppLogger.app.info("buildConfigWithSelector: selector '\(selectorTag)' default '\(oldDefault)' → '\(serverTag)' (members: \(members.joined(separator: ", ")))")
+                } else {
+                    AppLogger.app.warning("buildConfigWithSelector: selector '\(selectorTag)' does NOT contain '\(serverTag)', skipping (members: \(members.joined(separator: ", ")))")
+                }
             }
         }
+
+        if !modified {
+            AppLogger.app.error("buildConfigWithSelector: no selector modified for '\(serverTag)'")
+            return nil
+        }
+
         json["outbounds"] = outbounds
 
         guard let updatedData = try? JSONSerialization.data(withJSONObject: json),
               let updatedConfig = String(data: updatedData, encoding: .utf8)
-        else { return nil }
+        else {
+            AppLogger.app.error("buildConfigWithSelector: failed to serialize updated config")
+            return nil
+        }
 
         return updatedConfig
     }
