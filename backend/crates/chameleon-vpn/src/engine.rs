@@ -227,7 +227,7 @@ fn to_credentials(users: &[ActiveUser]) -> (Vec<UserCredentials>, Vec<String>) {
 fn ensure_default_outbounds(outbounds: &mut Vec<serde_json::Value>) {
     let tags: Vec<String> = outbounds.iter().filter_map(|o| o.get("tag").and_then(|t| t.as_str()).map(String::from)).collect();
     if !tags.contains(&"DIRECT".to_string()) {
-        outbounds.insert(0, json!({"protocol": "freedom", "tag": "DIRECT"}));
+        outbounds.insert(0, json!({"protocol": "freedom", "tag": "DIRECT", "settings": {"domainStrategy": "UseIPv4"}}));
     }
     if !tags.contains(&"BLOCK".to_string()) {
         outbounds.push(json!({"protocol": "blackhole", "tag": "BLOCK"}));
