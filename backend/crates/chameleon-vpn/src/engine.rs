@@ -176,8 +176,13 @@ impl ChameleonEngine {
             "outbounds": [{
                 "type": "direct",
                 "tag": "direct",
-                "domain_strategy": "ipv4_only",
             }],
+            "route": {
+                "default_domain_resolver": {"server": "dns-local", "strategy": "ipv4_only"},
+            },
+            "dns": {
+                "servers": [{"tag": "dns-local", "address": "local"}],
+            },
         })
     }
 
