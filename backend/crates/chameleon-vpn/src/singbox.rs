@@ -110,7 +110,7 @@ pub fn generate_config(
     // ── DNS: FakeIP + bootstrap (no death loop) ──
     json!({
         "config_version": config_version,
-        "log": {"level": "debug"},
+        "log": {"level": "info"},
         "dns": {
             "servers": [
                 {"tag": "dns-fake", "address": "fakeip"},
