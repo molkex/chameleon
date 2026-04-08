@@ -14,8 +14,7 @@ pub fn generate_config(
     servers: &[ServerConfig],
 ) -> serde_json::Value {
     let mut outbounds = vec![];
-    let mut tags = vec![];       // all outbound tags (for Proxy selector)
-    let mut auto_tags = vec![];  // only non-MUX tags (for Auto urltest)
+    let mut tags = vec![];
 
     // ── Generate outbounds from ALL enabled protocols ──
     for proto in registry.enabled() {
@@ -26,31 +25,15 @@ pub fn generate_config(
             "vless_reality" => {
                 // Generate per-server outbounds — relay + direct servers
                 for srv in servers {
-                    // TCP + Vision outbound (original)
                     let tag = format!("{} {}", srv.flag, srv.name);
                     let mut opts = OutboundOpts::default(); // TCP + Vision
+                    // Per-server SNI override (e.g. NL uses different Reality dest than DE)
                     if !srv.sni.is_empty() {
                         opts.sni = Some(srv.sni.clone());
                     }
                     if let Some(ob) = proto.singbox_outbound(&tag, srv, user, &opts) {
-                        auto_tags.push(tag.clone());
                         tags.push(tag);
                         outbounds.push(ob);
-                    }
-
-                    // TCP + mux outbound via sing-box server (port 2094)
-                    // NOT in Auto urltest — manual selection only to avoid flooding from health checks
-                    {
-                        let tag_mux = format!("{} {} MUX", srv.flag, srv.name);
-                        let opts_mux = OutboundOpts {
-                            transport: Some("tcp-mux".to_string()),
-                            sni: if !srv.sni.is_empty() { Some(srv.sni.clone()) } else { None },
-                            ..Default::default()
-                        };
-                        if let Some(ob) = proto.singbox_outbound(&tag_mux, srv, user, &opts_mux) {
-                            tags.push(tag_mux); // in selector only, NOT in auto_tags
-                            outbounds.push(ob);
-                        }
                     }
                 }
             }
@@ -60,7 +43,6 @@ pub fn generate_config(
                 // Use first server as dummy — CDN ignores server host, uses its own domain
                 if let Some(srv) = servers.first() {
                     if let Some(ob) = proto.singbox_outbound(&tag, srv, user, &OutboundOpts::default()) {
-                        auto_tags.push(tag.clone());
                         tags.push(tag);
                         outbounds.push(ob);
                     }
@@ -78,7 +60,6 @@ pub fn generate_config(
                 if let Some(srv) = servers.first() {
                     let tag = format!("🔒 {}", display);
                     if let Some(ob) = proto.singbox_outbound(&tag, srv, user, &OutboundOpts::default()) {
-                        auto_tags.push(tag.clone());
                         tags.push(tag);
                         outbounds.push(ob);
                     }
@@ -104,7 +85,7 @@ pub fn generate_config(
         all_outbounds.push(json!({
             "type": "urltest",
             "tag": "Auto",
-            "outbounds": &auto_tags, // MUX outbounds excluded to reduce urltest flooding
+            "outbounds": &tags,
             "url": "https://www.gstatic.com/generate_204",
             "interval": "1m",
             "idle_timeout": "30m",
