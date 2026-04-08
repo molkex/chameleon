@@ -1,0 +1,8 @@
+.git
+.env
+*.md
+PLAN.md
+wiki/
+.dockerignore
+docker-compose.yml
+nginx.conf

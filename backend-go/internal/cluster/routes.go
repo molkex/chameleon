@@ -1,0 +1,130 @@
+package cluster
+
+import (
+	"net/http"
+	"time"
+
+	"github.com/labstack/echo/v4"
+	"go.uber.org/zap"
+
+	"github.com/chameleonvpn/chameleon/internal/config"
+	"github.com/chameleonvpn/chameleon/internal/db"
+)
+
+// RegisterRoutes adds internal cluster sync endpoints to the given Echo group.
+// These endpoints are NOT public-facing — they should be accessible only from
+// trusted peer nodes (e.g., via firewall rules or private network).
+//
+// Endpoints:
+//
+//	GET  /api/cluster/pull?since=<RFC3339> — return users changed since timestamp
+//	POST /api/cluster/push                 — receive user changes from a peer
+func RegisterRoutes(g *echo.Group, database *db.DB, cfg config.ClusterConfig, logger *zap.Logger) {
+	h := &clusterHandler{
+		db:     database,
+		config: cfg,
+		logger: logger.Named("cluster.api"),
+	}
+
+	g.GET("/pull", h.handlePull)
+	g.POST("/push", h.handlePush)
+}
+
+// clusterHandler holds dependencies for cluster API endpoints.
+type clusterHandler struct {
+	db     *db.DB
+	config config.ClusterConfig
+	logger *zap.Logger
+}
+
+// handlePull returns users changed since the given timestamp.
+// Query parameter: since (RFC3339 format, optional — defaults to epoch).
+//
+// Response: PullResponse with the node's ID and changed users.
+func (h *clusterHandler) handlePull(c echo.Context) error {
+	sinceStr := c.QueryParam("since")
+	var since time.Time
+	if sinceStr != "" {
+		var err error
+		since, err = time.Parse(time.RFC3339Nano, sinceStr)
+		if err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "invalid 'since' parameter: expected RFC3339 format",
+			})
+		}
+	}
+
+	peerID := c.Request().Header.Get("X-Cluster-Node-ID")
+	h.logger.Debug("pull request",
+		zap.String("peer_id", peerID),
+		zap.Time("since", since),
+	)
+
+	users, err := h.db.UsersChangedSince(c.Request().Context(), since)
+	if err != nil {
+		h.logger.Error("failed to query changed users", zap.Error(err))
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"error": "internal error",
+		})
+	}
+
+	resp := PullResponse{
+		NodeID: h.config.NodeID,
+		Users:  dbUsersToSyncUsers(users),
+	}
+
+	h.logger.Debug("pull response",
+		zap.String("peer_id", peerID),
+		zap.Int("users", len(resp.Users)),
+	)
+
+	return c.JSON(http.StatusOK, resp)
+}
+
+// handlePush receives user changes from a peer and upserts them into the local DB.
+// Conflict resolution: latest updated_at wins (handled by UpsertUserByVPNUUID).
+//
+// Request body: PushRequest
+// Response: PushResponse with counts of received and applied records.
+func (h *clusterHandler) handlePush(c echo.Context) error {
+	var req PushRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "invalid request body",
+		})
+	}
+
+	h.logger.Debug("push request",
+		zap.String("peer_id", req.NodeID),
+		zap.Int("users", len(req.Users)),
+	)
+
+	ctx := c.Request().Context()
+	dbUsers := syncUsersToDBUsers(req.Users)
+
+	var applied int
+	for i := range dbUsers {
+		updated, err := h.db.UpsertUserByVPNUUID(ctx, &dbUsers[i])
+		if err != nil {
+			h.logger.Error("failed to upsert pushed user",
+				zap.String("vpn_uuid", safeDeref(dbUsers[i].VPNUUID)),
+				zap.Error(err),
+			)
+			continue
+		}
+		if updated {
+			applied++
+		}
+	}
+
+	h.logger.Info("push complete",
+		zap.String("peer_id", req.NodeID),
+		zap.Int("received", len(req.Users)),
+		zap.Int("applied", applied),
+	)
+
+	return c.JSON(http.StatusOK, PushResponse{
+		Received: len(req.Users),
+		Applied:  applied,
+	})
+}

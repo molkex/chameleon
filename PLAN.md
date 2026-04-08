@@ -1,115 +1,194 @@
-# Chameleon — План следующей сессии (2026-04-09)
+# Chameleon — План миграции Xray -> sing-box (2026-04-09)
 
-## Контекст предыдущей сессии (2026-04-08)
+## Текущее состояние
+- **Xray** (25.12.8) на DE:2096 и NL:2096 — основной VPN сервер
+- **sing-box** (1.13.6) на DE:2094 — тестовый, с MUX
+- **Кастомный образ** `sing-box-custom:v1.13.6` собран на DE с `with_v2ray_api`
+- **SIGHUP reload** работает — 0ms бесшовная перезагрузка конфига
+- **v2ray_api gRPC** совместим с нашим `xray_api.rs` — per-user статистика без изменений кода
 
-### Что сделали
-- **Flooding решён**: `no_drop: true` на QUIC reject правиле в singbox.rs (1 строка)
-- **Причина flooding**: sing-box после 50 reject/30с переключал ICMP→drop, браузер ждал QUIC таймаут 3-5с на каждый ресурс
-- **Скорость**: Germany direct 51 Mbps, 0% packet loss, latency 101ms
-- **config_version**: добавлен timestamp в JSON + отображение в debug report
-- **DE DIRECT UseIPv4**: фикс в engine.rs — больше не затирается при sync
-- **sing-box сервер**: запущен на DE:2094 (для будущего MUX), рабочий
-- **Appium**: настроен для remote control iPhone (Team ID: 99W3C374T2, WDA bundle: com.chameleonvpn.wda)
-
-### Стабильный тег: `v0.3-stable-no-flooding` (commit b385e56)
-
-### Что попробовали и НЕ работает
-| Подход | Результат |
-|--------|-----------|
-| TUN stack `mixed` | Трафик не идёт (конфликт с NetworkExtension) |
-| TUN stack `gvisor` | Flooding остаётся + ломает DE direct через Xray |
-| sing-box MUX через Xray | Xray не понимает sing-box h2mux протокол |
-| sing-box MUX через sing-box сервер | Работает (49 Mbps), но flooding всё равно на TUN inbound |
-| XHTTP transport | sing-box HTTP ≠ Xray XHTTP (разные протоколы) |
-| `reject method: "port_unreachable"` | Невалидное значение, VPN не стартует |
+## Стабильный тег: `v0.3-stable-no-flooding` (commit b385e56)
 
 ---
 
-## Задачи: Наведение порядка
+## Фаза 1: Backend — SingboxApi модуль
 
-### Раунд 1 (параллельно)
+### 1.1 Новый `singbox_api.rs`
+Замена `xray_api.rs` для sing-box:
+- `reload()` → `docker kill -s HUP singbox` (0ms, бесшовно)
+- `query_all_traffic()` → gRPC v2ray_api (тот же протокол что Xray)
+- `count_online_users()` → gRPC v2ray_api
+- `health_check()` → gRPC `GetSysStats` или проверка порта
+- **НЕТ** `add_user()/remove_user()` — управление через конфиг + SIGHUP
 
-#### 1. Убрать MTProxy с DE сервера
-- SSH: `sshpass -p 'ChameleonDE2026Secure' ssh ubuntu@162.19.242.30`
-- Найти MTProxy контейнер/процесс на порту 443 TG
-- Остановить, убрать из автозагрузки
-- Проверить что порт 443 освободился
+### 1.2 Обновить `engine.rs`
+- `build_singbox_server_config()` — добавить `experimental.v2ray_api`:
+  ```json
+  "experimental": {
+    "v2ray_api": {
+      "listen": "127.0.0.1:10085",
+      "stats": {
+        "enabled": true,
+        "inbounds": ["vless-reality-tcp"],
+        "users": ["device_xxx", ...]
+      }
+    },
+    "clash_api": {
+      "external_controller": "127.0.0.1:9090",
+      "secret": "chameleon2026"
+    }
+  }
+  ```
+- `regenerate_and_reload()` → вызывать SIGHUP вместо Xray gRPC reload
+- sing-box слушает на **:2096** (тот же порт) — клиенты и relay не меняются
 
-#### 2. Убрать порт 2095 из Xray конфига
-- Порт 2095 (VLESS TCP MUX) добавлен вручную через `docker exec` + `docker cp`
-- При следующем `sync_config()` backend перезапишет конфиг и 2095 исчезнет
-- Проверить что engine.rs НЕ генерирует inbound на 2095 (он не должен)
-- Перезапустить Xray чтобы конфиг обновился
-
-#### 3. Убрать MUX код из Rust
-- `singbox.rs`: удалить генерацию MUX outbound'ов (tcp-mux transport), auto_tags
-- `vless_reality.rs`: удалить `tcp-mux` ветку в singbox_outbound(), порт 2094 hardcode
-- Оставить `no_drop: true` — это единственное полезное изменение
-- Конфиг должен стать идентичным v0.1-stable + no_drop
-
-#### 4. Обновить libbox iOS до 1.13.6
-- Скачать libbox 1.13.6 xcframework с GitHub releases
-- Заменить в `apple/Frameworks/Libbox.xcframework/`
-- Пересобрать iOS приложение: `xcodebuild -scheme Chameleon -destination 'id=00008140-001A298A3640801C'`
-- Установить: `xcrun devicectl device install app`
-
-#### 5. Обновить sing-box сервер на DE до 1.13.6
-- `docker-compose.yml`: `ghcr.io/sagernet/sing-box:v1.13.5` → `v1.13.6`
-- Деплой + перезапуск
-
-#### 6. Обновить wiki
-- wiki/wiki.md: актуальная архитектура, flooding fix, версии, Appium
-- wiki/TROUBLESHOOTING.md: добавить flooding fix
-
-### Раунд 2 (после Раунда 1)
-
-#### 7. Коммит + деплой + проверка
-- Один чистый коммит со всеми cleanup изменениями
-- Деплой на DE
-- Проверить: VPN подключается, speedtest 50+ Mbps, нет flooding
-- Создать тег `v0.4-clean`
+### 1.3 Обновить `traffic_collector.rs` и `metrics_recorder.rs`
+- Указать gRPC на sing-box v2ray_api (тот же адрес 127.0.0.1:10085)
+- Формат счётчиков идентичен: `user>>>name>>>traffic>>>uplink/downlink`
 
 ---
 
-## Будущие задачи (не в этой сессии)
+## Фаза 2: Docker инфраструктура
 
-### Миграция на sing-box сервер
-- sing-box уже на DE:2094, протестирован
-- Нужно: перевести основной трафик с Xray (2096) на sing-box
-- Поставить sing-box на NL
-- Убрать Xray когда всё стабильно
+### 2.1 Добавить Dockerfile для кастомного sing-box
+`infrastructure/singbox/Dockerfile`:
+```dockerfile
+FROM golang:1.25-alpine AS builder
+RUN apk add --no-cache git build-base
+RUN git clone --depth=1 --branch v1.13.6 https://github.com/SagerNet/sing-box.git /src
+WORKDIR /src
+ENV CGO_ENABLED=0
+RUN TAGS="with_v2ray_api,with_gvisor,with_quic,with_dhcp,with_wireguard,with_utls,with_acme,with_clash_api,badlinkname,tfogo_checklinkname0" && \
+    VERSION=$(go run ./cmd/internal/read_tag) && \
+    LDFLAGS_SHARED=$(cat release/LDFLAGS) && \
+    go build -trimpath -tags "$TAGS" -o /go/bin/sing-box \
+    -ldflags "-X github.com/sagernet/sing-box/constant.Version=$VERSION $LDFLAGS_SHARED -s -w -buildid=" \
+    ./cmd/sing-box
 
-### Архитектура: убрать центральную зависимость от DE
-- Сейчас DE = master (Postgres, Redis, API, Admin)
-- Цель: каждая нода автономна с локальной БД
-- Двусторонний sync между нодами
+FROM alpine:3.20
+RUN apk add --no-cache bash tzdata ca-certificates
+COPY --from=builder /go/bin/sing-box /usr/local/bin/sing-box
+ENTRYPOINT ["sing-box"]
+```
 
-### iOS приложение
-- config_version отображается в debug report (нужен rebuild)
-- Версионность приложения (CFBundleVersion increment)
+ВАЖНО: тег `with_reality_server` удалён в 1.13.6 (объединён с `with_utls`).
+
+### 2.2 Обновить `docker-compose.yml`
+```yaml
+singbox:
+  build:
+    context: ../infrastructure/singbox
+    dockerfile: Dockerfile
+  container_name: singbox
+  restart: unless-stopped
+  network_mode: host
+  volumes:
+    - singbox-config:/etc/singbox
+  command: ["run", "-c", "/etc/singbox/config.json"]
+```
+- Отдельный volume `singbox-config` (не shared с Xray)
+- `network_mode: host` обязательно
+
+### 2.3 Убрать Xray из docker-compose (после проверки)
 
 ---
+
+## Фаза 3: Протоколы и inbound'ы
+
+### 3.1 Серверные inbound'ы sing-box
+Заменить xray_inbounds() на singbox_inbounds() в Protocol trait:
+
+**VLESS Reality TCP** (основной):
+```json
+{
+  "type": "vless",
+  "tag": "vless-reality-tcp",
+  "listen": "::",
+  "listen_port": 2096,
+  "users": [...],
+  "tls": {
+    "enabled": true,
+    "server_name": "ads.x5.ru",
+    "reality": {
+      "enabled": true,
+      "handshake": {"server": "ads.x5.ru", "server_port": 443},
+      "private_key": "...",
+      "short_id": [...]
+    }
+  },
+  "multiplex": {"enabled": true, "padding": true}
+}
+```
+
+Бонус: **MUX нативно** на всех inbound'ах (sing-box ↔ sing-box).
+
+### 3.2 Клиентский конфиг
+Изменения в `singbox.rs` (генерация клиентского конфига):
+- `interrupt_exist_connections: false` для urltest (стабильность при смене сервера)
+- Остальное без изменений — порт 2096, VLESS Reality TCP
+
+---
+
+## Фаза 4: VPN стабильность (iOS)
+
+### 4.1 Конфиг sing-box
+- `interrupt_exist_connections: false` в urltest и selector
+- MTU = 1400 (явно)
+
+### 4.2 iOS NetworkExtension
+- Улучшить `wake()` — проверка что соединение живое после пробуждения
+- Heartbeat — периодическая проверка в фоне (каждые 60с)
+
+---
+
+## Фаза 5: Деплой
+
+### 5.1 DE сервер
+1. Собрать кастомный sing-box образ (уже сделано)
+2. Переключить sing-box на :2096
+3. Остановить Xray
+4. Проверить VPN, speedtest, статистику
+
+### 5.2 NL сервер
+1. Добавить sing-box в docker-compose NL
+2. Собрать образ
+3. Переключить
+4. Проверить
+
+### 5.3 Relay (SPB)
+- Без изменений — nginx stream на те же порты
+
+---
+
+## Что НЕ меняется
+- iOS клиент — конфиг тот же (VLESS Reality TCP, порт 2096)
+- Relay SPB nginx — те же порты
+- БД users — та же таблица
+- Admin API — те же эндпоинты
+- Cluster sync — через БД
+
+## Порядок выполнения
+1. Фаза 1 (backend код) — можно начинать сразу
+2. Фаза 2 (Docker) — параллельно с Фазой 1
+3. Фаза 3 (протоколы) — после Фазы 1
+4. Фаза 4 (стабильность) — параллельно
+5. Фаза 5 (деплой) — после всех фаз
 
 ## Ключевые файлы
+| Файл | Изменения |
+|------|-----------|
+| `backend/crates/chameleon-vpn/src/singbox_api.rs` | НОВЫЙ — управление sing-box |
+| `backend/crates/chameleon-vpn/src/engine.rs` | Обновить config gen + reload |
+| `backend/crates/chameleon-vpn/src/singbox.rs` | interrupt_exist_connections: false |
+| `backend/crates/chameleon-vpn/src/protocols/vless_reality.rs` | singbox_inbound() |
+| `backend/crates/chameleon-monitoring/src/traffic_collector.rs` | Указать на sing-box gRPC |
+| `backend/docker-compose.yml` | Кастомный sing-box образ |
+| `infrastructure/singbox/Dockerfile` | НОВЫЙ — билд с v2ray_api |
+| `apple/PacketTunnel/ExtensionProvider.swift` | Улучшить wake() |
 
-| Файл | Роль |
-|------|------|
-| `backend/crates/chameleon-vpn/src/singbox.rs` | Генерация sing-box клиентского конфига |
-| `backend/crates/chameleon-vpn/src/engine.rs` | Xray + sing-box серверные конфиги |
-| `backend/crates/chameleon-vpn/src/protocols/vless_reality.rs` | VLESS Reality outbound generation |
-| `backend/docker-compose.yml` | Docker services (backend, xray, singbox, postgres, redis, nginx) |
-| `apple/Shared/ConfigSanitizer.swift` | Убирает config_version перед sing-box |
-| `apple/ChameleonVPN/Views/DebugLogsView.swift` | Debug report generation |
-| `wiki/wiki.md` | Главная документация |
-
-## Серверы
-
-| Сервер | IP | SSH |
-|--------|-----|-----|
-| DE | 162.19.242.30 | `sshpass -p 'ChameleonDE2026Secure' ssh ubuntu@162.19.242.30` |
-| NL | 194.135.38.90 | — |
-| SPB Relay | 185.218.0.43 | — |
-
-## iPhone
-- UDID: `00008140-001A298A3640801C`
-- Appium: `appium --relaxed-security`, session capabilities: xcodeOrgId=99W3C374T2, updatedWDABundleId=com.chameleonvpn.wda
+## Исследования (завершены 2026-04-08)
+- [x] SIGHUP reload — работает, 0ms
+- [x] clash_api — работает, REST reload + total traffic
+- [x] v2ray_api — нужен кастомный образ, собран, gRPC совместим с Xray
+- [x] Стабильность iOS — interrupt_exist_connections, heartbeat, wake()
+- [x] Кастомный образ sing-box — собран на DE (`sing-box-custom:v1.13.6`)

@@ -1,0 +1,77 @@
+# Chameleon VPN — Configuration
+# ================================
+# This is the default development configuration.
+# Secrets use ${ENV_VAR} syntax and are resolved from environment variables at load time.
+# Copy this file and adjust for staging/production environments.
+
+server:
+  host: "0.0.0.0"
+  port: 8000
+
+database:
+  # PostgreSQL connection string. Use ${DATABASE_URL} for production.
+  url: "${DATABASE_URL}"
+  max_conns: 25
+  min_conns: 5
+  max_conn_lifetime: "1h"
+
+redis:
+  # Redis connection string. Use ${REDIS_URL} for production.
+  url: "${REDIS_URL}"
+
+auth:
+  # JWT signing secret. MUST be at least 32 characters.
+  # NEVER commit a real secret here — use ${JWT_SECRET} in production.
+  jwt_secret: "${JWT_SECRET}"
+  jwt_access_ttl: "24h"
+  jwt_refresh_ttl: "720h"    # 30 days
+
+  # Admin credentials are stored in the database (admin_users table).
+  # Create the first admin via CLI: chameleon admin create --username admin --password xxx
+  apple_bundle_id: "com.chameleonvpn.app"
+
+vpn:
+  listen_port: 2096
+
+  # Client config generation settings
+  client_mtu: 1400                          # MTU for client TUN interface
+  dns_remote: "https://1.1.1.1/dns-query"   # Remote DNS-over-HTTPS for proxied traffic
+  dns_direct: "https://8.8.8.8/dns-query"   # Direct DNS-over-HTTPS for local resolution
+  urltest_interval: "3m"                     # How often clients probe server latency
+  clash_api_port: 9090                       # sing-box clash API port (server-side stats)
+
+  reality:
+    # VLESS Reality private key. Use ${REALITY_PRIVATE_KEY} in production.
+    private_key: "${REALITY_PRIVATE_KEY}"
+    short_ids:
+      - "0123456789abcdef"
+    snis:
+      default: "www.microsoft.com"
+
+  servers: []
+  # Example server entries:
+  # servers:
+  #   - key: "de"
+  #     name: "Germany"
+  #     host: "1.2.3.4"
+  #     port: 2096
+  #     flag: "\U0001F1E9\U0001F1EA"
+  #     sni: "www.microsoft.com"
+  #   - key: "nl"
+  #     name: "Netherlands"
+  #     host: "5.6.7.8"
+  #     port: 2096
+  #     flag: "\U0001F1F3\U0001F1F1"
+
+cluster:
+  enabled: false
+  node_id: ""
+  sync_interval: "30s"              # HTTP pull/push interval (legacy, unused when pub/sub is active)
+  reconcile_interval: "5m"          # Full HTTP reconciliation interval (fallback for missed pub/sub events)
+  pubsub_channel: "chameleon:sync"  # Redis Pub/Sub channel for real-time sync
+  peers: []
+
+# Rate limiting (per IP, sliding window)
+rate_limit:
+  mobile_per_minute: 60   # /api/mobile/* endpoints
+  admin_per_minute: 120   # /api/admin/* and /api/v1/admin/* endpoints
