@@ -140,7 +140,7 @@ pub fn generate_config(
             "rules": [
                 {"action": "sniff"},
                 {"protocol": "dns", "action": "hijack-dns"},
-                {"network": "udp", "port": 443, "action": "reject"},
+
                 {"ip_is_private": true, "outbound": "direct"},
             ],
         },
