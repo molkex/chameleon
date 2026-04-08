@@ -149,11 +149,6 @@ impl ChameleonEngine {
 
         json!({
             "log": {"level": "info"},
-            "dns": {
-                "servers": [
-                    {"tag": "dns-direct", "address": "1.1.1.1", "address_strategy": "ipv4_only"}
-                ]
-            },
             "inbounds": [{
                 "type": "vless",
                 "tag": "vless-reality-mux",
