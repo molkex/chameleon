@@ -17,8 +17,6 @@ import (
 	"github.com/chameleonvpn/chameleon/internal/vpn"
 )
 
-// --- Request / Response types ------------------------------------------------
-
 // RegisterRequest is the body for POST /api/mobile/auth/register.
 type RegisterRequest struct {
 	DeviceID string `json:"device_id"`
@@ -43,8 +41,6 @@ type AuthResponse struct {
 type ErrorResponse struct {
 	Error string `json:"error"`
 }
-
-// --- Handlers ----------------------------------------------------------------
 
 // Register handles POST /api/mobile/auth/register.
 //
@@ -75,7 +71,7 @@ func (h *Handler) Register(c echo.Context) error {
 	if user == nil {
 		// New user — generate VPN credentials and create.
 		isNew = true
-		user, err = h.createDeviceUser(ctx, req.DeviceID)
+		user, err = h.createUser(ctx, req.DeviceID, "", "device")
 		if err != nil {
 			h.Logger.Error("create device user", zap.Error(err), zap.String("device_id", req.DeviceID))
 			return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
@@ -159,7 +155,7 @@ func (h *Handler) AppleSignIn(c echo.Context) error {
 	if user == nil {
 		// New user — create with Apple ID and device_id.
 		isNew = true
-		user, err = h.createAppleUser(ctx, appleID, req.DeviceID)
+		user, err = h.createUser(ctx, req.DeviceID, appleID, "apple")
 		if err != nil {
 			h.Logger.Error("create apple user", zap.Error(err), zap.String("apple_id", appleID))
 			return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
@@ -210,10 +206,9 @@ func (h *Handler) AppleSignIn(c echo.Context) error {
 	})
 }
 
-// --- Internal helpers --------------------------------------------------------
-
-// createDeviceUser creates a new user with VPN credentials and 30-day trial subscription.
-func (h *Handler) createDeviceUser(ctx context.Context, deviceID string) (*db.User, error) {
+// createUser creates a new user with VPN credentials and a 30-day trial subscription.
+// deviceID is always required; appleID and authProvider vary by sign-in method.
+func (h *Handler) createUser(ctx context.Context, deviceID, appleID, authProvider string) (*db.User, error) {
 	vpnUsername := generateVPNUsername(deviceID)
 	vpnUUID, err := generateUUID()
 	if err != nil {
@@ -225,7 +220,6 @@ func (h *Handler) createDeviceUser(ctx context.Context, deviceID string) (*db.Us
 	}
 
 	trialExpiry := time.Now().Add(30 * 24 * time.Hour)
-	authProvider := "device"
 
 	user := &db.User{
 		DeviceID:           &deviceID,
@@ -237,37 +231,8 @@ func (h *Handler) createDeviceUser(ctx context.Context, deviceID string) (*db.Us
 		AuthProvider:       &authProvider,
 	}
 
-	if err := h.DB.CreateUser(ctx, user); err != nil {
-		return nil, fmt.Errorf("db create user: %w", err)
-	}
-
-	return user, nil
-}
-
-// createAppleUser creates a new user with Apple ID, device_id, VPN credentials, and 30-day trial.
-func (h *Handler) createAppleUser(ctx context.Context, appleID, deviceID string) (*db.User, error) {
-	vpnUsername := generateVPNUsername(deviceID)
-	vpnUUID, err := generateUUID()
-	if err != nil {
-		return nil, fmt.Errorf("generate uuid: %w", err)
-	}
-	vpnShortID, err := generateShortID()
-	if err != nil {
-		return nil, fmt.Errorf("generate short_id: %w", err)
-	}
-
-	trialExpiry := time.Now().Add(30 * 24 * time.Hour)
-	authProvider := "apple"
-
-	user := &db.User{
-		AppleID:            &appleID,
-		DeviceID:           &deviceID,
-		VPNUsername:         &vpnUsername,
-		VPNUUID:            &vpnUUID,
-		VPNShortID:         &vpnShortID,
-		IsActive:           true,
-		SubscriptionExpiry: &trialExpiry,
-		AuthProvider:       &authProvider,
+	if appleID != "" {
+		user.AppleID = &appleID
 	}
 
 	if err := h.DB.CreateUser(ctx, user); err != nil {
@@ -297,8 +262,6 @@ func (h *Handler) addUserToVPN(ctx context.Context, user *db.User) error {
 		ShortID:  shortID,
 	})
 }
-
-// --- Credential generation ---------------------------------------------------
 
 // generateVPNUsername creates a VPN username from a device_id.
 // Format: "device_" + first 8 chars of sha256(device_id).

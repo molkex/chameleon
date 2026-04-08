@@ -6,7 +6,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 
-	"github.com/chameleonvpn/chameleon/internal/vpn"
+	"github.com/chameleonvpn/chameleon/internal/cluster"
 )
 
 // syncResponse is returned by POST /api/admin/nodes/sync.
@@ -17,9 +17,8 @@ type syncResponse struct {
 
 // statsResponse is the simplified stats for GET /api/admin/stats.
 type statsResponse struct {
-	OnlineUsers   int   `json:"online_users"`
-	TotalUpload   int64 `json:"total_upload"`
-	TotalDownload int64 `json:"total_download"`
+	OnlineUsers  int   `json:"online_users"`
+	TotalTraffic int64 `json:"total_traffic"`
 }
 
 // dashboardStatsResponse is returned by GET /api/admin/stats/dashboard.
@@ -32,45 +31,28 @@ type dashboardStatsResponse struct {
 }
 
 type dashboardStats struct {
-	TotalUsers        int64              `json:"total_users"`
-	ActiveUsers       int64              `json:"active_users"`
-	TodayNew          int64              `json:"today_new"`
-	RevenueByСurrency map[string]float64 `json:"revenue_by_currency"`
-	TodayRevenue      map[string]float64 `json:"today_revenue"`
-	TodayTransactions int                `json:"today_transactions"`
-	TodayPaid         int                `json:"today_paid"`
-	Conversion30D     float64            `json:"conversion_30d"`
-	Churned7D         int                `json:"churned_7d"`
-	Rev7DLabels       []string           `json:"rev_7d_labels"`
-	Rev7DData         []float64          `json:"rev_7d_data"`
+	TotalUsers  int64 `json:"total_users"`
+	ActiveUsers int64 `json:"active_users"`
+	TodayNew    int64 `json:"today_new"`
 }
 
 type vpnStats struct {
-	VPNUsers    int     `json:"vpn_users"`
-	ActiveUsers int     `json:"active_users"`
-	BWInGB      float64 `json:"bw_in_gb"`
-	BWOutGB     float64 `json:"bw_out_gb"`
+	VPNUsers       int     `json:"vpn_users"`
+	ActiveUsers    int     `json:"active_users"`
+	TotalTrafficGB float64 `json:"total_traffic_gb"`
 }
 
 // nodeResponse is the JSON representation of a node for the admin API.
 type nodeResponse struct {
-	Key         string            `json:"key"`
-	Name        string            `json:"name"`
-	Flag        string            `json:"flag"`
-	IP          string            `json:"ip"`
-	IsActive    bool              `json:"is_active"`
-	LatencyMS   int               `json:"latency_ms"`
-	CPU         *float32          `json:"cpu"`
-	RAMUsed     *float32          `json:"ram_used"`
-	RAMTotal    *float32          `json:"ram_total"`
-	Disk        *float32          `json:"disk"`
-	UserCount   int               `json:"user_count"`
-	OnlineUsers int               `json:"online_users"`
-	TrafficUp   int64             `json:"traffic_up"`
-	TrafficDown int64             `json:"traffic_down"`
-	UptimeHours *float64          `json:"uptime_hours"`
-	XrayVersion *string           `json:"xray_version"`
-	Protocols   []protocolStatus  `json:"protocols"`
+	Key          string           `json:"key"`
+	Name         string           `json:"name"`
+	Flag         string           `json:"flag"`
+	IP           string           `json:"ip"`
+	IsActive     bool             `json:"is_active"`
+	UserCount    int              `json:"user_count"`
+	OnlineUsers  int              `json:"online_users"`
+	TotalTraffic int64            `json:"total_traffic"`
+	Protocols    []protocolStatus `json:"protocols"`
 }
 
 type protocolStatus struct {
@@ -102,23 +84,8 @@ func (h *Handler) SyncConfig(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to list users")
 	}
 
-	// Convert to VPN engine format.
-	vpnUsers := make([]vpn.VPNUser, 0, len(dbUsers))
-	for _, u := range dbUsers {
-		if u.VPNUsername == nil || u.VPNUUID == nil {
-			continue
-		}
-		vu := vpn.VPNUser{
-			Username: *u.VPNUsername,
-			UUID:     *u.VPNUUID,
-		}
-		if u.VPNShortID != nil {
-			vu.ShortID = *u.VPNShortID
-		}
-		vpnUsers = append(vpnUsers, vu)
-	}
-
-	// Reload users in VPN engine.
+	// Convert and reload users in VPN engine.
+	vpnUsers := cluster.DBUsersToVPNUsers(dbUsers)
 	activeCount, err := h.VPN.ReloadUsers(ctx, vpnUsers)
 	if err != nil {
 		h.Logger.Error("admin: sync config: reload users", zap.Error(err))
@@ -155,8 +122,7 @@ func (h *Handler) GetStats(c echo.Context) error {
 	if err != nil {
 		h.Logger.Warn("admin: stats: total traffic", zap.Error(err))
 	} else {
-		resp.TotalUpload = totalTraffic / 2   // Approximate split
-		resp.TotalDownload = totalTraffic / 2
+		resp.TotalTraffic = totalTraffic
 	}
 
 	return c.JSON(http.StatusOK, resp)
@@ -206,23 +172,14 @@ func (h *Handler) GetDashboard(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, dashboardStatsResponse{
 		Stats: dashboardStats{
-			TotalUsers:        totalUsers,
-			ActiveUsers:       activeUsers,
-			TodayNew:          todayNew,
-			RevenueByСurrency: map[string]float64{},
-			TodayRevenue:      map[string]float64{},
-			TodayTransactions: 0,
-			TodayPaid:         0,
-			Conversion30D:     0,
-			Churned7D:         0,
-			Rev7DLabels:       []string{},
-			Rev7DData:         []float64{},
+			TotalUsers:  totalUsers,
+			ActiveUsers: activeUsers,
+			TodayNew:    todayNew,
 		},
 		VPN: vpnStats{
-			VPNUsers:    int(activeUsers),
-			ActiveUsers: onlineUsers,
-			BWInGB:      trafficGB * 0.7, // Approximate: 70% download, 30% upload
-			BWOutGB:     trafficGB * 0.3,
+			VPNUsers:       int(activeUsers),
+			ActiveUsers:    onlineUsers,
+			TotalTrafficGB: trafficGB,
 		},
 		RecentTransactions: []interface{}{},
 		ExpiringUsers:      []interface{}{},
@@ -251,17 +208,15 @@ func (h *Handler) ListNodes(c echo.Context) error {
 
 	for _, srv := range h.Config.VPN.Servers {
 		node := nodeResponse{
-			Key:         srv.Key,
-			Name:        srv.Name,
-			Flag:        srv.Flag,
-			IP:          srv.Host,
-			IsActive:    true,
-			LatencyMS:   1,
-			UserCount:   int(activeUsers),
-			OnlineUsers: onlineUsers,
-			TrafficUp:   int64(float64(totalTraffic) * 0.3),
-			TrafficDown: int64(float64(totalTraffic) * 0.7),
-			Protocols:   []protocolStatus{},
+			Key:          srv.Key,
+			Name:         srv.Name,
+			Flag:         srv.Flag,
+			IP:           srv.Host,
+			IsActive:     true,
+			UserCount:    int(activeUsers),
+			OnlineUsers:  onlineUsers,
+			TotalTraffic: totalTraffic,
+			Protocols:    []protocolStatus{},
 		}
 		nodes = append(nodes, node)
 	}
@@ -269,17 +224,14 @@ func (h *Handler) ListNodes(c echo.Context) error {
 	// If no servers in config, show at least the local node.
 	if len(nodes) == 0 {
 		nodes = append(nodes, nodeResponse{
-			Key:         h.Config.Cluster.NodeID,
-			Name:        "Local Node",
-			Flag:        "",
-			IP:          h.Config.Server.Host,
-			IsActive:    true,
-			LatencyMS:   1,
-			UserCount:   int(activeUsers),
-			OnlineUsers: onlineUsers,
-			TrafficUp:   int64(float64(totalTraffic) * 0.3),
-			TrafficDown: int64(float64(totalTraffic) * 0.7),
-			Protocols:   []protocolStatus{},
+			Key:          h.Config.Cluster.NodeID,
+			Name:         "Local Node",
+			IP:           h.Config.Server.Host,
+			IsActive:     true,
+			UserCount:    int(activeUsers),
+			OnlineUsers:  onlineUsers,
+			TotalTraffic: totalTraffic,
+			Protocols:    []protocolStatus{},
 		})
 	}
 

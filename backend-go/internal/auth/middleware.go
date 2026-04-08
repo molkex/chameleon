@@ -1,3 +1,11 @@
+// Package auth provides JWT token management, password hashing, and
+// role-based access control for the Chameleon VPN backend.
+//
+// Sub-components:
+//   - jwt.go: JWTManager -- access/refresh token creation and verification
+//   - password.go: argon2id hashing with bcrypt/SHA-256 legacy support
+//   - middleware.go: Echo middleware for RequireAuth / RequireAdmin
+//   - apple.go: Apple Sign-In identity token verification
 package auth
 
 import (
@@ -17,7 +25,7 @@ const (
 func RequireAuth(jwtManager *JWTManager) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			token := extractBearerToken(c.Request())
+			token := ExtractBearerToken(c.Request())
 			if token == "" {
 				return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
 			}
@@ -43,7 +51,7 @@ func RequireAdmin(jwtManager *JWTManager) echo.MiddlewareFunc {
 
 			// If not already set, verify the token ourselves.
 			if claims == nil {
-				token := extractBearerToken(c.Request())
+				token := ExtractBearerToken(c.Request())
 				if token == "" {
 					return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
 				}
@@ -80,9 +88,9 @@ func GetUserFromContext(c echo.Context) *Claims {
 	return claims
 }
 
-// extractBearerToken extracts a bearer token from the Authorization header.
+// ExtractBearerToken extracts a bearer token from the Authorization header.
 // Returns empty string if not present or malformed.
-func extractBearerToken(r *http.Request) string {
+func ExtractBearerToken(r *http.Request) string {
 	auth := r.Header.Get("Authorization")
 	if auth == "" {
 		return ""

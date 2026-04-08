@@ -1,9 +1,14 @@
 package cluster
 
 import (
+	"context"
+	"fmt"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/chameleonvpn/chameleon/internal/db"
+	"github.com/chameleonvpn/chameleon/internal/vpn"
 )
 
 // SyncUser is the wire format for user data exchanged between cluster peers.
@@ -122,4 +127,47 @@ func syncUsersToDBUsers(syncUsers []SyncUser) []db.User {
 // strPtr returns a pointer to a string value.
 func strPtr(s string) *string {
 	return &s
+}
+
+// DBUsersToVPNUsers converts a slice of db.User to vpn.VPNUser,
+// skipping users without VPN credentials.
+func DBUsersToVPNUsers(users []db.User) []vpn.VPNUser {
+	result := make([]vpn.VPNUser, 0, len(users))
+	for _, u := range users {
+		if u.VPNUUID == nil || u.VPNUsername == nil {
+			continue
+		}
+		vu := vpn.VPNUser{
+			Username: *u.VPNUsername,
+			UUID:     *u.VPNUUID,
+		}
+		if u.VPNShortID != nil {
+			vu.ShortID = *u.VPNShortID
+		}
+		result = append(result, vu)
+	}
+	return result
+}
+
+// ReloadVPNEngine refreshes the VPN engine with the current active user list from the DB.
+// Shared by Syncer (HTTP reconciliation) and Subscriber (Redis pub/sub).
+func ReloadVPNEngine(ctx context.Context, database *db.DB, engine vpn.Engine, logger *zap.Logger) error {
+	if engine == nil {
+		return nil
+	}
+
+	users, err := database.ListActiveVPNUsers(ctx)
+	if err != nil {
+		return fmt.Errorf("list active VPN users: %w", err)
+	}
+
+	vpnUsers := DBUsersToVPNUsers(users)
+
+	count, err := engine.ReloadUsers(ctx, vpnUsers)
+	if err != nil {
+		return fmt.Errorf("reload VPN users: %w", err)
+	}
+
+	logger.Info("VPN users reloaded", zap.Int("active_users", count))
+	return nil
 }

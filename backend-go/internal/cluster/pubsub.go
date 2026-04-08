@@ -248,36 +248,7 @@ func (s *Subscriber) handleEvent(ctx context.Context, event SyncEvent) {
 
 // reloadVPN refreshes the VPN engine with the current active user list.
 func (s *Subscriber) reloadVPN(ctx context.Context) {
-	if s.vpn == nil {
-		return
+	if err := ReloadVPNEngine(ctx, s.db, s.vpn, s.logger); err != nil {
+		s.logger.Error("failed to reload VPN after pub/sub event", zap.Error(err))
 	}
-
-	users, err := s.db.ListActiveVPNUsers(ctx)
-	if err != nil {
-		s.logger.Error("failed to list active VPN users for reload", zap.Error(err))
-		return
-	}
-
-	vpnUsers := make([]vpn.VPNUser, 0, len(users))
-	for _, u := range users {
-		if u.VPNUUID == nil || u.VPNUsername == nil {
-			continue
-		}
-		vu := vpn.VPNUser{
-			Username: *u.VPNUsername,
-			UUID:     *u.VPNUUID,
-		}
-		if u.VPNShortID != nil {
-			vu.ShortID = *u.VPNShortID
-		}
-		vpnUsers = append(vpnUsers, vu)
-	}
-
-	count, err := s.vpn.ReloadUsers(ctx, vpnUsers)
-	if err != nil {
-		s.logger.Error("failed to reload VPN users after pub/sub event", zap.Error(err))
-		return
-	}
-
-	s.logger.Info("VPN users reloaded after pub/sub event", zap.Int("active_users", count))
 }

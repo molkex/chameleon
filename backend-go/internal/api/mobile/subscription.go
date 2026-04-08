@@ -11,8 +11,6 @@ import (
 	"github.com/chameleonvpn/chameleon/internal/auth"
 )
 
-// --- Request / Response types ------------------------------------------------
-
 // VerifySubscriptionRequest is the body for POST /api/mobile/subscription/verify.
 type VerifySubscriptionRequest struct {
 	TransactionID string `json:"transaction_id"`
@@ -34,8 +32,6 @@ var productDurations = map[string]time.Duration{
 	"com.chameleonvpn.weekly":   7 * 24 * time.Hour,
 	"com.chameleonvpn.lifetime": 100 * 365 * 24 * time.Hour, // ~100 years
 }
-
-// --- Handler -----------------------------------------------------------------
 
 // VerifySubscription handles POST /api/mobile/subscription/verify.
 //

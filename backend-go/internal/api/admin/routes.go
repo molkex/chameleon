@@ -1,10 +1,29 @@
+// Package admin provides HTTP handlers for the Chameleon VPN admin API.
+//
+// All handlers are methods on the Handler struct, which holds shared
+// dependencies (DB, Redis, JWT, VPN engine, config, logger).
 package admin
 
 import (
 	"github.com/labstack/echo/v4"
+	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 
 	"github.com/chameleonvpn/chameleon/internal/auth"
+	"github.com/chameleonvpn/chameleon/internal/config"
+	"github.com/chameleonvpn/chameleon/internal/db"
+	"github.com/chameleonvpn/chameleon/internal/vpn"
 )
+
+// Handler holds all dependencies needed by admin API handlers.
+type Handler struct {
+	DB     *db.DB
+	Redis  *redis.Client
+	JWT    *auth.JWTManager
+	VPN    vpn.Engine // may be nil if VPN engine is not configured
+	Config *config.Config
+	Logger *zap.Logger
+}
 
 // RegisterRoutes adds admin API routes to the echo group.
 //
@@ -84,7 +103,7 @@ func CookieOrBearerAuth(jwtManager *auth.JWTManager) echo.MiddlewareFunc {
 			}
 
 			// Try Authorization header.
-			token := extractToken(c)
+			token := auth.ExtractBearerToken(c.Request())
 
 			// If no header token, try cookie.
 			if token == "" {
@@ -114,11 +133,3 @@ func CookieOrBearerAuth(jwtManager *auth.JWTManager) echo.MiddlewareFunc {
 	}
 }
 
-// extractToken extracts bearer token from Authorization header.
-func extractToken(c echo.Context) string {
-	authHeader := c.Request().Header.Get("Authorization")
-	if len(authHeader) > 7 && (authHeader[:7] == "Bearer " || authHeader[:7] == "bearer ") {
-		return authHeader[7:]
-	}
-	return ""
-}

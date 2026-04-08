@@ -2,11 +2,15 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+// ErrNotFound is returned when an update or delete targets a row that does not exist.
+var ErrNotFound = errors.New("db: record not found")
 
 // DB wraps pgxpool.Pool with helper methods for database access.
 type DB struct {

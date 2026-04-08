@@ -157,11 +157,6 @@ func (j *JWTManager) parseToken(tokenString string) (*Claims, error) {
 		return nil, fmt.Errorf("auth: token is not valid")
 	}
 
-	// Reject refresh tokens presented as access tokens.
-	if claims.RegisteredClaims.Subject == tokenTypeRefresh {
-		return nil, fmt.Errorf("auth: refresh token cannot be used as access token")
-	}
-
 	return claims, nil
 }
 

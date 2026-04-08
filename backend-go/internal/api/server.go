@@ -3,7 +3,6 @@
 package api
 
 import (
-	"context"
 	"net/http"
 	"time"
 
@@ -113,9 +112,6 @@ func (s *Server) setupRoutes(e *echo.Echo) {
 	// Health check (no auth, no rate limit).
 	e.GET("/health", s.handleHealth)
 
-	// ---------------------------------------------------------------
-	// Mobile API
-	// ---------------------------------------------------------------
 	mobileGroup := e.Group("/api/mobile")
 	mobileGroup.Use(mw.RateLimit(s.Config.RateLimit.MobilePerMinute))
 
@@ -129,10 +125,7 @@ func (s *Server) setupRoutes(e *echo.Echo) {
 	}
 	mobile.RegisterRoutes(mobileGroup, mobileHandler)
 
-	// ---------------------------------------------------------------
-	// Admin API — served under /api/v1/admin (React SPA uses /api/v1 base)
-	// and /api/admin (for backward compatibility)
-	// ---------------------------------------------------------------
+	// Admin API served under /api/v1/admin (React SPA) and /api/admin (legacy).
 	adminHandler := &adminAPI.Handler{
 		DB:     s.DB,
 		Redis:  s.Redis,
@@ -152,10 +145,6 @@ func (s *Server) setupRoutes(e *echo.Echo) {
 	adminLegacy.Use(mw.RateLimit(s.Config.RateLimit.AdminPerMinute))
 	adminAPI.RegisterRoutes(adminLegacy, adminHandler, s.JWT)
 }
-
-// ---------------------------------------------------------------
-// Health check
-// ---------------------------------------------------------------
 
 // handleHealth returns the health status of the service and its dependencies.
 // It checks real connectivity to both PostgreSQL and Redis.
@@ -185,13 +174,6 @@ func (s *Server) handleHealth(c echo.Context) error {
 		"redis":  redisStatus,
 	})
 }
-
-// Mobile API handlers are in the mobile package — see internal/api/mobile/.
-// Admin API handlers are in the admin package — see internal/api/admin/.
-
-// ---------------------------------------------------------------
-// Middleware helpers
-// ---------------------------------------------------------------
 
 // requestLogger returns Echo middleware that logs every request with zap.
 // It includes the request ID, method, path, status, latency, and client IP.
@@ -276,18 +258,3 @@ func (s *Server) httpErrorHandler(err error, c echo.Context) {
 	}
 }
 
-// contextWithRequestID extracts the request ID from the Echo context
-// and adds it to the Go context for downstream use.
-func contextWithRequestID(c echo.Context) context.Context {
-	ctx := c.Request().Context()
-	requestID := c.Response().Header().Get(echo.HeaderXRequestID)
-	if requestID != "" {
-		ctx = context.WithValue(ctx, contextKeyRequestID, requestID)
-	}
-	return ctx
-}
-
-// contextKey is an unexported type for context keys to avoid collisions.
-type contextKey string
-
-const contextKeyRequestID contextKey = "request_id"

@@ -2,7 +2,6 @@ package vpn
 
 import (
 	"context"
-	"time"
 )
 
 // Engine defines the interface for VPN server management.
@@ -77,13 +76,4 @@ type UserTraffic struct {
 	Username string
 	Upload   int64 // bytes
 	Download int64 // bytes
-}
-
-// Stats contains aggregated VPN server statistics.
-type Stats struct {
-	OnlineUsers    int
-	TotalUpload    int64
-	TotalDownload  int64
-	Uptime         time.Duration
-	ServerVersion  string
 }

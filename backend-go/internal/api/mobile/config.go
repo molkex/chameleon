@@ -12,15 +12,11 @@ import (
 	"github.com/chameleonvpn/chameleon/internal/vpn"
 )
 
-// --- Response types ----------------------------------------------------------
-
 // ConfigResponse wraps the generated sing-box client config.
 type ConfigResponse struct {
 	Config             json.RawMessage `json:"config"`
 	SubscriptionExpiry *int64          `json:"subscription_expiry,omitempty"` // unix timestamp, nil if no subscription
 }
-
-// --- Handler -----------------------------------------------------------------
 
 // GetConfig handles GET /api/mobile/config.
 //
