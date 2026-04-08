@@ -113,10 +113,7 @@ services:
     image: teddysun/xray:25.12.8
     container_name: xray
     restart: unless-stopped
-    ports:
-      - "2096:2096"
-      - "2097:2097"
-      - "2098:2098"
+    network_mode: host
     volumes:
       - xray-config:/etc/xray
     healthcheck:
