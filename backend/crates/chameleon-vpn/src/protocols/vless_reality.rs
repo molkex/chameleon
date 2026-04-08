@@ -150,7 +150,13 @@ impl Protocol for VlessReality {
         let sni = opts.sni.as_deref().unwrap_or_else(|| self.snis.first().map(|s| s.as_str()).unwrap_or("ads.x5.ru"));
         let host = server.effective_host();
         // Use server-specific port if set, otherwise fall back to protocol default
-        let port = if server.port != 0 { server.port } else if transport == "tcp" { self.tcp_port } else { self.grpc_port };
+        let port = if server.port != 0 {
+            server.port
+        } else if transport == "tcp" || transport == "tcp-mux" {
+            if transport == "tcp-mux" { 2095 } else { self.tcp_port }
+        } else {
+            self.grpc_port
+        };
 
         let mut out = json!({
             "type": "vless",
