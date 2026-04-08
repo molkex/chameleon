@@ -170,6 +170,13 @@ impl Protocol for VlessReality {
             out["flow"] = json!("xtls-rprx-vision");
         } else if transport == "xhttp" {
             out["transport"] = json!({"type": "http", "method": "GET"});
+            out["multiplex"] = json!({
+                "enabled": true,
+                "protocol": "h2mux",
+                "max_connections": 4,
+                "min_streams": 4,
+                "padding": true,
+            });
         } else if transport == "grpc" {
             out["transport"] = json!({"type": "grpc", "service_name": ""});
         }

@@ -25,15 +25,29 @@ pub fn generate_config(
             "vless_reality" => {
                 // Generate per-server outbounds — relay + direct servers
                 for srv in servers {
+                    // TCP + Vision outbound (original)
                     let tag = format!("{} {}", srv.flag, srv.name);
                     let mut opts = OutboundOpts::default(); // TCP + Vision
-                    // Per-server SNI override (e.g. NL uses different Reality dest than DE)
                     if !srv.sni.is_empty() {
                         opts.sni = Some(srv.sni.clone());
                     }
                     if let Some(ob) = proto.singbox_outbound(&tag, srv, user, &opts) {
                         tags.push(tag);
                         outbounds.push(ob);
+                    }
+
+                    // XHTTP + mux outbound (experimental) — only for direct servers (no relay)
+                    if srv.port == 0 {
+                        let tag_xhttp = format!("{} {} XHTTP", srv.flag, srv.name);
+                        let opts_xhttp = OutboundOpts {
+                            transport: Some("xhttp".to_string()),
+                            sni: if !srv.sni.is_empty() { Some(srv.sni.clone()) } else { None },
+                            ..Default::default()
+                        };
+                        if let Some(ob) = proto.singbox_outbound(&tag_xhttp, srv, user, &opts_xhttp) {
+                            tags.push(tag_xhttp);
+                            outbounds.push(ob);
+                        }
                     }
                 }
             }
