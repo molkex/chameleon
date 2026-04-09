@@ -7,69 +7,69 @@
 # Secrets are read from ~/.secrets.env on the local machine.
 set -euo pipefail
 
-# ── Node registry ──────────────────────────────────────────────────────────
-# Add new nodes here. Format: SSH_TARGET REMOTE_DIR NODE_ID SNI
-declare -A NODE_SSH NODE_DIR NODE_ID NODE_SNI
-NODE_SSH[de]="ubuntu@162.19.242.30"
-NODE_DIR[de]="/home/ubuntu/chameleon"
-NODE_ID[de]="de-1"
-NODE_SNI[de]="ads.adfox.ru"
-
-NODE_SSH[nl]="root@194.135.38.90"
-NODE_DIR[nl]="/root/chameleon"
-NODE_ID[nl]="nl-1"
-NODE_SNI[nl]="ads.adfox.ru"
-
-# ── Parse arguments ────────────────────────────────────────────────────────
 NODE="${1:-}"
-if [[ -z "$NODE" ]] || [[ -z "${NODE_SSH[$NODE]+x}" ]]; then
-    echo "Usage: $0 <node>"
-    echo "Available nodes: ${!NODE_SSH[*]}"
-    exit 1
-fi
 
-SERVER="${NODE_SSH[$NODE]}"
-REMOTE_DIR="${NODE_DIR[$NODE]}"
-DEPLOY_NODE_ID="${NODE_ID[$NODE]}"
-DEPLOY_SNI="${NODE_SNI[$NODE]}"
+# ── Node registry (compatible with bash 3.2+) ─────────────────────────────
+get_node_config() {
+    case "$1" in
+        de)
+            NODE_SSH="ubuntu@162.19.242.30"
+            NODE_DIR="/home/ubuntu/chameleon"
+            NODE_NODE_ID="de-1"
+            NODE_SNI="ads.adfox.ru"
+            ;;
+        nl)
+            NODE_SSH="root@194.135.38.90"
+            NODE_DIR="/root/chameleon"
+            NODE_NODE_ID="nl-1"
+            NODE_SNI="ads.adfox.ru"
+            ;;
+        *)
+            echo "Usage: $0 <node>"
+            echo "Available nodes: de nl"
+            exit 1
+            ;;
+    esac
+}
 
-echo "=== Deploying Chameleon to ${NODE} (${SERVER}) ==="
+get_node_config "$NODE"
+
+echo "=== Deploying Chameleon to ${NODE} (${NODE_SSH}) ==="
 
 # ── Load secrets ───────────────────────────────────────────────────────────
 source ~/.secrets.env
 
 # Node-specific Reality keys (fallback to shared keys)
-PRIV_VAR="CHAMELEON_REALITY_PRIVATE_KEY_${NODE^^}"
-PUB_VAR="CHAMELEON_REALITY_PUBLIC_KEY_${NODE^^}"
+NODE_UPPER=$(echo "$NODE" | tr '[:lower:]' '[:upper:]')
+PRIV_VAR="CHAMELEON_REALITY_PRIVATE_KEY_${NODE_UPPER}"
+PUB_VAR="CHAMELEON_REALITY_PUBLIC_KEY_${NODE_UPPER}"
 REALITY_PRIV="${!PRIV_VAR:-${CHAMELEON_REALITY_PRIVATE_KEY}}"
 REALITY_PUB="${!PUB_VAR:-${CHAMELEON_REALITY_PUBLIC_KEY}}"
 
 # ── Sync files ─────────────────────────────────────────────────────────────
-echo ">>> Syncing files to ${SERVER}:${REMOTE_DIR}..."
+echo ">>> Syncing files to ${NODE_SSH}:${NODE_DIR}..."
 rsync -avz --delete \
     --exclude='.git' \
     --exclude='backend-go/chameleon' \
-    --exclude='backend/target' \
-    --exclude='backend/node_modules' \
     --exclude='.env' \
     --exclude='backend-go/.env' \
     --exclude='node_modules' \
     -e ssh \
     "$(cd "$(dirname "$0")/.." && pwd)/" \
-    "${SERVER}:${REMOTE_DIR}/"
+    "${NODE_SSH}:${NODE_DIR}/"
 
 # ── Remote deploy ──────────────────────────────────────────────────────────
-echo ">>> Running deploy on ${SERVER}..."
-ssh "${SERVER}" bash -s -- \
+echo ">>> Running deploy on ${NODE_SSH}..."
+ssh "${NODE_SSH}" bash -s -- \
     "${CHAMELEON_DB_PASSWORD}" \
     "${CHAMELEON_REDIS_PASSWORD}" \
     "${CHAMELEON_ADMIN_JWT_SECRET}" \
     "${REALITY_PRIV}" \
     "${REALITY_PUB}" \
     "${CHAMELEON_ADMIN_PASSWORD}" \
-    "${DEPLOY_NODE_ID}" \
-    "${DEPLOY_SNI}" \
-    "${REMOTE_DIR}" \
+    "${NODE_NODE_ID}" \
+    "${NODE_SNI}" \
+    "${NODE_DIR}" \
     <<'REMOTE'
 set -euo pipefail
 
@@ -88,7 +88,7 @@ cd "${REMOTE_DIR}/backend-go"
 # Generate config.yaml from template with node-specific values
 cp config.production.yaml config.yaml
 
-# Patch node-specific fields via sed
+# Patch node-specific fields
 sed -i "s/node_id: \"\"/node_id: \"${NODE_ID}\"/" config.yaml
 sed -i "s/default: \"ads.adfox.ru\"/default: \"${NODE_SNI}\"/" config.yaml
 
