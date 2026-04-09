@@ -95,6 +95,14 @@ Post-deploy checks: health API, singbox alive, User API, VPN port 2096, clash AP
 
 ## Resolved Issues Log
 
+### 2026-04-10: Cluster sync enabled and tested
+- **Cluster mesh sync ENABLED** on DE+NL (was written, but disabled). Verified working: DE↔NL sync users+servers every 5 min + Redis pub/sub
+- **CLUSTER_SECRET** added to docker-compose.yml env (was missing → container failed validation)
+- **NL binary**: removed `chameleon-linux` from rsync exclude → NL now gets fresh binary each deploy (was using stale Docker cache)
+- **Watchdog**: fixed `sudo test` for `/var/lib/docker/volumes/` (ubuntu can't read without sudo)
+- **Alerts env**: `/etc/chameleon-alerts.env` chmod 644 (was 600 root-only → scripts couldn't read)
+- **Telegram alerts**: tested and confirmed working — alert received on watchdog restart
+
 ### 2026-04-10: Infrastructure stabilization
 - **Cluster auth**: shared secret (Bearer token) on all /api/cluster/* endpoints
 - **Server mesh sync**: vpn_servers table synced via cluster pull/push + UpsertServerByKey
