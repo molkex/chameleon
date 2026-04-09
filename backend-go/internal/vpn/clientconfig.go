@@ -206,7 +206,6 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 				{
 					Protocol: "quic",
 					Outbound: "block",
-					NoDrop:   boolPtr(true),
 				},
 			},
 			AutoDetectInterface: true,
@@ -346,7 +345,6 @@ type clientRouteRule struct {
 	Protocol  string `json:"protocol,omitempty"`
 	Outbound  string `json:"outbound,omitempty"`
 	Action    string `json:"action,omitempty"`
-	NoDrop    *bool  `json:"no_drop,omitempty"`
 }
 
 type clientDomainResolver struct {
