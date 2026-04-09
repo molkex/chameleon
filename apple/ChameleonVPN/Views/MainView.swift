@@ -71,7 +71,12 @@ struct MainView: View {
                     .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
                 }
                 .padding(.horizontal)
-                .padding(.bottom, 30)
+
+                // Version + config hash
+                Text(buildInfoLine)
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundStyle(.gray.opacity(0.4))
+                    .padding(.bottom, 16)
             }
 
             // Debug button (top-right)
@@ -156,6 +161,20 @@ struct MainView: View {
 
     private var buttonShadowColor: Color {
         isConnected ? .cyan.opacity(0.4) : .clear
+    }
+
+    private var buildInfoLine: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
+        let configHash: String = {
+            guard let config = app.configStore.loadConfig() else { return "no config" }
+            // Simple hash: sum all bytes, mod to get 8-char hex
+            let bytes = Array(config.utf8)
+            var hash: UInt64 = 5381
+            for byte in bytes { hash = hash &* 33 &+ UInt64(byte) }
+            return String(format: "%08x", UInt32(truncatingIfNeeded: hash))
+        }()
+        return "v\(version)(\(build)) cfg:\(configHash)"
     }
 
     private var selectedServerName: String {
