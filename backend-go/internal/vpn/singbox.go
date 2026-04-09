@@ -361,6 +361,7 @@ func (e *SingboxEngine) buildServerConfig() ([]byte, error) {
 		users = append(users, singboxUser{
 			Name: u.Username,
 			UUID: u.UUID,
+			Flow: "xtls-rprx-vision",
 		})
 	}
 
@@ -657,6 +658,7 @@ type singboxInbound struct {
 type singboxUser struct {
 	Name string `json:"name"`
 	UUID string `json:"uuid"`
+	Flow string `json:"flow,omitempty"`
 }
 
 type singboxTLS struct {
