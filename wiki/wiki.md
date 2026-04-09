@@ -36,7 +36,21 @@ iPhone (libbox 1.13.5)
    without restart. Backend tries API first, falls back to SIGHUP.
 
 4. **Watchdog** — `scripts/singbox-watchdog.sh` runs via cron every minute.
-   Auto-restarts singbox if container dies.
+   Auto-restarts singbox if container dies. Sends Telegram alert on restart/failure.
+
+5. **Cluster auth** — shared secret (Bearer token) on all `/api/cluster/*` endpoints.
+   Config: `cluster.secret` in config.yaml / `CLUSTER_SECRET` env var.
+
+6. **Mesh sync** — `vpn_servers` table synced between all nodes via cluster pull/push.
+   Change keys/servers on any node → propagates to all peers (30s sync + instant pub/sub).
+   Conflict resolution: "latest updated_at wins".
+
+7. **Telegram alerts** — `scripts/health-check.sh` cron every minute checks API + singbox + VPN port.
+   Alerts sent to admins on failure. Rate-limited: 1 per 5 min per issue.
+   Config: `/etc/chameleon-alerts.env` (BOT_TOKEN + CHAT_IDS).
+
+8. **DB backups** — `scripts/db-backup.sh` daily at 3:00 AM, pg_dump + gzip, 7-day retention.
+   Alerts on backup failure.
 
 ### Deploy
 ```bash
@@ -81,13 +95,17 @@ Post-deploy checks: health API, singbox alive, User API, VPN port 2096, clash AP
 
 ## Resolved Issues Log
 
-### 2026-04-10: Reliability improvements
+### 2026-04-10: Infrastructure stabilization
+- **Cluster auth**: shared secret (Bearer token) on all /api/cluster/* endpoints
+- **Server mesh sync**: vpn_servers table synced via cluster pull/push + UpsertServerByKey
+- **Telegram alerts**: watchdog + health-check.sh send alerts on singbox/chameleon failures
+- **DB backups**: daily pg_dump at 3 AM, 7-day retention, alert on failure
 - **sing-box extracted from docker-compose** → standalone container. Compose can't kill it.
-- **Reality keys moved to DB** — `vpn_servers.reality_private_key` column added. Backend reads from DB at startup.
-- **Deploy script rewritten** — `./deploy.sh <node> [--with-singbox]`, post-deploy health checks.
-- **Watchdog installed** — cron every minute, auto-restarts singbox if down.
-- **short_id fix**: random `bfc55eeb` wasn't in server's allowed list → changed to empty string `""`.
-- **NL keys regenerated**: old pair from separate `sing-box generate` was invalid → regenerated on NL directly.
+- **Reality keys moved to DB** — single source of truth, no more .env key sync issues
+- **Deploy script rewritten** — `./deploy.sh <node> [--with-singbox]`, post-deploy health checks
+- **Watchdog + alerts** — auto-restart singbox + Telegram notification on restart/failure
+- **short_id fix**: random short_ids → empty string (always valid)
+- **NL keys regenerated**: old pair invalid → regenerated on NL directly
 
 ### 2026-04-09: User API + Admin improvements
 - **sing-box fork deployed** (`sing-box-fork:v1.13.6-userapi`) on DE + NL
