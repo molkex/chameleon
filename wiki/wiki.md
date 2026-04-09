@@ -4,27 +4,25 @@
 
 ### Traffic Flow
 ```
-iPhone (sing-box 1.13.6)
+iPhone (libbox 1.13.5)
   ├─ Proxy selector (user picks server)
-  │   ├─ 🇷🇺 Russia → DE  : 185.218.0.43:443  → relay → 162.19.242.30:2096
-  │   ├─ 🇷🇺 Russia → NL  : 185.218.0.43:2098 → relay → 194.135.38.90:2096
-  │   ├─ 🇩🇪 Germany      : 162.19.242.30:2096 (direct)
-  │   ├─ 🇳🇱 Netherlands  : 194.135.38.90:2096 (direct)
-  │   └─ Auto (urltest, 60s interval, 50ms tolerance)
+  │   ├─ 🇩🇪 Germany      : 162.19.242.30:2096 (sing-box server)
+  │   └─ Auto (urltest, 3m interval, 100ms tolerance)
   │
-  ├─ DNS: DoH 1.1.1.1 via Auto (fastest server)
-  └─ Protocol: VLESS Reality TCP, Xray 25.12.8
+  ├─ Route rules: sniff → hijack-dns → clash-direct → QUIC reject → ip_is_private
+  ├─ DNS: DoH 1.1.1.1 (remote), DoH 8.8.8.8 (direct) — no detour in 1.13
+  └─ Protocol: VLESS Reality TCP, sing-box server 1.13.6, SNI: ads.adfox.ru
 ```
 
 ### Servers
-| Server | IP | Xray Port | Network Mode | SSH |
+| Server | IP | VPN Port | VPN Engine | SSH |
 |---|---|---|---|---|
-| DE | 162.19.242.30 | 2096 | host | ubuntu + ChameleonDE2026Secure |
-| NL | 194.135.38.90 | 2096 | host | — |
+| DE | 162.19.242.30 | 2096 | sing-box 1.13.6 | ubuntu + ChameleonDE2026Secure |
+| NL | 194.135.38.90 | 2096 | Xray 25.12.8 | — |
 | SPB Relay | 185.218.0.43 | — (nginx stream) | — | — |
 
 ### Critical Rules
-1. **VPN Server**: sing-box 1.13 (replaced Xray on DE)
+1. **DE VPN Server**: sing-box 1.13.6 (replaced Xray). NL still uses Xray 25.12.8
 2. **SNI**: ads.adfox.ru (DE + relay-de), rutube.ru (NL + relay-nl) — never use google.com/cloudflare.com. ads.x5.ru deprecated (40% timeout). vk.com incompatible with REALITY (works locally but fails from external clients)
 3. **sing-box route rules ORDER**: `{"action":"sniff"}` MUST be first, then `{"protocol":"dns","action":"hijack-dns"}`. Without sniff → DNS loop (packets go through VLESS to TUN address 172.19.0.2:53)
 4. **DNS detour**: NOT needed in sing-box 1.13 — DNS servers go directly by default. `detour:"direct"` on empty direct outbound = error "makes no sense"

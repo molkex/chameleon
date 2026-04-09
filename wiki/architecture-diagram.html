@@ -40,8 +40,8 @@ td { background: #111; }
 <body>
 
 <h1>Chameleon VPN — Architecture Diagram</h1>
-<p style="text-align:center; color:#888; margin-bottom:30px;">Updated 2026-04-08 | libbox 1.13.5 | Xray 25.12.8 | sing-box server 1.13.6 | <strong style="color:#4caf50">WORKING</strong></p>
-<p style="text-align:center; color:#666; font-size:12px;">Stable commit: <code>6038e66</code> — "Fix: downgrade Xray to 25.12.8"</p>
+<p style="text-align:center; color:#888; margin-bottom:30px;">Updated 2026-04-09 | libbox 1.13.5 | sing-box server 1.13.6 (DE) | Go backend | <strong style="color:#4caf50">WORKING</strong></p>
+<p style="text-align:center; color:#666; font-size:12px;">SNI: ads.adfox.ru (DE), rutube.ru (NL) | Route: sniff → hijack-dns → QUIC reject → ip_is_private</p>
 <p style="text-align:center; margin-top:10px;"><a href="how-it-works.html" style="color:#4fc3f7; font-size:16px; font-weight:bold;">📖 How It Works — подробное описание всей системы →</a></p>
 
 <!-- ===== SCHEMA 1: FULL NETWORK TOPOLOGY ===== -->
@@ -75,7 +75,7 @@ td { background: #111; }
   <text x="420" y="125" text-anchor="middle" fill="#fff" font-size="13" font-weight="bold">DE (Germany)</text>
   <text x="420" y="143" text-anchor="middle" fill="#a5d6a7" font-size="9">162.19.242.30</text>
   <text x="355" y="165" fill="#81c784" font-size="10">Backend API :8000</text>
-  <text x="355" y="180" fill="#81c784" font-size="10">Xray (VLESS) :2096</text>
+  <text x="355" y="180" fill="#81c784" font-size="10">sing-box (VLESS) :2096</text>
   <text x="355" y="195" fill="#81c784" font-size="10">Hysteria2    :8443</text>
   <text x="355" y="210" fill="#81c784" font-size="10">PostgreSQL + Redis</text>
 
