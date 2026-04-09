@@ -1,0 +1,10 @@
+# Dockerfile.prebuilt — uses a pre-compiled binary instead of building Go on server.
+# Used on low-RAM servers (NL: 2GB) where Go compilation OOMs.
+# Binary is cross-compiled locally and uploaded by deploy.sh.
+FROM alpine:3.20
+RUN apk add --no-cache ca-certificates tzdata wget docker-cli
+COPY chameleon-linux /usr/local/bin/chameleon
+RUN chmod +x /usr/local/bin/chameleon
+ENTRYPOINT ["chameleon", "--config", "/etc/chameleon/config.yaml"]
+HEALTHCHECK --interval=10s --timeout=3s --retries=3 \
+    CMD wget -qO- http://localhost:8000/health || exit 1
