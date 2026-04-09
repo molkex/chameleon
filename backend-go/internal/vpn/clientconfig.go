@@ -108,15 +108,11 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 		Type: "block",
 		Tag:  "block",
 	}
-	dnsOutbound := clientOutbound{
-		Type: "dns",
-		Tag:  "dns-out",
-	}
-
 	// Assemble all outbounds in correct order.
+	// Note: dns outbound removed in sing-box 1.13 — use route action hijack-dns instead.
 	allOutbounds := []clientOutbound{proxyOutbound, autoOutbound}
 	allOutbounds = append(allOutbounds, serverOutbounds...)
-	allOutbounds = append(allOutbounds, directOutbound, blockOutbound, dnsOutbound)
+	allOutbounds = append(allOutbounds, directOutbound, blockOutbound)
 
 	// Resolve configurable values with defaults.
 	clientMTU := engineCfg.ClientMTU
@@ -211,7 +207,7 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 				},
 				{
 					Protocol: "dns",
-					Outbound: "dns-out",
+					Action:   "hijack-dns",
 				},
 				{
 					Protocol: "quic",
@@ -354,7 +350,8 @@ type clientRoute struct {
 type clientRouteRule struct {
 	ClashMode string `json:"clash_mode,omitempty"`
 	Protocol  string `json:"protocol,omitempty"`
-	Outbound  string `json:"outbound"`
+	Outbound  string `json:"outbound,omitempty"`
+	Action    string `json:"action,omitempty"`
 	NoDrop    *bool  `json:"no_drop,omitempty"`
 }
 
