@@ -223,8 +223,14 @@ func (s *Syncer) syncPeer(ctx context.Context, peer config.PeerConfig) (bool, er
 		return localChanged, fmt.Errorf("query local changes: %w", err)
 	}
 
-	if len(ourUsers) > 0 {
-		if err := s.pushToPeer(ctx, peer, ourUsers); err != nil {
+	ourServers, err := s.db.ServersChangedSince(ctx, since)
+	if err != nil {
+		s.logger.Warn("failed to query local server changes for push", zap.Error(err))
+		ourServers = nil
+	}
+
+	if len(ourUsers) > 0 || len(ourServers) > 0 {
+		if err := s.pushToPeer(ctx, peer, ourUsers, ourServers); err != nil {
 			return localChanged, fmt.Errorf("push: %w", err)
 		}
 	}
@@ -256,6 +262,9 @@ func (s *Syncer) pullFromPeer(ctx context.Context, peer config.PeerConfig, since
 		return nil, fmt.Errorf("create request: %w", err)
 	}
 	req.Header.Set("X-Cluster-Node-ID", s.config.NodeID)
+	if s.config.Secret != "" {
+		req.Header.Set("Authorization", "Bearer "+s.config.Secret)
+	}
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -273,12 +282,30 @@ func (s *Syncer) pullFromPeer(ctx context.Context, peer config.PeerConfig, since
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
 
-	return syncUsersToDBUsers(result.Users), nil
+	users := syncUsersToDBUsers(result.Users)
+
+	// Upsert pulled servers into local DB
+	for _, ss := range result.Servers {
+		srv := syncServerToDBServer(ss)
+		updated, err := s.db.UpsertServerByKey(ctx, &srv)
+		if err != nil {
+			s.logger.Warn("failed to upsert server from peer",
+				zap.String("peer", peer.ID), zap.String("key", ss.Key), zap.Error(err))
+			continue
+		}
+		if updated {
+			s.logger.Info("server synced from peer",
+				zap.String("peer", peer.ID), zap.String("key", ss.Key))
+		}
+	}
+
+	return users, nil
 }
 
-// pushToPeer sends changed users to a peer node.
-func (s *Syncer) pushToPeer(ctx context.Context, peer config.PeerConfig, users []db.User) error {
+// pushToPeer sends changed users and servers to a peer node.
+func (s *Syncer) pushToPeer(ctx context.Context, peer config.PeerConfig, users []db.User, servers []db.VPNServer) error {
 	syncUsers := dbUsersToSyncUsers(users)
+	syncServers := dbServersToSyncServers(servers)
 
 	// Send in batches to avoid massive payloads.
 	for i := 0; i < len(syncUsers); i += maxPushBatchSize {
@@ -287,9 +314,16 @@ func (s *Syncer) pushToPeer(ctx context.Context, peer config.PeerConfig, users [
 			end = len(syncUsers)
 		}
 
+		// Include servers only in the first batch
+		var batchServers []SyncServer
+		if i == 0 {
+			batchServers = syncServers
+		}
+
 		payload := PushRequest{
-			NodeID: s.config.NodeID,
-			Users:  syncUsers[i:end],
+			NodeID:  s.config.NodeID,
+			Users:   syncUsers[i:end],
+			Servers: batchServers,
 		}
 
 		body, err := json.Marshal(payload)
@@ -304,6 +338,9 @@ func (s *Syncer) pushToPeer(ctx context.Context, peer config.PeerConfig, users [
 		}
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("X-Cluster-Node-ID", s.config.NodeID)
+		if s.config.Secret != "" {
+			req.Header.Set("Authorization", "Bearer "+s.config.Secret)
+		}
 
 		resp, err := s.client.Do(req)
 		if err != nil {

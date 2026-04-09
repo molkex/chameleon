@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -187,4 +188,54 @@ func (db *DB) FindLocalServer(ctx context.Context, nodeID string) (*VPNServer, e
 		return nil, fmt.Errorf("invalid node ID: %q", nodeID)
 	}
 	return db.FindServerByKey(ctx, parts[0])
+}
+
+// ServersChangedSince returns all servers with updated_at > since.
+func (db *DB) ServersChangedSince(ctx context.Context, since time.Time) ([]VPNServer, error) {
+	ctx, cancel := defaultTimeout(ctx)
+	defer cancel()
+
+	rows, err := db.Pool.Query(ctx, `
+		SELECT `+serverColumns+`
+		FROM vpn_servers
+		WHERE updated_at > $1
+		ORDER BY id`, since)
+	if err != nil {
+		return nil, err
+	}
+	return scanServers(rows)
+}
+
+// UpsertServerByKey inserts or updates a server by key.
+// Conflict resolution: latest updated_at wins.
+// Returns true if the row was actually modified.
+func (db *DB) UpsertServerByKey(ctx context.Context, s *VPNServer) (bool, error) {
+	ctx, cancel := defaultTimeout(ctx)
+	defer cancel()
+
+	tag, err := db.Pool.Exec(ctx, `
+		INSERT INTO vpn_servers (key, name, flag, host, port, domain, sni,
+			reality_public_key, reality_private_key, is_active, sort_order,
+			provider_name, cost_monthly, provider_url, provider_login, provider_password, notes,
+			updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+		ON CONFLICT (key) DO UPDATE SET
+			name = EXCLUDED.name, flag = EXCLUDED.flag, host = EXCLUDED.host, port = EXCLUDED.port,
+			domain = EXCLUDED.domain, sni = EXCLUDED.sni,
+			reality_public_key = EXCLUDED.reality_public_key, reality_private_key = EXCLUDED.reality_private_key,
+			is_active = EXCLUDED.is_active, sort_order = EXCLUDED.sort_order,
+			provider_name = EXCLUDED.provider_name, cost_monthly = EXCLUDED.cost_monthly,
+			provider_url = EXCLUDED.provider_url, provider_login = EXCLUDED.provider_login,
+			provider_password = EXCLUDED.provider_password, notes = EXCLUDED.notes,
+			updated_at = EXCLUDED.updated_at
+		WHERE vpn_servers.updated_at < EXCLUDED.updated_at`,
+		s.Key, s.Name, s.Flag, s.Host, s.Port, s.Domain, s.SNI,
+		s.RealityPublicKey, s.RealityPrivateKey, s.IsActive, s.SortOrder,
+		s.ProviderName, s.CostMonthly, s.ProviderURL, s.ProviderLogin, s.ProviderPassword, s.Notes,
+		s.UpdatedAt,
+	)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() > 0, nil
 }

@@ -37,16 +37,40 @@ type SyncUser struct {
 	UpdatedAt          time.Time  `json:"updated_at"`
 }
 
+// SyncServer is the wire format for server config exchanged between cluster peers.
+type SyncServer struct {
+	Key               string    `json:"key"`
+	Name              string    `json:"name"`
+	Flag              string    `json:"flag"`
+	Host              string    `json:"host"`
+	Port              int       `json:"port"`
+	Domain            string    `json:"domain"`
+	SNI               string    `json:"sni"`
+	RealityPublicKey  string    `json:"reality_public_key"`
+	RealityPrivateKey string    `json:"reality_private_key"`
+	IsActive          bool      `json:"is_active"`
+	SortOrder         int       `json:"sort_order"`
+	ProviderName      string    `json:"provider_name,omitempty"`
+	CostMonthly       float64   `json:"cost_monthly,omitempty"`
+	ProviderURL       string    `json:"provider_url,omitempty"`
+	ProviderLogin     string    `json:"provider_login,omitempty"`
+	ProviderPassword  string    `json:"provider_password,omitempty"`
+	Notes             string    `json:"notes,omitempty"`
+	UpdatedAt         time.Time `json:"updated_at"`
+}
+
 // PullResponse is returned by GET /api/cluster/pull.
 type PullResponse struct {
-	NodeID string     `json:"node_id"`
-	Users  []SyncUser `json:"users"`
+	NodeID  string       `json:"node_id"`
+	Users   []SyncUser   `json:"users"`
+	Servers []SyncServer `json:"servers,omitempty"`
 }
 
 // PushRequest is sent to POST /api/cluster/push.
 type PushRequest struct {
-	NodeID string     `json:"node_id"`
-	Users  []SyncUser `json:"users"`
+	NodeID  string       `json:"node_id"`
+	Users   []SyncUser   `json:"users"`
+	Servers []SyncServer `json:"servers,omitempty"`
 }
 
 // PushResponse is returned by POST /api/cluster/push.
@@ -127,6 +151,58 @@ func syncUsersToDBUsers(syncUsers []SyncUser) []db.User {
 // strPtr returns a pointer to a string value.
 func strPtr(s string) *string {
 	return &s
+}
+
+// dbServersToSyncServers converts db.VPNServer slice to wire format.
+func dbServersToSyncServers(servers []db.VPNServer) []SyncServer {
+	result := make([]SyncServer, 0, len(servers))
+	for _, s := range servers {
+		result = append(result, SyncServer{
+			Key:               s.Key,
+			Name:              s.Name,
+			Flag:              s.Flag,
+			Host:              s.Host,
+			Port:              s.Port,
+			Domain:            s.Domain,
+			SNI:               s.SNI,
+			RealityPublicKey:  s.RealityPublicKey,
+			RealityPrivateKey: s.RealityPrivateKey,
+			IsActive:          s.IsActive,
+			SortOrder:         s.SortOrder,
+			ProviderName:      s.ProviderName,
+			CostMonthly:       s.CostMonthly,
+			ProviderURL:       s.ProviderURL,
+			ProviderLogin:     s.ProviderLogin,
+			ProviderPassword:  s.ProviderPassword,
+			Notes:             s.Notes,
+			UpdatedAt:         s.UpdatedAt,
+		})
+	}
+	return result
+}
+
+// syncServerToDBServer converts a SyncServer to db.VPNServer.
+func syncServerToDBServer(s SyncServer) db.VPNServer {
+	return db.VPNServer{
+		Key:               s.Key,
+		Name:              s.Name,
+		Flag:              s.Flag,
+		Host:              s.Host,
+		Port:              s.Port,
+		Domain:            s.Domain,
+		SNI:               s.SNI,
+		RealityPublicKey:  s.RealityPublicKey,
+		RealityPrivateKey: s.RealityPrivateKey,
+		IsActive:          s.IsActive,
+		SortOrder:         s.SortOrder,
+		ProviderName:      s.ProviderName,
+		CostMonthly:       s.CostMonthly,
+		ProviderURL:       s.ProviderURL,
+		ProviderLogin:     s.ProviderLogin,
+		ProviderPassword:  s.ProviderPassword,
+		Notes:             s.Notes,
+		UpdatedAt:         s.UpdatedAt,
+	}
 }
 
 // DBUsersToVPNUsers converts a slice of db.User to vpn.VPNUser,

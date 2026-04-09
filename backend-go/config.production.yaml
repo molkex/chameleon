@@ -61,6 +61,7 @@ cluster:
   enabled: false
   # node_id and peers set by deploy.sh per node
   node_id: ""
+  secret: "${CLUSTER_SECRET}"
   sync_interval: "30s"
   reconcile_interval: "5m"
   pubsub_channel: "chameleon:sync"

@@ -92,11 +92,14 @@ ssh "${NODE_SSH}" bash -s -- \
     "${CHAMELEON_ADMIN_JWT_SECRET}" \
     "${CHAMELEON_ADMIN_PASSWORD}" \
     "${CHAMELEON_USER_API_SECRET}" \
+    "${CHAMELEON_CLUSTER_SECRET:-}" \
     "${NODE_NODE_ID}" \
     "${NODE_SNI}" \
     "${NODE_DIR}" \
     "${NODE_PREBUILT}" \
     "${WITH_SINGBOX}" \
+    "${BOT_TOKEN:-}" \
+    "${ADMIN_IDS:-170181045 6668749877}" \
     <<'REMOTE'
 set -euo pipefail
 
@@ -105,11 +108,14 @@ REDIS_PASSWORD="$2"
 JWT_SECRET="$3"
 ADMIN_PASSWORD="$4"
 USER_API_SECRET="$5"
-NODE_ID="$6"
-NODE_SNI="$7"
-REMOTE_DIR="$8"
-PREBUILT="$9"
-WITH_SINGBOX="${10}"
+CLUSTER_SECRET="$6"
+NODE_ID="$7"
+NODE_SNI="$8"
+REMOTE_DIR="$9"
+PREBUILT="${10}"
+WITH_SINGBOX="${11}"
+TG_BOT_TOKEN="${12}"
+TG_CHAT_IDS="${13}"
 
 cd "${REMOTE_DIR}/backend-go"
 
@@ -124,8 +130,19 @@ DB_PASSWORD=${DB_PASSWORD}
 REDIS_PASSWORD=${REDIS_PASSWORD}
 JWT_SECRET=${JWT_SECRET}
 USER_API_SECRET=${USER_API_SECRET}
+CLUSTER_SECRET=${CLUSTER_SECRET}
 EOF
 chmod 600 .env
+
+# Telegram alerts config
+if [ -n "$TG_BOT_TOKEN" ]; then
+    cat > /etc/chameleon-alerts.env <<EOF2
+TELEGRAM_BOT_TOKEN=${TG_BOT_TOKEN}
+TELEGRAM_CHAT_IDS="${TG_CHAT_IDS}"
+EOF2
+    chmod 600 /etc/chameleon-alerts.env
+    echo ">>> Telegram alerts configured"
+fi
 
 # ── Run migration ──────────────────────────────────────────────────────────
 echo ">>> Running DB migrations..."
@@ -188,12 +205,30 @@ if [ "$WITH_SINGBOX" -eq 1 ]; then
 fi
 
 # ── Install watchdog cron (idempotent) ─────────────────────────────────────
+chmod +x "${REMOTE_DIR}/backend-go/scripts/"*.sh 2>/dev/null || true
+
+# Watchdog cron (every minute)
 WATCHDOG="${REMOTE_DIR}/backend-go/scripts/singbox-watchdog.sh"
 if [ -f "$WATCHDOG" ]; then
-    chmod +x "$WATCHDOG"
     CRON_LINE="* * * * * ${WATCHDOG} >> /var/log/singbox-watchdog.log 2>&1"
     (crontab -l 2>/dev/null | grep -v "singbox-watchdog" ; echo "$CRON_LINE") | crontab -
     echo ">>> Watchdog cron installed"
+fi
+
+# Health check cron (every minute)
+HEALTHCHECK="${REMOTE_DIR}/backend-go/scripts/health-check.sh"
+if [ -f "$HEALTHCHECK" ]; then
+    CRON_LINE="* * * * * ${HEALTHCHECK} >> /var/log/chameleon-health.log 2>&1"
+    (crontab -l 2>/dev/null | grep -v "health-check" ; echo "$CRON_LINE") | crontab -
+    echo ">>> Health check cron installed"
+fi
+
+# DB backup cron (daily at 3:00 AM)
+BACKUP="${REMOTE_DIR}/backend-go/scripts/db-backup.sh"
+if [ -f "$BACKUP" ]; then
+    CRON_LINE="0 3 * * * ${BACKUP} >> /var/log/chameleon-backup.log 2>&1"
+    (crontab -l 2>/dev/null | grep -v "db-backup" ; echo "$CRON_LINE") | crontab -
+    echo ">>> DB backup cron installed (daily 3:00 AM)"
 fi
 
 # ── Post-deploy verification ──────────────────────────────────────────────

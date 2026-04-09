@@ -3,9 +3,11 @@
 # Install: crontab -e → * * * * * /path/to/singbox-watchdog.sh >> /var/log/singbox-watchdog.log 2>&1
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CONTAINER="singbox"
 IMAGE="sing-box-fork:v1.13.6-userapi"
 VOLUME="chameleon-singbox-config"
+HOSTNAME=$(hostname -f 2>/dev/null || hostname)
 LOG_PREFIX="[$(date '+%Y-%m-%d %H:%M:%S')]"
 
 # Check if running
@@ -41,7 +43,13 @@ docker run -d \
 sleep 3
 if docker ps --filter "name=${CONTAINER}" --filter "status=running" -q | grep -q .; then
     echo "${LOG_PREFIX} singbox restarted successfully"
+    # Alert: singbox was down but recovered
+    [ -x "$SCRIPT_DIR/telegram-alert.sh" ] && \
+        "$SCRIPT_DIR/telegram-alert.sh" "🟡 <b>$HOSTNAME</b>: singbox was down, watchdog restarted it" || true
 else
     echo "${LOG_PREFIX} ERROR: singbox failed to start!"
     docker logs "$CONTAINER" --tail 10 2>&1
+    # Alert: singbox failed to start
+    [ -x "$SCRIPT_DIR/telegram-alert.sh" ] && \
+        "$SCRIPT_DIR/telegram-alert.sh" "🔴 <b>$HOSTNAME</b>: singbox FAILED to start! Manual intervention needed" || true
 fi

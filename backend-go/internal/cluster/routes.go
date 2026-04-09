@@ -1,7 +1,9 @@
 package cluster
 
 import (
+	"crypto/subtle"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -10,6 +12,26 @@ import (
 	"github.com/chameleonvpn/chameleon/internal/config"
 	"github.com/chameleonvpn/chameleon/internal/db"
 )
+
+// ClusterAuth returns middleware that validates Bearer token for cluster endpoints.
+func ClusterAuth(secret string) echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			if secret == "" {
+				return next(c) // no secret configured, allow all
+			}
+			auth := c.Request().Header.Get("Authorization")
+			if auth == "" {
+				return c.JSON(http.StatusUnauthorized, map[string]string{"error": "missing authorization"})
+			}
+			token := strings.TrimPrefix(auth, "Bearer ")
+			if subtle.ConstantTimeCompare([]byte(token), []byte(secret)) != 1 {
+				return c.JSON(http.StatusForbidden, map[string]string{"error": "invalid cluster secret"})
+			}
+			return next(c)
+		}
+	}
+}
 
 // RegisterRoutes adds internal cluster sync endpoints to the given Echo group.
 // These endpoints are NOT public-facing — they should be accessible only from
@@ -60,7 +82,9 @@ func (h *clusterHandler) handlePull(c echo.Context) error {
 		zap.Time("since", since),
 	)
 
-	users, err := h.db.UsersChangedSince(c.Request().Context(), since)
+	ctx := c.Request().Context()
+
+	users, err := h.db.UsersChangedSince(ctx, since)
 	if err != nil {
 		h.logger.Error("failed to query changed users", zap.Error(err))
 		return c.JSON(http.StatusInternalServerError, map[string]string{
@@ -68,9 +92,17 @@ func (h *clusterHandler) handlePull(c echo.Context) error {
 		})
 	}
 
+	servers, err := h.db.ServersChangedSince(ctx, since)
+	if err != nil {
+		h.logger.Error("failed to query changed servers", zap.Error(err))
+		// Non-fatal: return users without servers
+		servers = nil
+	}
+
 	resp := PullResponse{
-		NodeID: h.config.NodeID,
-		Users:  dbUsersToSyncUsers(users),
+		NodeID:  h.config.NodeID,
+		Users:   dbUsersToSyncUsers(users),
+		Servers: dbServersToSyncServers(servers),
 	}
 
 	h.logger.Debug("pull response",
@@ -117,14 +149,30 @@ func (h *clusterHandler) handlePush(c echo.Context) error {
 		}
 	}
 
+	// Upsert servers
+	var serversApplied int
+	for _, ss := range req.Servers {
+		srv := syncServerToDBServer(ss)
+		updated, err := h.db.UpsertServerByKey(ctx, &srv)
+		if err != nil {
+			h.logger.Error("failed to upsert pushed server", zap.String("key", ss.Key), zap.Error(err))
+			continue
+		}
+		if updated {
+			serversApplied++
+		}
+	}
+
 	h.logger.Info("push complete",
 		zap.String("peer_id", req.NodeID),
-		zap.Int("received", len(req.Users)),
-		zap.Int("applied", applied),
+		zap.Int("users_received", len(req.Users)),
+		zap.Int("users_applied", applied),
+		zap.Int("servers_received", len(req.Servers)),
+		zap.Int("servers_applied", serversApplied),
 	)
 
 	return c.JSON(http.StatusOK, PushResponse{
-		Received: len(req.Users),
-		Applied:  applied,
+		Received: len(req.Users) + len(req.Servers),
+		Applied:  applied + serversApplied,
 	})
 }

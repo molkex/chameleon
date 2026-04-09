@@ -51,6 +51,7 @@ vpn:
 cluster:
   enabled: false
   node_id: ""
+  secret: "${CLUSTER_SECRET}"
   sync_interval: "30s"
   reconcile_interval: "5m"
   pubsub_channel: "chameleon:sync"

@@ -403,7 +403,7 @@ func (h *Handler) queryPeerNodes(ctx context.Context) []nodeResponse {
 		go func(idx int, p config.PeerConfig) {
 			defer wg.Done()
 
-			node, err := fetchPeerStatus(ctx, p.URL)
+			node, err := fetchPeerStatus(ctx, p.URL, h.ClusterSecret)
 			if err != nil {
 				h.Logger.Debug("peer node unreachable",
 					zap.String("peer_id", p.ID),
@@ -490,11 +490,14 @@ func (h *Handler) buildRelayNodes(ctx context.Context) []nodeResponse {
 }
 
 // fetchPeerStatus calls GET /api/cluster/node-status on a peer and decodes the response.
-func fetchPeerStatus(ctx context.Context, peerURL string) (nodeResponse, error) {
+func fetchPeerStatus(ctx context.Context, peerURL string, clusterSecret string) (nodeResponse, error) {
 	url := peerURL + "/api/cluster/node-status"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nodeResponse{}, err
+	}
+	if clusterSecret != "" {
+		req.Header.Set("Authorization", "Bearer "+clusterSecret)
 	}
 
 	resp, err := http.DefaultClient.Do(req)

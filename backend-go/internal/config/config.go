@@ -96,6 +96,7 @@ type ServerEntry struct {
 type ClusterConfig struct {
 	Enabled              bool         `yaml:"enabled"`
 	NodeID               string       `yaml:"node_id"`
+	Secret               string       `yaml:"secret"`                 // shared secret for cluster auth; supports ${ENV_VAR}
 	SyncInterval         Duration     `yaml:"sync_interval"`          // default: 30s
 	ReconcileInterval    Duration     `yaml:"reconcile_interval"`     // default: 5m (full sync fallback)
 	PubSubChannel        string       `yaml:"pubsub_channel"`         // default: "chameleon:sync"
@@ -200,6 +201,9 @@ func (c *Config) resolveAllEnvVars() {
 
 	// VPN User API
 	c.VPN.UserAPISecret = resolveEnvVars(c.VPN.UserAPISecret)
+
+	// Cluster
+	c.Cluster.Secret = resolveEnvVars(c.Cluster.Secret)
 }
 
 // applyDefaults sets sensible default values for fields that were not
@@ -378,6 +382,11 @@ func (c *Config) validate() error {
 	if c.Cluster.Enabled {
 		if c.Cluster.NodeID == "" {
 			ve.add("cluster.node_id", "required when cluster is enabled")
+		}
+		if c.Cluster.Secret == "" {
+			ve.add("cluster.secret", "required when cluster is enabled")
+		} else if len(c.Cluster.Secret) < 32 {
+			ve.add("cluster.secret", "must be at least 32 characters")
 		}
 		if c.Cluster.SyncInterval.Duration <= 0 {
 			ve.add("cluster.sync_interval", "must be a positive duration")

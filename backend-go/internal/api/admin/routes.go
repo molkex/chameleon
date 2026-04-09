@@ -17,12 +17,13 @@ import (
 
 // Handler holds all dependencies needed by admin API handlers.
 type Handler struct {
-	DB     *db.DB
-	Redis  *redis.Client
-	JWT    *auth.JWTManager
-	VPN    vpn.Engine // may be nil if VPN engine is not configured
-	Config *config.Config
-	Logger *zap.Logger
+	DB             *db.DB
+	Redis          *redis.Client
+	JWT            *auth.JWTManager
+	VPN            vpn.Engine // may be nil if VPN engine is not configured
+	Config         *config.Config
+	Logger         *zap.Logger
+	ClusterSecret  string // shared secret for cluster peer requests
 }
 
 // RegisterRoutes adds admin API routes to the echo group.

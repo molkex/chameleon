@@ -134,12 +134,13 @@ func (s *Server) setupRoutes(e *echo.Echo) {
 
 	// Admin API served under /api/v1/admin (React SPA) and /api/admin (legacy).
 	adminHandler := &adminAPI.Handler{
-		DB:     s.DB,
-		Redis:  s.Redis,
-		JWT:    s.JWT,
-		VPN:    s.VPN,
-		Config: s.Config,
-		Logger: s.Logger,
+		DB:            s.DB,
+		Redis:         s.Redis,
+		JWT:           s.JWT,
+		VPN:           s.VPN,
+		Config:        s.Config,
+		Logger:        s.Logger,
+		ClusterSecret: s.Config.Cluster.Secret,
 	}
 
 	// Primary admin routes: /api/v1/admin/* (matches React SPA base path)
@@ -152,9 +153,10 @@ func (s *Server) setupRoutes(e *echo.Echo) {
 	adminLegacy.Use(mw.RateLimit(s.Config.RateLimit.AdminPerMinute))
 	adminAPI.RegisterRoutes(adminLegacy, adminHandler, s.JWT)
 
-	// Cluster sync routes: /api/cluster/* (internal, peer-to-peer)
+	// Cluster sync routes: /api/cluster/* (internal, peer-to-peer, auth required)
 	if s.Config.Cluster.Enabled {
 		clusterGroup := e.Group("/api/cluster")
+		clusterGroup.Use(cluster.ClusterAuth(s.Config.Cluster.Secret))
 		cluster.RegisterRoutes(clusterGroup, s.DB, s.Config.Cluster, s.Logger)
 		// Node status endpoint — used by peers to aggregate cluster view.
 		clusterGroup.GET("/node-status", adminHandler.NodeStatus)
