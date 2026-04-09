@@ -61,12 +61,6 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 					ShortID:   shortID,
 				},
 			},
-			Multiplex: &clientMultiplex{
-				Enabled:  true,
-				Protocol: "h2mux",
-				MaxStreams: 16,
-				Padding:  true,
-			},
 			PacketEncoding: "xudp",
 		}
 
