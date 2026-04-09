@@ -146,27 +146,27 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 		DNS: clientDNSConfig{
 			Servers: []clientDNSServer{
 				{
-					Tag:            "dns-remote",
-					Type:           "https",
-					ServerName:     "cloudflare-dns.com",
-					Address:        dnsRemote,
+					Tag:             "dns-remote",
+					Type:            "https",
+					Server:          "1.1.1.1",
+					ServerName:      "cloudflare-dns.com",
 					AddressResolver: "dns-direct",
-					Strategy:       "ipv4_only",
+					Strategy:        "ipv4_only",
 				},
 				{
-					Tag:            "dns-direct",
-					Type:           "https",
-					Address:        dnsDirect,
-					Strategy:       "ipv4_only",
-					Detour:         "direct",
+					Tag:      "dns-direct",
+					Type:     "https",
+					Server:   "8.8.8.8",
+					Strategy: "ipv4_only",
+					Detour:   "direct",
 				},
 				{
-					Tag:     "dns-fakeip",
-					Type:    "fakeip",
+					Tag:  "dns-fakeip",
+					Type: "fakeip",
 				},
 				{
-					Tag:     "dns-block",
-					Type:    "block",
+					Tag:  "dns-block",
+					Type: "block",
 				},
 			},
 			Rules: []clientDNSRule{
@@ -271,8 +271,8 @@ type clientDNSConfig struct {
 type clientDNSServer struct {
 	Tag             string `json:"tag"`
 	Type            string `json:"type"`
+	Server          string `json:"server,omitempty"`
 	ServerName      string `json:"server_name,omitempty"`
-	Address         string `json:"address,omitempty"`
 	AddressResolver string `json:"address_resolver,omitempty"`
 	Strategy        string `json:"strategy,omitempty"`
 	Detour          string `json:"detour,omitempty"`
