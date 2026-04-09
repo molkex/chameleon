@@ -130,6 +130,7 @@ CREATE TABLE IF NOT EXISTS admin_audit_log (
 
 -- Indexes
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_vpn_username ON users (vpn_username) WHERE vpn_username IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_vpn_uuid ON users (vpn_uuid) WHERE vpn_uuid IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_sub_token ON users (subscription_token) WHERE subscription_token IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_activation_code ON users (activation_code) WHERE activation_code IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_original_txn_id ON users (original_transaction_id) WHERE original_transaction_id IS NOT NULL;

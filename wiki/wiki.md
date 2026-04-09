@@ -18,11 +18,11 @@ iPhone (libbox 1.13.5)
 | Server | IP | VPN Port | VPN Engine | SSH |
 |---|---|---|---|---|
 | DE | 162.19.242.30 | 2096 | sing-box 1.13.6 | ubuntu + ChameleonDE2026Secure |
-| NL | 194.135.38.90 | 2096 | Xray 25.12.8 | — |
+| NL | 194.135.38.90 | 2096 | sing-box 1.13.6 | root (key auth) |
 | SPB Relay | 185.218.0.43 | — (nginx stream) | — | — |
 
 ### Critical Rules
-1. **DE VPN Server**: sing-box 1.13.6 (replaced Xray). NL still uses Xray 25.12.8
+1. **Both nodes**: sing-box 1.13.6 on DE + NL. Cluster sync enabled (HTTP reconciliation every 5m)
 2. **SNI**: ads.adfox.ru (DE + relay-de), rutube.ru (NL + relay-nl) — never use google.com/cloudflare.com. ads.x5.ru deprecated (40% timeout). vk.com incompatible with REALITY (works locally but fails from external clients)
 3. **sing-box route rules ORDER**: `{"action":"sniff"}` MUST be first, then `{"protocol":"dns","action":"hijack-dns"}`. Without sniff → DNS loop (packets go through VLESS to TUN address 172.19.0.2:53)
 4. **DNS detour**: NOT needed in sing-box 1.13 — DNS servers go directly by default. `detour:"direct"` on empty direct outbound = error "makes no sense"
@@ -71,10 +71,11 @@ iPhone (libbox 1.13.5)
 | `log: "debug"` | VPN не стартует или OOM | Extension убивается системой из-за объёма логов |
 
 ### Следующие шаги
-1. **Деплой NL** — развернуть Go backend + sing-box на NL (194.135.38.90), сгенерировать Reality ключи
-2. **Кластер** — включить cluster sync между DE и NL (peers в config.yaml)
-3. **Relay** — обновить SNI для NL/relay-nl в БД, протестировать SPB relay
+1. ~~**Деплой NL**~~ ✓ Go backend + sing-box 1.13.6 на NL (194.135.38.90)
+2. ~~**Кластер**~~ ✓ cluster sync работает DE ↔ NL (users синхронизированы)
+3. **Relay** — протестировать SPB relay (relay-de :443, relay-nl :2098)
 4. **Admin panel** — добавить поле reality_public_key в UI серверов
+5. **Nginx на NL** — собрать admin SPA (сейчас нет nginx, только API)
 
 ## Resolved Issues Log
 
