@@ -130,6 +130,10 @@ func (s *Server) setupRoutes(e *echo.Echo) {
 	mobileV1.Use(mw.RateLimit(s.Config.RateLimit.MobilePerMinute))
 	mobile.RegisterRoutes(mobileV1, mobileHandler)
 
+	// Subscription link: /sub/:token/:mode (legacy config download)
+	e.GET("/sub/:token/:mode", mobileHandler.GetConfigLegacy)
+	e.GET("/sub/:token", mobileHandler.GetConfigLegacy)
+
 	// Admin API served under /api/v1/admin (React SPA) and /api/admin (legacy).
 	adminHandler := &adminAPI.Handler{
 		DB:     s.DB,

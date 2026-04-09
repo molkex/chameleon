@@ -47,6 +47,7 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 			Server:     srv.Host,
 			ServerPort: srv.Port,
 			UUID:       user.UUID,
+			Flow:       "xtls-rprx-vision",
 			TLS: &clientTLS{
 				Enabled:    true,
 				ServerName: sni,
@@ -307,6 +308,7 @@ type clientOutbound struct {
 	Server                    string           `json:"server,omitempty"`
 	ServerPort                int              `json:"server_port,omitempty"`
 	UUID                      string           `json:"uuid,omitempty"`
+	Flow                      string           `json:"flow,omitempty"`
 	TLS                       *clientTLS       `json:"tls,omitempty"`
 	Multiplex                 *clientMultiplex `json:"multiplex,omitempty"`
 	PacketEncoding            string           `json:"packet_encoding,omitempty"`

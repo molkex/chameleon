@@ -30,7 +30,7 @@ type Handler struct {
 //
 //	POST /auth/register        — device-based registration (no auth required)
 //	POST /auth/apple           — Apple Sign-In (no auth required)
-//	GET  /config               — VPN client config (auth required)
+//	GET  /config               — VPN client config (by username query param, no JWT)
 //	POST /subscription/verify  — App Store subscription verification (auth required)
 func RegisterRoutes(g *echo.Group, h *Handler) {
 	// Auth endpoints — no JWT required.
@@ -38,10 +38,11 @@ func RegisterRoutes(g *echo.Group, h *Handler) {
 	authGroup.POST("/register", h.Register)
 	authGroup.POST("/apple", h.AppleSignIn)
 
+	// Config endpoint — no JWT, uses username query param.
+	g.GET("/config", h.GetConfig)
+
 	// Protected endpoints — require valid JWT.
 	requireAuth := auth.RequireAuth(h.JWT)
-
-	g.GET("/config", h.GetConfig, requireAuth)
 
 	subGroup := g.Group("/subscription", requireAuth)
 	subGroup.POST("/verify", h.VerifySubscription)

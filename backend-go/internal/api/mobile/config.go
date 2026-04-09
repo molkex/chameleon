@@ -1,40 +1,36 @@
 package mobile
 
 import (
-	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 
-	"github.com/chameleonvpn/chameleon/internal/auth"
 	"github.com/chameleonvpn/chameleon/internal/vpn"
 )
 
-// ConfigResponse wraps the generated sing-box client config.
-type ConfigResponse struct {
-	Config             json.RawMessage `json:"config"`
-	SubscriptionExpiry *int64          `json:"subscription_expiry,omitempty"` // unix timestamp, nil if no subscription
-}
-
-// GetConfig handles GET /api/mobile/config.
+// GetConfig handles GET /api/mobile/config and GET /api/v1/mobile/config.
 //
-// It requires a valid JWT in the Authorization header, loads the user's data,
-// fetches active servers from the DB, and generates a sing-box client config
-// via the VPN engine.
+// Query params:
+//   - username: vpn_username (required)
+//   - mode: ignored (kept for compatibility)
+//
+// Returns raw sing-box client config JSON with X-Expire header.
+// No JWT required — user is identified by vpn_username query param.
 func (h *Handler) GetConfig(c echo.Context) error {
-	claims := auth.GetUserFromContext(c)
-	if claims == nil {
-		return c.JSON(http.StatusUnauthorized, ErrorResponse{Error: "unauthorized"})
+	username := c.QueryParam("username")
+	if username == "" {
+		return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "username query parameter is required"})
 	}
 
 	ctx := c.Request().Context()
 
-	// Load user from DB.
-	user, err := h.DB.FindUserByID(ctx, claims.UserID)
+	// Load user from DB by vpn_username.
+	user, err := h.DB.FindUserByVPNUsername(ctx, username)
 	if err != nil {
-		h.Logger.Error("db: find user by id", zap.Error(err), zap.Int64("user_id", claims.UserID))
+		h.Logger.Error("db: find user by vpn_username", zap.Error(err), zap.String("username", username))
 		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
 	}
 	if user == nil {
@@ -44,11 +40,6 @@ func (h *Handler) GetConfig(c echo.Context) error {
 	// Check if user is active.
 	if !user.IsActive {
 		return c.JSON(http.StatusForbidden, ErrorResponse{Error: "account is deactivated"})
-	}
-
-	// Check subscription expiry.
-	if user.SubscriptionExpiry != nil && user.SubscriptionExpiry.Before(time.Now()) {
-		return c.JSON(http.StatusForbidden, ErrorResponse{Error: "subscription expired"})
 	}
 
 	// Verify VPN credentials exist.
@@ -103,14 +94,76 @@ func (h *Handler) GetConfig(c echo.Context) error {
 		zap.Int("servers", len(serverEntries)),
 	)
 
-	var subExpiry *int64
+	// Set X-Expire header (unix timestamp).
 	if user.SubscriptionExpiry != nil {
-		ts := user.SubscriptionExpiry.Unix()
-		subExpiry = &ts
+		c.Response().Header().Set("X-Expire", fmt.Sprintf("%d", user.SubscriptionExpiry.Unix()))
 	}
 
-	return c.JSON(http.StatusOK, ConfigResponse{
-		Config:             configJSON,
-		SubscriptionExpiry: subExpiry,
-	})
+	// Return raw sing-box config JSON (not wrapped).
+	return c.Blob(http.StatusOK, "application/json", configJSON)
+}
+
+// GetConfigLegacy handles GET /sub/:token/:mode for subscription link compatibility.
+func (h *Handler) GetConfigLegacy(c echo.Context) error {
+	token := c.Param("token")
+	if token == "" {
+		return c.String(http.StatusBadRequest, "missing token")
+	}
+
+	ctx := c.Request().Context()
+
+	user, err := h.DB.FindUserBySubscriptionToken(ctx, token)
+	if err != nil {
+		h.Logger.Error("db: find user by subscription token", zap.Error(err))
+		return c.String(http.StatusInternalServerError, "internal server error")
+	}
+	if user == nil {
+		return c.String(http.StatusNotFound, "invalid subscription link")
+	}
+
+	if !user.IsActive {
+		return c.String(http.StatusForbidden, "account deactivated")
+	}
+	if user.SubscriptionExpiry != nil && user.SubscriptionExpiry.Before(time.Now()) {
+		return c.String(http.StatusForbidden, "subscription expired")
+	}
+	if user.VPNUsername == nil || user.VPNUUID == nil {
+		return c.String(http.StatusConflict, "no vpn credentials")
+	}
+	if h.VPN == nil {
+		return c.String(http.StatusServiceUnavailable, "vpn engine not available")
+	}
+
+	servers, err := h.DB.ListActiveServers(ctx)
+	if err != nil {
+		return c.String(http.StatusInternalServerError, "internal server error")
+	}
+
+	serverEntries := make([]vpn.ServerEntry, 0, len(servers))
+	for _, s := range servers {
+		serverEntries = append(serverEntries, vpn.ServerEntry{
+			Key: s.Key, Name: s.Name, Host: s.Host,
+			Port: s.Port, Flag: s.Flag, SNI: s.SNI,
+		})
+	}
+
+	shortID := ""
+	if user.VPNShortID != nil {
+		shortID = *user.VPNShortID
+	}
+
+	configJSON, err := h.VPN.GenerateClientConfig(vpn.VPNUser{
+		Username: *user.VPNUsername,
+		UUID:     *user.VPNUUID,
+		ShortID:  shortID,
+	}, serverEntries)
+	if err != nil {
+		return c.String(http.StatusInternalServerError, "config generation failed")
+	}
+
+	if user.SubscriptionExpiry != nil {
+		c.Response().Header().Set("X-Expire", fmt.Sprintf("%d", user.SubscriptionExpiry.Unix()))
+	}
+
+	return c.Blob(http.StatusOK, "application/json", configJSON)
 }
