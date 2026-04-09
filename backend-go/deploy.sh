@@ -74,7 +74,6 @@ echo ">>> Syncing files to ${NODE_SSH}:${NODE_DIR}..."
 rsync -avz --delete \
     --exclude='.git' \
     --exclude='backend-go/chameleon' \
-    --exclude='backend-go/chameleon-linux' \
     --exclude='.env' \
     --exclude='backend-go/.env' \
     --exclude='backend-go/config.yaml' \
@@ -124,6 +123,15 @@ cp config.production.yaml config.yaml
 sed -i "s/node_id: \"\"/node_id: \"${NODE_ID}\"/" config.yaml
 sed -i "s/default: \"ads.adfox.ru\"/default: \"${NODE_SNI}\"/" config.yaml
 
+# Set cluster peers (each node points to all other nodes)
+case "$NODE_ID" in
+    de-1) PEER_BLOCK='  peers:\n    - id: "nl-1"\n      url: "http://194.135.38.90:8000"' ;;
+    nl-1) PEER_BLOCK='  peers:\n    - id: "de-1"\n      url: "http://162.19.242.30:8000"' ;;
+    *) PEER_BLOCK='  peers: []' ;;
+esac
+sed -i "s|  peers: \[\]|${PEER_BLOCK}|" config.yaml
+echo ">>> Cluster sync enabled (node=${NODE_ID}, peers configured)"
+
 # .env — Reality keys are in DB now, not here
 cat > .env <<EOF
 DB_PASSWORD=${DB_PASSWORD}
@@ -136,11 +144,10 @@ chmod 600 .env
 
 # Telegram alerts config
 if [ -n "$TG_BOT_TOKEN" ]; then
-    cat > /etc/chameleon-alerts.env <<EOF2
-TELEGRAM_BOT_TOKEN=${TG_BOT_TOKEN}
-TELEGRAM_CHAT_IDS="${TG_CHAT_IDS}"
-EOF2
-    chmod 600 /etc/chameleon-alerts.env
+    printf 'TELEGRAM_BOT_TOKEN=%s\nTELEGRAM_CHAT_IDS="%s"\n' \
+        "${TG_BOT_TOKEN}" "${TG_CHAT_IDS}" \
+        | sudo tee /etc/chameleon-alerts.env > /dev/null
+    sudo chmod 600 /etc/chameleon-alerts.env
     echo ">>> Telegram alerts configured"
 fi
 

@@ -58,7 +58,7 @@ vpn:
   # Servers are loaded from the database (vpn_servers table).
 
 cluster:
-  enabled: false
+  enabled: true
   # node_id and peers set by deploy.sh per node
   node_id: ""
   secret: "${CLUSTER_SECRET}"
