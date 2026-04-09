@@ -44,7 +44,8 @@ type VPNServer struct {
 	Port             int       `db:"port"               json:"port"`
 	Domain           string    `db:"domain"             json:"domain"`
 	SNI              string    `db:"sni"                json:"sni"`
-	RealityPublicKey string    `db:"reality_public_key" json:"reality_public_key"`
+	RealityPublicKey  string    `db:"reality_public_key"  json:"reality_public_key"`
+	RealityPrivateKey string    `db:"reality_private_key" json:"-"`
 	IsActive         bool      `db:"is_active"          json:"is_active"`
 	SortOrder        int       `db:"sort_order"         json:"sort_order"`
 	ProviderName     string    `db:"provider_name"      json:"provider_name"`

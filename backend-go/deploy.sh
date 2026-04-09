@@ -1,20 +1,23 @@
 #!/bin/bash
 # Chameleon VPN — Deploy Go backend to any node
-# Usage: ./deploy.sh <node>
-#   node: de, nl (or any key defined below)
+# Usage: ./deploy.sh <node> [--with-singbox]
+#   node: de, nl, all
+#   --with-singbox: also restart singbox (causes brief VPN drop!)
 #
-# Each node is an autonomous instance: Go backend + sing-box + PostgreSQL + Redis.
-# Secrets are read from ~/.secrets.env on the local machine.
-#
-# Low-RAM servers (marked with NODE_PREBUILT=1) get a locally cross-compiled
-# binary instead of building Go inside Docker on the server.
+# sing-box runs OUTSIDE docker-compose as a standalone container.
+# Normal deploys NEVER touch singbox — VPN connections survive.
 set -euo pipefail
 
 NODE="${1:-}"
+WITH_SINGBOX=0
+for arg in "$@"; do
+    [ "$arg" = "--with-singbox" ] && WITH_SINGBOX=1
+done
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# ── Node registry (compatible with bash 3.2+) ─────────────────────────────
+# ── Node registry ─────────────────────────────────────────────────────────
 get_node_config() {
     case "$1" in
         de)
@@ -31,9 +34,13 @@ get_node_config() {
             NODE_SNI="ads.adfox.ru"
             NODE_PREBUILT=1  # 2GB RAM — can't compile Go in Docker
             ;;
+        all)
+            "$0" de "${@:2}"
+            "$0" nl "${@:2}"
+            exit 0
+            ;;
         *)
-            echo "Usage: $0 <node>"
-            echo "Available nodes: de nl"
+            echo "Usage: $0 <de|nl|all> [--with-singbox]"
             exit 1
             ;;
     esac
@@ -41,17 +48,15 @@ get_node_config() {
 
 get_node_config "$NODE"
 
-echo "=== Deploying Chameleon to ${NODE} (${NODE_SSH}) ==="
+echo ""
+echo "╔══════════════════════════════════════════════════════╗"
+echo "║  Deploying Chameleon to ${NODE} (${NODE_SSH})"
+[ "$WITH_SINGBOX" -eq 1 ] && echo "║  ⚠  --with-singbox: will restart VPN!"
+echo "╚══════════════════════════════════════════════════════╝"
+echo ""
 
 # ── Load secrets ───────────────────────────────────────────────────────────
 source ~/.secrets.env
-
-# Node-specific Reality keys (fallback to shared keys)
-NODE_UPPER=$(echo "$NODE" | tr '[:lower:]' '[:upper:]')
-PRIV_VAR="CHAMELEON_REALITY_PRIVATE_KEY_${NODE_UPPER}"
-PUB_VAR="CHAMELEON_REALITY_PUBLIC_KEY_${NODE_UPPER}"
-REALITY_PRIV="${!PRIV_VAR:-${CHAMELEON_REALITY_PRIVATE_KEY}}"
-REALITY_PUB="${!PUB_VAR:-${CHAMELEON_REALITY_PUBLIC_KEY}}"
 
 # ── Cross-compile if needed ────────────────────────────────────────────────
 if [ "$NODE_PREBUILT" -eq 1 ]; then
@@ -85,71 +90,77 @@ ssh "${NODE_SSH}" bash -s -- \
     "${CHAMELEON_DB_PASSWORD}" \
     "${CHAMELEON_REDIS_PASSWORD}" \
     "${CHAMELEON_ADMIN_JWT_SECRET}" \
-    "${REALITY_PRIV}" \
-    "${REALITY_PUB}" \
     "${CHAMELEON_ADMIN_PASSWORD}" \
+    "${CHAMELEON_USER_API_SECRET}" \
     "${NODE_NODE_ID}" \
     "${NODE_SNI}" \
     "${NODE_DIR}" \
     "${NODE_PREBUILT}" \
+    "${WITH_SINGBOX}" \
     <<'REMOTE'
 set -euo pipefail
 
 DB_PASSWORD="$1"
 REDIS_PASSWORD="$2"
 JWT_SECRET="$3"
-REALITY_PRIVATE_KEY="$4"
-REALITY_PUBLIC_KEY="$5"
-ADMIN_PASSWORD="$6"
-NODE_ID="$7"
-NODE_SNI="$8"
-REMOTE_DIR="$9"
-PREBUILT="${10}"
+ADMIN_PASSWORD="$4"
+USER_API_SECRET="$5"
+NODE_ID="$6"
+NODE_SNI="$7"
+REMOTE_DIR="$8"
+PREBUILT="$9"
+WITH_SINGBOX="${10}"
 
 cd "${REMOTE_DIR}/backend-go"
 
-# Generate config.yaml from template with node-specific values
+# ── Config ─────────────────────────────────────────────────────────────────
 cp config.production.yaml config.yaml
 sed -i "s/node_id: \"\"/node_id: \"${NODE_ID}\"/" config.yaml
 sed -i "s/default: \"ads.adfox.ru\"/default: \"${NODE_SNI}\"/" config.yaml
 
-# Create .env with secrets (docker-compose reads this)
+# .env — Reality keys are in DB now, not here
 cat > .env <<EOF
 DB_PASSWORD=${DB_PASSWORD}
 REDIS_PASSWORD=${REDIS_PASSWORD}
 JWT_SECRET=${JWT_SECRET}
-REALITY_PRIVATE_KEY=${REALITY_PRIVATE_KEY}
-REALITY_PUBLIC_KEY=${REALITY_PUBLIC_KEY}
+USER_API_SECRET=${USER_API_SECRET}
 EOF
 chmod 600 .env
 
-# Ensure Docker volumes exist
+# ── Run migration ──────────────────────────────────────────────────────────
+echo ">>> Running DB migrations..."
+for f in migrations/002_*.sql; do
+    [ -f "$f" ] && docker exec -i chameleon-postgres psql -U chameleon -d chameleon < "$f" 2>/dev/null && echo "    Applied: $f"
+done
+
+# ── Docker volumes ─────────────────────────────────────────────────────────
 docker volume create chameleon-pgdata 2>/dev/null || true
 docker volume create chameleon-redisdata 2>/dev/null || true
+docker volume create chameleon-singbox-config 2>/dev/null || true
 
-# Build chameleon image
+# ── Build chameleon ────────────────────────────────────────────────────────
 if [ "$PREBUILT" -eq 1 ]; then
     echo ">>> Building from pre-compiled binary..."
     docker build -f Dockerfile.prebuilt -t backend-go-chameleon . 2>&1 | tail -3
 else
     echo ">>> Building from source..."
-    docker compose build --no-cache chameleon 2>&1 | tail -5
+    docker compose build chameleon 2>&1 | tail -5
 fi
 
-# Build nginx (admin SPA) — skip if OOM-prone and image exists
-if docker image inspect backend-go-nginx >/dev/null 2>&1; then
+# ── Build nginx (skip if exists) ───────────────────────────────────────────
+if docker image inspect backend-go-nginx >/dev/null 2>&1 || docker image inspect chameleon-nginx >/dev/null 2>&1; then
     echo ">>> Nginx image exists, skipping rebuild"
 else
     echo ">>> Building nginx (admin SPA)..."
     docker compose build nginx 2>&1 | tail -5
 fi
 
-# Start services (--no-deps to avoid restarting singbox and killing VPN connections)
-echo ">>> Starting services..."
+# ── Restart chameleon ONLY (singbox is standalone, compose can't touch it) ─
+echo ">>> Starting chameleon + nginx..."
 docker compose up -d --no-deps chameleon
 docker compose up -d nginx
 
-# Wait for backend health
+# ── Wait for health ────────────────────────────────────────────────────────
 echo ">>> Waiting for backend health..."
 for i in $(seq 1 90); do
     if wget -qO- http://localhost:8000/health 2>/dev/null | grep -q '"status"'; then
@@ -164,16 +175,70 @@ for i in $(seq 1 90); do
     sleep 1
 done
 
-# Create admin user (idempotent)
-echo ">>> Creating admin user..."
+# ── Create admin user (idempotent) ─────────────────────────────────────────
 docker compose exec -T chameleon chameleon admin create \
     --config /etc/chameleon/config.yaml \
-    --username admin \
-    --password "${ADMIN_PASSWORD}" \
-    --role admin 2>/dev/null || echo "(admin may already exist)"
+    --username admin --password "${ADMIN_PASSWORD}" --role admin 2>/dev/null || true
 
+# ── Singbox (only if --with-singbox) ───────────────────────────────────────
+if [ "$WITH_SINGBOX" -eq 1 ]; then
+    echo ">>> Restarting singbox (VPN will briefly drop)..."
+    chmod +x scripts/singbox-run.sh
+    ./scripts/singbox-run.sh --force
+fi
+
+# ── Install watchdog cron (idempotent) ─────────────────────────────────────
+WATCHDOG="${REMOTE_DIR}/backend-go/scripts/singbox-watchdog.sh"
+if [ -f "$WATCHDOG" ]; then
+    chmod +x "$WATCHDOG"
+    CRON_LINE="* * * * * ${WATCHDOG} >> /var/log/singbox-watchdog.log 2>&1"
+    (crontab -l 2>/dev/null | grep -v "singbox-watchdog" ; echo "$CRON_LINE") | crontab -
+    echo ">>> Watchdog cron installed"
+fi
+
+# ── Post-deploy verification ──────────────────────────────────────────────
+echo ""
+echo "╔═══ POST-DEPLOY CHECKS ═══╗"
+
+# Check chameleon
+if wget -qO- http://localhost:8000/health 2>/dev/null | grep -q '"status":"ok"'; then
+    echo "║ ✓ Chameleon API: OK"
+else
+    echo "║ ✗ Chameleon API: FAIL"
+fi
+
+# Check singbox container
+if docker ps --filter "name=singbox" --filter "status=running" -q | grep -q .; then
+    echo "║ ✓ Singbox container: RUNNING"
+else
+    echo "║ ✗ Singbox container: NOT RUNNING"
+    echo "║   Run: ./scripts/singbox-run.sh"
+fi
+
+# Check User API
+if curl -sf http://127.0.0.1:15380/api/v1/inbounds -o /dev/null 2>/dev/null; then
+    echo "║ ✓ User API (15380): OK"
+else
+    echo "║ ✗ User API (15380): NOT RESPONDING"
+fi
+
+# Check VPN port
+if ss -tlnp 2>/dev/null | grep -q ':2096' || netstat -tlnp 2>/dev/null | grep -q ':2096'; then
+    echo "║ ✓ VPN port 2096: LISTENING"
+else
+    echo "║ ✗ VPN port 2096: NOT LISTENING"
+fi
+
+# Check clash API
+if curl -sf http://127.0.0.1:9090/ -o /dev/null 2>/dev/null; then
+    echo "║ ✓ Clash API (9090): OK"
+else
+    echo "║ ✗ Clash API (9090): NOT RESPONDING"
+fi
+
+echo "╚══════════════════════════╝"
+echo ""
 echo ">>> Deploy complete!"
-docker compose ps
 REMOTE
 
 # Cleanup local binary

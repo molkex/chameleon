@@ -154,11 +154,39 @@ func run() error {
 		sni = "www.microsoft.com"
 	}
 
+	// Load Reality keys: prefer DB (single source of truth), fall back to config/env.
+	realityPrivateKey := cfg.VPN.Reality.PrivateKey
+	realityPublicKey := cfg.VPN.Reality.PublicKey
+
+	if cfg.Cluster.NodeID != "" {
+		localServer, err := database.FindLocalServer(ctx, cfg.Cluster.NodeID)
+		if err != nil {
+			logger.Warn("failed to find local server in DB, using config keys",
+				zap.String("node_id", cfg.Cluster.NodeID), zap.Error(err))
+		} else if localServer != nil {
+			if localServer.RealityPrivateKey != "" {
+				realityPrivateKey = localServer.RealityPrivateKey
+				logger.Info("loaded Reality private key from DB", zap.String("server_key", localServer.Key))
+			}
+			if localServer.RealityPublicKey != "" {
+				realityPublicKey = localServer.RealityPublicKey
+				logger.Info("loaded Reality public key from DB", zap.String("server_key", localServer.Key))
+			}
+			if localServer.SNI != "" && sni == "www.microsoft.com" {
+				sni = localServer.SNI
+			}
+		}
+	}
+
+	if realityPrivateKey == "" {
+		return fmt.Errorf("reality private key not found — set it in vpn_servers DB table or REALITY_PRIVATE_KEY env var")
+	}
+
 	engineCfg := vpn.EngineConfig{
 		ListenPort: cfg.VPN.ListenPort,
 		Reality: vpn.RealityConfig{
-			PrivateKey: cfg.VPN.Reality.PrivateKey,
-			PublicKey:  cfg.VPN.Reality.PublicKey,
+			PrivateKey: realityPrivateKey,
+			PublicKey:  realityPublicKey,
 			ShortIDs:   cfg.VPN.Reality.ShortIDs,
 			SNI:        sni,
 		},

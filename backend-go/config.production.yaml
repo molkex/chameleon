@@ -32,8 +32,12 @@ vpn:
   dns_direct: "https://8.8.8.8/dns-query"
   urltest_interval: "3m"
   clash_api_port: 9090
+  user_api_port: 15380
+  user_api_secret: "${USER_API_SECRET}"
 
   reality:
+    # Keys loaded from vpn_servers DB table at startup (per-node).
+    # Env var fallback: REALITY_PRIVATE_KEY, REALITY_PUBLIC_KEY (deprecated).
     private_key: "${REALITY_PRIVATE_KEY}"
     public_key: "${REALITY_PUBLIC_KEY}"
     short_ids:

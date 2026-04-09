@@ -143,8 +143,9 @@ CREATE INDEX IF NOT EXISTS idx_traffic_ts ON traffic_snapshots (timestamp);
 CREATE INDEX IF NOT EXISTS idx_audit_log_created ON admin_audit_log (created_at);
 CREATE INDEX IF NOT EXISTS idx_node_metrics_time ON node_metrics_history (node_key, recorded_at);
 
--- Add reality_public_key column (each node has its own Reality key pair).
+-- Add reality key columns (each node has its own Reality key pair).
 ALTER TABLE vpn_servers ADD COLUMN IF NOT EXISTS reality_public_key VARCHAR(255) DEFAULT '';
+ALTER TABLE vpn_servers ADD COLUMN IF NOT EXISTS reality_private_key VARCHAR(255) DEFAULT '';
 
 -- Seed default VPN servers (skip if already exist)
 INSERT INTO vpn_servers (key, name, flag, host, port, domain, sni, is_active, sort_order) VALUES
