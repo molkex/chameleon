@@ -3,7 +3,6 @@ package vpn
 import (
 	"encoding/json"
 	"fmt"
-	"time"
 )
 
 // generateClientConfig creates a sing-box client config JSON for iOS/macOS.
@@ -136,60 +135,32 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 		DNS: clientDNSConfig{
 			Servers: []clientDNSServer{
 				{
-					Tag:             "dns-remote",
-					Type:            "https",
-					Server:          "1.1.1.1",
-					ServerName:      "cloudflare-dns.com",
-					AddressResolver: "dns-direct",
-					Strategy:        "ipv4_only",
+					Tag:    "dns-remote",
+					Type:   "https",
+					Server: "1.1.1.1",
 				},
 				{
-					Tag:      "dns-direct",
-					Type:     "https",
-					Server:   "8.8.8.8",
-					Strategy: "ipv4_only",
-					Detour:   "direct",
+					Tag:    "dns-direct",
+					Type:   "https",
+					Server: "8.8.8.8",
+					Detour: "direct",
 				},
 				{
-					Tag:  "dns-fakeip",
-					Type: "fakeip",
+					Tag:        "dns-fakeip",
+					Type:       "fakeip",
+					Inet4Range: "198.18.0.0/15",
 				},
-				{
-					Tag:  "dns-block",
-					Type: "block",
-				},
-			},
-			Rules: []clientDNSRule{
-				{
-					ClashMode: "Direct",
-					Server:    "dns-direct",
-				},
-				{
-					QueryType: []string{"AAAA"},
-					Server:    "dns-block",
-				},
-				{
-					Outbound: []string{"any"},
-					Server:   "dns-direct",
-				},
-			},
-			FakeIP: &clientFakeIP{
-				Enabled:    true,
-				Inet4Range: "198.18.0.0/15",
 			},
 			IndependentCache: true,
 		},
 		Inbounds: []clientInbound{
 			{
-				Type:              "tun",
-				Tag:               "tun-in",
-				Inet4Address:      "172.19.0.1/30",
-				MTU:               clientMTU,
-				AutoRoute:         true,
-				StrictRoute:       true,
-				Stack:             "system",
-				Sniff:             boolPtr(true),
-				SniffOverrideDestination: boolPtr(false),
+				Type:      "tun",
+				Tag:       "tun-in",
+				Address:   []string{"172.19.0.1/30"},
+				MTU:       clientMTU,
+				AutoRoute: true,
+				Stack:     "system",
 			},
 		},
 		Outbounds: allOutbounds,
@@ -208,18 +179,11 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 					Outbound: "block",
 				},
 			},
-			AutoDetectInterface: true,
 			DefaultDomainResolver: &clientDomainResolver{
 				Server:   "dns-remote",
 				Strategy: "ipv4_only",
 			},
 		},
-		Experimental: &clientExperimental{
-			ClashAPI: &clientClashAPI{
-				ExternalController: fmt.Sprintf("127.0.0.1:%d", clashAPIPort),
-			},
-		},
-		ConfigVersion: time.Now().Unix(),
 	}
 
 	data, err := json.MarshalIndent(config, "", "  ")
@@ -265,6 +229,7 @@ type clientDNSServer struct {
 	AddressResolver string `json:"address_resolver,omitempty"`
 	Strategy        string `json:"strategy,omitempty"`
 	Detour          string `json:"detour,omitempty"`
+	Inet4Range      string `json:"inet4_range,omitempty"`
 }
 
 type clientDNSRule struct {
@@ -280,15 +245,12 @@ type clientFakeIP struct {
 }
 
 type clientInbound struct {
-	Type                     string `json:"type"`
-	Tag                      string `json:"tag"`
-	Inet4Address             string `json:"inet4_address,omitempty"`
-	MTU                      int    `json:"mtu,omitempty"`
-	AutoRoute                bool   `json:"auto_route,omitempty"`
-	StrictRoute              bool   `json:"strict_route,omitempty"`
-	Stack                    string `json:"stack,omitempty"`
-	Sniff                    *bool  `json:"sniff,omitempty"`
-	SniffOverrideDestination *bool  `json:"sniff_override_destination,omitempty"`
+	Type      string   `json:"type"`
+	Tag       string   `json:"tag"`
+	Address   []string `json:"address,omitempty"`
+	MTU       int      `json:"mtu,omitempty"`
+	AutoRoute bool     `json:"auto_route,omitempty"`
+	Stack     string   `json:"stack,omitempty"`
 }
 
 type clientOutbound struct {
