@@ -35,6 +35,12 @@ vpn:
       - ""
       - "0018e1ec"
       - "2802649f"
+      - "3651cbce"
+      - "76b9a282"
+      - "9573cd02"
+      - "dfc3e9ec"
+      - "fb4dae0a"
+      - "fe3c770e"
     snis:
       default: "ads.x5.ru"
 
