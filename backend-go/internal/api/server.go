@@ -112,9 +112,6 @@ func (s *Server) setupRoutes(e *echo.Echo) {
 	// Health check (no auth, no rate limit).
 	e.GET("/health", s.handleHealth)
 
-	mobileGroup := e.Group("/api/mobile")
-	mobileGroup.Use(mw.RateLimit(s.Config.RateLimit.MobilePerMinute))
-
 	mobileHandler := &mobile.Handler{
 		DB:     s.DB,
 		JWT:    s.JWT,
@@ -123,7 +120,15 @@ func (s *Server) setupRoutes(e *echo.Echo) {
 		Config: s.Config,
 		Logger: s.Logger,
 	}
+
+	// Mobile API: /api/mobile/* and /api/v1/mobile/* (iOS app uses v1 prefix)
+	mobileGroup := e.Group("/api/mobile")
+	mobileGroup.Use(mw.RateLimit(s.Config.RateLimit.MobilePerMinute))
 	mobile.RegisterRoutes(mobileGroup, mobileHandler)
+
+	mobileV1 := e.Group("/api/v1/mobile")
+	mobileV1.Use(mw.RateLimit(s.Config.RateLimit.MobilePerMinute))
+	mobile.RegisterRoutes(mobileV1, mobileHandler)
 
 	// Admin API served under /api/v1/admin (React SPA) and /api/admin (legacy).
 	adminHandler := &adminAPI.Handler{
