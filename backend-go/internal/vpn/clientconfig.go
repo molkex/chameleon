@@ -166,21 +166,36 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 		Outbounds: allOutbounds,
 		Route: clientRoute{
 			Rules: []clientRouteRule{
+				// 1. Sniff MUST be first — enables protocol detection for hijack-dns.
+				//    In sing-box 1.13 sniff was removed from inbound and became a route action.
 				{
-					ClashMode: "Direct",
-					Outbound:  "direct",
+					Action: "sniff",
 				},
+				// 2. Hijack DNS — intercepts DNS queries, routes to DNS module.
 				{
 					Protocol: "dns",
 					Action:   "hijack-dns",
 				},
+				// 3. Clash Direct mode → bypass proxy.
 				{
-					Protocol: "quic",
-					Outbound: "block",
+					ClashMode: "Direct",
+					Outbound:  "direct",
+				},
+				// 4. Block QUIC (UDP 443) — iOS prefers QUIC which hangs through TCP relay.
+				{
+					Network: "udp",
+					Port:    443,
+					Action:  "reject",
+					NoDrop:  boolPtr(true),
+				},
+				// 5. Private IPs → direct (no proxy for LAN traffic).
+				{
+					IPIsPrivate: boolPtr(true),
+					Outbound:    "direct",
 				},
 			},
 			DefaultDomainResolver: &clientDomainResolver{
-				Server:   "dns-remote",
+				Server:   "dns-direct",
 				Strategy: "ipv4_only",
 			},
 		},
@@ -216,7 +231,7 @@ type clientLog struct {
 
 type clientDNSConfig struct {
 	Servers          []clientDNSServer `json:"servers"`
-	Rules            []clientDNSRule   `json:"rules"`
+	Rules            []clientDNSRule   `json:"rules,omitempty"`
 	FakeIP           *clientFakeIP     `json:"fakeip,omitempty"`
 	IndependentCache bool              `json:"independent_cache,omitempty"`
 }
@@ -303,10 +318,14 @@ type clientRoute struct {
 }
 
 type clientRouteRule struct {
-	ClashMode string `json:"clash_mode,omitempty"`
-	Protocol  string `json:"protocol,omitempty"`
-	Outbound  string `json:"outbound,omitempty"`
-	Action    string `json:"action,omitempty"`
+	ClashMode   string `json:"clash_mode,omitempty"`
+	Protocol    string `json:"protocol,omitempty"`
+	Network     string `json:"network,omitempty"`
+	Port        int    `json:"port,omitempty"`
+	IPIsPrivate *bool  `json:"ip_is_private,omitempty"`
+	Action      string `json:"action,omitempty"`
+	Outbound    string `json:"outbound,omitempty"`
+	NoDrop      *bool  `json:"no_drop,omitempty"`
 }
 
 type clientDomainResolver struct {
