@@ -25,6 +25,9 @@ import (
 const (
 	ModeEmbedded = "embedded" // launch sing-box as a child process
 	ModeDocker   = "docker"   // write config to volume, send HUP to container
+
+	// InboundTagVLESS is the tag used for the VLESS Reality inbound in generated configs.
+	InboundTagVLESS = "vless-reality-tcp"
 )
 
 // Compile-time check: SingboxEngine must implement Engine.
@@ -54,6 +57,9 @@ type SingboxEngine struct {
 
 	// Stats collector for clash_api.
 	stats *StatsCollector
+
+	// User API client for zero-downtime user management (nil if disabled).
+	userAPI *UserAPIClient
 }
 
 // NewSingboxEngine creates a new sing-box based VPN engine.
@@ -137,6 +143,12 @@ func (e *SingboxEngine) Start(ctx context.Context, cfg EngineConfig, users []VPN
 	}
 	e.stats = NewStatsCollector(fmt.Sprintf("http://127.0.0.1:%d", clashAPIPort), e.logger)
 
+	// Initialize User API client if configured.
+	if e.cfg.UserAPIPort > 0 {
+		e.userAPI = NewUserAPIClient(e.cfg.UserAPIPort, e.cfg.UserAPISecret, InboundTagVLESS)
+		e.logger.Info("user-api client initialized", zap.Int("port", e.cfg.UserAPIPort))
+	}
+
 	e.running = true
 	e.startedAt = time.Now()
 
@@ -183,9 +195,8 @@ func (e *SingboxEngine) Stop() error {
 	return nil
 }
 
-// ReloadUsers replaces the full user list and reloads the sing-box config.
-//
-// For both modes: regenerates config and sends SIGHUP (0ms reload, no connection drop).
+// ReloadUsers replaces the full user list.
+// Uses User API bulk replace if available, falls back to config rewrite + SIGHUP.
 // Returns the number of active users after reload.
 func (e *SingboxEngine) ReloadUsers(ctx context.Context, users []VPNUser) (int, error) {
 	e.mu.Lock()
@@ -200,6 +211,21 @@ func (e *SingboxEngine) ReloadUsers(ctx context.Context, users []VPNUser) (int, 
 
 	e.logger.Info("reloading users", zap.Int("count", len(users)))
 
+	// Try User API bulk replace first.
+	if e.userAPI != nil {
+		if err := e.userAPI.ReplaceUsers(ctx, users); err != nil {
+			e.logger.Warn("user-api replace failed, falling back to SIGHUP",
+				zap.Int("count", len(users)), zap.Error(err))
+		} else {
+			if err := e.writeConfigLocked(); err != nil {
+				e.logger.Warn("failed to write config after user-api replace", zap.Error(err))
+			}
+			e.logger.Info("users reloaded via user-api", zap.Int("count", len(users)))
+			return len(users), nil
+		}
+	}
+
+	// Fallback: config rewrite + SIGHUP.
 	if err := e.writeConfigLocked(); err != nil {
 		return 0, fmt.Errorf("singbox engine: write config for reload: %w", err)
 	}
@@ -208,11 +234,12 @@ func (e *SingboxEngine) ReloadUsers(ctx context.Context, users []VPNUser) (int, 
 		return 0, fmt.Errorf("singbox engine: send reload signal: %w", err)
 	}
 
-	e.logger.Info("users reloaded successfully", zap.Int("count", len(users)))
+	e.logger.Info("users reloaded via SIGHUP", zap.Int("count", len(users)))
 	return len(users), nil
 }
 
-// AddUser appends a user to the running server and reloads.
+// AddUser appends a user to the running server.
+// Uses User API for zero-downtime add if available, falls back to config rewrite + SIGHUP.
 func (e *SingboxEngine) AddUser(ctx context.Context, user VPNUser) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -232,6 +259,23 @@ func (e *SingboxEngine) AddUser(ctx context.Context, user VPNUser) error {
 
 	e.logger.Info("adding user", zap.String("username", user.Username))
 
+	// Try User API first (zero-downtime, no config rewrite needed for runtime).
+	if e.userAPI != nil {
+		if err := e.userAPI.AddUser(ctx, user); err != nil {
+			e.logger.Warn("user-api add failed, falling back to SIGHUP",
+				zap.String("username", user.Username), zap.Error(err))
+		} else {
+			// Also update config on disk for persistence across restarts.
+			if err := e.writeConfigLocked(); err != nil {
+				e.logger.Warn("failed to write config after user-api add", zap.Error(err))
+			}
+			e.logger.Info("user added via user-api",
+				zap.String("username", user.Username), zap.Int("total_users", len(e.users)))
+			return nil
+		}
+	}
+
+	// Fallback: config rewrite + SIGHUP.
 	if err := e.writeConfigLocked(); err != nil {
 		return fmt.Errorf("singbox engine: write config for add user: %w", err)
 	}
@@ -240,11 +284,12 @@ func (e *SingboxEngine) AddUser(ctx context.Context, user VPNUser) error {
 		return fmt.Errorf("singbox engine: send reload signal: %w", err)
 	}
 
-	e.logger.Info("user added", zap.String("username", user.Username), zap.Int("total_users", len(e.users)))
+	e.logger.Info("user added via SIGHUP", zap.String("username", user.Username), zap.Int("total_users", len(e.users)))
 	return nil
 }
 
-// RemoveUser removes a user by username from the running server and reloads.
+// RemoveUser removes a user by username from the running server.
+// Uses User API for zero-downtime remove if available, falls back to config rewrite + SIGHUP.
 func (e *SingboxEngine) RemoveUser(ctx context.Context, username string) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -271,6 +316,22 @@ func (e *SingboxEngine) RemoveUser(ctx context.Context, username string) error {
 
 	e.logger.Info("removing user", zap.String("username", username))
 
+	// Try User API first.
+	if e.userAPI != nil {
+		if err := e.userAPI.RemoveUser(ctx, username); err != nil {
+			e.logger.Warn("user-api remove failed, falling back to SIGHUP",
+				zap.String("username", username), zap.Error(err))
+		} else {
+			if err := e.writeConfigLocked(); err != nil {
+				e.logger.Warn("failed to write config after user-api remove", zap.Error(err))
+			}
+			e.logger.Info("user removed via user-api",
+				zap.String("username", username), zap.Int("total_users", len(e.users)))
+			return nil
+		}
+	}
+
+	// Fallback: config rewrite + SIGHUP.
 	if err := e.writeConfigLocked(); err != nil {
 		return fmt.Errorf("singbox engine: write config for remove user: %w", err)
 	}
@@ -279,7 +340,7 @@ func (e *SingboxEngine) RemoveUser(ctx context.Context, username string) error {
 		return fmt.Errorf("singbox engine: send reload signal: %w", err)
 	}
 
-	e.logger.Info("user removed", zap.String("username", username), zap.Int("total_users", len(e.users)))
+	e.logger.Info("user removed via SIGHUP", zap.String("username", username), zap.Int("total_users", len(e.users)))
 	return nil
 }
 
@@ -418,6 +479,19 @@ func (e *SingboxEngine) buildServerConfig() ([]byte, error) {
 		clashPort = 9090
 	}
 
+	// Build services list (user-api if configured).
+	var services []singboxService
+	userAPIPort := e.cfg.UserAPIPort
+	if userAPIPort > 0 {
+		services = append(services, singboxService{
+			Type:       "user-api",
+			Tag:        "user-api",
+			Listen:     "127.0.0.1",
+			ListenPort: userAPIPort,
+			Secret:     e.cfg.UserAPISecret,
+		})
+	}
+
 	config := singboxServerConfig{
 		Log: singboxLog{
 			Level: "info",
@@ -430,7 +504,7 @@ func (e *SingboxEngine) buildServerConfig() ([]byte, error) {
 		Inbounds: []singboxInbound{
 			{
 				Type:       "vless",
-				Tag:        "vless-reality-tcp",
+				Tag:        InboundTagVLESS,
 				Listen:     "::",
 				ListenPort: e.cfg.ListenPort,
 				Users:      users,
@@ -465,6 +539,7 @@ func (e *SingboxEngine) buildServerConfig() ([]byte, error) {
 				Strategy: "ipv4_only",
 			},
 		},
+		Services: services,
 		Experimental: &singboxExperimental{
 			ClashAPI: &singboxClashAPI{
 				ExternalController: fmt.Sprintf("127.0.0.1:%d", clashPort),
@@ -667,6 +742,7 @@ type singboxServerConfig struct {
 	Inbounds     []singboxInbound     `json:"inbounds"`
 	Outbounds    []singboxOutbound    `json:"outbounds"`
 	Route        singboxRoute         `json:"route"`
+	Services     []singboxService     `json:"services,omitempty"`
 	Experimental *singboxExperimental `json:"experimental,omitempty"`
 }
 
@@ -735,6 +811,14 @@ type singboxRoute struct {
 type singboxDomainResolver struct {
 	Server   string `json:"server"`
 	Strategy string `json:"strategy"`
+}
+
+type singboxService struct {
+	Type       string `json:"type"`
+	Tag        string `json:"tag"`
+	Listen     string `json:"listen,omitempty"`
+	ListenPort int    `json:"listen_port,omitempty"`
+	Secret     string `json:"secret,omitempty"`
 }
 
 type singboxExperimental struct {

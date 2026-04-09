@@ -70,6 +70,8 @@ type VPNConfig struct {
 	DNSDirect       string        `yaml:"dns_direct"`        // default: "https://8.8.8.8/dns-query"
 	UrltestInterval Duration      `yaml:"urltest_interval"`  // default: 3m
 	ClashAPIPort    int           `yaml:"clash_api_port"`    // default: 9090
+	UserAPIPort     int           `yaml:"user_api_port"`     // default: 15380; 0 = disabled
+	UserAPISecret   string        `yaml:"user_api_secret"`   // supports ${ENV_VAR}
 }
 
 // RealityConfig holds VLESS Reality protocol settings.
@@ -195,6 +197,9 @@ func (c *Config) resolveAllEnvVars() {
 	// VPN Reality
 	c.VPN.Reality.PrivateKey = resolveEnvVars(c.VPN.Reality.PrivateKey)
 	c.VPN.Reality.PublicKey = resolveEnvVars(c.VPN.Reality.PublicKey)
+
+	// VPN User API
+	c.VPN.UserAPISecret = resolveEnvVars(c.VPN.UserAPISecret)
 }
 
 // applyDefaults sets sensible default values for fields that were not
@@ -256,6 +261,7 @@ func (c *Config) applyDefaults() {
 	if c.VPN.ClashAPIPort == 0 {
 		c.VPN.ClashAPIPort = 9090
 	}
+	// UserAPIPort: 0 = disabled (no default — must be explicitly configured)
 
 	// Cluster defaults
 	if c.Cluster.SyncInterval.Duration == 0 {

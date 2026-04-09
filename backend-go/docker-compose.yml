@@ -24,6 +24,7 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - REALITY_PRIVATE_KEY=${REALITY_PRIVATE_KEY}
       - REALITY_PUBLIC_KEY=${REALITY_PUBLIC_KEY}
+      - USER_API_SECRET=${USER_API_SECRET}
     depends_on:
       postgres:
         condition: service_healthy
@@ -35,9 +36,9 @@ services:
       timeout: 3s
       retries: 3
 
-  # ---------- sing-box (VPN engine) ----------
+  # ---------- sing-box (VPN engine, custom fork with User API) ----------
   singbox:
-    image: ghcr.io/sagernet/sing-box:v1.13.6
+    image: sing-box-fork:v1.13.6-userapi
     container_name: singbox
     restart: unless-stopped
     network_mode: host

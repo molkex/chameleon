@@ -27,6 +27,8 @@ vpn:
   dns_direct: "https://8.8.8.8/dns-query"
   urltest_interval: "3m"
   clash_api_port: 9090
+  user_api_port: 15380
+  user_api_secret: "${USER_API_SECRET}"
 
   reality:
     private_key: "${REALITY_PRIVATE_KEY}"

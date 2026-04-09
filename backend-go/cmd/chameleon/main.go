@@ -167,6 +167,8 @@ func run() error {
 		DNSRemote:       cfg.VPN.DNSRemote,
 		DNSDirect:       cfg.VPN.DNSDirect,
 		UrltestInterval: cfg.VPN.UrltestInterval.Duration.String(),
+		UserAPIPort:     cfg.VPN.UserAPIPort,
+		UserAPISecret:   cfg.VPN.UserAPISecret,
 	}
 
 	// Load active VPN users from the database.

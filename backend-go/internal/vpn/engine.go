@@ -55,6 +55,8 @@ type EngineConfig struct {
 	DNSRemote       string // Remote DNS-over-HTTPS URL; default: "https://1.1.1.1/dns-query"
 	DNSDirect       string // Direct DNS-over-HTTPS URL; default: "https://8.8.8.8/dns-query"
 	UrltestInterval string // Interval for urltest probing; default: "3m"
+	UserAPIPort     int    // User API port for runtime user management; default: 15380; 0 = disabled
+	UserAPISecret   string // Bearer token for User API auth
 }
 
 // RealityConfig holds VLESS Reality TLS settings.
