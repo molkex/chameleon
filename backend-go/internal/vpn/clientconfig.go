@@ -143,7 +143,6 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 					Tag:    "dns-direct",
 					Type:   "https",
 					Server: "8.8.8.8",
-					Detour: "direct",
 				},
 				{
 					Tag:        "dns-fakeip",
