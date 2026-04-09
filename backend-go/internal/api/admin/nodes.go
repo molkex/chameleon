@@ -533,24 +533,62 @@ func (h *Handler) ListProtocols(c echo.Context) error {
 
 // GetShield handles GET /api/admin/shield
 //
-// Returns the ChameleonShield protocol configuration: priorities, weights,
-// recommended protocol, and fallback order.
+// Returns the ChameleonShield route configuration: all VPN routes from the
+// database with priorities (sort_order), weights, and active/inactive status.
+// The recommended route is the first active one by sort_order.
 func (h *Handler) GetShield(c echo.Context) error {
-	type protoInfo struct {
+	ctx := c.Request().Context()
+
+	servers, err := h.DB.ListAllServers(ctx)
+	if err != nil {
+		h.Logger.Error("admin: shield: list servers", zap.Error(err))
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to load routes")
+	}
+
+	type routeInfo struct {
 		Priority int    `json:"priority"`
 		Weight   int    `json:"weight"`
 		Status   string `json:"status"`
+		Host     string `json:"host"`
+		Port     int    `json:"port"`
+		Flag     string `json:"flag"`
+		Type     string `json:"type"` // "direct" or "relay"
 	}
 
-	protocols := map[string]protoInfo{
-		"VLESS Reality TCP": {Priority: 1, Weight: 100, Status: "active"},
-	}
+	routes := make(map[string]routeInfo, len(servers))
+	var fallbackOrder []string
+	recommended := ""
 
-	recommended := "VLESS Reality TCP"
-	fallbackOrder := []string{"VLESS Reality TCP"}
+	for i, s := range servers {
+		status := "inactive"
+		if s.IsActive {
+			status = "active"
+		}
+
+		routeType := "direct"
+		if strings.HasPrefix(s.Key, "relay-") {
+			routeType = "relay"
+		}
+
+		label := fmt.Sprintf("%s %s", s.Flag, s.Name)
+		routes[label] = routeInfo{
+			Priority: i + 1,
+			Weight:   100,
+			Status:   status,
+			Host:     s.Host,
+			Port:     s.Port,
+			Flag:     s.Flag,
+			Type:     routeType,
+		}
+		fallbackOrder = append(fallbackOrder, label)
+
+		if recommended == "" && s.IsActive {
+			recommended = label
+		}
+	}
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"protocols":      protocols,
+		"protocols":      routes,
 		"recommended":    recommended,
 		"fallback_order": fallbackOrder,
 		"updated_at":     time.Now().Unix(),
