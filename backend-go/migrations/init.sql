@@ -144,8 +144,8 @@ CREATE INDEX IF NOT EXISTS idx_node_metrics_time ON node_metrics_history (node_k
 
 -- Seed default VPN servers (skip if already exist)
 INSERT INTO vpn_servers (key, name, flag, host, port, domain, sni, is_active, sort_order) VALUES
-    ('de', 'Germany', '🇩🇪', '162.19.242.30', 2096, '', 'vk.com', true, 1),
+    ('de', 'Germany', '🇩🇪', '162.19.242.30', 2096, '', 'ads.adfox.ru', true, 1),
     ('nl', 'Netherlands', '🇳🇱', '194.135.38.90', 2096, '', 'vk.com', true, 2),
-    ('relay-de', 'Russia → DE', '🇷🇺', '185.218.0.43', 443, '', 'vk.com', true, 3),
+    ('relay-de', 'Russia → DE', '🇷🇺', '185.218.0.43', 443, '', 'ads.adfox.ru', true, 3),
     ('relay-nl', 'Russia → NL', '🇷🇺', '185.218.0.43', 2098, '', 'vk.com', true, 4)
 ON CONFLICT (key) DO NOTHING;

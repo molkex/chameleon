@@ -30,7 +30,7 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 			sni = engineCfg.Reality.SNI
 		}
 		if sni == "" {
-			sni = "vk.com"
+			sni = "ads.adfox.ru"
 		}
 
 		shortID := user.ShortID

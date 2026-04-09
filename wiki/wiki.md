@@ -25,7 +25,7 @@ iPhone (sing-box 1.13.6)
 
 ### Critical Rules
 1. **VPN Server**: sing-box 1.13 (replaced Xray on DE)
-2. **SNI**: vk.com (DE + relay-de), rutube.ru (NL + relay-nl) — never use google.com/cloudflare.com. ads.x5.ru deprecated (40% timeout rate from DE)
+2. **SNI**: ads.adfox.ru (DE + relay-de), rutube.ru (NL + relay-nl) — never use google.com/cloudflare.com. ads.x5.ru deprecated (40% timeout). vk.com incompatible with REALITY (works locally but fails from external clients)
 3. **sing-box route rules ORDER**: `{"action":"sniff"}` MUST be first, then `{"protocol":"dns","action":"hijack-dns"}`. Without sniff → DNS loop (packets go through VLESS to TUN address 172.19.0.2:53)
 4. **DNS detour**: NOT needed in sing-box 1.13 — DNS servers go directly by default. `detour:"direct"` on empty direct outbound = error "makes no sense"
 5. **DNS**: dns_remote=1.1.1.1 (DoH), dns_direct=8.8.8.8 (DoH), default_domain_resolver → dns-direct with ipv4_only
