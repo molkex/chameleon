@@ -81,8 +81,9 @@ func RegisterRoutes(g *echo.Group, h *Handler, jwtManager *auth.JWTManager) {
 	nodes.POST("/restart-xray", h.RestartSingbox) // backward compat
 	g.GET("/nodes", h.ListNodes, adminMW)
 
-	// Protocols.
+	// Protocols / Shield.
 	g.GET("/protocols", h.ListProtocols, adminMW)
+	g.GET("/shield", h.GetShield, adminMW)
 
 	// Stats.
 	g.GET("/stats", h.GetStats, adminMW)

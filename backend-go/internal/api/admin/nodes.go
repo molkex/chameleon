@@ -531,6 +531,32 @@ func (h *Handler) ListProtocols(c echo.Context) error {
 	})
 }
 
+// GetShield handles GET /api/admin/shield
+//
+// Returns the ChameleonShield protocol configuration: priorities, weights,
+// recommended protocol, and fallback order.
+func (h *Handler) GetShield(c echo.Context) error {
+	type protoInfo struct {
+		Priority int    `json:"priority"`
+		Weight   int    `json:"weight"`
+		Status   string `json:"status"`
+	}
+
+	protocols := map[string]protoInfo{
+		"VLESS Reality TCP": {Priority: 1, Weight: 100, Status: "active"},
+	}
+
+	recommended := "VLESS Reality TCP"
+	fallbackOrder := []string{"VLESS Reality TCP"}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"protocols":      protocols,
+		"recommended":    recommended,
+		"fallback_order": fallbackOrder,
+		"updated_at":     time.Now().Unix(),
+	})
+}
+
 // RestartSingbox handles POST /api/admin/nodes/restart-singbox
 // (also POST /api/admin/nodes/restart-xray for backward compat)
 //
