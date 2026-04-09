@@ -24,11 +24,11 @@ iPhone (sing-box 1.13.6)
 | SPB Relay | 185.218.0.43 | — (nginx stream) | — | — |
 
 ### Critical Rules
-1. **Xray Docker**: MUST use `network_mode: host` (bridge NAT causes flooding/EOF)
-2. **Xray DIRECT outbound**: MUST have `domainStrategy: UseIPv4` (IPv6 broken on OVH)
-3. **Xray version**: 25.12.8 (v26 INCOMPATIBLE with sing-box 1.13)
-4. **SNI**: ads.x5.ru (DE), rutube.ru (NL) — never use google.com/cloudflare.com
-5. **DNS**: dns.queryStrategy=UseIPv4 AND outbound.DIRECT.domainStrategy=UseIPv4 (both needed)
+1. **VPN Server**: sing-box 1.13 (replaced Xray on DE)
+2. **SNI**: vk.com (DE + relay-de), rutube.ru (NL + relay-nl) — never use google.com/cloudflare.com. ads.x5.ru deprecated (40% timeout rate from DE)
+3. **sing-box route rules ORDER**: `{"action":"sniff"}` MUST be first, then `{"protocol":"dns","action":"hijack-dns"}`. Without sniff → DNS loop (packets go through VLESS to TUN address 172.19.0.2:53)
+4. **DNS detour**: NOT needed in sing-box 1.13 — DNS servers go directly by default. `detour:"direct"` on empty direct outbound = error "makes no sense"
+5. **DNS**: dns_remote=1.1.1.1 (DoH), dns_direct=8.8.8.8 (DoH), default_domain_resolver → dns-direct with ipv4_only
 
 ### iOS Server Selection
 - `selectServer()` modifies selector `default` in config JSON, saves to UserDefaults, disconnect → poll until disconnected → reconnect
@@ -76,6 +76,13 @@ iPhone (sing-box 1.13.6)
 sing-box сервер уже развёрнут на DE:2094 и протестирован. Нужно перевести основной трафик с Xray (порт 2096) на sing-box сервер. Преимущества: нативная совместимость с sing-box клиентом (iOS), поддержка MUX, единый стек.
 
 ## Resolved Issues Log
+
+### 2026-04-09: DNS loop fix + SNI change (Go backend)
+- **DNS loop** (VPN connected, no sites load): Missing `{"action":"sniff"}` route rule. In sing-box 1.13, sniff moved from inbound to route action. Without it, `protocol:"dns"` never matches → hijack-dns doesn't intercept → DNS packets go through VLESS to 172.19.0.2:53 (TUN address) → infinite loop.
+- **SNI change**: ads.x5.ru → vk.com. ads.x5.ru was timing out 40% from DE server, causing REALITY handshake failures → "connection reset by peer". vk.com: 100% stable, ~130ms, Russian whitelist.
+- **Route rules** now match working Rust config: sniff → hijack-dns → clash direct → QUIC reject (udp:443, no_drop:true) → ip_is_private→direct
+- **detour:"direct"** removed from dns-direct: sing-box 1.13 DNS servers go directly by default; detour to empty direct outbound = error
+- **UI**: Added version + config hash to main screen footer for debugging
 
 ### 2026-04-08: Cleanup + sing-box server update (session 3)
 - **MTProxy**: проверено — отсутствует на DE сервере, ничего удалять не нужно
