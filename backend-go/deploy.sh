@@ -147,7 +147,7 @@ if [ -n "$TG_BOT_TOKEN" ]; then
     printf 'TELEGRAM_BOT_TOKEN=%s\nTELEGRAM_CHAT_IDS="%s"\n' \
         "${TG_BOT_TOKEN}" "${TG_CHAT_IDS}" \
         | sudo tee /etc/chameleon-alerts.env > /dev/null
-    sudo chmod 600 /etc/chameleon-alerts.env
+    sudo chmod 644 /etc/chameleon-alerts.env
     echo ">>> Telegram alerts configured"
 fi
 

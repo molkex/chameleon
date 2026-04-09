@@ -20,9 +20,9 @@ echo "${LOG_PREFIX} singbox container not running — attempting restart..."
 # Remove dead container if exists
 docker rm -f "$CONTAINER" 2>/dev/null || true
 
-# Check config file exists
+# Check config file exists (use sudo since docker volume path requires root to read)
 CONFIG_PATH=$(docker volume inspect "$VOLUME" --format '{{.Mountpoint}}')/singbox-config.json
-if [ ! -f "$CONFIG_PATH" ]; then
+if ! sudo test -f "$CONFIG_PATH" 2>/dev/null; then
     echo "${LOG_PREFIX} WARNING: config file not found at ${CONFIG_PATH}, skipping restart"
     exit 1
 fi
