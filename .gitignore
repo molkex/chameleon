@@ -35,5 +35,12 @@ target/
 cache.db
 *.sqlite3
 
+# Build artifacts
+*-linux
+*.exe
+
+# idb (iOS Development Bridge)
+idb-*/
+
 # Claude
 .claude/

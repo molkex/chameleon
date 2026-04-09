@@ -18,3 +18,4 @@ Thumbs.db
 pgdata/
 redisdata/
 chameleon-linux
+metrics-agent-linux
