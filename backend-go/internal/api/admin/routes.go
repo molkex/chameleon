@@ -76,7 +76,12 @@ func RegisterRoutes(g *echo.Group, h *Handler, jwtManager *auth.JWTManager) {
 	// Nodes.
 	nodes := g.Group("/nodes", adminMW)
 	nodes.POST("/sync", h.SyncConfig)
+	nodes.POST("/restart-singbox", h.RestartSingbox)
+	nodes.POST("/restart-xray", h.RestartSingbox) // backward compat
 	g.GET("/nodes", h.ListNodes, adminMW)
+
+	// Protocols.
+	g.GET("/protocols", h.ListProtocols, adminMW)
 
 	// Stats.
 	g.GET("/stats", h.GetStats, adminMW)

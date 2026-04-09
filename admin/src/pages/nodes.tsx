@@ -157,9 +157,9 @@ function NodeCard({ node }: { node: Node }) {
   const queryClient = useQueryClient();
 
   const restartMutation = useMutation({
-    mutationFn: () => api.post(`/admin/nodes/restart-xray`),
+    mutationFn: () => api.post(`/admin/nodes/restart-singbox`),
     onSuccess: () => {
-      toast.success(`Xray restarted on ${node.name}`);
+      toast.success(`sing-box restarted on ${node.name}`);
       queryClient.invalidateQueries({ queryKey: ["nodes"] });
     },
     onError: (e) => toast.error(`Restart failed: ${e.message}`),
@@ -202,7 +202,7 @@ function NodeCard({ node }: { node: Node }) {
           {node.xray_version && (
             <>
               <span className="text-zinc-700">|</span>
-              <span>Xray {node.xray_version}</span>
+              <span>{node.xray_version}</span>
             </>
           )}
           {node.uptime_hours != null && (
@@ -278,7 +278,7 @@ function NodeCard({ node }: { node: Node }) {
             <RotateCcw
               className={`mr-1.5 h-3.5 w-3.5 ${restartMutation.isPending ? "animate-spin" : ""}`}
             />
-            Restart Xray
+            Restart sing-box
           </Button>
         </div>
       </CardContent>

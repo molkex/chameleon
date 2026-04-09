@@ -46,6 +46,7 @@ vpn:
       - "dfc3e9ec"
       - "fb4dae0a"
       - "fe3c770e"
+      - "bfc55eeb"
     snis:
       default: "ads.adfox.ru"
 

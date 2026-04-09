@@ -23,8 +23,9 @@ interface DashboardStats {
 interface VpnStats {
   vpn_users: number;
   active_users: number;
-  bw_in_gb: number;
-  bw_out_gb: number;
+  bw_in_gb?: number;
+  bw_out_gb?: number;
+  total_traffic_gb?: number;
 }
 
 interface ExpiringUser {
@@ -91,29 +92,33 @@ export default function DashboardPage() {
 
   const { stats, vpn, recent_transactions, expiring_users } = data;
 
+  const trafficGB = vpn.total_traffic_gb ?? ((vpn.bw_in_gb ?? 0) + (vpn.bw_out_gb ?? 0));
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Dashboard</h1>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard title="Total Users" value={stats.total_users}
-          sub={`+${stats.today_new} today`} icon={Users} color="text-blue-400" />
+          sub={`+${stats.today_new ?? 0} today`} icon={Users} color="text-blue-400" />
         <StatCard title="Active Users" value={stats.active_users}
           icon={Activity} color="text-emerald-400" />
-        <StatCard title="VPN Traffic" value={`${(vpn.bw_in_gb + vpn.bw_out_gb).toFixed(1)} GB`}
-          sub={`↑${vpn.bw_out_gb} ↓${vpn.bw_in_gb}`} icon={TrendingUp} color="text-yellow-400" />
-        <StatCard title="Conversion (30d)" value={`${stats.conversion_30d}%`}
-          sub={`Churned 7d: ${stats.churned_7d}`} icon={TrendingUp} color="text-purple-400" />
+        <StatCard title="VPN Traffic" value={`${trafficGB.toFixed(1)} GB`}
+          sub={`${vpn.vpn_users ?? 0} VPN users`} icon={TrendingUp} color="text-yellow-400" />
+        <StatCard title="Online" value={vpn.active_users ?? 0}
+          icon={Activity} color="text-purple-400" />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
+        {stats.revenue_by_currency && (
         <Card>
           <CardHeader><CardTitle className="text-sm text-zinc-400">Revenue</CardTitle></CardHeader>
           <CardContent className="space-y-2">
             <div className="text-xl font-bold">{formatRevenue(stats.revenue_by_currency)}</div>
-            <p className="text-xs text-zinc-500">Today: {formatRevenue(stats.today_revenue)} ({stats.today_paid}/{stats.today_transactions} txns)</p>
+            <p className="text-xs text-zinc-500">Today: {formatRevenue(stats.today_revenue ?? {})} ({stats.today_paid ?? 0}/{stats.today_transactions ?? 0} txns)</p>
           </CardContent>
         </Card>
+        )}
 
         <Card>
           <CardHeader>

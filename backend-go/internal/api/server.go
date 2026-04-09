@@ -156,6 +156,8 @@ func (s *Server) setupRoutes(e *echo.Echo) {
 	if s.Config.Cluster.Enabled {
 		clusterGroup := e.Group("/api/cluster")
 		cluster.RegisterRoutes(clusterGroup, s.DB, s.Config.Cluster, s.Logger)
+		// Node status endpoint — used by peers to aggregate cluster view.
+		clusterGroup.GET("/node-status", adminHandler.NodeStatus)
 	}
 }
 

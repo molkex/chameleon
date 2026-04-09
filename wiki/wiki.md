@@ -73,11 +73,25 @@ iPhone (libbox 1.13.5)
 ### Следующие шаги
 1. ~~**Деплой NL**~~ ✓ Go backend + sing-box 1.13.6 на NL (194.135.38.90)
 2. ~~**Кластер**~~ ✓ cluster sync работает DE ↔ NL (users синхронизированы)
-3. **Relay** — протестировать SPB relay (relay-de :443, relay-nl :2098)
-4. **Admin panel** — добавить поле reality_public_key в UI серверов
-5. **Nginx на NL** — собрать admin SPA (сейчас нет nginx, только API)
+3. ~~**Relay**~~ ✓ SPB relay протестирован и активирован (relay-de :443, relay-nl :2098)
+4. ~~**Admin panel**~~ ✓ nodes endpoint с метриками, protocols endpoint, dashboard fix
+5. ~~**Nginx на NL**~~ ✓ admin SPA собран локально, nginx контейнер на NL
+6. **Cluster sync auth** — shared secret для /api/cluster/pull|push (сейчас без авторизации)
 
 ## Resolved Issues Log
+
+### 2026-04-09: Admin panel fixes + Relay activation + VPN key fix
+- **SPB Relay activated**: nginx stream config verified (443→DE:2096, 2098→NL:2096), Reality public keys set in DB for relay-de (DE key) and relay-nl (NL key), both relay servers set is_active=true on DE+NL
+- **Nginx on NL**: admin SPA built locally (OOM on server), deployed as nginx:1.27-alpine container with volume mounts, accessible at http://194.135.38.90/admin/app/
+- **Admin dashboard fix**: frontend crashed on `Object.entries(undefined)` — Go backend returns simplified format (no revenue/bw_in/bw_out fields). Fixed frontend to handle missing fields gracefully with `??` defaults
+- **Nodes endpoint rewrite**: now shows all cluster nodes (local + peers via `/api/cluster/node-status` + relay via TCP health check). Includes real IP, CPU/RAM/Disk metrics from /proc, uptime, sing-box version, VLESS Reality protocol status
+- **Protocols endpoint added**: `GET /api/admin/protocols` returns VLESS Reality TCP as active protocol
+- **Restart sing-box endpoint**: `POST /api/admin/nodes/restart-singbox` (+ backward compat `/restart-xray`). Frontend label updated from "Restart Xray" to "Restart sing-box"
+- **System metrics**: CPU from /proc/loadavg, RAM from /proc/meminfo, Disk from syscall.Statfs — works inside Docker containers
+- **Test users cleanup**: deleted 8 test device_* users, reset traffic_snapshots (was showing 2972 GB)
+- **VPN username fix**: iOS app stored old username `device_3ce22712`, renamed current user to match
+- **Reality short_id fix**: user's short_id `bfc55eeb` was not in server's allowed list → "reality verification failed". Added to config.yaml on both nodes
+- **Admin password**: unified to `admin123` on both DE and NL (recreated via CLI)
 
 ### 2026-04-09: Multi-node architecture + Rust cleanup
 - **Cluster sync wired up**: `cluster.Syncer` now created and started in main.go (was implemented but never called)

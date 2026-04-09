@@ -32,6 +32,9 @@ type Engine interface {
 	// Health checks if the VPN server is running and healthy.
 	Health(ctx context.Context) error
 
+	// UptimeHours returns how many hours the VPN engine has been running.
+	UptimeHours() float64
+
 	// GenerateClientConfig creates a sing-box client config JSON for iOS/macOS.
 	GenerateClientConfig(user VPNUser, servers []ServerEntry) ([]byte, error)
 }

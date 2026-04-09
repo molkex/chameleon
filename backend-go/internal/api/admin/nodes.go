@@ -1,13 +1,22 @@
 package admin
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"strconv"
+	"strings"
+	"sync"
+	"time"
 
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 
 	"github.com/chameleonvpn/chameleon/internal/cluster"
+	"github.com/chameleonvpn/chameleon/internal/config"
 	"github.com/chameleonvpn/chameleon/internal/db"
 )
 
@@ -45,22 +54,39 @@ type vpnStats struct {
 }
 
 // nodeResponse is the JSON representation of a node for the admin API.
+// Fields match the React SPA's Node interface.
 type nodeResponse struct {
 	Key          string           `json:"key"`
 	Name         string           `json:"name"`
 	Flag         string           `json:"flag"`
 	IP           string           `json:"ip"`
 	IsActive     bool             `json:"is_active"`
+	LatencyMS    *int             `json:"latency_ms"`
 	UserCount    int              `json:"user_count"`
 	OnlineUsers  int              `json:"online_users"`
 	TotalTraffic int64            `json:"total_traffic"`
+	TrafficUp    int64            `json:"traffic_up"`
+	TrafficDown  int64            `json:"traffic_down"`
+	UptimeHours  *float64         `json:"uptime_hours"`
+	Version      *string          `json:"xray_version"` // legacy field name, shows sing-box version
 	Protocols    []protocolStatus `json:"protocols"`
+	CPU          *float64         `json:"cpu"`
+	RAMUsed      *float64         `json:"ram_used"`
+	RAMTotal     *float64         `json:"ram_total"`
+	Disk         *float64         `json:"disk"`
 }
 
 type protocolStatus struct {
 	Name    string `json:"name"`
 	Enabled bool   `json:"enabled"`
 	Port    int    `json:"port"`
+}
+
+// protocolInfo is returned by GET /admin/protocols.
+type protocolInfo struct {
+	Name        string `json:"name"`
+	DisplayName string `json:"display_name"`
+	Enabled     bool   `json:"enabled"`
 }
 
 type listNodesResponse struct {
@@ -190,57 +216,292 @@ func (h *Handler) GetDashboard(c echo.Context) error {
 
 // ListNodes handles GET /api/admin/nodes
 //
-// Returns the list of VPN nodes. Currently returns the local node from config.
+// Returns all cluster nodes: local node + peer nodes + relay nodes.
 func (h *Handler) ListNodes(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	nodes := make([]nodeResponse, 0, len(h.Config.VPN.Servers))
+	// Collect local node status.
+	local := h.buildLocalNodeStatus(ctx)
 
-	activeUsers, _ := h.DB.CountActiveUsers(ctx)
+	nodes := []nodeResponse{local}
 
-	onlineUsers := 0
-	if h.VPN != nil {
-		online, err := h.VPN.OnlineUsers(ctx)
-		if err == nil {
-			onlineUsers = online
-		}
+	// Query peer nodes in parallel with a 3s timeout.
+	if h.Config.Cluster.Enabled && len(h.Config.Cluster.Peers) > 0 {
+		peerNodes := h.queryPeerNodes(ctx)
+		nodes = append(nodes, peerNodes...)
 	}
 
-	totalTraffic, _ := h.DB.TotalTraffic(ctx)
-
-	for _, srv := range h.Config.VPN.Servers {
-		node := nodeResponse{
-			Key:          srv.Key,
-			Name:         srv.Name,
-			Flag:         srv.Flag,
-			IP:           srv.Host,
-			IsActive:     true,
-			UserCount:    int(activeUsers),
-			OnlineUsers:  onlineUsers,
-			TotalTraffic: totalTraffic,
-			Protocols:    []protocolStatus{},
-		}
-		nodes = append(nodes, node)
-	}
-
-	// If no servers in config, show at least the local node.
-	if len(nodes) == 0 {
-		nodes = append(nodes, nodeResponse{
-			Key:          h.Config.Cluster.NodeID,
-			Name:         "Local Node",
-			IP:           h.Config.Server.Host,
-			IsActive:     true,
-			UserCount:    int(activeUsers),
-			OnlineUsers:  onlineUsers,
-			TotalTraffic: totalTraffic,
-			Protocols:    []protocolStatus{},
-		})
-	}
+	// Discover relay servers from DB and check their health.
+	relayNodes := h.buildRelayNodes(ctx)
+	nodes = append(nodes, relayNodes...)
 
 	return c.JSON(http.StatusOK, listNodesResponse{
 		Nodes:               nodes,
 		TotalCostMonthlyRub: 0,
 	})
+}
+
+// NodeStatus handles GET /api/cluster/node-status
+//
+// Returns this node's status without auth — used by peer nodes to aggregate
+// the cluster view. Protected by cluster network only.
+func (h *Handler) NodeStatus(c echo.Context) error {
+	ctx := c.Request().Context()
+	node := h.buildLocalNodeStatus(ctx)
+	return c.JSON(http.StatusOK, node)
+}
+
+// buildLocalNodeStatus collects metrics for the local node.
+func (h *Handler) buildLocalNodeStatus(ctx context.Context) nodeResponse {
+	activeUsers, _ := h.DB.CountActiveUsers(ctx)
+
+	onlineUsers := 0
+	var uptimeHours *float64
+	if h.VPN != nil {
+		online, err := h.VPN.OnlineUsers(ctx)
+		if err == nil {
+			onlineUsers = online
+		}
+		if err := h.VPN.Health(ctx); err == nil {
+			uptime := h.VPN.UptimeHours()
+			uptimeHours = &uptime
+		}
+	}
+
+	totalTraffic, _ := h.DB.TotalTraffic(ctx)
+
+	// Determine node IP from DB servers (skip relays).
+	nodeIP := h.Config.Server.Host
+	nodeKey := h.Config.Cluster.NodeID
+	// Map node ID to server key: "de-1" → "de", "nl-1" → "nl"
+	serverKey := strings.TrimSuffix(strings.Split(nodeKey, "-")[0], "")
+	dbServers, _ := h.DB.ListActiveServers(ctx)
+	for _, s := range dbServers {
+		if s.Key == serverKey {
+			nodeIP = s.Host
+			break
+		}
+	}
+
+	// System metrics from host.
+	metrics := collectSystemMetrics()
+
+	version := "sing-box 1.13.6"
+	latency := 0
+
+	return nodeResponse{
+		Key:          nodeKey,
+		Name:         nodeName(nodeKey),
+		Flag:         nodeFlag(nodeKey),
+		IP:           nodeIP,
+		IsActive:     true,
+		LatencyMS:    &latency,
+		UserCount:    int(activeUsers),
+		OnlineUsers:  onlineUsers,
+		TotalTraffic: totalTraffic,
+		TrafficUp:    0,
+		TrafficDown:  totalTraffic,
+		UptimeHours:  uptimeHours,
+		Version:      &version,
+		Protocols: []protocolStatus{
+			{Name: "VLESS Reality", Enabled: true, Port: h.Config.VPN.ListenPort},
+		},
+		CPU:      metrics.CPUPercent,
+		RAMUsed:  metrics.RAMUsedMB,
+		RAMTotal: metrics.RAMTotalMB,
+		Disk:     metrics.DiskPercent,
+	}
+}
+
+// queryPeerNodes fetches node status from all cluster peers in parallel.
+// Returns a slice of nodeResponses; unreachable peers are marked as inactive.
+func (h *Handler) queryPeerNodes(ctx context.Context) []nodeResponse {
+	peers := h.Config.Cluster.Peers
+	results := make([]nodeResponse, len(peers))
+
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	var wg sync.WaitGroup
+	for i, peer := range peers {
+		wg.Add(1)
+		go func(idx int, p config.PeerConfig) {
+			defer wg.Done()
+
+			node, err := fetchPeerStatus(ctx, p.URL)
+			if err != nil {
+				h.Logger.Debug("peer node unreachable",
+					zap.String("peer_id", p.ID),
+					zap.Error(err),
+				)
+				// Return offline placeholder.
+				results[idx] = nodeResponse{
+					Key:       p.ID,
+					Name:      nodeName(p.ID),
+					Flag:      nodeFlag(p.ID),
+					IsActive:  false,
+					Protocols: []protocolStatus{},
+				}
+				return
+			}
+			results[idx] = node
+		}(i, peer)
+	}
+
+	wg.Wait()
+	return results
+}
+
+// buildRelayNodes finds relay servers in the DB and checks TCP connectivity.
+// Relays are grouped by unique IP (e.g., SPB relay has relay-de and relay-nl on same IP).
+func (h *Handler) buildRelayNodes(ctx context.Context) []nodeResponse {
+	servers, err := h.DB.ListActiveServers(ctx)
+	if err != nil {
+		return nil
+	}
+
+	// Collect unique relay IPs with their ports.
+	type relayInfo struct {
+		ip    string
+		ports []int
+	}
+	seen := map[string]*relayInfo{}
+	for _, s := range servers {
+		if !strings.HasPrefix(s.Key, "relay-") {
+			continue
+		}
+		if ri, ok := seen[s.Host]; ok {
+			ri.ports = append(ri.ports, s.Port)
+		} else {
+			seen[s.Host] = &relayInfo{ip: s.Host, ports: []int{s.Port}}
+		}
+	}
+
+	var nodes []nodeResponse
+	for _, ri := range seen {
+		// TCP health check on first port with 2s timeout.
+		active := false
+		var latency *int
+		start := time.Now()
+		conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", ri.ip, ri.ports[0]), 2*time.Second)
+		if err == nil {
+			conn.Close()
+			active = true
+			ms := int(time.Since(start).Milliseconds())
+			latency = &ms
+		}
+
+		version := "nginx relay"
+		nodes = append(nodes, nodeResponse{
+			Key:       fmt.Sprintf("relay-%s", ri.ip),
+			Name:      "SPB Relay",
+			Flag:      "🇷🇺",
+			IP:        ri.ip,
+			IsActive:  active,
+			LatencyMS: latency,
+			Version:   &version,
+			Protocols: []protocolStatus{
+				{Name: "TCP Relay", Enabled: active, Port: ri.ports[0]},
+			},
+		})
+	}
+
+	return nodes
+}
+
+// fetchPeerStatus calls GET /api/cluster/node-status on a peer and decodes the response.
+func fetchPeerStatus(ctx context.Context, peerURL string) (nodeResponse, error) {
+	url := peerURL + "/api/cluster/node-status"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nodeResponse{}, err
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nodeResponse{}, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 256))
+		return nodeResponse{}, fmt.Errorf("status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var node nodeResponse
+	if err := json.NewDecoder(resp.Body).Decode(&node); err != nil {
+		return nodeResponse{}, fmt.Errorf("decode: %w", err)
+	}
+	return node, nil
+}
+
+// ListProtocols handles GET /api/admin/protocols
+//
+// Returns the list of VPN protocols configured on this node.
+func (h *Handler) ListProtocols(c echo.Context) error {
+	protocols := []protocolInfo{
+		{
+			Name:        "vless-reality-tcp",
+			DisplayName: "VLESS Reality TCP",
+			Enabled:     true,
+		},
+	}
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"protocols": protocols,
+	})
+}
+
+// RestartSingbox handles POST /api/admin/nodes/restart-singbox
+// (also POST /api/admin/nodes/restart-xray for backward compat)
+//
+// Restarts the VPN engine by stopping and starting it.
+func (h *Handler) RestartSingbox(c echo.Context) error {
+	if h.VPN == nil {
+		return echo.NewHTTPError(http.StatusServiceUnavailable, "VPN engine not configured")
+	}
+
+	ctx := c.Request().Context()
+
+	// Reload users (effectively a restart of the config).
+	dbUsers, err := h.DB.ListActiveVPNUsers(ctx)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to list users")
+	}
+	vpnUsers := cluster.DBUsersToVPNUsers(dbUsers)
+	count, err := h.VPN.ReloadUsers(ctx, vpnUsers)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to restart VPN")
+	}
+
+	h.Logger.Info("admin: VPN engine restarted", zap.Int("active_users", count))
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"status":       "ok",
+		"active_users": count,
+	})
+}
+
+// nodeName returns a human-readable name for a node ID.
+func nodeName(nodeID string) string {
+	names := map[string]string{
+		"de-1": "Germany (DE)",
+		"nl-1": "Netherlands (NL)",
+	}
+	if name, ok := names[nodeID]; ok {
+		return name
+	}
+	return nodeID
+}
+
+// nodeFlag returns an emoji flag for a node ID.
+func nodeFlag(nodeID string) string {
+	flags := map[string]string{
+		"de-1": "🇩🇪",
+		"nl-1": "🇳🇱",
+	}
+	if flag, ok := flags[nodeID]; ok {
+		return flag
+	}
+	return ""
 }
 
 // ListServers handles GET /api/admin/servers

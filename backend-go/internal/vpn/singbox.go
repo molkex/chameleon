@@ -334,6 +334,16 @@ func (e *SingboxEngine) Health(ctx context.Context) error {
 	return nil
 }
 
+// UptimeHours returns how many hours the engine has been running.
+func (e *SingboxEngine) UptimeHours() float64 {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if !e.running || e.startedAt.IsZero() {
+		return 0
+	}
+	return time.Since(e.startedAt).Hours()
+}
+
 // GenerateClientConfig creates a sing-box client config JSON for iOS/macOS.
 func (e *SingboxEngine) GenerateClientConfig(user VPNUser, servers []ServerEntry) ([]byte, error) {
 	return generateClientConfig(e.cfg, user, servers)
