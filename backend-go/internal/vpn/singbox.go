@@ -367,7 +367,7 @@ func (e *SingboxEngine) buildServerConfig() ([]byte, error) {
 
 	sni := e.cfg.Reality.SNI
 	if sni == "" {
-		sni = "www.microsoft.com"
+		sni = "vk.com"
 	}
 
 	shortIDs := e.cfg.Reality.ShortIDs

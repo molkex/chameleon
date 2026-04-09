@@ -41,7 +41,7 @@ vpn:
       - "fb4dae0a"
       - "fe3c770e"
     snis:
-      default: "ads.x5.ru"
+      default: "vk.com"
 
   servers: []
   # Servers are loaded from the database (vpn_servers table).

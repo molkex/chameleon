@@ -42,7 +42,7 @@ vpn:
       - "fb4dae0a"
       - "fe3c770e"
     snis:
-      default: "ads.x5.ru"
+      default: "vk.com"
 
   servers: []
 
