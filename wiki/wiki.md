@@ -70,14 +70,16 @@ iPhone (libbox 1.13.5)
 | `reject method: "port_unreachable"` | VPN не стартует | Невалидное значение в sing-box 1.13 |
 | `log: "debug"` | VPN не стартует или OOM | Extension убивается системой из-за объёма логов |
 
-### Следующий шаг: Миграция с Xray на sing-box сервер
-sing-box сервер уже развёрнут на DE:2094 и протестирован. Нужно перевести основной трафик с Xray (порт 2096) на sing-box сервер. Преимущества: нативная совместимость с sing-box клиентом (iOS), поддержка MUX, единый стек.
+### Следующие шаги
+1. **NL сервер** — перевести с Xray на sing-box, обновить SNI (rutube.ru → проверить стабильность или заменить)
+2. **Relay серверы** — проверить relay-de и relay-nl с новым SNI через SPB
+3. **Полный переход на Go** — убрать зависимость от Rust backend, обновить admin panel API
 
 ## Resolved Issues Log
 
 ### 2026-04-09: DNS loop fix + SNI change (Go backend)
 - **DNS loop** (VPN connected, no sites load): Missing `{"action":"sniff"}` route rule. In sing-box 1.13, sniff moved from inbound to route action. Without it, `protocol:"dns"` never matches → hijack-dns doesn't intercept → DNS packets go through VLESS to 172.19.0.2:53 (TUN address) → infinite loop.
-- **SNI change**: ads.x5.ru → vk.com. ads.x5.ru was timing out 40% from DE server, causing REALITY handshake failures → "connection reset by peer". vk.com: 100% stable, ~130ms, Russian whitelist.
+- **SNI change**: ads.x5.ru → ads.adfox.ru. ads.x5.ru was timing out 40% from DE server. vk.com tested but incompatible with REALITY from external clients (works localhost only). ads.adfox.ru: 100% stable, ~174ms, Yandex ad platform.
 - **Route rules** now match working Rust config: sniff → hijack-dns → clash direct → QUIC reject (udp:443, no_drop:true) → ip_is_private→direct
 - **detour:"direct"** removed from dns-direct: sing-box 1.13 DNS servers go directly by default; detour to empty direct outbound = error
 - **UI**: Added version + config hash to main screen footer for debugging
