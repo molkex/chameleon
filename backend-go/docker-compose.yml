@@ -49,9 +49,8 @@ services:
     volumes:
       - singbox-config:/etc/singbox:ro
     command: ["run", "-c", "/etc/singbox/singbox-config.json"]
-    depends_on:
-      chameleon:
-        condition: service_healthy
+    # NOTE: no depends_on chameleon — singbox must NOT restart when chameleon redeploys,
+    # otherwise all VPN connections drop. Start singbox manually or via deploy.sh on first setup.
 
   # ---------- PostgreSQL ----------
   postgres:
