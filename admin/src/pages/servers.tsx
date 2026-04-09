@@ -156,10 +156,11 @@ export default function ServersPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<ServerForm>(emptyForm);
 
-  const { data: servers = [], isLoading } = useQuery({
+  const { data: serversData, isLoading } = useQuery({
     queryKey: ["vpn-servers"],
-    queryFn: () => api.get<VpnServer[]>("/admin/servers"),
+    queryFn: () => api.get<{ servers: VpnServer[]; total_cost_monthly_rub: number }>("/admin/servers"),
   });
+  const servers = serversData?.servers ?? [];
 
   const createMutation = useMutation({
     mutationFn: (data: ServerForm) => api.post("/admin/servers", data),
