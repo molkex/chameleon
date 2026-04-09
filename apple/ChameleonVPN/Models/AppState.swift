@@ -17,6 +17,8 @@ class AppState {
 
     private var statusObserver: Any?
 
+    private var hasInitialized = false
+
     func initialize() async {
         // Fix: if config file is corrupted (missing selector/urltest), delete it
         // so fresh config is fetched from API
@@ -47,10 +49,19 @@ class AppState {
             await autoRegister()
         }
 
-        // Refresh config silently
+        // Refresh config silently on app launch
         if configStore.username != nil {
             await silentConfigUpdate()
         }
+
+        hasInitialized = true
+    }
+
+    /// Called when app returns to foreground. Refreshes config in background.
+    func handleForeground() async {
+        guard hasInitialized, configStore.username != nil else { return }
+        AppLogger.app.info("handleForeground: refreshing config in background")
+        Task { await silentConfigUpdate() }
     }
 
     /// Delete corrupted or outdated config.
@@ -156,6 +167,7 @@ class AppState {
         return false
     }
 
+    /// Fetch fresh config from API and save. Silently logs errors — never shows them to the user.
     private func silentConfigUpdate() async {
         do {
             try await fetchAndSaveConfig()
@@ -169,9 +181,21 @@ class AppState {
                 UserDefaults(suiteName: AppConstants.appGroupID)?.set(configForUD, forKey: AppConstants.startOptionsKey)
             }
         } catch {
-            AppLogger.app.error("Config update failed: \(error.localizedDescription)")
-            errorMessage = error.localizedDescription
+            AppLogger.app.error("Config update failed (using cached): \(error.localizedDescription)")
         }
+    }
+
+    /// Fetch fresh config with a timeout. Falls back to cached config if fetch fails or times out.
+    private func refreshConfig(timeout: Duration = .seconds(5)) async {
+        AppLogger.app.info("refreshConfig: fetching (timeout=\(timeout))")
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { await self.silentConfigUpdate() }
+            group.addTask { try? await Task.sleep(for: timeout) }
+            _ = await group.next()
+            group.cancelAll()
+            for await _ in group { }
+        }
+        AppLogger.app.info("refreshConfig: done")
     }
 
     // MARK: - VPN
@@ -180,28 +204,30 @@ class AppState {
         if vpnManager.isConnected {
             commandClient.disconnect()
             vpnManager.disconnect()
+            // Refresh config in background for next connection
+            Task { await silentConfigUpdate() }
         } else {
+            // Fetch fresh config before connecting (up to 5s, then fall back to cache)
+            await refreshConfig(timeout: .seconds(5))
+
             guard configStore.hasConfig() else {
-                await silentConfigUpdate()
-                guard configStore.hasConfig() else {
-                    errorMessage = "No config available"
-                    return
-                }
-                let config = configStore.loadConfig()
-                do {
-                    try await vpnManager.connect(configJSON: config)
-                } catch {
-                    errorMessage = error.localizedDescription
-                }
+                errorMessage = "No config available. Check internet connection."
                 return
             }
-            let config = configStore.loadConfig()
+
+            // Build config with selected server applied
+            let config: String?
+            if let tag = configStore.selectedServerTag {
+                config = buildConfigWithSelector(tag) ?? configStore.loadConfig()
+            } else {
+                config = configStore.loadConfig()
+            }
+
             do {
                 try await vpnManager.connect(configJSON: config)
             } catch {
                 errorMessage = error.localizedDescription
             }
-            await silentConfigUpdate()
         }
     }
 
