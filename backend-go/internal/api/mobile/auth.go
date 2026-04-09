@@ -214,10 +214,10 @@ func (h *Handler) createUser(ctx context.Context, deviceID, appleID, authProvide
 	if err != nil {
 		return nil, fmt.Errorf("generate uuid: %w", err)
 	}
-	vpnShortID, err := generateShortID()
-	if err != nil {
-		return nil, fmt.Errorf("generate short_id: %w", err)
-	}
+	// Use empty short_id — it is always valid in sing-box Reality config.
+	// Random short_ids caused "reality verification failed" because they
+	// weren't in the server's allowed short_id list.
+	vpnShortID := ""
 
 	trialExpiry := time.Now().Add(30 * 24 * time.Hour)
 
