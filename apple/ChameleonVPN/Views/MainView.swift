@@ -166,15 +166,20 @@ struct MainView: View {
     private var buildInfoLine: String {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
-        let configHash: String = {
-            guard let config = app.configStore.loadConfig() else { return "no config" }
-            // Simple hash: sum all bytes, mod to get 8-char hex
-            let bytes = Array(config.utf8)
-            var hash: UInt64 = 5381
-            for byte in bytes { hash = hash &* 33 &+ UInt64(byte) }
-            return String(format: "%08x", UInt32(truncatingIfNeeded: hash))
+        let sni: String = {
+            guard let config = app.configStore.loadConfig(),
+                  let data = config.data(using: .utf8),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let outbounds = json["outbounds"] as? [[String: Any]] else { return "?" }
+            for ob in outbounds {
+                if let tls = ob["tls"] as? [String: Any],
+                   let serverName = tls["server_name"] as? String {
+                    return serverName
+                }
+            }
+            return "?"
         }()
-        return "v\(version)(\(build)) cfg:\(configHash)"
+        return "v\(version)(\(build)) sni:\(sni)"
     }
 
     private var selectedServerName: String {
