@@ -29,6 +29,13 @@ type Engine interface {
 	// OnlineUsers returns the count of currently connected users.
 	OnlineUsers(ctx context.Context) (int, error)
 
+	// SessionTraffic returns total upload/download bytes for the current engine session.
+	SessionTraffic(ctx context.Context) (upload, download int64, err error)
+
+	// CurrentSpeed returns real-time upload/download speed in bytes per second
+	// and the count of active connections.
+	CurrentSpeed(ctx context.Context) (uploadBPS, downloadBPS int64, connections int, err error)
+
 	// Health checks if the VPN server is running and healthy.
 	Health(ctx context.Context) error
 

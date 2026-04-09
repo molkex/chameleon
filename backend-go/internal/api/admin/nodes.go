@@ -15,6 +15,9 @@ import (
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 
+	"math"
+
+	"github.com/chameleonvpn/chameleon/internal/auth"
 	"github.com/chameleonvpn/chameleon/internal/cluster"
 	"github.com/chameleonvpn/chameleon/internal/config"
 	"github.com/chameleonvpn/chameleon/internal/db"
@@ -67,6 +70,9 @@ type nodeResponse struct {
 	TotalTraffic int64            `json:"total_traffic"`
 	TrafficUp    int64            `json:"traffic_up"`
 	TrafficDown  int64            `json:"traffic_down"`
+	SpeedUp      int64            `json:"speed_up"`
+	SpeedDown    int64            `json:"speed_down"`
+	Connections  int              `json:"connections"`
 	UptimeHours  *float64         `json:"uptime_hours"`
 	Version      *string          `json:"xray_version"` // legacy field name, shows sing-box version
 	Protocols    []protocolStatus `json:"protocols"`
@@ -74,6 +80,19 @@ type nodeResponse struct {
 	RAMUsed      *float64         `json:"ram_used"`
 	RAMTotal     *float64         `json:"ram_total"`
 	Disk         *float64         `json:"disk"`
+	LastSyncAt   *time.Time        `json:"last_sync_at,omitempty"`
+	SyncStatus   string            `json:"sync_status,omitempty"`
+	SyncedUsers  int               `json:"synced_users,omitempty"`
+	ProviderName string            `json:"provider_name,omitempty"`
+	CostMonthly  float64           `json:"cost_monthly,omitempty"`
+	ProviderURL  string            `json:"provider_url,omitempty"`
+	Notes        string            `json:"notes,omitempty"`
+	Containers   []containerInfo   `json:"containers,omitempty"`
+}
+
+type containerInfo struct {
+	Name   string `json:"name"`
+	Status string `json:"status"`
 }
 
 type protocolStatus struct {
@@ -232,12 +251,30 @@ func (h *Handler) ListNodes(c echo.Context) error {
 	}
 
 	// Discover relay servers from DB and check their health.
+	// Skip relays that were already fetched as peers (e.g., SPB with metrics-agent).
+	peerIPs := make(map[string]bool)
+	for _, n := range nodes {
+		if n.IP != "" {
+			peerIPs[n.IP] = true
+		}
+	}
 	relayNodes := h.buildRelayNodes(ctx)
-	nodes = append(nodes, relayNodes...)
+	for _, rn := range relayNodes {
+		if !peerIPs[rn.IP] {
+			nodes = append(nodes, rn)
+		}
+	}
+
+	// Calculate total monthly cost from all servers in DB.
+	allServers, _ := h.DB.ListAllServers(ctx)
+	var totalCost float64
+	for _, s := range allServers {
+		totalCost += s.CostMonthly
+	}
 
 	return c.JSON(http.StatusOK, listNodesResponse{
 		Nodes:               nodes,
-		TotalCostMonthlyRub: 0,
+		TotalCostMonthlyRub: totalCost,
 	})
 }
 
@@ -257,6 +294,9 @@ func (h *Handler) buildLocalNodeStatus(ctx context.Context) nodeResponse {
 
 	onlineUsers := 0
 	var uptimeHours *float64
+	var trafficUp, trafficDown int64
+	var speedUp, speedDown int64
+	var connections int
 	if h.VPN != nil {
 		online, err := h.VPN.OnlineUsers(ctx)
 		if err == nil {
@@ -266,9 +306,26 @@ func (h *Handler) buildLocalNodeStatus(ctx context.Context) nodeResponse {
 			uptime := h.VPN.UptimeHours()
 			uptimeHours = &uptime
 		}
+		// Real-time session traffic from clash API.
+		up, down, err := h.VPN.SessionTraffic(ctx)
+		if err == nil {
+			trafficUp = up
+			trafficDown = down
+		}
+		// Real-time speed and connection count.
+		sUp, sDown, conns, err := h.VPN.CurrentSpeed(ctx)
+		if err == nil {
+			speedUp = sUp
+			speedDown = sDown
+			connections = conns
+		}
 	}
 
-	totalTraffic, _ := h.DB.TotalTraffic(ctx)
+	// Fallback: if clash API returned 0, use DB cumulative.
+	if trafficUp == 0 && trafficDown == 0 {
+		totalTraffic, _ := h.DB.TotalTraffic(ctx)
+		trafficDown = totalTraffic
+	}
 
 	// Determine node IP from DB servers (skip relays).
 	nodeIP := h.Config.Server.Host
@@ -283,8 +340,19 @@ func (h *Handler) buildLocalNodeStatus(ctx context.Context) nodeResponse {
 		}
 	}
 
-	// System metrics from host.
+	// System metrics from host (rounded for clean display).
 	metrics := collectSystemMetrics()
+
+	// Cluster sync status.
+	syncStatus := "disabled"
+	syncedUsers := 0
+	var lastSyncAt *time.Time
+	if h.Config.Cluster.Enabled {
+		syncStatus = "ok"
+		syncedUsers = int(activeUsers)
+		now := time.Now().UTC()
+		lastSyncAt = &now
+	}
 
 	version := "sing-box 1.13.6"
 	latency := 0
@@ -298,18 +366,25 @@ func (h *Handler) buildLocalNodeStatus(ctx context.Context) nodeResponse {
 		LatencyMS:    &latency,
 		UserCount:    int(activeUsers),
 		OnlineUsers:  onlineUsers,
-		TotalTraffic: totalTraffic,
-		TrafficUp:    0,
-		TrafficDown:  totalTraffic,
+		TotalTraffic: trafficUp + trafficDown,
+		TrafficUp:    trafficUp,
+		TrafficDown:  trafficDown,
+		SpeedUp:      speedUp,
+		SpeedDown:    speedDown,
+		Connections:  connections,
 		UptimeHours:  uptimeHours,
 		Version:      &version,
 		Protocols: []protocolStatus{
 			{Name: "VLESS Reality", Enabled: true, Port: h.Config.VPN.ListenPort},
 		},
-		CPU:      metrics.CPUPercent,
-		RAMUsed:  metrics.RAMUsedMB,
-		RAMTotal: metrics.RAMTotalMB,
-		Disk:     metrics.DiskPercent,
+		CPU:         roundPtr(metrics.CPUPercent, 1),
+		RAMUsed:     roundPtr(metrics.RAMUsedMB, 0),
+		RAMTotal:    roundPtr(metrics.RAMTotalMB, 0),
+		Disk:        roundPtr(metrics.DiskPercent, 1),
+		LastSyncAt:  lastSyncAt,
+		SyncStatus:  syncStatus,
+		SyncedUsers: syncedUsers,
+		Containers:  collectContainerStatus(),
 	}
 }
 
@@ -344,6 +419,11 @@ func (h *Handler) queryPeerNodes(ctx context.Context) []nodeResponse {
 				}
 				return
 			}
+			// Round metrics from peer for clean display.
+			node.CPU = roundPtr(node.CPU, 1)
+			node.RAMUsed = roundPtr(node.RAMUsed, 0)
+			node.RAMTotal = roundPtr(node.RAMTotal, 0)
+			node.Disk = roundPtr(node.Disk, 1)
 			results[idx] = node
 		}(i, peer)
 	}
@@ -480,6 +560,16 @@ func (h *Handler) RestartSingbox(c echo.Context) error {
 	})
 }
 
+// roundPtr rounds a *float64 to the given number of decimal places.
+func roundPtr(v *float64, decimals int) *float64 {
+	if v == nil {
+		return nil
+	}
+	shift := math.Pow(10, float64(decimals))
+	rounded := math.Round(*v*shift) / shift
+	return &rounded
+}
+
 // nodeName returns a human-readable name for a node ID.
 func nodeName(nodeID string) string {
 	names := map[string]string{
@@ -506,7 +596,7 @@ func nodeFlag(nodeID string) string {
 
 // ListServers handles GET /api/admin/servers
 //
-// Returns the list of VPN servers from the database.
+// Returns the list of VPN servers from the database (without credentials).
 func (h *Handler) ListServers(c echo.Context) error {
 	ctx := c.Request().Context()
 
@@ -516,21 +606,93 @@ func (h *Handler) ListServers(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to list servers")
 	}
 
-	return c.JSON(http.StatusOK, servers)
+	resp := make([]serverResponse, len(servers))
+	var totalCost float64
+	for i, s := range servers {
+		resp[i] = toServerResponse(&s)
+		totalCost += s.CostMonthly
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"servers":              resp,
+		"total_cost_monthly_rub": totalCost,
+	})
 }
 
 // serverRequest is the JSON body for create/update server endpoints.
 type serverRequest struct {
-	Key              string `json:"key"`
-	Name             string `json:"name"`
-	Flag             string `json:"flag"`
-	Host             string `json:"host"`
-	Port             int    `json:"port"`
-	Domain           string `json:"domain"`
-	SNI              string `json:"sni"`
-	RealityPublicKey string `json:"reality_public_key"`
-	IsActive         bool   `json:"is_active"`
-	SortOrder        int    `json:"sort_order"`
+	Key              string  `json:"key"`
+	Name             string  `json:"name"`
+	Flag             string  `json:"flag"`
+	Host             string  `json:"host"`
+	Port             int     `json:"port"`
+	Domain           string  `json:"domain"`
+	SNI              string  `json:"sni"`
+	RealityPublicKey string  `json:"reality_public_key"`
+	IsActive         bool    `json:"is_active"`
+	SortOrder        int     `json:"sort_order"`
+	ProviderName     string  `json:"provider_name"`
+	CostMonthly      float64 `json:"cost_monthly"`
+	ProviderURL      string  `json:"provider_url"`
+	ProviderLogin    string  `json:"provider_login"`
+	ProviderPassword string  `json:"provider_password"`
+	Notes            string  `json:"notes"`
+}
+
+// serverResponse is the JSON representation of a VPN server for the admin API.
+// Excludes sensitive fields (provider_login, provider_password).
+type serverResponse struct {
+	ID               int64   `json:"id"`
+	Key              string  `json:"key"`
+	Name             string  `json:"name"`
+	Flag             string  `json:"flag"`
+	Host             string  `json:"host"`
+	Port             int     `json:"port"`
+	Domain           string  `json:"domain"`
+	SNI              string  `json:"sni"`
+	RealityPublicKey string  `json:"reality_public_key"`
+	IsActive         bool    `json:"is_active"`
+	SortOrder        int     `json:"sort_order"`
+	ProviderName     string  `json:"provider_name"`
+	CostMonthly      float64 `json:"cost_monthly"`
+	ProviderURL      string  `json:"provider_url"`
+	Notes            string  `json:"notes"`
+	CreatedAt        string  `json:"created_at"`
+	UpdatedAt        string  `json:"updated_at"`
+}
+
+// toServerResponse converts a db.VPNServer to the safe API response (no credentials).
+func toServerResponse(s *db.VPNServer) serverResponse {
+	return serverResponse{
+		ID:               s.ID,
+		Key:              s.Key,
+		Name:             s.Name,
+		Flag:             s.Flag,
+		Host:             s.Host,
+		Port:             s.Port,
+		Domain:           s.Domain,
+		SNI:              s.SNI,
+		RealityPublicKey: s.RealityPublicKey,
+		IsActive:         s.IsActive,
+		SortOrder:        s.SortOrder,
+		ProviderName:     s.ProviderName,
+		CostMonthly:      s.CostMonthly,
+		ProviderURL:      s.ProviderURL,
+		Notes:            s.Notes,
+		CreatedAt:        s.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:        s.UpdatedAt.Format(time.RFC3339),
+	}
+}
+
+// credentialsRequest is the JSON body for POST /api/admin/servers/:id/credentials.
+type credentialsRequest struct {
+	Password string `json:"password"`
+}
+
+// credentialsResponse is returned by GET credentials endpoint after re-auth.
+type credentialsResponse struct {
+	ProviderLogin    string `json:"provider_login"`
+	ProviderPassword string `json:"provider_password"`
 }
 
 // CreateServer handles POST /api/admin/servers
@@ -557,6 +719,12 @@ func (h *Handler) CreateServer(c echo.Context) error {
 		RealityPublicKey: req.RealityPublicKey,
 		IsActive:         req.IsActive,
 		SortOrder:        req.SortOrder,
+		ProviderName:     req.ProviderName,
+		CostMonthly:      req.CostMonthly,
+		ProviderURL:      req.ProviderURL,
+		ProviderLogin:    req.ProviderLogin,
+		ProviderPassword: req.ProviderPassword,
+		Notes:            req.Notes,
 	})
 	if err != nil {
 		h.Logger.Error("admin: create server", zap.Error(err))
@@ -564,7 +732,7 @@ func (h *Handler) CreateServer(c echo.Context) error {
 	}
 
 	h.Logger.Info("admin: server created", zap.String("key", server.Key))
-	return c.JSON(http.StatusCreated, server)
+	return c.JSON(http.StatusCreated, toServerResponse(server))
 }
 
 // UpdateServer handles PUT /api/admin/servers/:id
@@ -596,6 +764,12 @@ func (h *Handler) UpdateServer(c echo.Context) error {
 		RealityPublicKey: req.RealityPublicKey,
 		IsActive:         req.IsActive,
 		SortOrder:        req.SortOrder,
+		ProviderName:     req.ProviderName,
+		CostMonthly:      req.CostMonthly,
+		ProviderURL:      req.ProviderURL,
+		ProviderLogin:    req.ProviderLogin,
+		ProviderPassword: req.ProviderPassword,
+		Notes:            req.Notes,
 	})
 	if err != nil {
 		h.Logger.Error("admin: update server", zap.Error(err), zap.Int64("id", id))
@@ -603,7 +777,7 @@ func (h *Handler) UpdateServer(c echo.Context) error {
 	}
 
 	h.Logger.Info("admin: server updated", zap.String("key", server.Key))
-	return c.JSON(http.StatusOK, server)
+	return c.JSON(http.StatusOK, toServerResponse(server))
 }
 
 // DeleteServer handles DELETE /api/admin/servers/:id
@@ -624,4 +798,65 @@ func (h *Handler) DeleteServer(c echo.Context) error {
 
 	h.Logger.Info("admin: server deleted", zap.Int64("id", id))
 	return c.NoContent(http.StatusNoContent)
+}
+
+// GetServerCredentials handles POST /api/admin/servers/:id/credentials
+//
+// Returns provider_login and provider_password for a server.
+// Requires the admin to re-authenticate by sending their password in the request body.
+func (h *Handler) GetServerCredentials(c echo.Context) error {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid server id")
+	}
+
+	var req credentialsRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
+	}
+	if req.Password == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "password is required for re-authentication")
+	}
+
+	// Get admin username from JWT claims.
+	claims := auth.GetUserFromContext(c)
+	if claims == nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
+	}
+
+	ctx := c.Request().Context()
+
+	// Re-authenticate: verify admin password.
+	adminUser, err := h.DB.FindAdminByUsername(ctx, claims.Username)
+	if err != nil {
+		h.Logger.Error("admin: credentials: find admin", zap.Error(err))
+		return echo.NewHTTPError(http.StatusInternalServerError, "internal error")
+	}
+	if adminUser == nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "admin user not found")
+	}
+
+	matches, _ := auth.VerifyPassword(req.Password, adminUser.PasswordHash)
+	if !matches {
+		return echo.NewHTTPError(http.StatusForbidden, "invalid password")
+	}
+
+	// Fetch server credentials.
+	server, err := h.DB.FindServerByID(ctx, id)
+	if err != nil {
+		h.Logger.Error("admin: credentials: find server", zap.Error(err), zap.Int64("id", id))
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to find server")
+	}
+	if server == nil {
+		return echo.NewHTTPError(http.StatusNotFound, "server not found")
+	}
+
+	h.Logger.Info("admin: credentials revealed",
+		zap.String("admin", claims.Username),
+		zap.Int64("server_id", id))
+
+	return c.JSON(http.StatusOK, credentialsResponse{
+		ProviderLogin:    server.ProviderLogin,
+		ProviderPassword: server.ProviderPassword,
+	})
 }

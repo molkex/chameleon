@@ -69,9 +69,12 @@ echo ">>> Syncing files to ${NODE_SSH}:${NODE_DIR}..."
 rsync -avz --delete \
     --exclude='.git' \
     --exclude='backend-go/chameleon' \
+    --exclude='backend-go/chameleon-linux' \
     --exclude='.env' \
     --exclude='backend-go/.env' \
+    --exclude='backend-go/config.yaml' \
     --exclude='node_modules' \
+    --exclude='target' \
     -e ssh \
     "${PROJECT_DIR}/" \
     "${NODE_SSH}:${NODE_DIR}/"
@@ -141,9 +144,10 @@ else
     docker compose build nginx 2>&1 | tail -5
 fi
 
-# Start services
+# Start services (--no-deps to avoid restarting singbox and killing VPN connections)
 echo ">>> Starting services..."
-docker compose up -d
+docker compose up -d --no-deps chameleon
+docker compose up -d nginx
 
 # Wait for backend health
 echo ">>> Waiting for backend health..."

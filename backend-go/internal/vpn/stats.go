@@ -13,19 +13,34 @@ import (
 	"go.uber.org/zap"
 )
 
+const recentUserTTL = 2 * time.Minute // consider a user "online" for 2 min after last connection
+
 // StatsCollector periodically collects traffic stats from the sing-box clash_api.
 //
 // It communicates with the clash_api REST endpoint to fetch connection data
 // and derive per-user traffic statistics.
 type StatsCollector struct {
-	mu         sync.RWMutex
-	baseURL    string
-	client     *http.Client
-	logger     *zap.Logger
+	mu      sync.RWMutex
+	baseURL string
+	client  *http.Client
+	logger  *zap.Logger
 
 	// prevTraffic stores cumulative traffic from the last query so we can
 	// compute deltas (traffic since last query).
 	prevTraffic map[string]trafficSnapshot
+
+	// recentUsers tracks when each user/IP was last seen with an active connection.
+	// Used to report online users even when connections are short-lived.
+	recentUsers map[string]time.Time
+
+	// prevUpload/prevDownload track global totals to detect new traffic.
+	prevUpload   int64
+	prevDownload int64
+
+	// Speed tracking: stores last-seen totals and timestamp for delta calculation.
+	speedLastUpload   int64
+	speedLastDownload int64
+	speedLastTime     time.Time
 }
 
 // trafficSnapshot stores cumulative upload/download for delta calculation.
@@ -45,25 +60,26 @@ func NewStatsCollector(baseURL string, logger *zap.Logger) *StatsCollector {
 		},
 		logger:      logger.Named("stats-collector"),
 		prevTraffic: make(map[string]trafficSnapshot),
+		recentUsers: make(map[string]time.Time),
 	}
 }
 
 // clashConnections is the JSON response from GET /connections.
 type clashConnections struct {
-	DownloadTotal int64            `json:"downloadTotal"`
-	UploadTotal   int64            `json:"uploadTotal"`
+	DownloadTotal int64             `json:"downloadTotal"`
+	UploadTotal   int64             `json:"uploadTotal"`
 	Connections   []clashConnection `json:"connections"`
 }
 
 // clashConnection represents a single connection from the clash_api.
 type clashConnection struct {
-	ID       string            `json:"id"`
-	Metadata clashMetadata     `json:"metadata"`
-	Upload   int64             `json:"upload"`
-	Download int64             `json:"download"`
-	Chains   []string          `json:"chains"`
-	Rule     string            `json:"rule"`
-	Start    string            `json:"start"`
+	ID       string        `json:"id"`
+	Metadata clashMetadata `json:"metadata"`
+	Upload   int64         `json:"upload"`
+	Download int64         `json:"download"`
+	Chains   []string      `json:"chains"`
+	Rule     string        `json:"rule"`
+	Start    string        `json:"start"`
 }
 
 // clashMetadata holds connection metadata.
@@ -136,24 +152,115 @@ func (s *StatsCollector) QueryTraffic(ctx context.Context) ([]UserTraffic, error
 	return result, nil
 }
 
-// OnlineUsers returns the count of unique connected users from /connections.
+// OnlineUsers returns the count of recently active users.
+//
+// sing-box 1.13 clash_api connections are short-lived (HTTP request/response),
+// so we detect activity by checking if global traffic totals have increased.
+// A user is considered "online" for 5 minutes after their last activity.
 func (s *StatsCollector) OnlineUsers(ctx context.Context) (int, error) {
 	conns, err := s.fetchConnections(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("online users: %w", err)
 	}
 
-	seen := make(map[string]struct{})
+	now := time.Now()
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Collect currently active users from live connections.
+	activeNow := make(map[string]struct{})
 	for _, c := range conns.Connections {
-		username := c.Metadata.InboundUser
-		if username != "" {
-			seen[username] = struct{}{}
+		key := c.Metadata.InboundUser
+		if key == "" && strings.Contains(c.Metadata.Type, "vless") {
+			key = c.Metadata.SrcIP
+		}
+		if key != "" {
+			activeNow[key] = struct{}{}
 		}
 	}
 
-	count := len(seen)
-	s.logger.Debug("counted online users", zap.Int("count", count))
+	// Update recent users map with currently active.
+	for key := range activeNow {
+		s.recentUsers[key] = now
+	}
+	s.prevUpload = conns.UploadTotal
+	s.prevDownload = conns.DownloadTotal
+
+	// Count users seen within TTL, evict old entries.
+	count := 0
+	for key, lastSeen := range s.recentUsers {
+		if now.Sub(lastSeen) > recentUserTTL {
+			delete(s.recentUsers, key)
+		} else {
+			count++
+		}
+	}
+
 	return count, nil
+}
+
+// SessionTraffic returns the total upload and download bytes for the current sing-box session.
+// These are the global counters from the clash_api /connections endpoint.
+func (s *StatsCollector) SessionTraffic(ctx context.Context) (upload, download int64, err error) {
+	conns, err := s.fetchConnections(ctx)
+	if err != nil {
+		return 0, 0, fmt.Errorf("session traffic: %w", err)
+	}
+	return conns.UploadTotal, conns.DownloadTotal, nil
+}
+
+// CurrentSpeed fetches /connections from the clash API and returns:
+//   - uploadBPS: upload bytes per second since last call
+//   - downloadBPS: download bytes per second since last call
+//   - connections: number of currently active connections
+//
+// On the first call, speed will be 0 (establishes baseline).
+func (s *StatsCollector) CurrentSpeed(ctx context.Context) (uploadBPS, downloadBPS int64, connections int, err error) {
+	conns, err := s.fetchConnections(ctx)
+	if err != nil {
+		return 0, 0, 0, fmt.Errorf("current speed: %w", err)
+	}
+
+	now := time.Now()
+	connections = len(conns.Connections)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.speedLastTime.IsZero() {
+		// First call — establish baseline.
+		s.speedLastUpload = conns.UploadTotal
+		s.speedLastDownload = conns.DownloadTotal
+		s.speedLastTime = now
+		return 0, 0, connections, nil
+	}
+
+	elapsed := now.Sub(s.speedLastTime).Seconds()
+	if elapsed < 0.1 {
+		// Too soon, return 0 to avoid division by near-zero.
+		return 0, 0, connections, nil
+	}
+
+	deltaUp := conns.UploadTotal - s.speedLastUpload
+	deltaDown := conns.DownloadTotal - s.speedLastDownload
+
+	// Protect against counter resets (sing-box restart).
+	if deltaUp < 0 {
+		deltaUp = 0
+	}
+	if deltaDown < 0 {
+		deltaDown = 0
+	}
+
+	uploadBPS = int64(float64(deltaUp) / elapsed)
+	downloadBPS = int64(float64(deltaDown) / elapsed)
+
+	s.speedLastUpload = conns.UploadTotal
+	s.speedLastDownload = conns.DownloadTotal
+	s.speedLastTime = now
+
+	return uploadBPS, downloadBPS, connections, nil
 }
 
 // fetchConnections calls GET /connections on the clash_api.

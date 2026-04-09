@@ -42,6 +42,11 @@ export interface User {
   subscription_url: string | null;
 }
 
+export interface ContainerInfo {
+  name: string;
+  status: string;
+}
+
 export interface ProtocolStatus {
   name: string;
   enabled: boolean;
@@ -63,9 +68,16 @@ export interface Node {
   online_users: number;
   traffic_up: number;
   traffic_down: number;
+  speed_up: number;
+  speed_down: number;
+  connections: number;
   uptime_hours: number | null;
   xray_version: string | null;
   protocols: ProtocolStatus[];
+  last_sync_at: string | null;
+  sync_status: string | null;
+  synced_users: number;
+  containers?: ContainerInfo[];
 }
 
 export interface ProtocolInfo {
@@ -107,8 +119,18 @@ export interface VpnServer {
   port: number;
   domain: string;
   sni: string;
+  reality_public_key: string;
   is_active: boolean;
   sort_order: number;
+  provider_name: string;
+  cost_monthly: number;
+  provider_url: string;
+  notes: string;
   created_at: string | null;
   updated_at: string | null;
+}
+
+export interface ServerCredentials {
+  provider_login: string;
+  provider_password: string;
 }

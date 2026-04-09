@@ -311,6 +311,34 @@ func (e *SingboxEngine) OnlineUsers(ctx context.Context) (int, error) {
 	return stats.OnlineUsers(ctx)
 }
 
+// SessionTraffic returns total upload/download bytes for the current sing-box session.
+func (e *SingboxEngine) SessionTraffic(ctx context.Context) (upload, download int64, err error) {
+	e.mu.RLock()
+	stats := e.stats
+	running := e.running
+	e.mu.RUnlock()
+
+	if !running || stats == nil {
+		return 0, 0, fmt.Errorf("singbox engine: not running")
+	}
+
+	return stats.SessionTraffic(ctx)
+}
+
+// CurrentSpeed returns real-time speed and active connection count via clash_api.
+func (e *SingboxEngine) CurrentSpeed(ctx context.Context) (uploadBPS, downloadBPS int64, connections int, err error) {
+	e.mu.RLock()
+	stats := e.stats
+	running := e.running
+	e.mu.RUnlock()
+
+	if !running || stats == nil {
+		return 0, 0, 0, fmt.Errorf("singbox engine: not running")
+	}
+
+	return stats.CurrentSpeed(ctx)
+}
+
 // Health checks if the VPN server is running and responsive.
 func (e *SingboxEngine) Health(ctx context.Context) error {
 	e.mu.RLock()

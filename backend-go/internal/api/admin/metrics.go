@@ -2,6 +2,7 @@ package admin
 
 import (
 	"bufio"
+	"os/exec"
 	"os"
 	"runtime"
 	"strconv"
@@ -85,4 +86,29 @@ func parseMemInfoValue(line string) int64 {
 		return val
 	}
 	return 0
+}
+
+// collectContainerStatus runs "docker ps" and parses the output into container info.
+// Returns nil if docker is not available or the command fails.
+func collectContainerStatus() []containerInfo {
+	out, err := exec.Command("docker", "ps", "--format", "{{.Names}}\t{{.Status}}").Output()
+	if err != nil {
+		return nil
+	}
+	raw := strings.TrimSpace(string(out))
+	if raw == "" {
+		return nil
+	}
+	var containers []containerInfo
+	for _, line := range strings.Split(raw, "\n") {
+		parts := strings.SplitN(line, "\t", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		containers = append(containers, containerInfo{
+			Name:   strings.TrimSpace(parts[0]),
+			Status: strings.TrimSpace(parts[1]),
+		})
+	}
+	return containers
 }

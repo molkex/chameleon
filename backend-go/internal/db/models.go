@@ -47,6 +47,12 @@ type VPNServer struct {
 	RealityPublicKey string    `db:"reality_public_key" json:"reality_public_key"`
 	IsActive         bool      `db:"is_active"          json:"is_active"`
 	SortOrder        int       `db:"sort_order"         json:"sort_order"`
+	ProviderName     string    `db:"provider_name"      json:"provider_name"`
+	CostMonthly      float64   `db:"cost_monthly"       json:"cost_monthly"`
+	ProviderURL      string    `db:"provider_url"       json:"provider_url"`
+	ProviderLogin    string    `db:"provider_login"     json:"-"`
+	ProviderPassword string    `db:"provider_password"  json:"-"`
+	Notes            string    `db:"notes"              json:"notes"`
 	CreatedAt        time.Time `db:"created_at"         json:"created_at"`
 	UpdatedAt        time.Time `db:"updated_at"         json:"updated_at"`
 }

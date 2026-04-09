@@ -153,3 +153,11 @@ INSERT INTO vpn_servers (key, name, flag, host, port, domain, sni, is_active, so
     ('relay-de', 'Russia → DE', '🇷🇺', '185.218.0.43', 443, '', 'ads.adfox.ru', true, 3),
     ('relay-nl', 'Russia → NL', '🇷🇺', '185.218.0.43', 2098, '', 'ads.adfox.ru', true, 4)
 ON CONFLICT (key) DO NOTHING;
+
+-- Provider info columns for vpn_servers (hosting provider, cost, credentials, notes).
+ALTER TABLE vpn_servers ADD COLUMN IF NOT EXISTS provider_name VARCHAR(255) DEFAULT '';
+ALTER TABLE vpn_servers ADD COLUMN IF NOT EXISTS cost_monthly DECIMAL(10,2) DEFAULT 0;
+ALTER TABLE vpn_servers ADD COLUMN IF NOT EXISTS provider_url VARCHAR(500) DEFAULT '';
+ALTER TABLE vpn_servers ADD COLUMN IF NOT EXISTS provider_login VARCHAR(255) DEFAULT '';
+ALTER TABLE vpn_servers ADD COLUMN IF NOT EXISTS provider_password VARCHAR(255) DEFAULT '';
+ALTER TABLE vpn_servers ADD COLUMN IF NOT EXISTS notes TEXT DEFAULT '';
