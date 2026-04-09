@@ -46,6 +46,9 @@ type Handler struct {
 //	GET    /stats/dashboard — full dashboard (requires admin auth)
 //
 //	GET    /servers         — list VPN servers (requires admin auth)
+//	POST   /servers         — create VPN server (requires admin auth)
+//	PUT    /servers/:id     — update VPN server (requires admin auth)
+//	DELETE /servers/:id     — delete VPN server (requires admin auth)
 //
 //	GET    /admins          — list admin users (requires admin auth)
 //	POST   /admins          — create admin user (requires admin auth)
@@ -81,6 +84,9 @@ func RegisterRoutes(g *echo.Group, h *Handler, jwtManager *auth.JWTManager) {
 
 	// Servers.
 	g.GET("/servers", h.ListServers, adminMW)
+	g.POST("/servers", h.CreateServer, adminMW)
+	g.PUT("/servers/:id", h.UpdateServer, adminMW)
+	g.DELETE("/servers/:id", h.DeleteServer, adminMW)
 
 	// Admin users management.
 	admins := g.Group("/admins", adminMW)

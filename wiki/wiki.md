@@ -71,11 +71,23 @@ iPhone (libbox 1.13.5)
 | `log: "debug"` | VPN не стартует или OOM | Extension убивается системой из-за объёма логов |
 
 ### Следующие шаги
-1. **NL сервер** — перевести с Xray на sing-box, обновить SNI (rutube.ru → проверить стабильность или заменить)
-2. **Relay серверы** — проверить relay-de и relay-nl с новым SNI через SPB
-3. **Полный переход на Go** — убрать зависимость от Rust backend, обновить admin panel API
+1. **Деплой NL** — развернуть Go backend + sing-box на NL (194.135.38.90), сгенерировать Reality ключи
+2. **Кластер** — включить cluster sync между DE и NL (peers в config.yaml)
+3. **Relay** — обновить SNI для NL/relay-nl в БД, протестировать SPB relay
+4. **Admin panel** — добавить поле reality_public_key в UI серверов
 
 ## Resolved Issues Log
+
+### 2026-04-09: Multi-node architecture + Rust cleanup
+- **Cluster sync wired up**: `cluster.Syncer` now created and started in main.go (was implemented but never called)
+- **Cluster routes registered**: `/api/cluster/pull` and `/api/cluster/push` endpoints active when cluster enabled
+- **Server CRUD**: Admin API now supports POST/PUT/DELETE `/api/admin/servers` (frontend already had UI)
+- **Per-server Reality keys**: Added `reality_public_key` column to `vpn_servers` table. Client config uses per-server key with fallback to engine default. Critical for multi-node (each node has own key pair)
+- **CORS configurable**: Moved from hardcoded to `server.cors_origins` in config.yaml
+- **Universal deploy.sh**: Accepts target arg (`./deploy.sh de`, `./deploy.sh nl`), node registry in script, per-node Reality keys support
+- **config.production.yaml**: Now a generic template, node-specific values injected by deploy.sh
+- **Rust backend deleted**: Entire `backend/` directory (104 files, 8.5GB), old infrastructure files, root docker-compose.yml, PLAN.md
+- **Migration seeds**: NL SNI changed from `vk.com` to `ads.adfox.ru` (vk.com incompatible with REALITY)
 
 ### 2026-04-09: DNS loop fix + SNI change (Go backend)
 - **DNS loop** (VPN connected, no sites load): Missing `{"action":"sniff"}` route rule. In sing-box 1.13, sniff moved from inbound to route action. Without it, `protocol:"dns"` never matches → hijack-dns doesn't intercept → DNS packets go through VLESS to 172.19.0.2:53 (TUN address) → infinite loop.

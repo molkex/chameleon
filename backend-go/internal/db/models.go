@@ -36,18 +36,19 @@ type User struct {
 
 // VPNServer represents a VPN server node (maps to "vpn_servers" table).
 type VPNServer struct {
-	ID        int64     `db:"id"         json:"id"`
-	Key       string    `db:"key"        json:"key"`
-	Name      string    `db:"name"       json:"name"`
-	Flag      string    `db:"flag"       json:"flag"`
-	Host      string    `db:"host"       json:"host"`
-	Port      int       `db:"port"       json:"port"`
-	Domain    string    `db:"domain"     json:"domain"`
-	SNI       string    `db:"sni"        json:"sni"`
-	IsActive  bool      `db:"is_active"  json:"is_active"`
-	SortOrder int       `db:"sort_order" json:"sort_order"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	ID               int64     `db:"id"                 json:"id"`
+	Key              string    `db:"key"                json:"key"`
+	Name             string    `db:"name"               json:"name"`
+	Flag             string    `db:"flag"               json:"flag"`
+	Host             string    `db:"host"               json:"host"`
+	Port             int       `db:"port"               json:"port"`
+	Domain           string    `db:"domain"             json:"domain"`
+	SNI              string    `db:"sni"                json:"sni"`
+	RealityPublicKey string    `db:"reality_public_key" json:"reality_public_key"`
+	IsActive         bool      `db:"is_active"          json:"is_active"`
+	SortOrder        int       `db:"sort_order"         json:"sort_order"`
+	CreatedAt        time.Time `db:"created_at"         json:"created_at"`
+	UpdatedAt        time.Time `db:"updated_at"         json:"updated_at"`
 }
 
 // AdminUser represents an admin panel user (maps to "admin_users" table).

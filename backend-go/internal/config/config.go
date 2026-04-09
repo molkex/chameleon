@@ -32,8 +32,9 @@ type Config struct {
 
 // ServerConfig controls the HTTP listener.
 type ServerConfig struct {
-	Host string `yaml:"host"` // default: "0.0.0.0"
-	Port int    `yaml:"port"` // default: 8000
+	Host        string   `yaml:"host"`         // default: "0.0.0.0"
+	Port        int      `yaml:"port"`         // default: 8000
+	CORSOrigins []string `yaml:"cors_origins"` // default: localhost dev + admin.chameleonvpn.com
 }
 
 // DatabaseConfig controls the PostgreSQL connection pool.
@@ -205,6 +206,13 @@ func (c *Config) applyDefaults() {
 	}
 	if c.Server.Port == 0 {
 		c.Server.Port = 8000
+	}
+	if len(c.Server.CORSOrigins) == 0 {
+		c.Server.CORSOrigins = []string{
+			"http://localhost:3000",
+			"http://localhost:5173",
+			"https://admin.chameleonvpn.com",
+		}
 	}
 
 	// Database defaults

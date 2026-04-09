@@ -63,12 +63,13 @@ func (h *Handler) GetConfig(c echo.Context) error {
 	serverEntries := make([]vpn.ServerEntry, 0, len(servers))
 	for _, s := range servers {
 		serverEntries = append(serverEntries, vpn.ServerEntry{
-			Key:  s.Key,
-			Name: s.Name,
-			Host: s.Host,
-			Port: s.Port,
-			Flag: s.Flag,
-			SNI:  s.SNI,
+			Key:              s.Key,
+			Name:             s.Name,
+			Host:             s.Host,
+			Port:             s.Port,
+			Flag:             s.Flag,
+			SNI:              s.SNI,
+			RealityPublicKey: s.RealityPublicKey,
 		})
 	}
 
@@ -144,6 +145,7 @@ func (h *Handler) GetConfigLegacy(c echo.Context) error {
 		serverEntries = append(serverEntries, vpn.ServerEntry{
 			Key: s.Key, Name: s.Name, Host: s.Host,
 			Port: s.Port, Flag: s.Flag, SNI: s.SNI,
+			RealityPublicKey: s.RealityPublicKey,
 		})
 	}
 

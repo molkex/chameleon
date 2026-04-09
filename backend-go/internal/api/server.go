@@ -15,6 +15,7 @@ import (
 	mw "github.com/chameleonvpn/chameleon/internal/api/middleware"
 	"github.com/chameleonvpn/chameleon/internal/api/mobile"
 	"github.com/chameleonvpn/chameleon/internal/auth"
+	"github.com/chameleonvpn/chameleon/internal/cluster"
 	"github.com/chameleonvpn/chameleon/internal/config"
 	"github.com/chameleonvpn/chameleon/internal/db"
 	"github.com/chameleonvpn/chameleon/internal/vpn"
@@ -30,6 +31,7 @@ type Server struct {
 	JWT    *auth.JWTManager
 	Apple  *auth.AppleVerifier
 	VPN    vpn.Engine // VPN engine interface (may be nil)
+	Syncer *cluster.Syncer
 	Logger *zap.Logger
 }
 
@@ -77,13 +79,9 @@ func (s *Server) setupMiddleware(e *echo.Echo) {
 	// 4. Security headers on every response.
 	e.Use(mw.SecurityHeaders())
 
-	// 5. CORS for admin SPA.
+	// 5. CORS for admin SPA (origins from config).
 	e.Use(echomw.CORSWithConfig(echomw.CORSConfig{
-		AllowOrigins: []string{
-			"http://localhost:3000",
-			"http://localhost:5173",
-			"https://admin.chameleonvpn.com",
-		},
+		AllowOrigins: s.Config.Server.CORSOrigins,
 		AllowMethods: []string{
 			http.MethodGet, http.MethodPost,
 			http.MethodPut, http.MethodDelete,
@@ -153,6 +151,12 @@ func (s *Server) setupRoutes(e *echo.Echo) {
 	adminLegacy := e.Group("/api/admin")
 	adminLegacy.Use(mw.RateLimit(s.Config.RateLimit.AdminPerMinute))
 	adminAPI.RegisterRoutes(adminLegacy, adminHandler, s.JWT)
+
+	// Cluster sync routes: /api/cluster/* (internal, peer-to-peer)
+	if s.Config.Cluster.Enabled {
+		clusterGroup := e.Group("/api/cluster")
+		cluster.RegisterRoutes(clusterGroup, s.DB, s.Config.Cluster, s.Logger)
+	}
 }
 
 // handleHealth returns the health status of the service and its dependencies.

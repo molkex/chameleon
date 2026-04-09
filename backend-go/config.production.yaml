@@ -1,8 +1,14 @@
-# Chameleon VPN — Production Configuration (DE node)
+# Chameleon VPN — Production Configuration Template
+#
+# This file is a TEMPLATE. deploy.sh generates the final config.yaml
+# with node-specific values (node_id, SNI, peers, cors_origins).
+#
+# All secrets come from environment variables (set in .env by deploy.sh).
 
 server:
   host: "0.0.0.0"
   port: 8000
+  # cors_origins set by deploy.sh per node
 
 database:
   url: "${DATABASE_URL}"
@@ -48,7 +54,8 @@ vpn:
 
 cluster:
   enabled: false
-  node_id: "de-1"
+  # node_id and peers set by deploy.sh per node
+  node_id: ""
   sync_interval: "30s"
   reconcile_interval: "5m"
   pubsub_channel: "chameleon:sync"

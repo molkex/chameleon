@@ -35,6 +35,7 @@ import (
 	"github.com/chameleonvpn/chameleon/internal/api"
 	"github.com/chameleonvpn/chameleon/internal/auth"
 	"github.com/chameleonvpn/chameleon/internal/cli"
+	"github.com/chameleonvpn/chameleon/internal/cluster"
 	"github.com/chameleonvpn/chameleon/internal/config"
 	"github.com/chameleonvpn/chameleon/internal/db"
 	"github.com/chameleonvpn/chameleon/internal/vpn"
@@ -206,14 +207,20 @@ func run() error {
 	// Start background traffic collector (every 60 seconds).
 	go runTrafficCollector(ctx, logger, database, engine, 60*time.Second)
 
+	// Initialize cluster syncer (peer-to-peer user replication).
+	syncer := cluster.NewSyncer(database, cfg.Cluster, engine, rdb, logger)
+	syncer.Start(ctx)
+	defer syncer.Stop()
+
 	srv := &api.Server{
-		Config: cfg,
-		DB:     database,
-		Redis:  rdb,
-		JWT:    jwtManager,
-		Apple:  appleVerifier,
-		VPN:    engine,
-		Logger: logger,
+		Config:  cfg,
+		DB:      database,
+		Redis:   rdb,
+		JWT:     jwtManager,
+		Apple:   appleVerifier,
+		VPN:     engine,
+		Syncer:  syncer,
+		Logger:  logger,
 	}
 
 	e := api.NewServer(srv)

@@ -2,11 +2,13 @@ package admin
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 
 	"github.com/chameleonvpn/chameleon/internal/cluster"
+	"github.com/chameleonvpn/chameleon/internal/db"
 )
 
 // syncResponse is returned by POST /api/admin/nodes/sync.
@@ -254,4 +256,111 @@ func (h *Handler) ListServers(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, servers)
+}
+
+// serverRequest is the JSON body for create/update server endpoints.
+type serverRequest struct {
+	Key              string `json:"key"`
+	Name             string `json:"name"`
+	Flag             string `json:"flag"`
+	Host             string `json:"host"`
+	Port             int    `json:"port"`
+	Domain           string `json:"domain"`
+	SNI              string `json:"sni"`
+	RealityPublicKey string `json:"reality_public_key"`
+	IsActive         bool   `json:"is_active"`
+	SortOrder        int    `json:"sort_order"`
+}
+
+// CreateServer handles POST /api/admin/servers
+func (h *Handler) CreateServer(c echo.Context) error {
+	var req serverRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
+	}
+	if req.Key == "" || req.Name == "" || req.Host == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "key, name and host are required")
+	}
+	if req.Port == 0 {
+		req.Port = 2096
+	}
+
+	server, err := h.DB.CreateServer(c.Request().Context(), &db.VPNServer{
+		Key:              req.Key,
+		Name:             req.Name,
+		Flag:             req.Flag,
+		Host:             req.Host,
+		Port:             req.Port,
+		Domain:           req.Domain,
+		SNI:              req.SNI,
+		RealityPublicKey: req.RealityPublicKey,
+		IsActive:         req.IsActive,
+		SortOrder:        req.SortOrder,
+	})
+	if err != nil {
+		h.Logger.Error("admin: create server", zap.Error(err))
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to create server")
+	}
+
+	h.Logger.Info("admin: server created", zap.String("key", server.Key))
+	return c.JSON(http.StatusCreated, server)
+}
+
+// UpdateServer handles PUT /api/admin/servers/:id
+func (h *Handler) UpdateServer(c echo.Context) error {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid server id")
+	}
+
+	var req serverRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
+	}
+	if req.Key == "" || req.Name == "" || req.Host == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "key, name and host are required")
+	}
+	if req.Port == 0 {
+		req.Port = 2096
+	}
+
+	server, err := h.DB.UpdateServer(c.Request().Context(), id, &db.VPNServer{
+		Key:              req.Key,
+		Name:             req.Name,
+		Flag:             req.Flag,
+		Host:             req.Host,
+		Port:             req.Port,
+		Domain:           req.Domain,
+		SNI:              req.SNI,
+		RealityPublicKey: req.RealityPublicKey,
+		IsActive:         req.IsActive,
+		SortOrder:        req.SortOrder,
+	})
+	if err != nil {
+		h.Logger.Error("admin: update server", zap.Error(err), zap.Int64("id", id))
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to update server")
+	}
+
+	h.Logger.Info("admin: server updated", zap.String("key", server.Key))
+	return c.JSON(http.StatusOK, server)
+}
+
+// DeleteServer handles DELETE /api/admin/servers/:id
+func (h *Handler) DeleteServer(c echo.Context) error {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid server id")
+	}
+
+	deleted, err := h.DB.DeleteServer(c.Request().Context(), id)
+	if err != nil {
+		h.Logger.Error("admin: delete server", zap.Error(err), zap.Int64("id", id))
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to delete server")
+	}
+	if !deleted {
+		return echo.NewHTTPError(http.StatusNotFound, "server not found")
+	}
+
+	h.Logger.Info("admin: server deleted", zap.Int64("id", id))
+	return c.NoContent(http.StatusNoContent)
 }

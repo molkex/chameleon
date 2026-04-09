@@ -33,6 +33,12 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 			sni = "ads.adfox.ru"
 		}
 
+		// Per-server Reality public key; fallback to engine config (local node's key).
+		publicKey := srv.RealityPublicKey
+		if publicKey == "" {
+			publicKey = engineCfg.Reality.PublicKey
+		}
+
 		shortID := user.ShortID
 		if shortID == "" && len(engineCfg.Reality.ShortIDs) > 0 {
 			shortID = engineCfg.Reality.ShortIDs[0]
@@ -56,7 +62,7 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 				},
 				Reality: &clientReality{
 					Enabled:   true,
-					PublicKey: engineCfg.Reality.PublicKey,
+					PublicKey: publicKey,
 					ShortID:   shortID,
 				},
 			},

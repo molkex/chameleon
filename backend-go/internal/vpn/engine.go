@@ -64,12 +64,13 @@ type VPNUser struct {
 
 // ServerEntry represents a VPN server for client config generation.
 type ServerEntry struct {
-	Key  string
-	Name string
-	Host string
-	Port int
-	Flag string
-	SNI  string
+	Key              string
+	Name             string
+	Host             string
+	Port             int
+	Flag             string
+	SNI              string
+	RealityPublicKey string // per-server Reality public key (empty = use engine default)
 }
 
 // UserTraffic contains traffic counters for a single user.
