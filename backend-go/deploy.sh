@@ -22,7 +22,7 @@ get_node_config() {
     case "$1" in
         de)
             NODE_SSH="ubuntu@162.19.242.30"
-            NODE_DIR="/home/ubuntu/chameleon"
+            NODE_DIR="/opt/chameleon"
             NODE_NODE_ID="de-1"
             NODE_SNI="ads.adfox.ru"
             NODE_PREBUILT=0
