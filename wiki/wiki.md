@@ -820,14 +820,27 @@ apple/
     └── libbox.xcframework      — sing-box 1.13.5 compiled for iOS/macOS
 ```
 
+### Сценарии загрузки конфига
+
+| Событие | Поведение |
+|---|---|
+| Запуск приложения | `initialize()` → `silentConfigUpdate()` (ждёт завершения) |
+| Возврат из фона | `scenePhase .active` → `handleForeground()` → фоновый refresh |
+| Нажатие Connect | `refreshConfig(timeout: 5s)` → коннект со свежим (или кешем при таймауте) |
+| Отключение VPN | `Task { silentConfigUpdate() }` — фоновый refresh для следующего подключения |
+| Смена сервера | reconnect с новым selector |
+
+`silentConfigUpdate()` никогда не показывает ошибку пользователю — только лог.  
+`refreshConfig(timeout:)` — гонка fetch vs таймер; кеш используется если сеть недоступна или медленная.
+
 ### VPN Connection Flow
 
 ```
 1. User tap "Connect"
-2. VPNManager.connect()
-3. Загрузить конфиг из API (GET /config?username=...)
-4. Сохранить в UserDefaults + file
-5. Передать в PacketTunnelProvider через tunnel options
+2. AppState.toggleVPN()
+3. refreshConfig(timeout: 5s) — fetch fresh config или таймаут
+4. buildConfigWithSelector(tag) — применить выбранный сервер
+5. VPNManager.connect(configJSON:)
 6. ExtensionProvider.startTunnel()
    ├── Создать BoxService (libbox)
    ├── Загрузить конфиг
@@ -1181,6 +1194,15 @@ docker logs chameleon 2>&1 | grep -E 'reconcil|cluster|peer'
 ---
 
 ## 15. История решённых проблем
+
+### 2026-04-10: iOS config refresh improvements
+
+- **Connect**: теперь сначала fetch свежего конфига (≤5с timeout), потом коннект — раньше коннектился с кешем
+- **Disconnect**: фоновый refresh конфига для следующего подключения
+- **Foreground**: при возврате приложения из фона — фоновый refresh (`scenePhase .active`)
+- **silentConfigUpdate()**: исправлен баг — больше не показывает toast ошибки пользователю при сетевой ошибке
+- **refreshConfig(timeout:)**: гонка fetch vs таймер — кеш используется если сеть недоступна
+- **hasInitialized**: флаг для предотвращения двойного refresh при запуске (`.active` тоже стреляет)
 
 ### 2026-04-10: Cluster sync enabled + fixes
 
