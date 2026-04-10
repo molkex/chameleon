@@ -34,6 +34,7 @@ type AuthResponse struct {
 	RefreshToken string `json:"refresh_token"`
 	ExpiresAt    int64  `json:"expires_at"`
 	UserID       int64  `json:"user_id"`
+	Username     string `json:"username"`
 	IsNew        bool   `json:"is_new"`
 }
 
@@ -110,6 +111,7 @@ func (h *Handler) Register(c echo.Context) error {
 		RefreshToken: tokens.RefreshToken,
 		ExpiresAt:    tokens.ExpiresAt,
 		UserID:       user.ID,
+		Username:     vpnUsername,
 		IsNew:        isNew,
 	})
 }
@@ -202,6 +204,7 @@ func (h *Handler) AppleSignIn(c echo.Context) error {
 		RefreshToken: tokens.RefreshToken,
 		ExpiresAt:    tokens.ExpiresAt,
 		UserID:       user.ID,
+		Username:     vpnUsername,
 		IsNew:        isNew,
 	})
 }
@@ -219,7 +222,7 @@ func (h *Handler) createUser(ctx context.Context, deviceID, appleID, authProvide
 	// weren't in the server's allowed short_id list.
 	vpnShortID := ""
 
-	trialExpiry := time.Now().Add(30 * 24 * time.Hour)
+	trialExpiry := time.Now().Add(3 * 24 * time.Hour)
 
 	user := &db.User{
 		DeviceID:           &deviceID,

@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import NetworkExtension
+import AuthenticationServices
 
 @MainActor
 @Observable
@@ -15,6 +16,7 @@ class AppState {
     var errorMessage: String?
     var vpnConnectedAt: Date?
     var subscriptionExpire: Date?
+    var isAuthenticated: Bool = false
 
     private var statusObserver: Any?
 
@@ -35,6 +37,7 @@ class AppState {
 
         servers = configStore.parseServersFromConfig()
         subscriptionExpire = configStore.subscriptionExpire
+        isAuthenticated = configStore.username != nil
 
         do {
             try await vpnManager.load()
@@ -46,12 +49,7 @@ class AppState {
             AppLogger.app.error("VPN load failed: \(error)")
         }
 
-        // Auto-register if no username yet
-        if configStore.username == nil {
-            await autoRegister()
-        }
-
-        // Refresh config silently on app launch
+        // Refresh config silently on app launch (only if already signed in)
         if configStore.username != nil {
             await silentConfigUpdate()
         }
@@ -204,6 +202,33 @@ class AppState {
             for await _ in group { }
         }
         AppLogger.app.info("refreshConfig: done")
+    }
+
+    // MARK: - Sign In
+
+    func signInWithApple(credential: ASAuthorizationAppleIDCredential) async {
+        guard let tokenData = credential.identityToken,
+              let token = String(data: tokenData, encoding: .utf8) else {
+            errorMessage = "Sign in failed: no identity token"
+            return
+        }
+
+        isLoading = true
+        defer { isLoading = false }
+
+        do {
+            let result = try await apiClient.signInWithApple(identityToken: token)
+            AppLogger.app.info("signInWithApple: username=\(result.username), isNew=\(result.isNew ?? false)")
+            configStore.accessToken = result.accessToken
+            configStore.refreshToken = result.refreshToken
+            configStore.username = result.username
+            try await fetchAndSaveConfig()
+            subscriptionExpire = configStore.subscriptionExpire
+            isAuthenticated = true
+        } catch {
+            AppLogger.app.error("signInWithApple: failed: \(error.localizedDescription)")
+            errorMessage = "Sign in failed. Please try again."
+        }
     }
 
     // MARK: - VPN

@@ -25,15 +25,13 @@ struct AuthResult: Codable {
     let accessToken: String
     let refreshToken: String
     let username: String
-    let expire: Int?
-    let status: String?
+    let isNew: Bool?
 
     enum CodingKeys: String, CodingKey {
         case accessToken = "access_token"
         case refreshToken = "refresh_token"
         case username
-        case expire
-        case status
+        case isNew = "is_new"
     }
 }
 
@@ -202,14 +200,15 @@ class APIClient {
     // MARK: - Apple Sign In
 
     /// Sign in with Apple — trial or return existing account.
-    func signInWithApple(identityToken: String, userIdentifier: String) async throws -> AuthResult {
+    func signInWithApple(identityToken: String) async throws -> AuthResult {
+        let deviceId = UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
         let url = URL(string: "\(AppConstants.baseURL)/api/mobile/auth/apple")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: [
             "identity_token": identityToken,
-            "user_identifier": userIdentifier,
+            "device_id": deviceId,
         ])
         request.timeoutInterval = 20
 
@@ -217,31 +216,6 @@ class APIClient {
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             let code = (response as? HTTPURLResponse)?.statusCode ?? 0
             throw APIError.serverError(code)
-        }
-        return try JSONDecoder().decode(AuthResult.self, from: data)
-    }
-
-    /// Sign in with Apple AND link to existing account via activation code.
-    /// Used for "У меня есть код" flow: Apple proves identity, code finds the account.
-    func signInWithAppleAndCode(identityToken: String, userIdentifier: String, code: String) async throws -> AuthResult {
-        let url = URL(string: "\(AppConstants.baseURL)/api/mobile/auth/apple/activate")!
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: [
-            "identity_token": identityToken,
-            "user_identifier": userIdentifier,
-            "code": code,
-        ])
-        request.timeoutInterval = 20
-
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw APIError.networkError("No response")
-        }
-        if http.statusCode == 404 { throw APIError.invalidCode }
-        guard http.statusCode == 200 else {
-            throw APIError.serverError(http.statusCode)
         }
         return try JSONDecoder().decode(AuthResult.self, from: data)
     }
