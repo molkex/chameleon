@@ -8,7 +8,9 @@ struct ChameleonApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if appState.isAuthenticated {
+                if !appState.isInitialized {
+                    Color.black.ignoresSafeArea()
+                } else if appState.isAuthenticated {
                     MainView()
                 } else {
                     OnboardingView()
@@ -21,6 +23,7 @@ struct ChameleonApp: App {
                     Task { await appState.handleForeground() }
                 }
             }
+            .animation(.easeInOut(duration: 0.3), value: appState.isInitialized)
             .animation(.easeInOut(duration: 0.4), value: appState.isAuthenticated)
         }
     }

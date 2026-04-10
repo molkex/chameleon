@@ -17,19 +17,28 @@ class AppState {
     var vpnConnectedAt: Date?
     var subscriptionExpire: Date?
     var isAuthenticated: Bool = false
+    var isInitialized: Bool = false
 
     private var statusObserver: Any?
 
     private var hasInitialized = false
 
     func initialize() async {
+        // Keychain survives app deletion on iOS — detect fresh install via UserDefaults flag.
+        // If onboardingCompleted is not set, treat as fresh install and wipe Keychain.
+        let sharedDefaults = UserDefaults(suiteName: AppConstants.appGroupID)
+        let onboardingDone = sharedDefaults?.bool(forKey: AppConstants.onboardingCompletedKey) ?? false
+        if !onboardingDone && configStore.username != nil {
+            AppLogger.app.info("initialize: fresh install detected, clearing stale Keychain data")
+            configStore.clear()
+        }
+
         // Fix: if config file is corrupted (missing selector/urltest), delete it
         // so fresh config is fetched from API
         repairConfigIfNeeded()
 
         // Fix: if cached config is an error response (not a valid sing-box config),
         // clear everything and force re-registration.
-        // App Group UserDefaults and Keychain survive app reinstall on iOS.
         if let cached = configStore.loadConfig(), cached.contains("\"error\""), !cached.contains("\"outbounds\"") {
             AppLogger.app.info("initialize: cached config is error response, clearing all")
             configStore.clear()
@@ -55,6 +64,7 @@ class AppState {
         }
 
         hasInitialized = true
+        isInitialized = true
     }
 
     /// Called when app returns to foreground. Refreshes config in background.
@@ -224,6 +234,7 @@ class AppState {
             configStore.username = result.username
             try await fetchAndSaveConfig()
             subscriptionExpire = configStore.subscriptionExpire
+            UserDefaults(suiteName: AppConstants.appGroupID)?.set(true, forKey: AppConstants.onboardingCompletedKey)
             isAuthenticated = true
         } catch {
             AppLogger.app.error("signInWithApple: failed: \(error.localizedDescription)")
