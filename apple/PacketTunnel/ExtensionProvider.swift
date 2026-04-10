@@ -47,11 +47,6 @@ open class ExtensionProvider: NEPacketTunnelProvider {
             return
         }
 
-        // Log full config for debugging
-        TunnelFileLogger.log("=== FULL CONFIG START ===")
-        TunnelFileLogger.log(configJSON)
-        TunnelFileLogger.log("=== FULL CONFIG END ===")
-
         let sanitizedConfig = ConfigSanitizer.sanitizeForIOS(configJSON)
         TunnelFileLogger.log("Config sanitized, length: \(sanitizedConfig.count)")
 

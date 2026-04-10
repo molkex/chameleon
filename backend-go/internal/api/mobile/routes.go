@@ -37,6 +37,7 @@ func RegisterRoutes(g *echo.Group, h *Handler) {
 	authGroup := g.Group("/auth")
 	authGroup.POST("/register", h.Register)
 	authGroup.POST("/apple", h.AppleSignIn)
+	authGroup.POST("/refresh", h.RefreshToken)
 
 	// Config endpoint — no JWT, uses username query param.
 	g.GET("/config", h.GetConfig)

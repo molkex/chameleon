@@ -209,6 +209,38 @@ func (h *Handler) AppleSignIn(c echo.Context) error {
 	})
 }
 
+// RefreshToken handles POST /api/mobile/auth/refresh.
+//
+// Verifies the refresh token and issues a new access token.
+// The refresh token itself remains valid until expiry (no one-time-use blacklist on mobile).
+func (h *Handler) RefreshToken(c echo.Context) error {
+	var req struct {
+		RefreshToken string `json:"refresh_token"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid request body"})
+	}
+	if req.RefreshToken == "" {
+		return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "refresh_token is required"})
+	}
+
+	claims, err := h.JWT.VerifyRefreshToken(req.RefreshToken)
+	if err != nil {
+		h.Logger.Warn("mobile refresh: invalid token", zap.Error(err))
+		return c.JSON(http.StatusUnauthorized, ErrorResponse{Error: "invalid refresh token"})
+	}
+
+	tokens, err := h.JWT.CreateTokenPair(claims.UserID, claims.Username, claims.Role)
+	if err != nil {
+		h.Logger.Error("mobile refresh: create token pair", zap.Error(err))
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"access_token": tokens.AccessToken,
+	})
+}
+
 // createUser creates a new user with VPN credentials and a 30-day trial subscription.
 // deviceID is always required; appleID and authProvider vary by sign-in method.
 func (h *Handler) createUser(ctx context.Context, deviceID, appleID, authProvider string) (*db.User, error) {
