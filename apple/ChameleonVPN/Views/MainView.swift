@@ -72,6 +72,10 @@ struct MainView: View {
                 }
                 .padding(.horizontal)
 
+                // Subscription status
+                subscriptionStatusView
+                    .padding(.bottom, 2)
+
                 // Version + config hash
                 Text(buildInfoLine)
                     .font(.system(.caption2, design: .monospaced))
@@ -194,6 +198,29 @@ struct MainView: View {
             return tag
         }
         return "Auto"
+    }
+
+    @ViewBuilder
+    private var subscriptionStatusView: some View {
+        if let expire = app.subscriptionExpire {
+            let daysLeft = Calendar.current.dateComponents([.day], from: .now, to: expire).day ?? 0
+            Group {
+                if daysLeft < 0 {
+                    Label("Subscription expired", systemImage: "exclamationmark.circle.fill")
+                        .foregroundStyle(.red)
+                } else if daysLeft <= 3 {
+                    Label("Expires in \(daysLeft) day\(daysLeft == 1 ? "" : "s")!", systemImage: "clock.badge.exclamationmark")
+                        .foregroundStyle(.orange)
+                } else if daysLeft <= 7 {
+                    Label("Expires in \(daysLeft) days", systemImage: "clock")
+                        .foregroundStyle(.yellow.opacity(0.85))
+                } else {
+                    Text("Active until \(expire.formatted(.dateTime.day().month(.abbreviated)))")
+                        .foregroundStyle(.gray.opacity(0.45))
+                }
+            }
+            .font(.caption)
+        }
     }
 }
 

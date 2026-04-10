@@ -14,6 +14,7 @@ class AppState {
     var isLoading = false
     var errorMessage: String?
     var vpnConnectedAt: Date?
+    var subscriptionExpire: Date?
 
     private var statusObserver: Any?
 
@@ -33,6 +34,7 @@ class AppState {
         }
 
         servers = configStore.parseServersFromConfig()
+        subscriptionExpire = configStore.subscriptionExpire
 
         do {
             try await vpnManager.load()
@@ -136,6 +138,12 @@ class AppState {
         let result = try await apiClient.fetchConfig(username: username, accessToken: configStore.accessToken)
         AppLogger.app.info("fetchAndSaveConfig: got config, length=\(result.config.count)")
         try configStore.saveConfig(result.config)
+        if result.expire > 0 {
+            let expireDate = Date(timeIntervalSince1970: TimeInterval(result.expire))
+            configStore.subscriptionExpire = expireDate
+            subscriptionExpire = expireDate
+            AppLogger.app.info("fetchAndSaveConfig: expire=\(result.expire) (\(expireDate))")
+        }
         servers = configStore.parseServersFromConfig()
         AppLogger.app.info("fetchAndSaveConfig: parsed \(self.servers.count) groups, total items=\(self.servers.flatMap(\.items).count)")
     }
