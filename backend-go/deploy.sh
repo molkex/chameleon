@@ -29,7 +29,7 @@ get_node_config() {
             ;;
         nl)
             NODE_SSH="root@194.135.38.90"
-            NODE_DIR="/root/chameleon"
+            NODE_DIR="/opt/chameleon"
             NODE_NODE_ID="nl-1"
             NODE_SNI="ads.adfox.ru"
             NODE_PREBUILT=1  # 2GB RAM — can't compile Go in Docker
