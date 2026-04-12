@@ -1,5 +1,54 @@
 # Chameleon VPN — Troubleshooting
 
+## 2026-04-12: iOS — переключение сервера не меняет трафик + 13-секундный фриз UI
+
+**Коммит:** `90c4f34` — iOS: fix server switching, UI stalls, and tunnel logging
+
+### Симптомы
+1. При переключении страны (например NL → DE) UI показывает что Germany выбрана, но реальный IP/трафик остаётся через NL
+2. Каждое переключение сервера вызывает 10–13 секунд фриза UI, в течение которых тапы не регистрируются
+3. В debug-логе видно `cmdClientConnected=false` в момент `selectServer`
+
+### Причины (две связанные)
+
+#### 1. Main app не вызывал `LibboxSetup` → CommandClient никогда не коннектился к gRPC
+- **Проблема:** `LibboxNewCommandClient` ищет Unix-сокет по пути `basePath/command.sock`, где `basePath` задаётся через `LibboxSetup()`. Extension (`PacketTunnel`) его вызывал, а main app — нет. Комментарий в `CommandClient.swift` утверждал обратное, но в `ChameleonApp.swift` вызова не было.
+- **Следствие:** gRPC handshake с CommandServer всегда падал → `isConnected=false` → `selectServer` уходил в fallback-ветку полного teardown туннеля (disconnect → wait → reconnect), откуда и 13 секунд фриза.
+- **Решение:** Добавлен вызов `LibboxSetup` в `ChameleonApp.init()` с теми же `basePath`/`workingPath`/`tempPath`, что использует extension (через `AppConstants`).
+- **Файл:** `apple/ChameleonVPN/ChameleonApp.swift`
+
+#### 2. `selectOutbound` не закрывал существующие соединения
+- **Проблема:** sing-box `selectOutbound` меняет указатель селектора только для **новых** TCP-стримов. Уже установленные соединения (например, keep-alive Safari-вкладки к Cloudflare) продолжали идти через старый outbound. Визуально — "сервер сменился, IP не изменился".
+- **Решение:** После успешного `selectOutbound` вызывается `client.closeConnections()` — принудительный разрыв всех активных стримов. Они реконнектятся уже через новый outbound.
+- **API:** `LibboxCommandClient.closeConnections(_:)` — доступен в libbox 1.13.5
+- **Файл:** `apple/ChameleonVPN/Models/CommandClient.swift`
+
+### Как диагностировали
+- Подключили iPhone 16 Pro по кабелю, `xcrun devicectl device process launch --console` + `idevicesyslog` для live-стрима
+- Искали причину `cmdClientConnected=false` в коде → нашли что `LibboxSetup` вызывается только в extension, но не в main app
+- Проверили `Libbox.objc.h` — нашли `closeConnections:` в `LibboxCommandClient`
+
+### Полезные команды для подобного
+```bash
+# Список устройств
+xcrun devicectl list devices
+
+# Сборка + установка на устройство
+xcodebuild -project Chameleon.xcodeproj -scheme Chameleon -configuration Debug \
+  -destination 'id=<DEVICE_UDID>' -allowProvisioningUpdates build
+xcrun devicectl device install app --device <DEVICE_UDID> \
+  ~/Library/Developer/Xcode/DerivedData/Chameleon-*/Build/Products/Debug-iphoneos/Chameleon.app
+
+# Стрим stdout приложения
+xcrun devicectl device process launch --device <DEVICE_UDID> \
+  --console --terminate-existing com.chameleonvpn.app
+
+# Стрим syslog (нужен brew install libimobiledevice)
+idevicesyslog -m "Chameleon" -m "PacketTunnel"
+```
+
+---
+
 ## 2026-04-08: Germany (DE) server — страницы не грузятся при прямом подключении
 
 **Коммит:** `0290013` — Fix: server selector reconnect + Auto button + debug log improvements
