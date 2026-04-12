@@ -1,13 +1,23 @@
 import Foundation
 import NetworkExtension
+import os.log
 
 /// Manages NETunnelProviderManager — connect/disconnect/status.
 /// VPN permission is requested lazily on first connect, not on app launch.
+///
+/// MUST be @MainActor: SwiftUI's @Observable tracking requires mutations
+/// to happen on MainActor for proper view invalidation. Without it,
+/// status changes from NotificationCenter callbacks don't trigger re-renders.
+@MainActor
 @Observable
 class VPNManager {
     private(set) var status: NEVPNStatus = .disconnected
     private var manager: NETunnelProviderManager?
+    nonisolated(unsafe) private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "VPN", category: "VPNManager")
     private var statusObserver: Any?
+    /// Set to true when disconnect() is called from the app, reset on connect().
+    /// Prevents disabling On Demand when iOS Settings or On Demand itself triggers disconnect.
+    private(set) var userInitiatedDisconnect = false
 
     var isConnected: Bool { status == .connected }
     var isProcessing: Bool { status == .connecting || status == .disconnecting || status == .reasserting }
@@ -24,50 +34,79 @@ class VPNManager {
 
     /// Connect VPN. Creates VPN config on first use (triggers iOS permission prompt).
     func connect(configJSON: String? = nil) async throws {
+        TunnelFileLogger.log("vpnManager.connect: begin", category: "ui")
+        userInitiatedDisconnect = false
+
         // Ensure manager exists — create and save if first time
         if manager == nil {
+            TunnelFileLogger.log("vpnManager.connect: manager==nil, creating", category: "ui")
             let m = createManager()
             try await m.saveToPreferences()  // ← iOS shows VPN permission HERE
             try await m.loadFromPreferences()
             manager = m
             observeStatus()
+            TunnelFileLogger.log("vpnManager.connect: manager created", category: "ui")
         }
 
-        // Ensure profile is enabled
-        if let m = manager, !m.isEnabled {
-            m.isEnabled = true
-            try await m.saveToPreferences()
-            try await m.loadFromPreferences()
+        // Ensure profile is enabled and On Demand is OFF.
+        // On Demand with an unconditional Connect rule prevents the user from
+        // disabling VPN via iOS Settings (iOS re-enables it immediately).
+        if let m = manager {
+            var needsSave = false
+            if !m.isEnabled {
+                m.isEnabled = true
+                needsSave = true
+            }
+            if m.isOnDemandEnabled {
+                m.isOnDemandEnabled = false
+                needsSave = true
+            }
+            TunnelFileLogger.log("vpnManager.connect: enabled=\(m.isEnabled) onDemand=\(m.isOnDemandEnabled) needsSave=\(needsSave)", category: "ui")
+            if needsSave {
+                TunnelFileLogger.log("vpnManager.connect: awaiting saveToPreferences", category: "ui")
+                try await m.saveToPreferences()
+                TunnelFileLogger.log("vpnManager.connect: saveToPreferences OK, awaiting loadFromPreferences", category: "ui")
+                try await m.loadFromPreferences()
+                TunnelFileLogger.log("vpnManager.connect: loadFromPreferences OK", category: "ui")
+            }
         }
 
-        // Enable On Demand so iOS auto-reconnects on network changes
-        if let m = manager, !m.isOnDemandEnabled {
-            m.isOnDemandEnabled = true
-            try? await m.saveToPreferences()
+        guard let session = manager?.connection as? NETunnelProviderSession else {
+            TunnelFileLogger.log("vpnManager.connect: no session, returning", category: "ui")
+            return
         }
-
-        guard let session = manager?.connection as? NETunnelProviderSession else { return }
 
         var options: [String: NSObject]? = nil
         if let config = configJSON {
             options = ["configContent": config as NSString]
         }
 
+        TunnelFileLogger.log("vpnManager.connect: calling session.startTunnel", category: "ui")
         try session.startTunnel(options: options)
+        TunnelFileLogger.log("vpnManager.connect: session.startTunnel returned", category: "ui")
     }
 
     /// Disable On Demand so iOS doesn't auto-reconnect after disconnect.
     func disableOnDemand() async {
         guard let m = manager, m.isOnDemandEnabled else { return }
         m.isOnDemandEnabled = false
-        try? await m.saveToPreferences()
+        do {
+            try await m.saveToPreferences()
+        } catch {
+            Self.logger.error("Failed to disable On Demand: \(error.localizedDescription)")
+        }
     }
 
     func disconnect() {
+        userInitiatedDisconnect = true
         // Disable On Demand so iOS doesn't auto-reconnect after explicit disconnect
         if let m = manager, m.isOnDemandEnabled {
             m.isOnDemandEnabled = false
-            m.saveToPreferences { _ in }
+            m.saveToPreferences { error in
+                if let error {
+                    Self.logger.error("disconnect: saveToPreferences failed: \(error.localizedDescription)")
+                }
+            }
         }
         manager?.connection.stopVPNTunnel()
     }
@@ -88,6 +127,18 @@ class VPNManager {
         status = .disconnected
     }
 
+    /// Wait until the tunnel reports `.disconnected`. Used by server-switch to
+    /// sequence disconnect → reconnect without polling. Times out after `timeout`.
+    func waitUntilDisconnected(timeout: Duration = .seconds(5)) async {
+        if status == .disconnected || status == .invalid { return }
+
+        let deadline = ContinuousClock.now + timeout
+        while status != .disconnected && status != .invalid {
+            if ContinuousClock.now >= deadline { return }
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+    }
+
     /// Send message to tunnel extension.
     func sendMessage(_ data: Data) async throws -> Data? {
         guard let session = manager?.connection as? NETunnelProviderSession else { return nil }
@@ -106,8 +157,12 @@ class VPNManager {
         guard let manager, statusObserver == nil else { return }
         statusObserver = NotificationCenter.default.addObserver(
             forName: .NEVPNStatusDidChange, object: manager.connection, queue: .main
-        ) { [weak self] _ in
-            self?.status = self?.manager?.connection.status ?? .disconnected
+        ) { [weak self] notification in
+            // Read status from notification object (avoids capturing MainActor-isolated self.manager)
+            let newStatus = (notification.object as? NEVPNConnection)?.status ?? .disconnected
+            Task { @MainActor [weak self] in
+                self?.status = newStatus
+            }
         }
         status = manager.connection.status
     }
@@ -121,7 +176,7 @@ class VPNManager {
         m.protocolConfiguration = proto
         m.localizedDescription = AppConfig.vpnProfileDescription
         m.isEnabled = true
-        m.onDemandRules = [NEOnDemandRuleConnect()]
+        m.onDemandRules = []
         m.isOnDemandEnabled = false
         return m
     }

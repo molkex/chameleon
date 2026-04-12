@@ -5,8 +5,11 @@ import Libbox
 /// Receives live traffic stats, outbound groups, and log entries.
 ///
 /// The CommandClient finds the socket at `basePath/command.sock` where basePath
-/// is set by `LibboxSetup()` in the main app (ChameleonVPNApp.init).
-/// The extension's CommandServer creates the socket at the same path.
+/// is set by `LibboxSetup()` in ChameleonApp.init (main app side).
+/// The extension's CommandServer creates the socket at the same path via its
+/// own LibboxSetup call in ExtensionProvider.startSingBox().
+/// Both sides MUST use the same sharedContainerURL from AppConstants.
+@MainActor
 @Observable
 final class CommandClientWrapper {
     var uploadSpeed: Int64 = 0
@@ -32,7 +35,8 @@ final class CommandClientWrapper {
 
     /// Token-based cancellation: incremented on each connect/disconnect call.
     /// Prevents stale callbacks from old connections from updating state.
-    fileprivate var connectionToken: UInt64 = 0
+    /// nonisolated(unsafe) because ClientHandler reads this from libbox callbacks on arbitrary threads.
+    fileprivate nonisolated(unsafe) var connectionToken: UInt64 = 0
     private var connectTask: Task<Void, Never>?
 
     init() {
@@ -85,6 +89,7 @@ final class CommandClientWrapper {
         do {
             try newClient.connect()
             AppLogger.app.info("CommandClient connected successfully")
+            TunnelFileLogger.log("CommandClient: connected", category: "ui")
             await MainActor.run { [weak self] in
                 guard let self, self.connectionToken == token else {
                     try? newClient.disconnect()
@@ -177,11 +182,24 @@ final class CommandClientWrapper {
     }
 
     /// Manually select an outbound in a group.
+    /// Also closes all existing connections so they reconnect through the new outbound —
+    /// without this, in-flight TCP streams keep using the previously selected server.
     func selectOutbound(groupTag: String, outboundTag: String) {
+        TunnelFileLogger.log("selectOutbound: begin group='\(groupTag)' outbound='\(outboundTag)'", category: "ui")
         do {
             try client?.selectOutbound(groupTag, outboundTag: outboundTag)
+            TunnelFileLogger.log("selectOutbound: OK", category: "ui")
         } catch {
             AppLogger.app.error("selectOutbound failed: \(error)")
+            TunnelFileLogger.log("selectOutbound: FAILED \(error)", category: "ui")
+            return
+        }
+        do {
+            try client?.closeConnections()
+            TunnelFileLogger.log("closeConnections: OK", category: "ui")
+        } catch {
+            AppLogger.app.error("closeConnections failed: \(error)")
+            TunnelFileLogger.log("closeConnections: FAILED \(error)", category: "ui")
         }
     }
 
@@ -261,11 +279,11 @@ private final class ClientHandler: NSObject, LibboxCommandClientHandlerProtocol,
         guard let message else { return }
         var newGroups: [ServerGroup] = []
         while message.hasNext() {
-            let group = message.next()!
+            guard let group = message.next() else { break }
             var items: [ServerItem] = []
             if let itemIter = group.getItems() {
                 while itemIter.hasNext() {
-                    let item = itemIter.next()!
+                    guard let item = itemIter.next() else { break }
                     items.append(ServerItem(
                         id: item.tag,
                         tag: item.tag,

@@ -19,9 +19,22 @@ class AppState {
     var isAuthenticated: Bool = false
     var isInitialized: Bool = false
 
-    private var statusObserver: Any?
+    nonisolated(unsafe) private var statusObserver: Any?
+    /// Background config refresh task (handleForeground, toggleVPN).
+    nonisolated(unsafe) private var refreshTask: Task<Void, Never>?
+    /// Server switch reconnect task (selectServer). Separate from refreshTask
+    /// so that background config updates don't cancel reconnection.
+    nonisolated(unsafe) private var reconnectTask: Task<Void, Never>?
 
     private var hasInitialized = false
+
+    deinit {
+        if let statusObserver {
+            NotificationCenter.default.removeObserver(statusObserver)
+        }
+        refreshTask?.cancel()
+        reconnectTask?.cancel()
+    }
 
     func initialize() async {
         // Keychain survives app deletion on iOS — detect fresh install via UserDefaults flag.
@@ -58,20 +71,23 @@ class AppState {
             AppLogger.app.error("VPN load failed: \(error)")
         }
 
+        // Mark as initialized BEFORE network calls — prevents black screen when offline.
+        // UI can now render immediately with cached data while config refreshes in background.
+        hasInitialized = true
+        isInitialized = true
+
         // Refresh config silently on app launch (only if already signed in)
         if configStore.username != nil {
             await silentConfigUpdate()
         }
-
-        hasInitialized = true
-        isInitialized = true
     }
 
     /// Called when app returns to foreground. Refreshes config in background.
     func handleForeground() async {
         guard hasInitialized, configStore.username != nil else { return }
         AppLogger.app.info("handleForeground: refreshing config in background")
-        Task { await silentConfigUpdate() }
+        refreshTask?.cancel()
+        refreshTask = Task { await silentConfigUpdate() }
     }
 
     /// Delete corrupted or outdated config.
@@ -190,7 +206,7 @@ class AppState {
             if let config = configStore.loadConfig() {
                 let configForUD: String
                 if let tag = configStore.selectedServerTag {
-                    configForUD = buildConfigWithSelector(tag) ?? config
+                    configForUD = buildConfigWithSelector(tag)?.config ?? config
                 } else {
                     configForUD = config
                 }
@@ -245,33 +261,71 @@ class AppState {
     // MARK: - VPN
 
     func toggleVPN() async {
+        TunnelFileLogger.log("toggleVPN: begin, isConnected=\(vpnManager.isConnected)", category: "ui")
         if vpnManager.isConnected {
             commandClient.disconnect()
             vpnManager.disconnect()
-            // Refresh config in background for next connection
-            Task { await silentConfigUpdate() }
-        } else {
-            // Fetch fresh config before connecting (up to 5s, then fall back to cache)
-            await refreshConfig(timeout: .seconds(5))
+            refreshTask?.cancel()
+            refreshTask = Task { await silentConfigUpdate() }
+            TunnelFileLogger.log("toggleVPN: disconnect requested", category: "ui")
+            return
+        }
 
-            guard configStore.hasConfig() else {
-                errorMessage = "No config available. Check internet connection."
-                return
-            }
-
-            // Build config with selected server applied
+        // If we have a cached config — start the tunnel immediately and refresh
+        // in the background for next time. Only block on refresh when there is
+        // no cache at all (first launch, offline).
+        if configStore.hasConfig() {
+            TunnelFileLogger.log("toggleVPN: have cached config, building...", category: "ui")
             let config: String?
             if let tag = configStore.selectedServerTag {
-                config = buildConfigWithSelector(tag) ?? configStore.loadConfig()
+                config = buildConfigWithSelector(tag)?.config ?? configStore.loadConfig()
             } else {
                 config = configStore.loadConfig()
             }
+            TunnelFileLogger.log("toggleVPN: config built, calling vpnManager.connect", category: "ui")
 
             do {
                 try await vpnManager.connect(configJSON: config)
+                TunnelFileLogger.log("toggleVPN: vpnManager.connect returned OK", category: "ui")
             } catch {
+                TunnelFileLogger.log("toggleVPN: vpnManager.connect FAILED: \(error)", category: "ui")
                 errorMessage = error.localizedDescription
+                return
             }
+
+            // Delay background refresh — if we fire immediately, URLSession
+            // competes with the tunnel that's still coming up and iOS sometimes
+            // stalls the main queue waiting on network reachability.
+            refreshTask?.cancel()
+            refreshTask = Task {
+                try? await Task.sleep(for: .seconds(3))
+                guard !Task.isCancelled else { return }
+                await silentConfigUpdate()
+            }
+            return
+        }
+
+        // No cached config: must fetch before we can connect.
+        isLoading = true
+        defer { isLoading = false }
+        await refreshConfig(timeout: .seconds(5))
+
+        guard configStore.hasConfig() else {
+            errorMessage = "No config available. Check internet connection."
+            return
+        }
+
+        let config: String?
+        if let tag = configStore.selectedServerTag {
+            config = buildConfigWithSelector(tag)?.config ?? configStore.loadConfig()
+        } else {
+            config = configStore.loadConfig()
+        }
+
+        do {
+            try await vpnManager.connect(configJSON: config)
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 
@@ -279,7 +333,7 @@ class AppState {
         let previousTag = configStore.selectedServerTag
         let isAuto = serverTag == "Auto"
         configStore.selectedServerTag = isAuto ? nil : serverTag
-        AppLogger.app.info("selectServer: '\(previousTag ?? "Auto")' → '\(isAuto ? "Auto" : serverTag)', vpnConnected=\(self.vpnManager.isConnected)")
+        TunnelFileLogger.log("selectServer: '\(previousTag ?? "Auto")' → '\(isAuto ? "Auto" : serverTag)', connected=\(vpnManager.isConnected), cmdClientConnected=\(commandClient.isConnected)", category: "ui")
 
         // Update local servers array so UI reflects the change immediately
         for i in servers.indices {
@@ -297,36 +351,43 @@ class AppState {
             return
         }
 
-        // Build config with selector default changed (in memory only — don't overwrite file)
+        // Build config with selector default changed (for next cold start)
         let selectorTarget = isAuto ? "Auto" : serverTag
-        guard let updatedConfig = buildConfigWithSelector(selectorTarget) else {
+        let built = buildConfigWithSelector(selectorTarget)
+        guard let updatedConfig = built?.config, let selectorTag = built?.selectorTag else {
             AppLogger.app.error("selectServer: buildConfigWithSelector returned nil for '\(serverTag)'")
             return
         }
 
-        AppLogger.app.info("selectServer: config built, selector default='\(selectorTarget)', reconnecting...")
+        AppLogger.app.info("selectServer: selector='\(selectorTag)' target='\(selectorTarget)'")
 
-        // Write to UserDefaults for On-Demand reconnects (file stays as original full config)
+        // Persist for next cold start — active tunnel will pick up new default
         UserDefaults(suiteName: AppConstants.appGroupID)?.set(updatedConfig, forKey: AppConstants.startOptionsKey)
 
-        Task {
+        // Fast path: if sing-box command client is live, do a zero-downtime
+        // selector switch via gRPC. No tunnel teardown, no UI freeze.
+        if commandClient.isConnected {
+            TunnelFileLogger.log("selectServer: LIVE switch via selectOutbound selector='\(selectorTag)' → '\(selectorTarget)'", category: "ui")
+            commandClient.selectOutbound(groupTag: selectorTag, outboundTag: selectorTarget)
+            return
+        }
+
+        // Fallback: tunnel up but command client not yet connected — full reconnect.
+        TunnelFileLogger.log("selectServer: FALLBACK reconnect (commandClient not ready)", category: "ui")
+        reconnectTask?.cancel()
+        reconnectTask = Task {
             commandClient.disconnect()
-            await vpnManager.disableOnDemand()
             vpnManager.disconnect()
-            // Wait for actual disconnect
-            var waitCount = 0
-            while vpnManager.isConnected && waitCount < 30 {
-                try? await Task.sleep(for: .milliseconds(200))
-                waitCount += 1
-            }
-            AppLogger.app.info("selectServer: disconnected after \(waitCount * 200)ms, reconnecting with new config")
+            await vpnManager.waitUntilDisconnected(timeout: .seconds(5))
+            guard !Task.isCancelled else { return }
             try? await vpnManager.connect(configJSON: updatedConfig)
         }
     }
 
     /// Build config with selector default set to the given server tag.
-    /// Does NOT modify the config file — returns config string for in-memory use only.
-    private func buildConfigWithSelector(_ serverTag: String) -> String? {
+    /// Returns the updated config string and the selector tag that was modified.
+    /// Does NOT modify the config file — caller persists via UserDefaults.
+    private func buildConfigWithSelector(_ serverTag: String) -> (config: String, selectorTag: String)? {
         guard let config = configStore.loadConfig(),
               let data = config.data(using: .utf8),
               var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -336,25 +397,21 @@ class AppState {
             return nil
         }
 
-        var modified = false
+        var modifiedSelectorTag: String?
         for i in outbounds.indices {
             if outbounds[i]["type"] as? String == "selector" {
                 let selectorTag = outbounds[i]["tag"] as? String ?? "unknown"
                 let members = outbounds[i]["outbounds"] as? [String] ?? []
-                let oldDefault = outbounds[i]["default"] as? String ?? "nil"
-                // Only modify selector that contains this serverTag
                 if members.contains(serverTag) {
                     outbounds[i]["default"] = serverTag
-                    modified = true
-                    AppLogger.app.info("buildConfigWithSelector: selector '\(selectorTag)' default '\(oldDefault)' → '\(serverTag)' (members: \(members.joined(separator: ", ")))")
-                } else {
-                    AppLogger.app.warning("buildConfigWithSelector: selector '\(selectorTag)' does NOT contain '\(serverTag)', skipping (members: \(members.joined(separator: ", ")))")
+                    modifiedSelectorTag = selectorTag
+                    AppLogger.app.info("buildConfigWithSelector: selector '\(selectorTag)' → '\(serverTag)'")
                 }
             }
         }
 
-        if !modified {
-            AppLogger.app.error("buildConfigWithSelector: no selector modified for '\(serverTag)'")
+        guard let selectorTag = modifiedSelectorTag else {
+            AppLogger.app.error("buildConfigWithSelector: no selector contains '\(serverTag)'")
             return nil
         }
 
@@ -367,7 +424,7 @@ class AppState {
             return nil
         }
 
-        return updatedConfig
+        return (updatedConfig, selectorTag)
     }
 
     // MARK: - Status
@@ -382,13 +439,26 @@ class AppState {
     }
 
     private func handleStatus() {
+        TunnelFileLogger.log("handleStatus: vpn status=\(vpnManager.status.rawValue)", category: "ui")
+        let sharedDefaults = UserDefaults(suiteName: AppConstants.appGroupID)
+
         switch vpnManager.status {
         case .connected:
             if vpnConnectedAt == nil { vpnConnectedAt = Date() }
             if !commandClient.isConnected { commandClient.connect() }
+            // Clear the user-stopped flag on successful connection
+            sharedDefaults?.removeObject(forKey: "user_stopped_vpn")
         case .disconnected, .invalid:
             vpnConnectedAt = nil
             if commandClient.isConnected { commandClient.disconnect() }
+            // Check if the PacketTunnel extension signaled a user-initiated stop
+            // (from iOS Settings toggle). If so, disable On Demand to prevent auto-reconnect.
+            let userStoppedVPN = sharedDefaults?.bool(forKey: "user_stopped_vpn") ?? false
+            if userStoppedVPN {
+                sharedDefaults?.removeObject(forKey: "user_stopped_vpn")
+                AppLogger.app.info("handleStatus: user stopped VPN from Settings, disabling On Demand")
+                Task { await vpnManager.disableOnDemand() }
+            }
         default: break
         }
     }

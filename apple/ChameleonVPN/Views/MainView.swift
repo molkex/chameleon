@@ -8,6 +8,9 @@ struct MainView: View {
     @State private var showDebugLogs = false
     @State private var preloadedTunnelLines: [String] = []
     @State private var preloadedStderrLines: [String] = []
+    /// Cached "v1.0.0(1) sni:..." string. Computed once on appear and on foreground
+    /// to avoid re-parsing the config JSON on every VPN status change re-render.
+    @State private var cachedBuildInfoLine: String = ""
 
     var body: some View {
         ZStack {
@@ -25,6 +28,7 @@ struct MainView: View {
 
                 // Connect button
                 Button {
+                    TunnelFileLogger.log("TAP: connect button (isConnected=\(self.isConnected), isLoading=\(self.app.isLoading))", category: "ui")
                     Task { await app.toggleVPN() }
                 } label: {
                     ZStack {
@@ -57,6 +61,7 @@ struct MainView: View {
 
                 // Server selector
                 Button {
+                    TunnelFileLogger.log("TAP: open server list")
                     showServers = true
                 } label: {
                     HStack {
@@ -77,7 +82,7 @@ struct MainView: View {
                     .padding(.bottom, 2)
 
                 // Version + config hash
-                Text(buildInfoLine)
+                Text(cachedBuildInfoLine)
                     .font(.system(.caption2, design: .monospaced))
                     .foregroundStyle(.gray.opacity(0.4))
                     .padding(.bottom, 16)
@@ -88,6 +93,7 @@ struct MainView: View {
                 HStack {
                     Spacer()
                     Button {
+                        TunnelFileLogger.log("TAP: debug logs button")
                         // Preload logs before opening sheet
                         preloadedTunnelLines = TunnelFileLogger.readLog().components(separatedBy: "\n")
                         preloadedStderrLines = TunnelFileLogger.readStderrLog().components(separatedBy: "\n")
@@ -120,6 +126,7 @@ struct MainView: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: app.errorMessage != nil)
+        .onAppear { cachedBuildInfoLine = computeBuildInfoLine() }
         .sheet(isPresented: $showServers) {
             ServerListView()
                 .environment(app)
@@ -167,7 +174,7 @@ struct MainView: View {
         isConnected ? .cyan.opacity(0.4) : .clear
     }
 
-    private var buildInfoLine: String {
+    private func computeBuildInfoLine() -> String {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
         let sni: String = {
@@ -259,6 +266,7 @@ struct ServerListView: View {
             List {
                 // Auto option
                 Button {
+                    TunnelFileLogger.log("TAP: server row 'Auto'", category: "ui")
                     app.selectServer(groupTag: "Proxy", serverTag: "Auto")
                     dismiss()
                 } label: {
@@ -266,42 +274,53 @@ struct ServerListView: View {
                         Image(systemName: "bolt.fill")
                             .foregroundStyle(.cyan)
                         Text("Auto (best ping)")
+                            .foregroundStyle(.primary)
                         Spacer()
                         if app.configStore.selectedServerTag == nil {
                             Image(systemName: "checkmark")
                                 .foregroundStyle(.cyan)
                         }
                     }
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
 
-                // Servers from config
-                ForEach(app.servers, id: \.tag) { group in
-                    if group.selectable {
-                        Section(group.tag) {
-                            ForEach(group.items, id: \.tag) { server in
-                                Button {
-                                    app.selectServer(groupTag: group.tag, serverTag: server.tag)
-                                    dismiss()
-                                } label: {
-                                    HStack {
-                                        Text(server.tag)
-                                        Spacer()
-                                        if app.configStore.selectedServerTag == server.tag {
-                                            Image(systemName: "checkmark")
-                                                .foregroundStyle(.cyan)
-                                        }
+                // Servers from config — show only selector groups (not urltest).
+                // urltest groups would duplicate rows since "Auto" is shown above.
+                ForEach(app.servers.filter { $0.type == "selector" && $0.selectable }, id: \.tag) { group in
+                    Section(group.tag) {
+                        ForEach(group.items, id: \.tag) { server in
+                            Button {
+                                TunnelFileLogger.log("TAP: server row '\(server.tag)' in group '\(group.tag)'", category: "ui")
+                                app.selectServer(groupTag: group.tag, serverTag: server.tag)
+                                dismiss()
+                            } label: {
+                                HStack {
+                                    Text(server.tag)
+                                        .foregroundStyle(.primary)
+                                    Spacer()
+                                    if app.configStore.selectedServerTag == server.tag {
+                                        Image(systemName: "checkmark")
+                                            .foregroundStyle(.cyan)
                                     }
                                 }
+                                .contentShape(Rectangle())
                             }
+                            .buttonStyle(.plain)
                         }
                     }
                 }
             }
             .navigationTitle("Servers")
             .navigationBarTitleDisplayMode(.inline)
+            .onAppear { TunnelFileLogger.log("ServerListView: appeared, groups=\(app.servers.count)", category: "ui") }
+            .onDisappear { TunnelFileLogger.log("ServerListView: disappeared", category: "ui") }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
+                    Button("Done") {
+                        TunnelFileLogger.log("TAP: Done in server list", category: "ui")
+                        dismiss()
+                    }
                 }
             }
         }

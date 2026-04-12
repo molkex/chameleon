@@ -23,10 +23,21 @@ open class ExtensionProvider: NEPacketTunnelProvider {
 
     override open func startTunnel(options: [String: NSObject]?,
                                    completionHandler: @escaping (Error?) -> Void) {
-        TunnelFileLogger.clear()
+        // Do NOT clear log here — we lose all UI-side logs written before tunnel starts
+        // (toggleVPN, connect button taps). Log rotation happens at 512KB anyway.
         TunnelFileLogger.log("========== TUNNEL START ==========")
         TunnelFileLogger.log("libbox version: \(LibboxVersion())")
         TunnelFileLogger.log("options keys: \(options?.keys.joined(separator: ", ") ?? "nil")")
+
+        // If user just stopped VPN from iOS Settings, On Demand will try to restart immediately.
+        // Refuse to start so the disconnect actually takes effect.
+        if sharedDefaults?.bool(forKey: "user_stopped_vpn") == true {
+            sharedDefaults?.removeObject(forKey: "user_stopped_vpn")
+            TunnelFileLogger.log("Blocked On Demand restart after user-initiated stop")
+            completionHandler(NSError(domain: "Chameleon", code: 2,
+                                      userInfo: [NSLocalizedDescriptionKey: "User stopped VPN"]))
+            return
+        }
 
         // Load config — prefer tunnel options, fallback to shared file
         let configJSON: String
@@ -71,6 +82,14 @@ open class ExtensionProvider: NEPacketTunnelProvider {
                                   completionHandler: @escaping () -> Void) {
         TunnelFileLogger.log("Stopping tunnel, reason: \(reason.rawValue)")
         AppLogger.tunnel.info("Stopping tunnel, reason: \(reason.rawValue)")
+
+        // Signal to main app that user explicitly stopped VPN from iOS Settings.
+        // Main app reads this in handleStatus() to disable On Demand.
+        if reason == .userInitiated {
+            sharedDefaults?.set(true, forKey: "user_stopped_vpn")
+            TunnelFileLogger.log("User-initiated stop — signaled to main app")
+        }
+
         stopSingBox()
         setGrpcState(false)
         completionHandler()

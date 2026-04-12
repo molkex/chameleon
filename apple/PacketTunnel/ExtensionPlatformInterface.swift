@@ -178,7 +178,7 @@ extension ExtensionPlatformInterface: LibboxPlatformInterfaceProtocol {
         var ipv4Masks: [String] = []
         if let iter = options.getInet4Address() {
             while iter.hasNext() {
-                let prefix = iter.next()!
+                guard let prefix = iter.next() else { break }
                 ipv4Addresses.append(prefix.address())
                 ipv4Masks.append(prefix.mask())
             }
@@ -200,7 +200,7 @@ extension ExtensionPlatformInterface: LibboxPlatformInterfaceProtocol {
         var ipv6Prefixes: [NSNumber] = []
         if let iter = options.getInet6Address() {
             while iter.hasNext() {
-                let prefix = iter.next()!
+                guard let prefix = iter.next() else { break }
                 ipv6Addresses.append(prefix.address())
                 ipv6Prefixes.append(NSNumber(value: prefix.prefix()))
             }

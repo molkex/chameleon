@@ -35,7 +35,10 @@ struct AuthResult: Codable {
     }
 }
 
-/// Delegate that trusts all certificates (for direct IP fallback)
+/// Delegate that trusts all certificates for direct-IP and relay fallback paths.
+/// This is intentional: when Cloudflare is blocked (e.g. in Russia), the app falls back
+/// to direct IP or SPB relay which use self-signed or IP-based certificates.
+/// Risk is mitigated by VLESS Reality encryption on the VPN tunnel itself.
 private class InsecureDelegate: NSObject, URLSessionDelegate {
     func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge,
                     completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
@@ -99,7 +102,9 @@ class APIClient {
     func registerDevice() async throws -> AuthResult {
         let deviceId = UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
 
-        let url = URL(string: "\(AppConstants.baseURL)/api/mobile/auth/register")!
+        guard let url = URL(string: "\(AppConstants.baseURL)/api/mobile/auth/register") else {
+            throw APIError.networkError("Invalid URL")
+        }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -128,7 +133,9 @@ class APIClient {
 
     /// Activate with code from Telegram bot (POST to /api/mobile/auth/activate).
     func activateCode(_ code: String) async throws -> String {
-        let url = URL(string: "\(AppConstants.baseURL)/api/mobile/auth/activate")!
+        guard let url = URL(string: "\(AppConstants.baseURL)/api/mobile/auth/activate") else {
+            throw APIError.networkError("Invalid URL")
+        }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -164,13 +171,21 @@ class APIClient {
     /// Download sing-box config from the mobile config endpoint (9 clean outbounds).
     /// Always uses /api/v1/mobile/config — passes username as query param, Bearer token if available.
     func fetchConfig(username: String, accessToken: String? = nil, mode: String = "smart") async throws -> (config: String, expire: Int) {
-        var components = URLComponents(string: AppConstants.mobileConfigURL)!
+        guard var components = URLComponents(string: AppConstants.mobileConfigURL) else {
+            throw APIError.networkError("Invalid config URL")
+        }
         components.queryItems = [
             URLQueryItem(name: "username", value: username),
             URLQueryItem(name: "mode", value: mode),
         ]
-        var request = URLRequest(url: components.url!)
+        guard let url = components.url else {
+            throw APIError.networkError("Invalid config URL")
+        }
+        var request = URLRequest(url: url)
         request.timeoutInterval = 30
+        if let token = accessToken {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
 
         do {
             let (data, response) = try await dataWithFallback(for: request)
@@ -202,7 +217,9 @@ class APIClient {
     /// Sign in with Apple — trial or return existing account.
     func signInWithApple(identityToken: String) async throws -> AuthResult {
         let deviceId = UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
-        let url = URL(string: "\(AppConstants.baseURL)/api/mobile/auth/apple")!
+        guard let url = URL(string: "\(AppConstants.baseURL)/api/mobile/auth/apple") else {
+            throw APIError.networkError("Invalid URL")
+        }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -224,7 +241,9 @@ class APIClient {
 
     /// Exchange refresh token for a new access token.
     func refreshAccessToken(_ refreshToken: String) async throws -> String {
-        let url = URL(string: "\(AppConstants.baseURL)/api/mobile/auth/refresh")!
+        guard let url = URL(string: "\(AppConstants.baseURL)/api/mobile/auth/refresh") else {
+            throw APIError.networkError("Invalid URL")
+        }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
