@@ -211,8 +211,8 @@ func (h *Handler) AppleSignIn(c echo.Context) error {
 
 // RefreshToken handles POST /api/mobile/auth/refresh.
 //
-// Verifies the refresh token and issues a new access token.
-// The refresh token itself remains valid until expiry (no one-time-use blacklist on mobile).
+// Verifies the refresh token and issues a new access+refresh token pair.
+// Each refresh token is single-use: once consumed, it is blacklisted in Redis.
 func (h *Handler) RefreshToken(c echo.Context) error {
 	var req struct {
 		RefreshToken string `json:"refresh_token"`
@@ -230,14 +230,34 @@ func (h *Handler) RefreshToken(c echo.Context) error {
 		return c.JSON(http.StatusUnauthorized, ErrorResponse{Error: "invalid refresh token"})
 	}
 
+	// One-time use: mark this token as used in Redis (same pattern as admin auth).
+	// SET NX ensures only the first caller succeeds.
+	ctx := c.Request().Context()
+	key := fmt.Sprintf("mrt:used:%s", req.RefreshToken[:32])
+	ttl := 30 * 24 * time.Hour // Keep blacklist entry for 30 days
+
+	ok, err := h.Redis.SetNX(ctx, key, "1", ttl).Result()
+	if err != nil {
+		h.Logger.Error("mobile refresh: redis error", zap.Error(err))
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
+	}
+	if !ok {
+		h.Logger.Warn("mobile refresh: token reuse attempt", zap.Int64("user_id", claims.UserID))
+		return c.JSON(http.StatusUnauthorized, ErrorResponse{Error: "refresh token already used"})
+	}
+
 	tokens, err := h.JWT.CreateTokenPair(claims.UserID, claims.Username, claims.Role)
 	if err != nil {
 		h.Logger.Error("mobile refresh: create token pair", zap.Error(err))
 		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
 	}
 
-	return c.JSON(http.StatusOK, map[string]string{
-		"access_token": tokens.AccessToken,
+	return c.JSON(http.StatusOK, AuthResponse{
+		AccessToken:  tokens.AccessToken,
+		RefreshToken: tokens.RefreshToken,
+		ExpiresAt:    tokens.ExpiresAt,
+		UserID:       claims.UserID,
+		Username:     claims.Username,
 	})
 }
 

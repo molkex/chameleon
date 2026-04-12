@@ -380,9 +380,9 @@ function NodeDetailsDialog({
                   onChange={(e) => { setProviderUrl(e.target.value); markDirty(); }}
                   placeholder="https://..."
                 />
-                {providerUrl && (
+                {providerUrl && /^https?:\/\//i.test(providerUrl) && (
                   <a
-                    href={providerUrl.startsWith("http") ? providerUrl : `https://${providerUrl}`}
+                    href={providerUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center rounded-md border border-zinc-700 px-2 text-zinc-400 hover:text-zinc-200"
@@ -480,7 +480,14 @@ function NodeDetailsDialog({
                   <div className="text-zinc-500">Login</div>
                   <div className="font-mono text-zinc-300">{credentials.provider_login || "--"}</div>
                   <div className="text-zinc-500">Password</div>
-                  <div className="font-mono text-zinc-300">{credentials.provider_password || "--"}</div>
+                  <div
+                    className="font-mono text-zinc-300 cursor-pointer hover:text-white"
+                    title="Click to copy"
+                    onClick={() => credentials.provider_password && navigator.clipboard.writeText(credentials.provider_password)}
+                  >
+                    {"••••••••"}
+                    <span className="ml-2 text-xs text-zinc-500">(click to copy)</span>
+                  </div>
                 </div>
               )}
 

@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"net/http"
+
 	"github.com/labstack/echo/v4"
 )
 
@@ -28,6 +30,25 @@ func SecurityHeaders() echo.MiddlewareFunc {
 			h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
 			h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
 
+			return next(c)
+		}
+	}
+}
+
+// CSRFProtect returns middleware that requires the X-Requested-With header
+// on state-changing requests (POST, PUT, PATCH, DELETE).
+// This prevents cross-site request forgery from HTML forms, which cannot set
+// custom headers. Combined with CORS, this blocks cross-origin attacks.
+func CSRFProtect() echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			method := c.Request().Method
+			if method == http.MethodPost || method == http.MethodPut ||
+				method == http.MethodPatch || method == http.MethodDelete {
+				if c.Request().Header.Get("X-Requested-With") == "" {
+					return echo.NewHTTPError(http.StatusForbidden, "missing X-Requested-With header")
+				}
+			}
 			return next(c)
 		}
 	}

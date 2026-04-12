@@ -18,7 +18,7 @@ func ClusterAuth(secret string) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			if secret == "" {
-				return next(c) // no secret configured, allow all
+				return c.JSON(http.StatusForbidden, map[string]string{"error": "cluster secret not configured — refusing all cluster requests"})
 			}
 			auth := c.Request().Header.Get("Authorization")
 			if auth == "" {

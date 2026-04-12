@@ -6,6 +6,7 @@ package mobile
 
 import (
 	"github.com/labstack/echo/v4"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
 	"github.com/chameleonvpn/chameleon/internal/auth"
@@ -17,6 +18,7 @@ import (
 // Handler holds all dependencies needed by mobile API handlers.
 type Handler struct {
 	DB     *db.DB
+	Redis  *redis.Client
 	JWT    *auth.JWTManager
 	Apple  *auth.AppleVerifier
 	VPN    vpn.Engine // may be nil if VPN engine is not configured
@@ -39,11 +41,11 @@ func RegisterRoutes(g *echo.Group, h *Handler) {
 	authGroup.POST("/apple", h.AppleSignIn)
 	authGroup.POST("/refresh", h.RefreshToken)
 
-	// Config endpoint — no JWT, uses username query param.
-	g.GET("/config", h.GetConfig)
-
 	// Protected endpoints — require valid JWT.
 	requireAuth := auth.RequireAuth(h.JWT)
+
+	// Config endpoint — requires JWT, identifies user by token (not query param).
+	g.GET("/config", h.GetConfig, requireAuth)
 
 	subGroup := g.Group("/subscription", requireAuth)
 	subGroup.POST("/verify", h.VerifySubscription)

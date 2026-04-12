@@ -5,7 +5,10 @@ const BASE = "/api/v1";
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method,
-    headers: body ? { "Content-Type": "application/json" } : {},
+    headers: {
+      ...(body ? { "Content-Type": "application/json" } : {}),
+      "X-Requested-With": "XMLHttpRequest",
+    },
     body: body ? JSON.stringify(body) : undefined,
     credentials: "include",
   });
@@ -13,7 +16,11 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     window.location.href = "/admin/app/login";
     throw new Error("Unauthorized");
   }
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) {
+    const detail = await res.text();
+    console.error(`API ${method} ${path} failed (${res.status}):`, detail);
+    throw new Error(res.status >= 500 ? "Server error. Please try again." : detail);
+  }
   return res.json();
 }
 

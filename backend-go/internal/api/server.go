@@ -93,6 +93,7 @@ func (s *Server) setupMiddleware(e *echo.Echo) {
 			echo.HeaderAccept,
 			echo.HeaderAuthorization,
 			echo.HeaderXRequestID,
+			"X-Requested-With",
 		},
 		AllowCredentials: true,
 		MaxAge:           86400, // 24h preflight cache
@@ -112,6 +113,7 @@ func (s *Server) setupRoutes(e *echo.Echo) {
 
 	mobileHandler := &mobile.Handler{
 		DB:     s.DB,
+		Redis:  s.Redis,
 		JWT:    s.JWT,
 		Apple:  s.Apple,
 		VPN:    s.VPN,
@@ -129,8 +131,9 @@ func (s *Server) setupRoutes(e *echo.Echo) {
 	mobile.RegisterRoutes(mobileV1, mobileHandler)
 
 	// Subscription link: /sub/:token/:mode (legacy config download)
-	e.GET("/sub/:token/:mode", mobileHandler.GetConfigLegacy)
-	e.GET("/sub/:token", mobileHandler.GetConfigLegacy)
+	subRL := mw.RateLimit(s.Config.RateLimit.MobilePerMinute)
+	e.GET("/sub/:token/:mode", mobileHandler.GetConfigLegacy, subRL)
+	e.GET("/sub/:token", mobileHandler.GetConfigLegacy, subRL)
 
 	// Admin API served under /api/v1/admin (React SPA) and /api/admin (legacy).
 	adminHandler := &adminAPI.Handler{
@@ -146,11 +149,13 @@ func (s *Server) setupRoutes(e *echo.Echo) {
 	// Primary admin routes: /api/v1/admin/* (matches React SPA base path)
 	adminV1 := e.Group("/api/v1/admin")
 	adminV1.Use(mw.RateLimit(s.Config.RateLimit.AdminPerMinute))
+	adminV1.Use(mw.CSRFProtect())
 	adminAPI.RegisterRoutes(adminV1, adminHandler, s.JWT)
 
 	// Backward-compatible routes: /api/admin/*
 	adminLegacy := e.Group("/api/admin")
 	adminLegacy.Use(mw.RateLimit(s.Config.RateLimit.AdminPerMinute))
+	adminLegacy.Use(mw.CSRFProtect())
 	adminAPI.RegisterRoutes(adminLegacy, adminHandler, s.JWT)
 
 	// Cluster sync routes: /api/cluster/* (internal, peer-to-peer, auth required)

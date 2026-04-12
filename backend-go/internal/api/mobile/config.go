@@ -8,29 +8,28 @@ import (
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 
+	"github.com/chameleonvpn/chameleon/internal/auth"
 	"github.com/chameleonvpn/chameleon/internal/vpn"
 )
 
 // GetConfig handles GET /api/mobile/config and GET /api/v1/mobile/config.
 //
-// Query params:
-//   - username: vpn_username (required)
-//   - mode: ignored (kept for compatibility)
+// Requires JWT authentication. User is identified by JWT claims (user_id).
+// Falls back to username query param if JWT user has no vpn_username yet.
 //
 // Returns raw sing-box client config JSON with X-Expire header.
-// No JWT required — user is identified by vpn_username query param.
 func (h *Handler) GetConfig(c echo.Context) error {
-	username := c.QueryParam("username")
-	if username == "" {
-		return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "username query parameter is required"})
+	claims := auth.GetUserFromContext(c)
+	if claims == nil {
+		return c.JSON(http.StatusUnauthorized, ErrorResponse{Error: "unauthorized"})
 	}
 
 	ctx := c.Request().Context()
 
-	// Load user from DB by vpn_username.
-	user, err := h.DB.FindUserByVPNUsername(ctx, username)
+	// Load user from DB by user ID from JWT.
+	user, err := h.DB.FindUserByID(ctx, claims.UserID)
 	if err != nil {
-		h.Logger.Error("db: find user by vpn_username", zap.Error(err), zap.String("username", username))
+		h.Logger.Error("db: find user by id", zap.Error(err), zap.Int64("user_id", claims.UserID))
 		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
 	}
 	if user == nil {
@@ -40,6 +39,11 @@ func (h *Handler) GetConfig(c echo.Context) error {
 	// Check if user is active.
 	if !user.IsActive {
 		return c.JSON(http.StatusForbidden, ErrorResponse{Error: "account is deactivated"})
+	}
+
+	// Check subscription expiry.
+	if user.SubscriptionExpiry != nil && user.SubscriptionExpiry.Before(time.Now()) {
+		return c.JSON(http.StatusForbidden, ErrorResponse{Error: "subscription expired"})
 	}
 
 	// Verify VPN credentials exist.

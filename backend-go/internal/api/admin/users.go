@@ -9,6 +9,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 
+	"github.com/chameleonvpn/chameleon/internal/auth"
 	"github.com/chameleonvpn/chameleon/internal/db"
 )
 
@@ -200,6 +201,12 @@ func (h *Handler) DeleteUser(c echo.Context) error {
 // Extends a user's subscription by the specified number of days.
 // The :id parameter can be a numeric ID or a vpn_username.
 func (h *Handler) ExtendSubscription(c echo.Context) error {
+	// Only admin role can extend subscriptions (not operator/viewer).
+	claims := auth.GetUserFromContext(c)
+	if claims == nil || claims.Role != "admin" {
+		return echo.NewHTTPError(http.StatusForbidden, "admin role required")
+	}
+
 	ctx := c.Request().Context()
 	idParam := c.Param("id")
 
