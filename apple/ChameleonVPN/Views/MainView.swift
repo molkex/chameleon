@@ -6,6 +6,7 @@ struct MainView: View {
 
     @State private var showServers = false
     @State private var showDebugLogs = false
+    @State private var showPaywall = false
     @State private var preloadedTunnelLines: [String] = []
     @State private var preloadedStderrLines: [String] = []
     /// Cached "v1.0.0(1) sni:..." string. Computed once on appear and on foreground
@@ -77,9 +78,14 @@ struct MainView: View {
                 }
                 .padding(.horizontal)
 
-                // Subscription status
-                subscriptionStatusView
-                    .padding(.bottom, 2)
+                // Subscription status — tap to open paywall
+                Button {
+                    showPaywall = true
+                } label: {
+                    subscriptionStatusView
+                }
+                .buttonStyle(.plain)
+                .padding(.bottom, 2)
 
                 // Version + config hash
                 Text(cachedBuildInfoLine)
@@ -137,6 +143,10 @@ struct MainView: View {
                 preloadedStderrLines: preloadedStderrLines
             )
             .environment(app)
+        }
+        .sheet(isPresented: $showPaywall) {
+            PaywallView()
+                .environment(app)
         }
     }
 
@@ -213,10 +223,10 @@ struct MainView: View {
             let daysLeft = Calendar.current.dateComponents([.day], from: .now, to: expire).day ?? 0
             Group {
                 if daysLeft < 0 {
-                    Label("Subscription expired", systemImage: "exclamationmark.circle.fill")
+                    Label("Subscription expired — tap to renew", systemImage: "exclamationmark.circle.fill")
                         .foregroundStyle(.red)
                 } else if daysLeft <= 3 {
-                    Label("Expires in \(daysLeft) day\(daysLeft == 1 ? "" : "s")!", systemImage: "clock.badge.exclamationmark")
+                    Label("Expires in \(daysLeft) day\(daysLeft == 1 ? "" : "s") — tap to extend", systemImage: "clock.badge.exclamationmark")
                         .foregroundStyle(.orange)
                 } else if daysLeft <= 7 {
                     Label("Expires in \(daysLeft) days", systemImage: "clock")
@@ -227,6 +237,10 @@ struct MainView: View {
                 }
             }
             .font(.caption)
+        } else {
+            Label("Get Premium", systemImage: "crown.fill")
+                .font(.caption)
+                .foregroundStyle(.yellow)
         }
     }
 }

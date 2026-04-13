@@ -28,6 +28,21 @@ type Config struct {
 	VPN       VPNConfig       `yaml:"vpn"`
 	Cluster   ClusterConfig   `yaml:"cluster"`
 	RateLimit RateLimitConfig `yaml:"rate_limit"`
+	Payments  PaymentsConfig  `yaml:"payments"`
+}
+
+// PaymentsConfig groups per-PSP settings. Apple is the IAP rail; FreeKassa/etc.
+// will be added in later phases.
+type PaymentsConfig struct {
+	Apple ApplePaymentsConfig `yaml:"apple"`
+}
+
+// ApplePaymentsConfig is the bundle identity Apple JWS must match and whether
+// sandbox transactions are accepted. Product IDs and their durations live in
+// code (internal/api/mobile/subscription.go) — they are app-level semantics.
+type ApplePaymentsConfig struct {
+	BundleID     string `yaml:"bundle_id"`     // e.g. "com.madfrog.vpn"; default matches Auth.AppleBundleID
+	AllowSandbox bool   `yaml:"allow_sandbox"` // dev/staging only
 }
 
 // ServerConfig controls the HTTP listener.
@@ -57,7 +72,7 @@ type AuthConfig struct {
 	JWTSecret     string   `yaml:"jwt_secret"`      // required; supports ${ENV_VAR}
 	AccessTTL     Duration `yaml:"jwt_access_ttl"`  // default: 24h
 	RefreshTTL    Duration `yaml:"jwt_refresh_ttl"` // default: 720h (30 days)
-	AppleBundleID string   `yaml:"apple_bundle_id"` // default: "com.chameleonvpn.app"
+	AppleBundleID string   `yaml:"apple_bundle_id"` // default: "com.madfrog.vpn"
 }
 
 // VPNConfig controls VPN protocol settings and server entries.
@@ -243,7 +258,11 @@ func (c *Config) applyDefaults() {
 		c.Auth.RefreshTTL.Duration = 720 * time.Hour
 	}
 	if c.Auth.AppleBundleID == "" {
-		c.Auth.AppleBundleID = "com.chameleonvpn.app"
+		c.Auth.AppleBundleID = "com.madfrog.vpn"
+	}
+
+	if c.Payments.Apple.BundleID == "" {
+		c.Payments.Apple.BundleID = c.Auth.AppleBundleID
 	}
 
 	// VPN defaults

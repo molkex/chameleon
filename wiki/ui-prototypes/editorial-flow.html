@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Variant C — Editorial Calm</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f2efe7;
+      --paper: #fffdf7;
+      --line: #ddd4c7;
+      --text: #181a1f;
+      --muted: #625f57;
+      --teal: #0f8f85;
+      --amber: #d58c2d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: radial-gradient(circle at 80% 0%, #dfebe8 0%, transparent 35%), var(--bg);
+      color: var(--text);
+      font-family: "DM Sans", sans-serif;
+    }
+    .wrap { max-width: 1150px; margin: 0 auto; padding: 26px 16px 38px; }
+    .back { color: #4f5f63; text-decoration: none; font-size: 14px; }
+    h1 {
+      font-family: "Fraunces", serif;
+      font-size: clamp(30px, 4vw, 44px);
+      margin: 8px 0;
+      line-height: 1.03;
+    }
+    .sub { color: var(--muted); margin: 0 0 18px; max-width: 760px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+    .card {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 16px;
+      min-height: 560px;
+    }
+    .badge {
+      font-size: 12px;
+      font-weight: 700;
+      border: 1px solid #c7d8d5;
+      border-radius: 999px;
+      display: inline-block;
+      padding: 5px 9px;
+      color: #2d5a55;
+      margin-bottom: 12px;
+    }
+    h3 { margin: 0 0 12px; font-size: 23px; font-family: "Fraunces", serif; }
+    .power {
+      width: 130px;
+      height: 130px;
+      margin: 16px auto;
+      border-radius: 50%;
+      background: #e4f5f3;
+      border: 1px solid #b8dbd7;
+      display: grid; place-items: center;
+      font-size: 42px;
+      color: var(--teal);
+    }
+    .item {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 11px;
+      margin-bottom: 8px;
+      background: #fff;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .muted { color: var(--muted); font-size: 13px; }
+    .warn { color: var(--amber); font-weight: 700; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <a class="back" href="./index.html">← Все варианты</a>
+    <h1>Variant C: Editorial Calm</h1>
+    <p class="sub">Светлый premium-стиль для более “продуктового” позиционирования. Подходит если хочешь уйти от типичного неонового VPN-паттерна.</p>
+
+    <div class="grid">
+      <section class="card">
+        <span class="badge">Home</span>
+        <h3>Quiet Protection</h3>
+        <div class="power">⏻</div>
+        <div class="item"><span>Status</span><b>Connected</b></div>
+        <div class="item"><span>Route</span><b>Netherlands</b></div>
+        <div class="item"><span>Session</span><b>01:28:43</b></div>
+      </section>
+
+      <section class="card">
+        <span class="badge">Locations</span>
+        <h3>Pick Your Exit</h3>
+        <div class="item"><span>Auto</span><span class="muted">Recommended</span></div>
+        <div class="item"><span>Netherlands</span><span class="muted">42 ms</span></div>
+        <div class="item"><span>Germany</span><span class="muted">57 ms</span></div>
+        <div class="item"><span>France</span><span class="muted">74 ms</span></div>
+      </section>
+
+      <section class="card">
+        <span class="badge">Account</span>
+        <h3>Subscription</h3>
+        <div class="item"><span>Current plan</span><b>Premium</b></div>
+        <div class="item"><span>Renewal</span><b>24 May 2026</b></div>
+        <div class="item"><span>Diagnostics</span><span>→</span></div>
+        <div class="item"><span>Support</span><span>→</span></div>
+        <p class="warn">Expires in 2 days</p>
+      </section>
+    </div>
+  </div>
+</body>
+</html>

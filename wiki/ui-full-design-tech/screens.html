@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Tech Pro — Screen Set</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#060a16;--ink:#eaf2ff;--muted:#8da4ca;--line:#223c64;--panel:#0c1427;--blue:#72b8ff;--mint:#5ff5d1;--warn:#ffb15f;--err:#ff7a90}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:"Space Grotesk",sans-serif;color:var(--ink);background:radial-gradient(44rem 24rem at 98% -8%,rgba(114,184,255,.25),transparent 68%),radial-gradient(34rem 16rem at -6% 108%,rgba(95,245,209,.2),transparent 70%),var(--bg)}
+    .wrap{max-width:1320px;margin:0 auto;padding:24px 16px 34px}
+    .top{display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:16px}
+    .back{color:#bfd2ef;text-decoration:none;font-size:14px}
+    h1{margin:0;font:700 clamp(1.9rem,4vw,3.1rem)/.94 "Space Grotesk",sans-serif;letter-spacing:-.03em}
+    .sub{margin:8px 0 0;max-width:860px;color:var(--muted);line-height:1.55}
+    .legend{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+    .pill{border:1px solid #274a79;border-radius:999px;padding:6px 10px;font-size:12px;background:rgba(12,22,40,.76);color:#acc1e6;font-family:"JetBrains Mono",monospace}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+    .phone{border:1px solid #1d335b;border-radius:32px;padding:12px;background:#040a16;box-shadow:0 22px 36px rgba(0,0,0,.46)}
+    .screen{border:1px solid #1a3157;border-radius:22px;min-height:650px;padding:16px;background:linear-gradient(170deg,#0b1326,#081021);position:relative;overflow:hidden}
+    .scan{position:absolute;inset:0;background:repeating-linear-gradient(to bottom,rgba(255,255,255,.03) 0,rgba(255,255,255,.03) 1px,transparent 1px,transparent 4px);opacity:.15;pointer-events:none}
+    .status{display:flex;justify-content:space-between;color:#7b92bb;font-size:12px;margin-bottom:12px;font-family:"JetBrains Mono",monospace}
+    .title{margin:0 0 12px;font:700 29px/1.03 "Space Grotesk",sans-serif;letter-spacing:-.02em}
+    .terminal{border:1px solid var(--line);border-radius:11px;padding:9px 10px;background:rgba(8,15,30,.65);font:12px/1.52 "JetBrains Mono",monospace;color:#a7c6f1;white-space:pre-line;margin-bottom:9px}
+    .orb{width:170px;height:170px;border-radius:50%;margin:8px auto 14px;display:grid;place-items:center;font-size:57px;color:#f3ffff;background:linear-gradient(152deg,var(--mint),var(--blue));box-shadow:0 0 34px rgba(114,184,255,.33)}
+    .orb.off{background:linear-gradient(152deg,#68758f,#4d566a);box-shadow:none}
+    .card{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:11px;margin-bottom:8px;min-height:44px}
+    .row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+    .muted{color:var(--muted);font-size:13px;font-family:"JetBrains Mono",monospace}
+    .ok{color:var(--mint);font-weight:700}.warn{color:var(--warn);font-weight:700}
+    .alert{border:1px solid #6a3040;border-radius:10px;padding:8px 9px;margin-bottom:8px;background:rgba(73,16,35,.32);color:#ffc5d0;font:12px/1.45 "JetBrains Mono",monospace}
+    .tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:14px}
+    .tab{border:1px solid #25436f;border-radius:10px;padding:9px 6px;text-align:center;font-size:11px;color:#a9c0e6;background:#0b152a}
+    .tab.active{background:linear-gradient(90deg,rgba(114,184,255,.22),rgba(95,245,209,.22));color:#fff;border-color:#3b6297}
+    @media (max-width:1024px){.screen{min-height:auto}}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="top"><div><a class="back" href="./index.html">← Tech package index</a><h1>Screen Set</h1><p class="sub">11 экранов с фокусом на диагностику и наблюдаемость соединения в реальном времени.</p></div></div>
+    <div class="legend"><span class="pill">Home</span><span class="pill">Locations</span><span class="pill">Diagnostics</span><span class="pill">Incident</span><span class="pill">Account</span></div>
+
+    <section class="grid">
+      <article class="phone"><div class="screen"><div class="scan"></div><div class="status"><span>09:41</span><span>5G 93%</span></div><h2 class="title">Connection Hub</h2><div class="terminal">RTT: 41ms\nJITTER: 2.1ms\nLOSS: 0.2%\nROUTE: NL.AMS.01</div><div class="orb">⏻</div><div class="card"><div class="row"><b>Health</b><span class="ok">STABLE</span></div></div><div class="card"><div class="row"><span>Auto-switch</span><span class="ok">ON</span></div></div><div class="tabs"><div class="tab active">Home</div><div class="tab">Locations</div><div class="tab">Diag</div><div class="tab">Account</div></div></div></article>
+
+      <article class="phone"><div class="screen"><div class="scan"></div><div class="status"><span>09:41</span><span>Wi-Fi</span></div><h2 class="title">Disconnected</h2><div class="orb off">⏻</div><div class="card"><div class="row"><b>Tap to connect</b><span>→</span></div></div><div class="card"><div class="row"><span>Last route</span><span>DE.FRA.02</span></div></div><div class="tabs"><div class="tab active">Home</div><div class="tab">Locations</div><div class="tab">Diag</div><div class="tab">Account</div></div></div></article>
+
+      <article class="phone"><div class="screen"><div class="scan"></div><div class="status"><span>09:41</span><span>5G 93%</span></div><h2 class="title">Connecting</h2><div class="terminal">STEP 1: DNS check ✓\nSTEP 2: Handshake …\nSTEP 3: Route bind pending</div><div class="orb">◌</div><div class="card"><div class="row"><span>Target route</span><span>NL.AMS.01</span></div></div><div class="card"><div class="row"><span>Cancel</span><span>✕</span></div></div></div></article>
+
+      <article class="phone"><div class="screen"><div class="scan"></div><div class="status"><span>09:41</span><span>5G 93%</span></div><h2 class="title">Locations</h2><div class="card"><div class="row"><b>Auto</b><span class="ok">best route</span></div></div><div class="card"><div class="row"><span>NL.AMS.01</span><span class="ok">41ms</span></div></div><div class="card"><div class="row"><span>DE.FRA.02</span><span class="muted">55ms</span></div></div><div class="card"><div class="row"><span>SE.STO.01</span><span class="muted">73ms</span></div></div><div class="card"><div class="row"><span>US.NYC.01</span><span class="warn">129ms</span></div></div><div class="tabs"><div class="tab">Home</div><div class="tab active">Locations</div><div class="tab">Diag</div><div class="tab">Account</div></div></div></article>
+
+      <article class="phone"><div class="screen"><div class="scan"></div><div class="status"><span>09:41</span><span>5G 93%</span></div><h2 class="title">Route Details</h2><div class="terminal">NODE: NL.AMS.01\nPROTOCOL: VLESS\nLOAD: 63%\nUPTIME: 13d</div><div class="card"><div class="row"><span>Pin route</span><span class="ok">ON</span></div></div><div class="card"><div class="row"><span>Fallback route</span><span>DE.FRA.02</span></div></div><div class="card"><div class="row"><span>Apply now</span><span>→</span></div></div></div></article>
+
+      <article class="phone"><div class="screen"><div class="scan"></div><div class="status"><span>09:41</span><span>5G 93%</span></div><h2 class="title">Diagnostics</h2><div class="terminal">HEALTH: stable\nDNS LEAK: none\nTLS HANDSHAKE: ok\nPACKET LOSS: 0.2%</div><div class="card"><div class="row"><span>Run active test</span><span>→</span></div></div><div class="card"><div class="row"><span>Copy report</span><span>→</span></div></div><div class="tabs"><div class="tab">Home</div><div class="tab">Locations</div><div class="tab active">Diag</div><div class="tab">Account</div></div></div></article>
+
+      <article class="phone"><div class="screen"><div class="scan"></div><div class="status"><span>09:41</span><span>5G 93%</span></div><h2 class="title">Diagnostics Report</h2><div class="terminal">REPORT ID: 2A7D-18F3\nRTT P50: 39ms\nRTT P95: 56ms\nLOSS AVG: 0.3%\nSWITCH EVENTS: 1</div><div class="card"><div class="row"><span>Export JSON</span><span>→</span></div></div><div class="card"><div class="row"><span>Send to support</span><span>→</span></div></div></div></article>
+
+      <article class="phone"><div class="screen"><div class="scan"></div><div class="status"><span>09:41</span><span>No Service</span></div><h2 class="title">Incident</h2><div class="alert">VPN API timeout. Endpoint unreachable for 12s.</div><div class="card"><div class="row"><span>Retry tunnel</span><span>↻</span></div></div><div class="card"><div class="row"><span>Switch fallback</span><span>→</span></div></div><div class="card"><div class="row"><span>Open report</span><span>→</span></div></div></div></article>
+
+      <article class="phone"><div class="screen"><div class="scan"></div><div class="status"><span>09:41</span><span>5G 93%</span></div><h2 class="title">Account</h2><div class="card"><div class="row"><b>Subscription</b><span class="warn">2 days</span></div></div><div class="card"><div class="row"><span>Manage plan</span><span>→</span></div></div><div class="card"><div class="row"><span>Restore purchase</span><span>→</span></div></div><div class="card"><div class="row"><span>Logs retention</span><span>0 days</span></div></div><div class="tabs"><div class="tab">Home</div><div class="tab">Locations</div><div class="tab">Diag</div><div class="tab active">Account</div></div></div></article>
+
+      <article class="phone"><div class="screen"><div class="scan"></div><div class="status"><span>09:41</span><span>5G 93%</span></div><h2 class="title">Paywall</h2><div class="card"><b>Pro monthly</b><div class="muted">Unlimited routes, diagnostics export, priority nodes.</div></div><div class="card"><div class="row"><span>Price</span><b>$5.99 / month</b></div></div><div class="card"><div class="row"><span>Start trial</span><span>→</span></div></div><div class="card"><div class="row"><span>Restore purchase</span><span>→</span></div></div></div></article>
+
+      <article class="phone"><div class="screen"><div class="scan"></div><div class="status"><span>09:41</span><span>5G 93%</span></div><h2 class="title">Expired</h2><div class="alert">Protection paused. Subscription expired 2h ago.</div><div class="card"><div class="row"><span>Renew now</span><span>→</span></div></div><div class="card"><div class="row"><span>Restore purchase</span><span>→</span></div></div><div class="card"><div class="row"><span>Continue limited mode</span><span>1 route</span></div></div></div></article>
+    </section>
+  </main>
+</body>
+</html>

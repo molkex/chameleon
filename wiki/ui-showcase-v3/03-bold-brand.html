@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Direction 03 — Bold Brand</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0b0d1c;
+      --ink: #f7f8ff;
+      --muted: #b5b9d7;
+      --panel: #171a35;
+      --line: #3b3f73;
+      --magenta: #ff4faa;
+      --cyan: #43deff;
+      --lime: #b8ff5f;
+      --orange: #ffb25f;
+      --shadow: 0 24px 40px rgba(0,0,0,.5);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Manrope, system-ui, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(36rem 22rem at -5% -6%, rgba(255, 79, 170, .28), transparent 68%),
+        radial-gradient(45rem 24rem at 104% 110%, rgba(67, 222, 255, .24), transparent 70%),
+        var(--bg);
+    }
+
+    .wrap { max-width: 1280px; margin: 0 auto; padding: 26px 18px 34px; }
+
+    .back { display: inline-block; color: #d7dbfb; text-decoration: none; font-size: 14px; margin-bottom: 10px; }
+
+    h1 {
+      margin: 0;
+      font-family: Syne, sans-serif;
+      font-size: clamp(2rem, 4.2vw, 3.8rem);
+      letter-spacing: -.03em;
+      line-height: .94;
+    }
+
+    .lead {
+      margin: 12px 0 18px;
+      max-width: 860px;
+      color: var(--muted);
+      line-height: 1.58;
+    }
+
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+    .chip {
+      border-radius: 999px;
+      border: 1px solid #434783;
+      padding: 7px 10px;
+      font-size: 12px;
+      color: #d3d8ff;
+      background: rgba(20, 23, 47, .7);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 14px;
+    }
+
+    .phone {
+      border: 1px solid #3f447d;
+      border-radius: 34px;
+      padding: 12px;
+      background: #0f1230;
+      box-shadow: var(--shadow);
+      min-height: 700px;
+    }
+
+    .screen {
+      border: 1px solid #42487d;
+      border-radius: 24px;
+      min-height: 674px;
+      padding: 18px 16px 16px;
+      background:
+        radial-gradient(19rem 16rem at 12% 12%, rgba(255, 79, 170, .26), transparent 72%),
+        radial-gradient(22rem 18rem at 100% 0, rgba(67, 222, 255, .2), transparent 72%),
+        #171a3a;
+    }
+
+    .statusbar { display: flex; justify-content: space-between; color: #a9afd8; font-size: 12px; margin-bottom: 14px; }
+
+    .screen-title {
+      margin: 0 0 14px;
+      font: 800 31px/1.02 Syne, sans-serif;
+      letter-spacing: -.02em;
+    }
+
+    .orb {
+      width: 182px;
+      height: 182px;
+      margin: 10px auto 16px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-size: 61px;
+      color: #fff;
+      background: linear-gradient(152deg, var(--magenta), var(--cyan));
+      box-shadow: 0 0 36px rgba(255, 79, 170, .35);
+      animation: sway 3.1s ease-in-out infinite;
+    }
+
+    @keyframes sway {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-5px); }
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: var(--panel);
+      padding: 11px;
+      margin-bottom: 8px;
+      min-height: 44px;
+    }
+
+    .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+    .muted { color: var(--muted); font-size: 13px; }
+
+    .badge {
+      border-radius: 999px;
+      padding: 5px 9px;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: #12121c;
+      background: linear-gradient(90deg, var(--lime), #a9ffd8);
+    }
+
+    .badge.warn {
+      background: linear-gradient(90deg, #ffd57c, var(--orange));
+    }
+
+    .panel {
+      border: 1px solid #42477b;
+      border-radius: 18px;
+      background: #151936;
+      padding: 14px;
+      min-height: 700px;
+    }
+
+    .panel h3 { margin: 0 0 12px; font: 800 1.5rem/1.06 Syne, sans-serif; }
+
+    .point {
+      border: 1px solid #474e87;
+      border-radius: 12px;
+      padding: 10px;
+      margin-bottom: 8px;
+      font-size: 14px;
+      line-height: 1.45;
+      color: #d2d8fd;
+      background: rgba(24, 27, 57, .8);
+    }
+
+    .point b { color: #f7f9ff; }
+
+    @media (max-width: 1080px) {
+      .grid { grid-template-columns: 1fr; }
+      .phone, .panel { min-height: auto; }
+      .screen { min-height: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <a class="back" href="./index.html">← Все направления</a>
+    <h1>Direction 03: Bold / Brand</h1>
+    <p class="lead">Направление с сильным визуальным характером для consumer-продукта. Ключевая идея: эмоциональная подача бренда без потери читаемости и быстроты основного сценария.</p>
+
+    <div class="chips">
+      <span class="chip">high-recognition style</span>
+      <span class="chip">emotion-driven</span>
+      <span class="chip">controlled accents</span>
+      <span class="chip">single dominant CTA</span>
+    </div>
+
+    <section class="grid">
+      <article class="phone">
+        <div class="screen">
+          <div class="statusbar"><span>09:41</span><span>5G 93%</span></div>
+          <h2 class="screen-title">Chameleon On</h2>
+
+          <div class="orb">⏻</div>
+
+          <div class="card">
+            <div class="row"><b>Route</b><span class="badge">NL · AMS</span></div>
+            <div class="muted">Adaptive mode for lowest delay.</div>
+          </div>
+          <div class="card"><div class="row"><span>Session</span><span>01:24:06</span></div></div>
+          <div class="card"><div class="row"><span>Subscription</span><span class="badge warn">2 days</span></div></div>
+        </div>
+      </article>
+
+      <article class="phone">
+        <div class="screen">
+          <div class="statusbar"><span>09:41</span><span>5G 93%</span></div>
+          <h2 class="screen-title">Pick Location</h2>
+
+          <div class="card"><div class="row"><span>Auto</span><span class="badge">smart</span></div></div>
+          <div class="card"><div class="row"><span>Netherlands</span><span class="muted">39 ms</span></div></div>
+          <div class="card"><div class="row"><span>Germany</span><span class="muted">52 ms</span></div></div>
+          <div class="card"><div class="row"><span>UK</span><span class="muted">68 ms</span></div></div>
+          <div class="card"><div class="row"><span>USA</span><span class="muted">130 ms</span></div></div>
+          <div class="card"><div class="row"><span>Japan</span><span class="muted">201 ms</span></div></div>
+        </div>
+      </article>
+
+      <aside class="panel">
+        <h3>Design logic</h3>
+        <div class="point"><b>Brand memory:</b> отличимый вид с первого экрана.</div>
+        <div class="point"><b>Discipline:</b> яркие цвета только в CTA/статусах, текст и data-card спокойнее.</div>
+        <div class="point"><b>UX safety:</b> одна главная кнопка на экран, вторичные действия уводятся ниже.</div>
+        <div class="point"><b>Use case:</b> marketing-first продукт, где внешний образ важен для роста.</div>
+      </aside>
+    </section>
+  </main>
+</body>
+</html>

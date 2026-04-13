@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Variant A — Pulse Minimal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #070b11;
+      --text: #eef7ff;
+      --muted: #9aadc2;
+      --card: #101927;
+      --line: #25344a;
+      --accent: #1fe1cb;
+      --accent2: #62b8ff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 20% 0%, #17304d 0%, transparent 35%),
+        radial-gradient(circle at 90% 100%, #092a30 0%, transparent 35%),
+        var(--bg);
+    }
+    .wrap { max-width: 1220px; margin: 0 auto; padding: 24px 16px 36px; }
+    h1 {
+      margin: 0;
+      font-family: "Sora", sans-serif;
+      font-size: clamp(28px, 4vw, 42px);
+      line-height: 1.05;
+    }
+    .sub { color: var(--muted); margin: 10px 0 16px; max-width: 850px; }
+    .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 22px; }
+    .chip {
+      font-size: 12px;
+      padding: 6px 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+    }
+    .chip.hot {
+      color: #032019;
+      border: none;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      font-weight: 700;
+    }
+    .phones {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+    }
+    .phone {
+      background: #03070f;
+      border: 1px solid #1a2739;
+      border-radius: 32px;
+      padding: 14px;
+      min-height: 640px;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.02), 0 16px 40px rgba(0,0,0,.4);
+    }
+    .screen {
+      border-radius: 24px;
+      min-height: 612px;
+      padding: 18px 16px 14px;
+      background: linear-gradient(170deg, #070f1b, #050910 55%);
+      position: relative;
+      overflow: hidden;
+    }
+    .screen::after {
+      content: "";
+      position: absolute;
+      width: 230px; height: 230px;
+      right: -70px; top: -70px;
+      background: radial-gradient(circle, rgba(31,225,203,.33), rgba(31,225,203,0));
+      pointer-events: none;
+    }
+    .label { font-size: 12px; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 10px; }
+    .status { font-size: 34px; font-weight: 700; font-family: "Sora", sans-serif; margin: 0 0 24px; }
+    .power {
+      width: 190px; height: 190px;
+      border-radius: 50%;
+      margin: 0 auto;
+      display: grid; place-items: center;
+      background: linear-gradient(140deg, var(--accent), var(--accent2));
+      box-shadow: 0 0 36px rgba(31,225,203,.4);
+      color: #f6ffff;
+      font-size: 62px;
+      font-weight: 400;
+    }
+    .card {
+      margin-top: 22px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 13px;
+      color: var(--text);
+    }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .muted { color: var(--muted); font-size: 14px; }
+    .sheet {
+      margin-top: 18px;
+      border-top: 1px solid #223349;
+      padding-top: 12px;
+      display: grid;
+      gap: 9px;
+    }
+    .sheet-item {
+      background: rgba(255,255,255,.03);
+      border: 1px solid #20324a;
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 14px;
+      display: flex;
+      justify-content: space-between;
+      color: #d9e7f8;
+    }
+    .cta {
+      margin-top: 18px;
+      background: linear-gradient(90deg, #1fe1cb, #66b7ff);
+      color: #032019;
+      border-radius: 12px;
+      text-align: center;
+      font-weight: 800;
+      padding: 12px;
+    }
+    .back {
+      display: inline-block;
+      color: #c5d3e4;
+      text-decoration: none;
+      margin-bottom: 14px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <a class="back" href="./index.html">← Все варианты</a>
+    <h1>Variant A: Pulse Minimal</h1>
+    <p class="sub">Цель: предельно короткий сценарий. Только два экрана: Home (подключение + smart sheet) и Locations (список стран). Настройки/подписка/диагностика не отдельные вкладки.</p>
+    <div class="chips">
+      <span class="chip hot">2 экрана</span>
+      <span class="chip">Фокус на 1 тап</span>
+      <span class="chip">Bottom sheet вместо Account</span>
+    </div>
+
+    <div class="phones">
+      <div class="phone">
+        <div class="screen">
+          <div class="label">Screen 1 / Home</div>
+          <p class="status">Protected</p>
+          <div class="power">⏻</div>
+          <div class="card">
+            <div class="row"><b>Smart Route</b><span class="muted">NL • 39 ms</span></div>
+            <div class="muted">Auto picks fastest node, ручной выбор по свайпу вверх.</div>
+          </div>
+          <div class="sheet">
+            <div class="sheet-item"><span>Locations</span><span>→</span></div>
+            <div class="sheet-item"><span>Subscription</span><span>2 days left</span></div>
+            <div class="sheet-item"><span>Diagnostics</span><span>Quick check</span></div>
+            <div class="sheet-item"><span>Support</span><span>Chat</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="phone">
+        <div class="screen">
+          <div class="label">Screen 2 / Locations</div>
+          <p class="status">Choose Node</p>
+          <div class="card">
+            <div class="row"><b>Auto (recommended)</b><span class="muted">Best</span></div>
+          </div>
+          <div class="card"><div class="row"><span>Netherlands</span><span class="muted">39 ms</span></div></div>
+          <div class="card"><div class="row"><span>Germany</span><span class="muted">52 ms</span></div></div>
+          <div class="card"><div class="row"><span>Finland</span><span class="muted">67 ms</span></div></div>
+          <div class="cta">Apply and Return</div>
+        </div>
+      </div>
+
+      <div class="phone">
+        <div class="screen">
+          <div class="label">IA logic</div>
+          <p class="status">Why Minimal Works</p>
+          <div class="card">
+            <b>Сценарий пользователя:</b>
+            <div class="muted">Открыть → нажать Connect → при необходимости выбрать страну.</div>
+          </div>
+          <div class="card">
+            <b>Что убираем:</b>
+            <div class="muted">Отдельный экран Account и отдельный экран Diagnostics в основной навигации.</div>
+          </div>
+          <div class="card">
+            <b>Что оставляем:</b>
+            <div class="muted">Bottom sheet на Home с подпиской, быстрым чеком и поддержкой.</div>
+          </div>
+          <div class="card">
+            <b>Результат:</b>
+            <div class="muted">Меньше когнитивной нагрузки и быстрее первый успешный коннект.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

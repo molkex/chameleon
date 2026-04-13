@@ -153,7 +153,7 @@ fi
 
 # ── Run migration ──────────────────────────────────────────────────────────
 echo ">>> Running DB migrations..."
-for f in migrations/002_*.sql; do
+for f in migrations/0[0-9][0-9]_*.sql; do
     [ -f "$f" ] && docker exec -i chameleon-postgres psql -U chameleon -d chameleon < "$f" 2>/dev/null && echo "    Applied: $f"
 done
 
@@ -214,20 +214,26 @@ fi
 # ── Install watchdog cron (idempotent) ─────────────────────────────────────
 chmod +x "${REMOTE_DIR}/backend-go/scripts/"*.sh 2>/dev/null || true
 
-# Watchdog cron (every minute)
+# Watchdog cron (every minute) — installed as ROOT so the script can write
+# /var/log/ and doesn't need interactive sudo for `test -f` on docker volume.
+# Previously installed under ubuntu user → log file never created and sudo calls
+# inside the script failed silently, letting singbox stay dead indefinitely.
 WATCHDOG="${REMOTE_DIR}/backend-go/scripts/singbox-watchdog.sh"
 if [ -f "$WATCHDOG" ]; then
     CRON_LINE="* * * * * ${WATCHDOG} >> /var/log/singbox-watchdog.log 2>&1"
-    (crontab -l 2>/dev/null | grep -v "singbox-watchdog" ; echo "$CRON_LINE") | crontab -
-    echo ">>> Watchdog cron installed"
+    sudo bash -c "(crontab -l 2>/dev/null | grep -v 'singbox-watchdog' ; echo '$CRON_LINE') | crontab -"
+    # Also remove stale user-level cron from earlier deploys.
+    (crontab -l 2>/dev/null | grep -v "singbox-watchdog") | crontab - 2>/dev/null || true
+    echo ">>> Watchdog cron installed (root)"
 fi
 
-# Health check cron (every minute)
+# Health check cron (every minute) — also root for the same reason.
 HEALTHCHECK="${REMOTE_DIR}/backend-go/scripts/health-check.sh"
 if [ -f "$HEALTHCHECK" ]; then
     CRON_LINE="* * * * * ${HEALTHCHECK} >> /var/log/chameleon-health.log 2>&1"
-    (crontab -l 2>/dev/null | grep -v "health-check" ; echo "$CRON_LINE") | crontab -
-    echo ">>> Health check cron installed"
+    sudo bash -c "(crontab -l 2>/dev/null | grep -v 'health-check' ; echo '$CRON_LINE') | crontab -"
+    (crontab -l 2>/dev/null | grep -v "health-check") | crontab - 2>/dev/null || true
+    echo ">>> Health check cron installed (root)"
 fi
 
 # DB backup cron (daily at 3:00 AM)
@@ -249,11 +255,26 @@ else
     echo "║ ✗ Chameleon API: FAIL"
 fi
 
-# Check singbox container
+# Check singbox container — auto-start if it exists but is stopped.
+# Reason: `unless-stopped` policy does NOT auto-restart after manual docker stop,
+# so a leftover stopped singbox from a previous session silently breaks VPN.
 if docker ps --filter "name=singbox" --filter "status=running" -q | grep -q .; then
     echo "║ ✓ Singbox container: RUNNING"
+elif docker ps -a --filter "name=singbox" -q | grep -q .; then
+    echo "║ ⚠ Singbox container: STOPPED — auto-starting..."
+    if docker start singbox >/dev/null 2>&1; then
+        sleep 2
+        if docker ps --filter "name=singbox" --filter "status=running" -q | grep -q .; then
+            echo "║ ✓ Singbox container: RECOVERED"
+        else
+            echo "║ ✗ Singbox container: FAILED TO START"
+            docker logs singbox --tail 20
+        fi
+    else
+        echo "║ ✗ Singbox container: docker start failed"
+    fi
 else
-    echo "║ ✗ Singbox container: NOT RUNNING"
+    echo "║ ✗ Singbox container: NOT FOUND"
     echo "║   Run: ./scripts/singbox-run.sh"
 fi
 

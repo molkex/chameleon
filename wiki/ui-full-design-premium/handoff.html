@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Premium Minimal — iOS Handoff</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Sora:wght@600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#efe8de;--paper:#fffbf4;--ink:#171a22;--muted:#66635d;--line:#d8cebe}
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font-family:Manrope,system-ui,sans-serif}
+    .wrap{max-width:1080px;margin:0 auto;padding:24px 16px 36px}.back{color:#49524f;text-decoration:none;font-size:14px}
+    h1{margin:10px 0 12px;font:700 clamp(1.8rem,4vw,2.8rem)/.95 Sora,sans-serif;letter-spacing:-.03em}.lead{color:var(--muted);max-width:780px;line-height:1.55}
+    .sec{margin-top:12px;border:1px solid var(--line);border-radius:16px;padding:14px;background:var(--paper)}
+    .sec h2{margin:0 0 8px;font:700 1.16rem/1.1 Sora,sans-serif}.item{border:1px solid #e4dacb;border-radius:10px;background:#fff;padding:9px 10px;margin-bottom:8px;font-size:13px;line-height:1.5}
+    .item b{display:block;margin-bottom:3px}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <a class="back" href="./index.html">← Premium package index</a>
+    <h1>Implementation Handoff</h1>
+    <p class="lead">Спецификация для сборки в SwiftUI. Это направление рассчитано на минимум экранов и максимально прямой сценарий пользователя.</p>
+
+    <section class="sec">
+      <h2>Layout Rules</h2>
+      <div class="item"><b>Safe areas</b>Top content starts after status bar + 12pt.</div>
+      <div class="item"><b>Horizontal padding</b>16pt for root screens, 12pt in cards.</div>
+      <div class="item"><b>Spacing scale</b>8 / 12 / 16 / 24 / 32 only.</div>
+      <div class="item"><b>Corner radii</b>Card 13pt, sheet 16pt, primary orb 87pt radius.</div>
+    </section>
+
+    <section class="sec">
+      <h2>Behavior Contracts</h2>
+      <div class="item"><b>Connect CTA</b>Always visible on Home; tap toggles connection state.</div>
+      <div class="item"><b>Route change</b>Implemented as bottom sheet, no separate locations tab.</div>
+      <div class="item"><b>Subscription state</b>Home and Account show same expiry source of truth.</div>
+      <div class="item"><b>Error surfaces</b>One primary action + one secondary action maximum.</div>
+    </section>
+
+    <section class="sec">
+      <h2>Animation Rules</h2>
+      <div class="item"><b>State transitions</b>Use 220ms easeOut for card and badge updates.</div>
+      <div class="item"><b>Orb pulse</b>2.8s cycle, disabled when Reduce Motion enabled.</div>
+      <div class="item"><b>Sheet</b>Spring 0.32 / damping 0.86 to match iOS modal feel.</div>
+    </section>
+
+    <section class="sec">
+      <h2>QA Checklist</h2>
+      <div class="item"><b>Accessibility</b>All touch targets >= 44pt and text contrast >= 4.5:1.</div>
+      <div class="item"><b>State coverage</b>Connected / disconnected / connecting / no internet / expired.</div>
+      <div class="item"><b>Navigation</b>Only two tabs for this direction: Home and Account.</div>
+      <div class="item"><b>Localization</b>All labels fit RU/EN strings without clipping.</div>
+    </section>
+  </main>
+</body>
+</html>

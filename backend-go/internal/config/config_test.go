@@ -120,7 +120,7 @@ vpn:
 	if cfg.Auth.RefreshTTL.Duration != 720*time.Hour {
 		t.Errorf("expected default refresh_ttl 720h, got %v", cfg.Auth.RefreshTTL.Duration)
 	}
-	if cfg.Auth.AppleBundleID != "com.chameleonvpn.app" {
+	if cfg.Auth.AppleBundleID != "com.madfrog.vpn" {
 		t.Errorf("expected default apple_bundle_id, got %s", cfg.Auth.AppleBundleID)
 	}
 	if cfg.VPN.ListenPort != 2096 {

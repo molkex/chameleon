@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Quiet Armor — MadFrog VPN</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Sora:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: #1a1a1a;
+    font-family: 'Sora', -apple-system, sans-serif;
+    color: #fff;
+    min-height: 100vh;
+    padding: 48px 32px 80px;
+  }
+  .page-title {
+    text-align: center;
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-size: 42px;
+    margin-bottom: 8px;
+    font-weight: 400;
+  }
+  .page-sub {
+    text-align: center;
+    color: #888;
+    font-size: 13px;
+    letter-spacing: 0.5px;
+    margin-bottom: 56px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, auto);
+    gap: 64px 48px;
+    justify-content: center;
+  }
+  .frame-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+  }
+  .iphone {
+    width: 390px;
+    height: 844px;
+    background: #0a0a0a;
+    border-radius: 54px;
+    padding: 8px;
+    box-shadow: 0 0 0 2px #2a2a2a, 0 40px 80px rgba(0,0,0,0.5);
+    position: relative;
+  }
+  .screen {
+    width: 100%;
+    height: 100%;
+    background: #F4EFE6;
+    border-radius: 46px;
+    overflow: hidden;
+    position: relative;
+    color: #131418;
+  }
+  .notch {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 120px;
+    height: 32px;
+    background: #0a0a0a;
+    border-radius: 20px;
+    z-index: 10;
+  }
+  .statusbar {
+    height: 54px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 18px 32px 0;
+    font-size: 15px;
+    font-weight: 600;
+    position: relative;
+    z-index: 5;
+  }
+  .statusbar .right {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .screen-label {
+    font-family: 'Sora', sans-serif;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: #888;
+    text-transform: uppercase;
+  }
+  .content {
+    padding: 28px 32px;
+    height: calc(100% - 54px);
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ========== Main screen ========== */
+  .hero-greet {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-size: 36px;
+    line-height: 1.1;
+    font-weight: 400;
+    margin-top: 24px;
+    margin-bottom: 6px;
+    letter-spacing: -0.5px;
+  }
+  .hero-sub {
+    font-size: 13px;
+    color: #6b6860;
+    margin-bottom: 48px;
+  }
+  .status-card {
+    background: #fff;
+    border-radius: 24px;
+    padding: 28px 26px;
+    box-shadow: 0 1px 0 rgba(19,20,24,0.04), 0 20px 50px -20px rgba(19,20,24,0.12);
+    border: 1px solid rgba(15,139,131,0.12);
+    margin-bottom: 22px;
+  }
+  .status-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 22px;
+  }
+  .status-label {
+    font-size: 11px;
+    letter-spacing: 1.8px;
+    text-transform: uppercase;
+    color: #0F8B83;
+    font-weight: 500;
+  }
+  .timer {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 44px;
+    font-weight: 400;
+    letter-spacing: -1px;
+    color: #131418;
+    margin-bottom: 20px;
+  }
+  .stats-row {
+    display: flex;
+    justify-content: space-between;
+    padding-top: 18px;
+    border-top: 1px solid #eee6d6;
+  }
+  .stat-block {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .stat-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #9a968c;
+  }
+  .stat-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: #131418;
+  }
+  .server-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 18px 22px;
+    background: rgba(255,255,255,0.55);
+    border-radius: 18px;
+    margin-bottom: auto;
+  }
+  .server-name {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14px;
+    color: #131418;
+  }
+  .breathing-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #0F8B83;
+    box-shadow: 0 0 0 4px rgba(15,139,131,0.15);
+    animation: breathe 2.4s ease-in-out infinite;
+  }
+  @keyframes breathe {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(15,139,131,0.15); }
+    50% { box-shadow: 0 0 0 7px rgba(15,139,131,0.08); }
+  }
+  .server-ping {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: #6b6860;
+  }
+  .bottom-muted {
+    text-align: center;
+    font-size: 11px;
+    color: #9a968c;
+    letter-spacing: 0.5px;
+    padding-top: 18px;
+    padding-bottom: 12px;
+  }
+
+  /* ========== Paywall ========== */
+  .paywall-title {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-size: 40px;
+    line-height: 1.05;
+    font-weight: 400;
+    letter-spacing: -0.5px;
+    margin-top: 36px;
+    margin-bottom: 10px;
+  }
+  .paywall-sub {
+    font-size: 13px;
+    color: #6b6860;
+    margin-bottom: 42px;
+    line-height: 1.5;
+  }
+  .bullet-list {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    margin-bottom: 40px;
+  }
+  .bullet {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid #eee6d6;
+  }
+  .bullet:last-child { border-bottom: none; }
+  .bullet-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: #131418;
+  }
+  .bullet-desc {
+    font-size: 12px;
+    color: #9a968c;
+  }
+  .plan-block {
+    margin-top: auto;
+  }
+  .plan {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-radius: 18px;
+    margin-bottom: 12px;
+    background: #fff;
+    border: 1px solid transparent;
+  }
+  .plan.primary {
+    border: 1.5px solid #0F8B83;
+    background: rgba(15,139,131,0.04);
+  }
+  .plan-name {
+    font-size: 14px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .save-tag {
+    font-size: 10px;
+    color: #0F8B83;
+    background: rgba(15,139,131,0.12);
+    padding: 3px 8px;
+    border-radius: 20px;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+  }
+  .plan-price {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+  }
+  .fineprint {
+    text-align: center;
+    font-size: 10px;
+    color: #9a968c;
+    margin-top: 10px;
+    line-height: 1.6;
+  }
+  .fineprint a { color: #0F8B83; text-decoration: none; }
+
+  /* ========== Servers ========== */
+  .servers-title {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-size: 34px;
+    margin-top: 24px;
+    margin-bottom: 28px;
+    font-weight: 400;
+  }
+  .auto-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 22px 24px;
+    background: #fff;
+    border-radius: 18px;
+    margin-bottom: 28px;
+    border: 1px solid rgba(15,139,131,0.15);
+  }
+  .auto-label {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-size: 20px;
+  }
+  .auto-ping {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: #0F8B83;
+  }
+  .region-label {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #9a968c;
+    margin-bottom: 14px;
+    padding-left: 4px;
+  }
+  .srv {
+    display: flex;
+    align-items: center;
+    padding: 16px 4px;
+    border-bottom: 1px solid #eee6d6;
+    gap: 12px;
+  }
+  .srv:last-child { border-bottom: none; }
+  .cc-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    padding: 4px 7px;
+    background: #eee6d6;
+    border-radius: 4px;
+    color: #6b6860;
+    letter-spacing: 0.5px;
+  }
+  .city-block {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .city {
+    font-family: 'Instrument Serif', serif;
+    font-size: 22px;
+    line-height: 1.1;
+    font-weight: 400;
+  }
+  .country {
+    font-size: 11px;
+    color: #9a968c;
+    margin-top: 2px;
+  }
+  .ping {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: #131418;
+  }
+
+  /* ========== Settings ========== */
+  .settings-title {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-size: 34px;
+    margin-top: 24px;
+    margin-bottom: 32px;
+    font-weight: 400;
+  }
+  .set-section-label {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #9a968c;
+    margin-bottom: 6px;
+    margin-top: 22px;
+    padding-left: 4px;
+  }
+  .set-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 18px 4px;
+    border-bottom: 1px solid #eee6d6;
+    font-size: 15px;
+  }
+  .set-row:last-child { border-bottom: none; }
+  .set-label {
+    color: #131418;
+  }
+  .set-val {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #9a968c;
+    font-size: 13px;
+  }
+  .chev {
+    color: #c4beb0;
+    font-size: 18px;
+    font-family: serif;
+  }
+  .toggle {
+    width: 34px;
+    height: 20px;
+    border-radius: 20px;
+    background: #0F8B83;
+    position: relative;
+  }
+  .toggle::after {
+    content: '';
+    position: absolute;
+    right: 2px;
+    top: 2px;
+    width: 16px;
+    height: 16px;
+    background: #fff;
+    border-radius: 50%;
+  }
+  .toggle.off { background: #d9d2c2; }
+  .toggle.off::after { right: auto; left: 2px; }
+
+  /* Mascot */
+  .mascot {
+    position: absolute;
+    bottom: 20px;
+    right: 18px;
+    opacity: 0.18;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<h1 class="page-title">Quiet Armor</h1>
+<div class="page-sub">PREMIUM MINIMAL 2.0 · WARM PAPER · TEAL ACCENT</div>
+
+<div class="grid">
+
+  <!-- ============ MAIN ============ -->
+  <div class="frame-wrap">
+    <div class="iphone">
+      <div class="screen">
+        <div class="notch"></div>
+        <div class="statusbar">
+          <span>9:41</span>
+          <span class="right">
+            <svg width="17" height="11" viewBox="0 0 17 11" fill="#131418"><rect x="0" y="6" width="3" height="5" rx="1"/><rect x="4" y="4" width="3" height="7" rx="1"/><rect x="8" y="2" width="3" height="9" rx="1"/><rect x="12" y="0" width="3" height="11" rx="1"/></svg>
+            <svg width="15" height="11" viewBox="0 0 15 11" fill="#131418"><path d="M7.5 2.5C9.6 2.5 11.5 3.3 13 4.6L14.3 3.3C12.4 1.6 10 0.6 7.5 0.6S2.6 1.6 0.7 3.3L2 4.6C3.5 3.3 5.4 2.5 7.5 2.5Z"/><path d="M7.5 5.5C8.8 5.5 10 6 10.9 6.8L12.2 5.5C10.9 4.3 9.3 3.6 7.5 3.6S4.1 4.3 2.8 5.5L4.1 6.8C5 6 6.2 5.5 7.5 5.5Z"/><circle cx="7.5" cy="9" r="1.5"/></svg>
+            <svg width="26" height="12" viewBox="0 0 26 12" fill="none"><rect x="0.5" y="0.5" width="22" height="11" rx="3" stroke="#131418" fill="none"/><rect x="2" y="2" width="18" height="8" rx="1.5" fill="#131418"/><rect x="23" y="4" width="2" height="4" rx="1" fill="#131418"/></svg>
+          </span>
+        </div>
+        <div class="content">
+          <div class="hero-greet">Protected,<br>Maksim.</div>
+          <div class="hero-sub">всё под контролем · четверг, 13:42</div>
+
+          <div class="status-card">
+            <div class="status-head">
+              <span class="status-label">● Защищено</span>
+              <span class="stat-label">VLESS · Reality</span>
+            </div>
+            <div class="timer">00:03:42</div>
+            <div class="stats-row">
+              <div class="stat-block">
+                <span class="stat-label">IP</span>
+                <span class="stat-val">162.19.242.30</span>
+              </div>
+              <div class="stat-block">
+                <span class="stat-label">Отправлено</span>
+                <span class="stat-val">14.2 MB</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="server-row">
+            <div class="server-name">
+              <span class="breathing-dot"></span>
+              Germany · Frankfurt
+            </div>
+            <div class="server-ping">42 ms</div>
+          </div>
+
+          <div class="bottom-muted" style="margin-top:auto">Pro · 23 дня</div>
+        </div>
+      </div>
+    </div>
+    <div class="screen-label">Main</div>
+  </div>
+
+  <!-- ============ PAYWALL ============ -->
+  <div class="frame-wrap">
+    <div class="iphone">
+      <div class="screen">
+        <div class="notch"></div>
+        <div class="statusbar">
+          <span>9:41</span>
+          <span class="right">
+            <svg width="17" height="11" viewBox="0 0 17 11" fill="#131418"><rect x="0" y="6" width="3" height="5" rx="1"/><rect x="4" y="4" width="3" height="7" rx="1"/><rect x="8" y="2" width="3" height="9" rx="1"/><rect x="12" y="0" width="3" height="11" rx="1"/></svg>
+            <svg width="15" height="11" viewBox="0 0 15 11" fill="#131418"><path d="M7.5 2.5C9.6 2.5 11.5 3.3 13 4.6L14.3 3.3C12.4 1.6 10 0.6 7.5 0.6S2.6 1.6 0.7 3.3L2 4.6C3.5 3.3 5.4 2.5 7.5 2.5Z"/><circle cx="7.5" cy="9" r="1.5"/></svg>
+            <svg width="26" height="12" viewBox="0 0 26 12" fill="none"><rect x="0.5" y="0.5" width="22" height="11" rx="3" stroke="#131418" fill="none"/><rect x="2" y="2" width="18" height="8" rx="1.5" fill="#131418"/><rect x="23" y="4" width="2" height="4" rx="1" fill="#131418"/></svg>
+          </span>
+        </div>
+        <div class="content">
+          <div class="paywall-title">Keep it simple.<br>Keep it yours.</div>
+          <div class="paywall-sub">Без шума. Без трекеров.<br>Только твои данные — твои.</div>
+
+          <div class="bullet-list">
+            <div class="bullet">
+              <div class="bullet-title">Приватность</div>
+              <div class="bullet-desc">Reality-маскировка, никто не видит трафик</div>
+            </div>
+            <div class="bullet">
+              <div class="bullet-title">Скорость</div>
+              <div class="bullet-desc">Своя инфраструктура, 1 Gbps каналы</div>
+            </div>
+            <div class="bullet">
+              <div class="bullet-title">Никаких логов</div>
+              <div class="bullet-desc">Мы не храним то, что не нужно</div>
+            </div>
+          </div>
+
+          <div class="plan-block">
+            <div class="plan primary">
+              <div class="plan-name">
+                Годовой
+                <span class="save-tag">save 40%</span>
+              </div>
+              <div class="plan-price">1 599 ₽</div>
+            </div>
+            <div class="plan">
+              <div class="plan-name">Месячный</div>
+              <div class="plan-price">199 ₽</div>
+            </div>
+            <div class="fineprint">
+              133 ₽/мес при годовой оплате · без автопродления<br>
+              <a href="#">Восстановить покупку</a>
+            </div>
+          </div>
+
+          <!-- mascot frog line art -->
+          <svg class="mascot" width="80" height="80" viewBox="0 0 100 100" fill="none" stroke="#0F8B83" stroke-width="1.2" stroke-linecap="round">
+            <ellipse cx="50" cy="60" rx="32" ry="24"/>
+            <circle cx="36" cy="38" r="9"/>
+            <circle cx="64" cy="38" r="9"/>
+            <circle cx="36" cy="38" r="2" fill="#0F8B83"/>
+            <circle cx="64" cy="38" r="2" fill="#0F8B83"/>
+            <path d="M40 62 Q50 70 60 62"/>
+            <path d="M18 70 Q10 78 14 88"/>
+            <path d="M82 70 Q90 78 86 88"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+    <div class="screen-label">Paywall</div>
+  </div>
+
+  <!-- ============ SERVERS ============ -->
+  <div class="frame-wrap">
+    <div class="iphone">
+      <div class="screen">
+        <div class="notch"></div>
+        <div class="statusbar">
+          <span>9:41</span>
+          <span class="right">
+            <svg width="17" height="11" viewBox="0 0 17 11" fill="#131418"><rect x="0" y="6" width="3" height="5" rx="1"/><rect x="4" y="4" width="3" height="7" rx="1"/><rect x="8" y="2" width="3" height="9" rx="1"/><rect x="12" y="0" width="3" height="11" rx="1"/></svg>
+            <svg width="15" height="11" viewBox="0 0 15 11" fill="#131418"><circle cx="7.5" cy="9" r="1.5"/><path d="M7.5 2.5C9.6 2.5 11.5 3.3 13 4.6L14.3 3.3C12.4 1.6 10 0.6 7.5 0.6S2.6 1.6 0.7 3.3L2 4.6C3.5 3.3 5.4 2.5 7.5 2.5Z"/></svg>
+            <svg width="26" height="12" viewBox="0 0 26 12" fill="none"><rect x="0.5" y="0.5" width="22" height="11" rx="3" stroke="#131418" fill="none"/><rect x="2" y="2" width="18" height="8" rx="1.5" fill="#131418"/><rect x="23" y="4" width="2" height="4" rx="1" fill="#131418"/></svg>
+          </span>
+        </div>
+        <div class="content">
+          <div class="servers-title">Серверы</div>
+
+          <div class="auto-row">
+            <div class="auto-label">Auto <span style="color:#9a968c; font-size:13px; font-style:normal; font-family:'Sora';">— fastest</span></div>
+            <div class="auto-ping">● 38 ms</div>
+          </div>
+
+          <div class="region-label">Europe</div>
+
+          <div class="srv">
+            <span class="cc-tag">DE</span>
+            <div class="city-block">
+              <div class="city">Frankfurt</div>
+              <div class="country">Germany · main</div>
+            </div>
+            <div class="ping">42 ms</div>
+          </div>
+
+          <div class="srv">
+            <span class="cc-tag">NL</span>
+            <div class="city-block">
+              <div class="city">Amsterdam</div>
+              <div class="country">Netherlands</div>
+            </div>
+            <div class="ping">51 ms</div>
+          </div>
+
+          <div class="srv">
+            <span class="cc-tag">FI</span>
+            <div class="city-block">
+              <div class="city">Helsinki</div>
+              <div class="country">Finland</div>
+            </div>
+            <div class="ping">68 ms</div>
+          </div>
+
+          <div class="srv">
+            <span class="cc-tag">SE</span>
+            <div class="city-block">
+              <div class="city">Stockholm</div>
+              <div class="country">Sweden</div>
+            </div>
+            <div class="ping">74 ms</div>
+          </div>
+
+          <div class="srv">
+            <span class="cc-tag">FR</span>
+            <div class="city-block">
+              <div class="city">Paris</div>
+              <div class="country">France</div>
+            </div>
+            <div class="ping">89 ms</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="screen-label">Servers</div>
+  </div>
+
+  <!-- ============ SETTINGS ============ -->
+  <div class="frame-wrap">
+    <div class="iphone">
+      <div class="screen">
+        <div class="notch"></div>
+        <div class="statusbar">
+          <span>9:41</span>
+          <span class="right">
+            <svg width="17" height="11" viewBox="0 0 17 11" fill="#131418"><rect x="0" y="6" width="3" height="5" rx="1"/><rect x="4" y="4" width="3" height="7" rx="1"/><rect x="8" y="2" width="3" height="9" rx="1"/><rect x="12" y="0" width="3" height="11" rx="1"/></svg>
+            <svg width="15" height="11" viewBox="0 0 15 11" fill="#131418"><circle cx="7.5" cy="9" r="1.5"/><path d="M7.5 2.5C9.6 2.5 11.5 3.3 13 4.6L14.3 3.3C12.4 1.6 10 0.6 7.5 0.6S2.6 1.6 0.7 3.3L2 4.6C3.5 3.3 5.4 2.5 7.5 2.5Z"/></svg>
+            <svg width="26" height="12" viewBox="0 0 26 12" fill="none"><rect x="0.5" y="0.5" width="22" height="11" rx="3" stroke="#131418" fill="none"/><rect x="2" y="2" width="18" height="8" rx="1.5" fill="#131418"/><rect x="23" y="4" width="2" height="4" rx="1" fill="#131418"/></svg>
+          </span>
+        </div>
+        <div class="content">
+          <div class="settings-title">Настройки</div>
+
+          <div class="set-row">
+            <span class="set-label">Аккаунт</span>
+            <span class="set-val">maksim@mail.ru <span class="chev">›</span></span>
+          </div>
+          <div class="set-row">
+            <span class="set-label">Подписка</span>
+            <span class="set-val">Pro · 23 дня <span class="chev">›</span></span>
+          </div>
+
+          <div class="set-section-label">Подключение</div>
+          <div class="set-row">
+            <span class="set-label">Протокол</span>
+            <span class="set-val">Auto <span class="chev">›</span></span>
+          </div>
+          <div class="set-row">
+            <span class="set-label">Kill switch</span>
+            <span class="set-val"><span class="toggle"></span></span>
+          </div>
+          <div class="set-row">
+            <span class="set-label">On-demand</span>
+            <span class="set-val"><span class="toggle"></span></span>
+          </div>
+
+          <div class="set-section-label">Advanced</div>
+          <div class="set-row">
+            <span class="set-label">DNS</span>
+            <span class="set-val">Cloudflare <span class="chev">›</span></span>
+          </div>
+          <div class="set-row">
+            <span class="set-label">Исключить приложения</span>
+            <span class="set-val">2 <span class="chev">›</span></span>
+          </div>
+          <div class="set-row">
+            <span class="set-label">Диагностика</span>
+            <span class="set-val"><span class="chev">›</span></span>
+          </div>
+          <div class="set-row">
+            <span class="set-label">Debug logs</span>
+            <span class="set-val"><span class="chev">›</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="screen-label">Settings</div>
+  </div>
+
+</div>
+
+</body>
+</html>

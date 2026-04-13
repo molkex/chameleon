@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Bold Brand — UX Flows</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#090b18;--paper:#151936;--ink:#f8f9ff;--muted:#adb3d4;--line:#3b4278}
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font-family:Manrope,system-ui,sans-serif}
+    .wrap{max-width:1080px;margin:0 auto;padding:24px 16px 36px}.back{color:#d7dbfc;text-decoration:none;font-size:14px}
+    h1{margin:10px 0 12px;font:800 clamp(1.8rem,4vw,2.8rem)/.95 Syne,sans-serif;letter-spacing:-.03em}.lead{color:var(--muted);max-width:780px;line-height:1.55}
+    .flow{border:1px solid var(--line);border-radius:16px;padding:14px;background:var(--paper);margin-top:12px}
+    .flow h2{margin:0 0 8px;font:700 1.16rem/1.1 Syne,sans-serif}.meta{font-size:13px;color:var(--muted);margin-bottom:10px}
+    .step{border:1px solid #4a528f;border-radius:10px;padding:9px 10px;background:#1a1f3f;margin-bottom:8px;font-size:13px;line-height:1.45;color:#ced4f8}
+    .kpi{border:1px dashed #5e67aa;border-radius:10px;padding:8px 10px;background:#1a1f3f;font-size:13px;line-height:1.45;color:#b7bfe8}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <a class="back" href="./index.html">← Bold package index</a>
+    <h1>UX Flows</h1>
+    <p class="lead">Флоу в этом направлении построены вокруг одного эмоционального центра: мгновенное ощущение контроля и защищенности через главный экран.</p>
+
+    <section class="flow">
+      <h2>Flow 01: First Launch</h2>
+      <div class="meta">goal: strong first impression + fast permission completion</div>
+      <div class="step">1. Onboarding with brand mood and clear trial offer.</div>
+      <div class="step">2. VPN permission request immediately after primary CTA.</div>
+      <div class="step">3. User lands on Home disconnected state.</div>
+      <div class="kpi">KPI: first-session activation > 80%.</div>
+    </section>
+
+    <section class="flow">
+      <h2>Flow 02: Connect Loop</h2>
+      <div class="meta">goal: 1-tap connection and clear status feedback</div>
+      <div class="step">1. Tap orb to connect.</div>
+      <div class="step">2. Connecting screen with progress context.</div>
+      <div class="step">3. Connected state shows route/session/subscription.</div>
+      <div class="step">4. Tap orb to disconnect when needed.</div>
+      <div class="kpi">KPI: recurrent connect usage daily active users > 60%.</div>
+    </section>
+
+    <section class="flow">
+      <h2>Flow 03: Route Selection</h2>
+      <div class="meta">goal: high clarity in a brand-heavy UI</div>
+      <div class="step">1. Open Locations tab from bottom nav.</div>
+      <div class="step">2. Select route by region and latency.</div>
+      <div class="step">3. Apply route and return to Home.</div>
+      <div class="kpi">KPI: successful route switch > 95%.</div>
+    </section>
+
+    <section class="flow">
+      <h2>Flow 04: Subscription Recovery</h2>
+      <div class="meta">goal: recover expired users without friction</div>
+      <div class="step">1. Expired state appears with clear consequence message.</div>
+      <div class="step">2. Paywall offers renew and restore.</div>
+      <div class="step">3. On success, user returns to prior route context.</div>
+      <div class="kpi">KPI: renewal conversion from expired state > 30%.</div>
+    </section>
+
+    <section class="flow">
+      <h2>Flow 05: Error Recovery</h2>
+      <div class="meta">goal: preserve trust during failures</div>
+      <div class="step">1. No-internet screen explains the issue in plain language.</div>
+      <div class="step">2. Retry and diagnostics actions are visible above fold.</div>
+      <div class="step">3. Escalate to support with diagnostic copy if needed.</div>
+      <div class="kpi">KPI: self-recovery within app > 70%.</div>
+    </section>
+  </main>
+</body>
+</html>

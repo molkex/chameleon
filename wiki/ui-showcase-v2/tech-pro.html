@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Tech Pro</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #050812;
+      --pane: #0d1422;
+      --line: #22314e;
+      --text: #e7f0ff;
+      --muted: #95a8c6;
+      --teal: #42e9c9;
+      --blue: #6db5ff;
+      --warn: #ffae5d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Space Grotesk", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 100% -10%, #1f2e59 0%, transparent 40%),
+        radial-gradient(circle at 0% 100%, #0e3238 0%, transparent 35%),
+        var(--bg);
+    }
+    .wrap { max-width: 1220px; margin: 0 auto; padding: 22px 16px 34px; }
+    .back { color: #bdd0ee; text-decoration: none; font-size: 14px; }
+    h1 { margin: 12px 0 8px; font-size: clamp(28px,4vw,42px); }
+    .lead { margin: 0 0 18px; color: var(--muted); max-width: 840px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(280px,1fr)); gap: 14px; }
+    .phone {
+      border-radius: 28px;
+      border: 1px solid #1b2943;
+      padding: 12px;
+      background: #030611;
+      box-shadow: 0 16px 34px rgba(0,0,0,.45);
+    }
+    .screen {
+      min-height: 620px;
+      border-radius: 20px;
+      background: linear-gradient(170deg,#0b1423,#070d18);
+      border: 1px solid #182745;
+      padding: 14px;
+      position: relative;
+      overflow: hidden;
+    }
+    .screen:before {
+      content: "";
+      position: absolute;
+      left: 0; top: 0; right: 0; height: 120px;
+      background: linear-gradient(180deg, rgba(109,181,255,.08), transparent);
+      pointer-events: none;
+    }
+    .label { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: #7f95bb; }
+    .title { margin: 8px 0 16px; font-size: 32px; }
+    .matrix {
+      border: 1px solid #233455;
+      border-radius: 16px;
+      padding: 10px;
+      background: rgba(5,9,20,.5);
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12px;
+      color: #9fc3f6;
+      line-height: 1.55;
+      margin-bottom: 10px;
+      white-space: pre-line;
+    }
+    .power {
+      width: 168px; height: 168px;
+      border-radius: 50%;
+      margin: 8px auto;
+      background: linear-gradient(145deg,var(--teal),var(--blue));
+      display: grid; place-items: center;
+      font-size: 60px;
+      color: #f2ffff;
+      box-shadow: 0 0 32px rgba(66,233,201,.32);
+    }
+    .card { border: 1px solid var(--line); border-radius: 12px; background: var(--pane); padding: 10px; margin-top: 8px; }
+    .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+    .muted { color: var(--muted); font-size: 13px; }
+    .ok { color: var(--teal); }
+    .warn { color: var(--warn); }
+    .info {
+      border: 1px solid #253756;
+      border-radius: 16px;
+      padding: 14px;
+      background: #0a111f;
+      min-height: 620px;
+    }
+    .info h3 { margin: 0 0 10px; font-size: 22px; }
+    .info .block { border: 1px solid #2a3f62; border-radius: 10px; padding: 10px; margin-bottom: 8px; font-family: "JetBrains Mono", monospace; font-size: 13px; color: #bdd2f4; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <a class="back" href="./index.html">← Назад к вариантам</a>
+    <h1>Tech / Pro</h1>
+    <p class="lead">Для аудитории, которая хочет видеть качество соединения и прогнозируемость. Тон более инженерный, меньше маркетинга, больше контроля.</p>
+
+    <section class="grid">
+      <article class="phone">
+        <div class="screen">
+          <div class="label">Screen 1 / Home</div>
+          <div class="title">Connection Hub</div>
+          <div class="matrix">RTT: 41ms
+JITTER: 2.1ms
+LOSS: 0.2%
+ROUTE: NL.AMS.01</div>
+          <div class="power">⏻</div>
+          <div class="card">
+            <div class="row"><b>Health</b><span class="ok">STABLE</span></div>
+            <div class="muted">No route flaps in last 24h</div>
+          </div>
+          <div class="card"><div class="row"><span>Auto-switch</span><span class="ok">ON</span></div></div>
+          <div class="card"><div class="row"><span>Diagnostics</span><span>Run →</span></div></div>
+        </div>
+      </article>
+
+      <article class="phone">
+        <div class="screen">
+          <div class="label">Screen 2 / Locations</div>
+          <div class="title">Routing Table</div>
+          <div class="card"><div class="row"><b>Auto</b><span class="ok">best route</span></div></div>
+          <div class="card"><div class="row"><span>NL · AMS-01</span><span class="ok">41ms</span></div></div>
+          <div class="card"><div class="row"><span>DE · FRA-02</span><span>55ms</span></div></div>
+          <div class="card"><div class="row"><span>SE · STO-01</span><span>73ms</span></div></div>
+          <div class="card"><div class="row"><span>US · NYC-01</span><span class="warn">129ms</span></div></div>
+          <div class="card"><div class="row"><span>Pinned route</span><span>NL · AMS-01</span></div></div>
+        </div>
+      </article>
+
+      <aside class="info">
+        <h3>IA / UX rules</h3>
+        <div class="block">Home = connect + health + quick diagnostics</div>
+        <div class="block">Locations = manual route control + pinning</div>
+        <div class="block">Account = billing + credentials + support</div>
+        <div class="block">Key metric: fewer unknown states, faster troubleshooting</div>
+      </aside>
+    </section>
+  </main>
+</body>
+</html>

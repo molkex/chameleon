@@ -12,18 +12,22 @@ import (
 	"github.com/chameleonvpn/chameleon/internal/auth"
 	"github.com/chameleonvpn/chameleon/internal/config"
 	"github.com/chameleonvpn/chameleon/internal/db"
+	"github.com/chameleonvpn/chameleon/internal/payments"
+	"github.com/chameleonvpn/chameleon/internal/payments/apple"
 	"github.com/chameleonvpn/chameleon/internal/vpn"
 )
 
 // Handler holds all dependencies needed by mobile API handlers.
 type Handler struct {
-	DB     *db.DB
-	Redis  *redis.Client
-	JWT    *auth.JWTManager
-	Apple  *auth.AppleVerifier
-	VPN    vpn.Engine // may be nil if VPN engine is not configured
-	Config *config.Config
-	Logger *zap.Logger
+	DB            *db.DB
+	Redis         *redis.Client
+	JWT           *auth.JWTManager
+	Apple         *auth.AppleVerifier // Sign In With Apple (identity token)
+	AppleVerifier *apple.Verifier     // App Store IAP JWS verification
+	Payments      *payments.Service
+	VPN           vpn.Engine // may be nil if VPN engine is not configured
+	Config        *config.Config
+	Logger        *zap.Logger
 }
 
 // RegisterRoutes adds mobile API routes to the given echo group.
@@ -49,4 +53,10 @@ func RegisterRoutes(g *echo.Group, h *Handler) {
 
 	subGroup := g.Group("/subscription", requireAuth)
 	subGroup.POST("/verify", h.VerifySubscription)
+
+	// Apple App Store Server Notifications V2 — public endpoint (trust comes
+	// from JWS verification, not HTTP auth). Registered at the group root so
+	// Apple sees /api/mobile/subscription/notification AND
+	// /api/v1/mobile/subscription/notification.
+	g.POST("/subscription/notification", h.AppleNotification)
 }

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Tech Pro — UX Flows</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#060a16;--paper:#0b1326;--ink:#eaf2ff;--muted:#8da4ca;--line:#223c64}
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font-family:"Space Grotesk",sans-serif}
+    .wrap{max-width:1080px;margin:0 auto;padding:24px 16px 36px}.back{color:#bfd2ef;text-decoration:none;font-size:14px}
+    h1{margin:10px 0 12px;font:700 clamp(1.8rem,4vw,2.8rem)/.95 "Space Grotesk",sans-serif;letter-spacing:-.03em}.lead{color:var(--muted);max-width:760px;line-height:1.55}
+    .flow{border:1px solid var(--line);border-radius:16px;padding:14px;background:var(--paper);margin-top:12px}
+    .flow h2{margin:0 0 8px;font:700 1.16rem/1.1 "Space Grotesk",sans-serif}.meta{font:12px "JetBrains Mono",monospace;color:var(--muted);margin-bottom:10px}
+    .step{border:1px solid #2a4a77;border-radius:10px;padding:9px 10px;background:#0e1930;margin-bottom:8px;font:12px/1.45 "JetBrains Mono",monospace;color:#b5c9eb}
+    .kpi{border:1px dashed #355885;border-radius:10px;padding:8px 10px;background:#0e1930;font:12px/1.45 "JetBrains Mono",monospace;color:#9fb6dc}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <a class="back" href="./index.html">← Tech package index</a>
+    <h1>UX Flows</h1>
+    <p class="lead">Флоу ориентированы на оперативное управление сетью и incident handling. Пользователь должен видеть причину проблемы и следующий шаг без лишних переходов.</p>
+
+    <section class="flow">
+      <h2>Flow 01: Connect with Health Visibility</h2>
+      <div class="meta">goal: control + trust</div>
+      <div class="step">1. Home shows live baseline metrics before connection.</div>
+      <div class="step">2. Connect launches 3-step tunnel sequence with progress.</div>
+      <div class="step">3. Connected view exposes health badge and session data.</div>
+      <div class="kpi">KPI: connect success > 97%, abandon on connect < 5%.</div>
+    </section>
+
+    <section class="flow">
+      <h2>Flow 02: Manual Route Pinning</h2>
+      <div class="meta">goal: predictable latency for power users</div>
+      <div class="step">1. Open Locations tab and compare RTT per node.</div>
+      <div class="step">2. Open node details and enable Pin route.</div>
+      <div class="step">3. Define fallback route for automatic failover.</div>
+      <div class="kpi">KPI: successful pin application > 95%.</div>
+    </section>
+
+    <section class="flow">
+      <h2>Flow 03: Active Diagnostics</h2>
+      <div class="meta">goal: incident triage in-app</div>
+      <div class="step">1. Enter Diagnostics tab.</div>
+      <div class="step">2. Run active test for DNS/tunnel/loss checks.</div>
+      <div class="step">3. Export JSON report or send directly to support.</div>
+      <div class="kpi">KPI: support ticket quality score improves via structured report.</div>
+    </section>
+
+    <section class="flow">
+      <h2>Flow 04: Incident Recovery</h2>
+      <div class="meta">goal: recover from endpoint/API failure</div>
+      <div class="step">1. Incident banner appears with short root cause text.</div>
+      <div class="step">2. Primary action retries tunnel.</div>
+      <div class="step">3. Secondary action switches fallback route.</div>
+      <div class="step">4. If failed, open report and contact support.</div>
+      <div class="kpi">KPI: self-recovery in-app > 65%.</div>
+    </section>
+
+    <section class="flow">
+      <h2>Flow 05: Expired Plan Recovery</h2>
+      <div class="meta">goal: restore protection with minimal friction</div>
+      <div class="step">1. Expired state highlights protection pause.</div>
+      <div class="step">2. Paywall with plan details and restore action.</div>
+      <div class="step">3. Return to previous route and reconnect automatically.</div>
+      <div class="kpi">KPI: renewal completion from expired state > 30%.</div>
+    </section>
+  </main>
+</body>
+</html>

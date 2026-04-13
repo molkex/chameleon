@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Premium Minimal — Screen Set</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;700;800&family=Sora:wght@600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#efe8de;--paper:#fffcf6;--ink:#161921;--muted:#66645f;--line:#dad0bf;--teal:#0f8b83;--teal2:#35b7ae;--warn:#c67b31;--danger:#b84f4f;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Manrope,system-ui,sans-serif;color:var(--ink);background:radial-gradient(36rem 20rem at 100% -6%,rgba(148,225,217,.35),transparent 72%),radial-gradient(28rem 14rem at -6% 106%,rgba(230,187,123,.24),transparent 70%),var(--bg)}
+    .wrap{max-width:1320px;margin:0 auto;padding:24px 16px 34px}
+    .top{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px}
+    .back{color:#49524f;text-decoration:none;font-size:14px}
+    h1{margin:0;font:700 clamp(1.9rem,4vw,3.1rem)/.94 Sora,sans-serif;letter-spacing:-.03em}
+    .sub{margin:8px 0 0;max-width:860px;color:var(--muted);line-height:1.55}
+    .legend{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+    .pill{border:1px solid #d3c9b9;border-radius:999px;padding:6px 10px;font-size:12px;background:rgba(255,252,246,.75);color:#625f59}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+    .phone{border:1px solid #cabfae;border-radius:32px;padding:12px;background:linear-gradient(176deg,#f8f2e8,#efe6d7);box-shadow:0 20px 34px rgba(54,43,26,.14)}
+    .screen{border:1px solid #e6ddcf;border-radius:22px;min-height:640px;padding:16px;background:var(--paper);position:relative;overflow:hidden}
+    .screen::before{content:"";position:absolute;right:-52px;top:-78px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(53,183,174,.18),transparent 72%)}
+    .status{display:flex;justify-content:space-between;color:#7d786f;font-size:12px;margin-bottom:12px}
+    .title{margin:0 0 12px;font:700 30px/1.03 Sora,sans-serif;letter-spacing:-.02em}
+    .title em{font-family:"Instrument Serif",serif;font-style:italic;font-weight:400;color:#2f5d59;letter-spacing:0}
+    .orb{width:174px;height:174px;border-radius:50%;margin:10px auto 14px;display:grid;place-items:center;font-size:58px;color:#f7fffd;background:linear-gradient(150deg,var(--teal),var(--teal2));box-shadow:0 14px 30px rgba(24,132,124,.26)}
+    .orb.off{background:linear-gradient(150deg,#9f9f9a,#7f7e77);box-shadow:none}
+    .orb.load{background:linear-gradient(150deg,#91d9d4,#71c7bf)}
+    .card{border:1px solid var(--line);border-radius:13px;background:#fff;padding:11px;margin-bottom:8px;min-height:44px}
+    .row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+    .muted{color:var(--muted);font-size:13px;line-height:1.45}
+    .badge{border-radius:999px;padding:5px 9px;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#25403d;background:linear-gradient(90deg,#98ece1,#d6f8f2)}
+    .badge.warn{color:#5b3b1f;background:linear-gradient(90deg,#ffd9a7,#ffc36f)}
+    .banner{border:1px solid #dacdb8;border-radius:11px;padding:9px 10px;margin-bottom:8px;font-size:12px;background:#faf4ea;color:#5d5a53;font-weight:700}
+    .banner.err{border-color:#d6b8b8;background:#fff1f1;color:#7a3b3b}
+    .tabs{display:flex;gap:8px;margin-top:14px}
+    .tab{flex:1;border:1px solid #d8cebe;border-radius:12px;padding:10px 8px;text-align:center;font-size:12px;color:#6d6963;background:#f9f4ea}
+    .tab.active{background:linear-gradient(90deg,rgba(151,230,222,.5),rgba(255,219,176,.5));color:#304946;border-color:#c8bda9}
+    .sheet{margin-top:8px;border:1px solid #dacdb8;border-radius:14px;background:#f7f1e7;padding:10px;display:grid;gap:7px}
+    .sheet-item{border:1px solid #ddd2c2;border-radius:10px;padding:10px;background:#fff9f0;display:flex;justify-content:space-between;align-items:center;min-height:44px;font-size:14px}
+    @media (max-width:1024px){.screen{min-height:auto}}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="top">
+      <div>
+        <a class="back" href="./index.html">← Premium package index</a>
+        <h1>Screen Set <em>Minimal IA</em></h1>
+        <p class="sub">9 экранов в сокращенной структуре: базовые сценарии подключения, подписки и восстановления без отдельного таба Locations.</p>
+      </div>
+    </div>
+
+    <div class="legend">
+      <span class="pill">Onboarding</span><span class="pill">Home states</span><span class="pill">Route sheet</span><span class="pill">Account</span><span class="pill">Paywall</span><span class="pill">Error recovery</span>
+    </div>
+
+    <section class="grid">
+      <article class="phone"><div class="screen"><div class="status"><span>09:41</span><span>5G 93%</span></div><h2 class="title">Welcome to <em>Calm VPN</em></h2><div class="orb">⏻</div><div class="card"><b>3-day trial</b><div class="muted">Private routes, no logs, quick setup.</div></div><div class="card"><div class="row"><span>Continue with Apple</span><span>→</span></div></div><div class="card"><div class="muted">Terms and Privacy available before purchase.</div></div></div></article>
+
+      <article class="phone"><div class="screen"><div class="status"><span>09:41</span><span>Wi-Fi</span></div><h2 class="title">Not Protected</h2><div class="orb off">⏻</div><div class="card"><div class="row"><b>Tap to connect</b><span>→</span></div><div class="muted">Last route: NL · AMS</div></div><div class="card"><div class="row"><span>Route</span><span>Auto</span></div></div><div class="tabs"><div class="tab active">Home</div><div class="tab">Account</div></div></div></article>
+
+      <article class="phone"><div class="screen"><div class="status"><span>09:41</span><span>5G 93%</span></div><h2 class="title">Connecting…</h2><div class="orb load">◌</div><div class="banner">Establishing secure tunnel · step 2/3</div><div class="card"><div class="row"><span>Route</span><span>Netherlands</span></div></div><div class="card"><div class="row"><span>Cancel</span><span>✕</span></div></div><div class="tabs"><div class="tab active">Home</div><div class="tab">Account</div></div></div></article>
+
+      <article class="phone"><div class="screen"><div class="status"><span>09:41</span><span>5G 93%</span></div><h2 class="title">Protected</h2><div class="orb">⏻</div><div class="card"><div class="row"><b>Route</b><span class="badge">NL · AMS</span></div><div class="muted">Adaptive route for lowest delay.</div></div><div class="card"><div class="row"><span>Session</span><span>00:48:22</span></div></div><div class="card"><div class="row"><span>Subscription</span><span class="badge warn">2 days</span></div></div><div class="tabs"><div class="tab active">Home</div><div class="tab">Account</div></div></div></article>
+
+      <article class="phone"><div class="screen"><div class="status"><span>09:41</span><span>5G 93%</span></div><h2 class="title">Route Picker</h2><div class="card"><div class="row"><span>Current</span><span>Auto</span></div></div><div class="sheet"><div class="sheet-item"><span>Auto (recommended)</span><span>✓</span></div><div class="sheet-item"><span>Netherlands</span><span>39 ms</span></div><div class="sheet-item"><span>Germany</span><span>52 ms</span></div><div class="sheet-item"><span>United Kingdom</span><span>68 ms</span></div><div class="sheet-item"><span>USA</span><span>131 ms</span></div></div><div class="card"><div class="row"><span>Save and apply</span><span>→</span></div></div></div></article>
+
+      <article class="phone"><div class="screen"><div class="status"><span>09:41</span><span>5G 93%</span></div><h2 class="title">Account</h2><div class="card"><div class="row"><b>Premium plan</b><span class="badge warn">2 days left</span></div></div><div class="card"><div class="row"><span>Manage subscription</span><span>→</span></div></div><div class="card"><div class="row"><span>Restore purchase</span><span>→</span></div></div><div class="card"><div class="row"><span>Diagnostics</span><span>→</span></div></div><div class="tabs"><div class="tab">Home</div><div class="tab active">Account</div></div></div></article>
+
+      <article class="phone"><div class="screen"><div class="status"><span>09:41</span><span>5G 93%</span></div><h2 class="title">Stay Protected</h2><div class="card"><b>Premium monthly</b><div class="muted">Unlimited secure routes and priority nodes.</div></div><div class="card"><div class="row"><span>Price</span><b>$5.99 / month</b></div></div><div class="card"><div class="row"><span>Start free trial</span><span>→</span></div></div><div class="card"><div class="row"><span>Not now</span><span>✕</span></div></div></div></article>
+
+      <article class="phone"><div class="screen"><div class="status"><span>09:41</span><span>No Service</span></div><h2 class="title">No Internet</h2><div class="banner err">Could not reach VPN endpoint. Check your internet connection.</div><div class="card"><div class="row"><span>Retry now</span><span>↻</span></div></div><div class="card"><div class="row"><span>Open diagnostics</span><span>→</span></div></div><div class="card"><div class="muted">If issue persists, share diagnostic report with support.</div></div></div></article>
+
+      <article class="phone"><div class="screen"><div class="status"><span>09:41</span><span>5G 93%</span></div><h2 class="title">Plan Expired</h2><div class="banner err">Protection paused. Renew to continue secure routing.</div><div class="card"><div class="row"><span>Renew subscription</span><span>→</span></div></div><div class="card"><div class="row"><span>Restore purchase</span><span>→</span></div></div><div class="card"><div class="row"><span>Limited mode</span><span>1 route</span></div></div></div></article>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Chameleon iOS Concepts V3</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #070c14;
+      --ink: #eef3ff;
+      --muted: #9eaccb;
+      --panel: #101828;
+      --line: #263959;
+      --a1: #66f1d4;
+      --a2: #7ab8ff;
+      --shadow: 0 24px 40px rgba(0, 0, 0, .35);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      font-family: Manrope, system-ui, sans-serif;
+      background:
+        radial-gradient(55rem 26rem at 10% -10%, rgba(122, 184, 255, .33), transparent 62%),
+        radial-gradient(40rem 20rem at 100% 120%, rgba(102, 241, 212, .24), transparent 70%),
+        var(--bg);
+    }
+
+    .wrap {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 38px 18px 44px;
+    }
+
+    h1 {
+      margin: 0;
+      font-family: "Space Grotesk", sans-serif;
+      font-size: clamp(2.2rem, 4.8vw, 4rem);
+      letter-spacing: -.04em;
+      line-height: .95;
+    }
+
+    h1 em {
+      font-family: "Instrument Serif", serif;
+      font-style: italic;
+      font-weight: 400;
+      letter-spacing: 0;
+      color: #d3e7ff;
+    }
+
+    .lead {
+      margin: 14px 0 26px;
+      color: var(--muted);
+      max-width: 800px;
+      line-height: 1.58;
+      font-size: 1.03rem;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 14px;
+    }
+
+    .card {
+      position: relative;
+      display: block;
+      text-decoration: none;
+      color: inherit;
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      padding: 18px;
+      min-height: 228px;
+      background: linear-gradient(162deg, rgba(255, 255, 255, .05), rgba(255, 255, 255, .015));
+      overflow: hidden;
+      transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease;
+    }
+
+    .card::before {
+      content: "";
+      position: absolute;
+      width: 210px;
+      height: 210px;
+      right: -75px;
+      bottom: -95px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(102, 241, 212, .3), transparent 72%);
+      pointer-events: none;
+    }
+
+    .card:hover {
+      transform: translateY(-4px);
+      border-color: #3f5f8d;
+      box-shadow: var(--shadow);
+    }
+
+    .tag {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 7px 11px;
+      background: linear-gradient(90deg, var(--a1), var(--a2));
+      color: #072130;
+      font-size: .68rem;
+      text-transform: uppercase;
+      font-weight: 800;
+      letter-spacing: .08em;
+      margin-bottom: 12px;
+    }
+
+    .title {
+      margin: 0 0 10px;
+      font: 700 1.55rem/1.03 "Space Grotesk", sans-serif;
+      letter-spacing: -.02em;
+    }
+
+    .desc {
+      margin: 0;
+      max-width: 34ch;
+      color: var(--muted);
+      line-height: 1.5;
+      font-size: .95rem;
+    }
+
+    .note {
+      margin-top: 18px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 12px 14px;
+      background: rgba(10, 15, 26, .76);
+      color: var(--muted);
+      line-height: 1.5;
+      font-size: .93rem;
+    }
+
+    .note b { color: #eff6ff; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <h1>Chameleon iOS <em>Design Systems</em> V3</h1>
+    <p class="lead">Переделал с нуля по мобильному фокусу: выраженная визуальная система, нормальная иерархия, читаемые touch-паттерны и продуманный user-flow. Смотри каждое направление отдельно.</p>
+
+    <section class="cards">
+      <a class="card" href="./01-premium-minimal.html">
+        <span class="tag">Direction 01</span>
+        <h2 class="title">Premium Minimal</h2>
+        <p class="desc">Спокойный premium-стиль. Минимальная IA: 2 экрана (`Home + Locations`) и smart sheet для остального.</p>
+      </a>
+
+      <a class="card" href="./02-tech-pro.html">
+        <span class="tag">Direction 02</span>
+        <h2 class="title">Tech / Pro</h2>
+        <p class="desc">Больше оперативной информации: health, route stability, задержка и быстрые технические действия.</p>
+      </a>
+
+      <a class="card" href="./03-bold-brand.html">
+        <span class="tag">Direction 03</span>
+        <h2 class="title">Bold / Brand</h2>
+        <p class="desc">Сильный визуальный характер для consumer-позиционирования: ярко, но с дисциплиной в UX.</p>
+      </a>
+    </section>
+
+    <div class="note">
+      <b>Для минимума экранов:</b> бери `Direction 01`. Там уже заложен быстрый сценарий: открыть → connect → при необходимости сменить локацию.
+    </div>
+  </main>
+</body>
+</html>

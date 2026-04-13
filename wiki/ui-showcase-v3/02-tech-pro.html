@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Direction 02 — Tech Pro</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #050916;
+      --ink: #eaf1ff;
+      --muted: #8da4ca;
+      --panel: #0d1528;
+      --line: #243a61;
+      --ok: #47ebca;
+      --warn: #ffb15f;
+      --blue: #70b6ff;
+      --shadow: 0 22px 36px rgba(0,0,0,.46);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Space Grotesk", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(45rem 28rem at 95% -10%, rgba(122,172,255,.24), transparent 66%),
+        radial-gradient(38rem 18rem at -8% 110%, rgba(55,221,198,.2), transparent 68%),
+        var(--bg);
+    }
+
+    .wrap { max-width: 1280px; margin: 0 auto; padding: 26px 18px 34px; }
+
+    .back { color: #bcd1f2; text-decoration: none; font-size: 14px; display: inline-block; margin-bottom: 10px; }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2rem, 4.2vw, 3.6rem);
+      letter-spacing: -.03em;
+      line-height: .96;
+    }
+
+    .lead {
+      margin: 12px 0 18px;
+      color: var(--muted);
+      max-width: 860px;
+      line-height: 1.58;
+    }
+
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+    .chip {
+      border: 1px solid #24406e;
+      border-radius: 999px;
+      padding: 7px 10px;
+      font-size: 12px;
+      color: #a6beea;
+      background: rgba(11,20,37,.55);
+      font-family: "JetBrains Mono", monospace;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 14px;
+    }
+
+    .phone {
+      border: 1px solid #1d3158;
+      border-radius: 34px;
+      padding: 12px;
+      background: #040a16;
+      box-shadow: var(--shadow);
+      min-height: 700px;
+    }
+
+    .screen {
+      border: 1px solid #1a3158;
+      border-radius: 24px;
+      min-height: 674px;
+      padding: 18px 16px 16px;
+      background: linear-gradient(170deg, #0a1427, #070f1e);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .scan {
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(to bottom, rgba(255,255,255,.03) 0, rgba(255,255,255,.03) 1px, transparent 1px, transparent 4px);
+      opacity: .14;
+      pointer-events: none;
+    }
+
+    .statusbar { display: flex; justify-content: space-between; color: #7b92bb; font-size: 12px; margin-bottom: 14px; font-family: "JetBrains Mono", monospace; }
+    .screen-title { margin: 0 0 14px; font-size: 30px; letter-spacing: -.02em; }
+
+    .terminal {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 10px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12px;
+      color: #9ec0ef;
+      white-space: pre-line;
+      line-height: 1.56;
+      background: rgba(6, 12, 24, .58);
+      margin-bottom: 10px;
+    }
+
+    .connect {
+      width: 170px;
+      height: 170px;
+      margin: 8px auto 14px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-size: 58px;
+      color: #f3ffff;
+      background: linear-gradient(145deg, var(--ok), var(--blue));
+      box-shadow: 0 0 36px rgba(70, 194, 255, .28);
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel);
+      padding: 11px;
+      margin-bottom: 8px;
+      min-height: 44px;
+    }
+
+    .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+    .muted { color: var(--muted); font-size: 13px; font-family: "JetBrains Mono", monospace; }
+    .ok { color: var(--ok); font-weight: 700; }
+    .warn { color: var(--warn); font-weight: 700; }
+
+    .panel {
+      border: 1px solid #23406b;
+      border-radius: 18px;
+      background: #0a1224;
+      padding: 14px;
+      min-height: 700px;
+    }
+
+    .panel h3 {
+      margin: 0 0 12px;
+      font-size: 1.45rem;
+      letter-spacing: -.02em;
+    }
+
+    .point {
+      border: 1px solid #2a4470;
+      border-radius: 12px;
+      padding: 10px;
+      margin-bottom: 8px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 13px;
+      line-height: 1.48;
+      color: #b8cbed;
+      background: rgba(13, 23, 42, .72);
+    }
+
+    @media (max-width: 1080px) {
+      .grid { grid-template-columns: 1fr; }
+      .phone, .panel { min-height: auto; }
+      .screen { min-height: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <a class="back" href="./index.html">← Все направления</a>
+    <h1>Direction 02: Tech / Pro</h1>
+    <p class="lead">Интерфейс для users, которым нужна предсказуемость и observability: connection health, latency, packet loss, route stability, быстрая диагностика.</p>
+
+    <div class="chips">
+      <span class="chip">health-first</span>
+      <span class="chip">observable states</span>
+      <span class="chip">quick diagnostics</span>
+      <span class="chip">manual route pinning</span>
+    </div>
+
+    <section class="grid">
+      <article class="phone">
+        <div class="screen">
+          <div class="scan"></div>
+          <div class="statusbar"><span>09:41</span><span>5G 93%</span></div>
+          <h2 class="screen-title">Connection Hub</h2>
+
+          <div class="terminal">RTT: 41ms
+JITTER: 2.1ms
+LOSS: 0.2%
+UPTIME: 01:33:21
+ROUTE: NL.AMS.01</div>
+
+          <div class="connect">⏻</div>
+
+          <div class="card"><div class="row"><b>Health</b><span class="ok">STABLE</span></div></div>
+          <div class="card"><div class="row"><span>Auto-switch</span><span class="ok">ON</span></div></div>
+          <div class="card"><div class="row"><span>Quick diagnostics</span><span>Run →</span></div></div>
+        </div>
+      </article>
+
+      <article class="phone">
+        <div class="screen">
+          <div class="scan"></div>
+          <div class="statusbar"><span>09:41</span><span>5G 93%</span></div>
+          <h2 class="screen-title">Routing Table</h2>
+
+          <div class="card"><div class="row"><b>Auto</b><span class="ok">best route</span></div></div>
+          <div class="card"><div class="row"><span>NL · AMS-01</span><span class="ok">41ms</span></div></div>
+          <div class="card"><div class="row"><span>DE · FRA-02</span><span class="muted">55ms</span></div></div>
+          <div class="card"><div class="row"><span>SE · STO-01</span><span class="muted">73ms</span></div></div>
+          <div class="card"><div class="row"><span>US · NYC-01</span><span class="warn">129ms</span></div></div>
+          <div class="card"><div class="row"><span>Pinned route</span><span>NL · AMS-01</span></div></div>
+        </div>
+      </article>
+
+      <aside class="panel">
+        <h3>Design logic</h3>
+        <div class="point">Home = connect + live quality state + quick actions</div>
+        <div class="point">Locations = manual selection + route pinning + clear latency ranking</div>
+        <div class="point">Account = billing / identity / support (в этом концепте не перегружает Home)</div>
+        <div class="point">Цель UX: не оставлять user в "непонятном" состоянии при проблемах сети</div>
+      </aside>
+    </section>
+  </main>
+</body>
+</html>

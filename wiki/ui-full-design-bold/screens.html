@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Chameleon — Full Screen Set</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:#090b18;
+      --ink:#f8f9ff;
+      --muted:#afb5d8;
+      --line:#3a3f74;
+      --panel:#161a35;
+      --card:#1a1f3f;
+      --pink:#ff4faa;
+      --cyan:#43deff;
+      --lime:#b8ff62;
+      --orange:#ffb25f;
+      --danger:#ff5f7e;
+      --ok:#58f5c8;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      color:var(--ink);
+      font-family:Manrope,system-ui,sans-serif;
+      background:
+        radial-gradient(38rem 22rem at -8% -6%, rgba(255,79,170,.24), transparent 70%),
+        radial-gradient(44rem 24rem at 104% 115%, rgba(67,222,255,.22), transparent 72%),
+        var(--bg);
+    }
+    .wrap{max-width:1320px;margin:0 auto;padding:24px 16px 34px}
+    .top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+    h1{margin:0;font:800 clamp(1.8rem,4vw,3.1rem)/.94 Syne,sans-serif;letter-spacing:-.03em}
+    .sub{margin:8px 0 0;color:var(--muted);max-width:850px;line-height:1.55}
+    .back{color:#d7dbfc;text-decoration:none;font-size:14px}
+
+    .legend{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+    .pill{border:1px solid #444a86;border-radius:999px;padding:6px 10px;font-size:12px;color:#d4d9fe;background:rgba(20,24,50,.75)}
+
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+    .phone{border:1px solid #42477f;border-radius:32px;padding:12px;background:#0f1230;box-shadow:0 22px 36px rgba(0,0,0,.45)}
+    .screen{border:1px solid #444a81;border-radius:22px;min-height:650px;padding:16px;background:
+      radial-gradient(18rem 14rem at 12% 11%, rgba(255,79,170,.24), transparent 72%),
+      radial-gradient(21rem 15rem at 100% 0, rgba(67,222,255,.18), transparent 70%),
+      #171a3a;}
+    .status{display:flex;justify-content:space-between;color:#a6add8;font-size:12px;margin-bottom:12px}
+    .title{margin:0 0 12px;font:800 30px/1.03 Syne,sans-serif;letter-spacing:-.02em}
+    .muted{color:var(--muted);font-size:13px;line-height:1.45}
+    .orb{width:170px;height:170px;border-radius:50%;display:grid;place-items:center;margin:8px auto 14px;font-size:58px;color:#fff;background:linear-gradient(152deg,var(--pink),var(--cyan));box-shadow:0 0 34px rgba(255,79,170,.34)}
+    .orb.ok{background:linear-gradient(152deg,var(--ok),#6cc9ff);box-shadow:0 0 34px rgba(88,245,200,.34)}
+    .orb.off{background:linear-gradient(152deg,#6d748f,#4f546a);box-shadow:none}
+    .card{border:1px solid var(--line);border-radius:13px;padding:11px;background:var(--card);margin-bottom:8px;min-height:44px}
+    .row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+    .badge{border-radius:999px;padding:5px 9px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#12131d;background:linear-gradient(90deg,var(--lime),#a8ffd8)}
+    .badge.warn{background:linear-gradient(90deg,#ffd57a,var(--orange))}
+    .badge.danger{background:linear-gradient(90deg,#ff8ba1,var(--danger));color:#fff}
+    .tabs{display:flex;gap:8px;margin-top:14px}
+    .tab{flex:1;border:1px solid #454a84;border-radius:12px;padding:10px 8px;text-align:center;font-size:12px;color:#cdd4fb;background:#181c39}
+    .tab.active{background:linear-gradient(90deg,rgba(255,79,170,.25),rgba(67,222,255,.22));border-color:#6b74b7;color:#fff}
+    .section-title{margin:2px 0 10px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#9ea8d4}
+    .list .card{display:flex;justify-content:space-between;align-items:center}
+
+    .state-banner{border:1px solid #4b538f;border-radius:12px;padding:9px 10px;font-size:12px;font-weight:700;letter-spacing:.03em;margin-bottom:8px;background:rgba(20,25,52,.7)}
+    .state-banner.err{border-color:#8d4764;background:rgba(90,23,51,.3);color:#ffd5df}
+    .state-banner.ok{border-color:#3d7c78;background:rgba(18,66,62,.35);color:#c3fff3}
+
+    @media (max-width: 1024px){
+      .screen{min-height:auto}
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="top">
+      <div>
+        <a class="back" href="./index.html">← Full package index</a>
+        <h1>Full Screen Set</h1>
+        <p class="sub">12 ключевых экранов/состояний для полного продукта: onboarding, home states, location selection, account, paywall, diagnostics, error recovery.</p>
+      </div>
+    </div>
+
+    <div class="legend">
+      <span class="pill">Home</span>
+      <span class="pill">Locations</span>
+      <span class="pill">Account</span>
+      <span class="pill">Paywall</span>
+      <span class="pill">Diagnostics</span>
+      <span class="pill">Error states</span>
+    </div>
+
+    <section class="grid">
+      <article class="phone">
+        <div class="screen">
+          <div class="status"><span>09:41</span><span>5G 93%</span></div>
+          <div class="section-title">Onboarding</div>
+          <h2 class="title">Private. Fast. Yours.</h2>
+          <div class="orb ok">⏻</div>
+          <div class="card"><b>3-day trial</b><div class="muted">No logs · Wire-speed routes · Apple Sign-In</div></div>
+          <div class="card"><div class="row"><span>Continue with Apple</span><span>→</span></div></div>
+          <div class="card"><div class="muted">By continuing, you accept Terms and Privacy.</div></div>
+        </div>
+      </article>
+
+      <article class="phone">
+        <div class="screen">
+          <div class="status"><span>09:41</span><span>5G 93%</span></div>
+          <div class="section-title">Home / Connected</div>
+          <h2 class="title">Chameleon On</h2>
+          <div class="orb ok">⏻</div>
+          <div class="card"><div class="row"><b>Route</b><span class="badge">NL · AMS</span></div><div class="muted">Adaptive mode for lowest delay.</div></div>
+          <div class="card"><div class="row"><span>Session</span><span>01:24:06</span></div></div>
+          <div class="card"><div class="row"><span>Subscription</span><span class="badge warn">2 days</span></div></div>
+          <div class="tabs"><div class="tab active">Home</div><div class="tab">Locations</div><div class="tab">Account</div></div>
+        </div>
+      </article>
+
+      <article class="phone">
+        <div class="screen">
+          <div class="status"><span>09:41</span><span>Wi‑Fi</span></div>
+          <div class="section-title">Home / Disconnected</div>
+          <h2 class="title">Not Protected</h2>
+          <div class="orb off">⏻</div>
+          <div class="card"><div class="row"><b>Tap to connect</b><span>→</span></div><div class="muted">Last route: Germany · 52 ms</div></div>
+          <div class="card"><div class="row"><span>Quick action</span><span>Auto route</span></div></div>
+          <div class="card"><div class="row"><span>Diagnostics</span><span>Run</span></div></div>
+          <div class="tabs"><div class="tab active">Home</div><div class="tab">Locations</div><div class="tab">Account</div></div>
+        </div>
+      </article>
+
+      <article class="phone">
+        <div class="screen">
+          <div class="status"><span>09:41</span><span>5G 93%</span></div>
+          <div class="section-title">Home / Connecting</div>
+          <h2 class="title">Connecting…</h2>
+          <div class="orb">◌</div>
+          <div class="state-banner">Establishing secure tunnel · Step 2/3</div>
+          <div class="card"><div class="row"><span>Target route</span><span>NL · AMS</span></div></div>
+          <div class="card"><div class="row"><span>Cancel</span><span>✕</span></div></div>
+          <div class="tabs"><div class="tab active">Home</div><div class="tab">Locations</div><div class="tab">Account</div></div>
+        </div>
+      </article>
+
+      <article class="phone">
+        <div class="screen">
+          <div class="status"><span>09:41</span><span>5G 93%</span></div>
+          <div class="section-title">Locations</div>
+          <h2 class="title">Pick Location</h2>
+          <div class="list">
+            <div class="card"><span>Auto</span><span class="badge">smart</span></div>
+            <div class="card"><span>Netherlands</span><span class="muted">39 ms</span></div>
+            <div class="card"><span>Germany</span><span class="muted">52 ms</span></div>
+            <div class="card"><span>United Kingdom</span><span class="muted">68 ms</span></div>
+            <div class="card"><span>USA</span><span class="muted">130 ms</span></div>
+            <div class="card"><span>Japan</span><span class="muted">201 ms</span></div>
+          </div>
+          <div class="tabs"><div class="tab">Home</div><div class="tab active">Locations</div><div class="tab">Account</div></div>
+        </div>
+      </article>
+
+      <article class="phone">
+        <div class="screen">
+          <div class="status"><span>09:41</span><span>5G 93%</span></div>
+          <div class="section-title">Locations / Search</div>
+          <h2 class="title">Search Route</h2>
+          <div class="card"><div class="row"><span>Query</span><span class="muted">"ger"</span></div></div>
+          <div class="list">
+            <div class="card"><span>Germany · Frankfurt</span><span class="muted">52 ms</span></div>
+            <div class="card"><span>Germany · Berlin</span><span class="muted">59 ms</span></div>
+            <div class="card"><span>Germany · Munich</span><span class="muted">66 ms</span></div>
+          </div>
+          <div class="card"><div class="row"><span>Pin selected route</span><span>✓</span></div></div>
+          <div class="tabs"><div class="tab">Home</div><div class="tab active">Locations</div><div class="tab">Account</div></div>
+        </div>
+      </article>
+
+      <article class="phone">
+        <div class="screen">
+          <div class="status"><span>09:41</span><span>5G 93%</span></div>
+          <div class="section-title">Account</div>
+          <h2 class="title">Subscription</h2>
+          <div class="card"><div class="row"><b>Premium plan</b><span class="badge warn">2 days left</span></div></div>
+          <div class="card"><div class="row"><span>Manage plan</span><span>→</span></div></div>
+          <div class="card"><div class="row"><span>Restore purchase</span><span>→</span></div></div>
+          <div class="card"><div class="row"><span>Diagnostics</span><span>→</span></div></div>
+          <div class="card"><div class="row"><span>Support</span><span>→</span></div></div>
+          <div class="tabs"><div class="tab">Home</div><div class="tab">Locations</div><div class="tab active">Account</div></div>
+        </div>
+      </article>
+
+      <article class="phone">
+        <div class="screen">
+          <div class="status"><span>09:41</span><span>5G 93%</span></div>
+          <div class="section-title">Paywall</div>
+          <h2 class="title">Stay Protected</h2>
+          <div class="card"><b>Premium monthly</b><div class="muted">Unlimited routes · Priority nodes · Smart failover</div></div>
+          <div class="card"><div class="row"><span>Price</span><b>$5.99 / month</b></div></div>
+          <div class="card"><div class="row"><span>Start free trial</span><span>→</span></div></div>
+          <div class="card"><div class="row"><span>Not now</span><span>✕</span></div></div>
+          <div class="card"><div class="muted">Restores available via Apple ID.</div></div>
+        </div>
+      </article>
+
+      <article class="phone">
+        <div class="screen">
+          <div class="status"><span>09:41</span><span>5G 93%</span></div>
+          <div class="section-title">Diagnostics</div>
+          <h2 class="title">Connection Check</h2>
+          <div class="state-banner ok">Tunnel healthy · DNS ok · Route stable</div>
+          <div class="card"><div class="row"><span>Latency</span><span>41 ms</span></div></div>
+          <div class="card"><div class="row"><span>Packet loss</span><span>0.2%</span></div></div>
+          <div class="card"><div class="row"><span>Handshake</span><span>Success</span></div></div>
+          <div class="card"><div class="row"><span>Copy report</span><span>→</span></div></div>
+        </div>
+      </article>
+
+      <article class="phone">
+        <div class="screen">
+          <div class="status"><span>09:41</span><span>No Service</span></div>
+          <div class="section-title">Error / No network</div>
+          <h2 class="title">No Internet</h2>
+          <div class="state-banner err">Could not reach VPN API endpoint.</div>
+          <div class="card"><div class="row"><span>Retry now</span><span>↻</span></div></div>
+          <div class="card"><div class="row"><span>Use cached route</span><span>→</span></div></div>
+          <div class="card"><div class="row"><span>Open diagnostics</span><span>→</span></div></div>
+          <div class="card"><div class="muted">If issue persists, contact support with report.</div></div>
+        </div>
+      </article>
+
+      <article class="phone">
+        <div class="screen">
+          <div class="status"><span>09:41</span><span>5G 93%</span></div>
+          <div class="section-title">Error / Subscription expired</div>
+          <h2 class="title">Plan Expired</h2>
+          <div class="state-banner err">Secure tunnel paused. Renew to continue protection.</div>
+          <div class="card"><div class="row"><span>Renew plan</span><span>→</span></div></div>
+          <div class="card"><div class="row"><span>Restore purchase</span><span>→</span></div></div>
+          <div class="card"><div class="row"><span>Continue limited mode</span><span>→</span></div></div>
+          <div class="card"><div class="muted">Limited mode: one route, lower priority.</div></div>
+        </div>
+      </article>
+
+      <article class="phone">
+        <div class="screen">
+          <div class="status"><span>09:41</span><span>5G 93%</span></div>
+          <div class="section-title">Permissions</div>
+          <h2 class="title">Allow VPN Setup</h2>
+          <div class="card"><div class="muted">iOS will show a system permission alert to add VPN configuration.</div></div>
+          <div class="card"><div class="row"><span>Continue</span><span>→</span></div></div>
+          <div class="card"><div class="row"><span>Not now</span><span>✕</span></div></div>
+          <div class="card"><div class="muted">You can enable later from Home screen.</div></div>
+        </div>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

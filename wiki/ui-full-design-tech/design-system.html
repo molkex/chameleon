@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Tech Pro — Design System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#060a16;--paper:#0b1326;--ink:#eaf2ff;--muted:#8da4ca;--line:#223c64;--blue:#72b8ff;--mint:#5ff5d1;--warn:#ffb15f;--err:#ff7a90}
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font-family:"Space Grotesk",sans-serif}
+    .wrap{max-width:1080px;margin:0 auto;padding:24px 16px 36px}.back{color:#bfd2ef;text-decoration:none;font-size:14px}
+    h1{margin:10px 0 12px;font:700 clamp(1.8rem,4vw,2.8rem)/.95 "Space Grotesk",sans-serif;letter-spacing:-.03em}.lead{color:var(--muted);max-width:760px;line-height:1.55}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.card{border:1px solid var(--line);border-radius:16px;padding:14px;background:var(--paper)}
+    .card h2{margin:0 0 10px;font:700 1.1rem/1.1 "Space Grotesk",sans-serif}.token{display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid #2a4a77;border-radius:10px;padding:8px 10px;background:#0e1930;margin-bottom:8px;font:12px "JetBrains Mono",monospace}
+    .sw{width:36px;height:22px;border-radius:7px;border:1px solid #355784}.type{border:1px solid #2a4a77;border-radius:10px;padding:10px;background:#0e1930;margin-bottom:8px}
+    .btn-row{display:flex;gap:8px;flex-wrap:wrap}.btn{min-height:44px;padding:0 14px;border-radius:11px;border:1px solid #2f537f;background:#0e1a31;color:#eaf2ff;font-weight:700;display:inline-flex;align-items:center}
+    .btn.primary{background:linear-gradient(90deg,var(--mint),var(--blue));color:#102238;border-color:#3f72a8}.btn.warn{background:linear-gradient(90deg,#ffd099,var(--warn));color:#43280f}
+    .state{border:1px solid #2a4a77;border-radius:10px;padding:9px 10px;margin-bottom:8px;background:#0e1930;font:12px/1.45 "JetBrains Mono",monospace;color:#b4c8ea}
+    .metrics{display:grid;grid-template-columns:1fr 1fr;gap:8px}.metric{border:1px solid #2a4a77;border-radius:10px;padding:9px 10px;background:#0e1930;font:12px/1.45 "JetBrains Mono",monospace;color:#b4c8ea}
+    @media (max-width:880px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <a class="back" href="./index.html">← Tech package index</a>
+    <h1>Design System</h1>
+    <p class="lead">Data-oriented токены и компоненты. Приоритет: читаемость технических метрик, быстрое распознавание статусов и стабильная контрастность в dark среде.</p>
+
+    <section class="grid">
+      <article class="card">
+        <h2>Color Tokens</h2>
+        <div class="token"><span>bg/base</span><span>#060A16</span><span class="sw" style="background:#060a16"></span></div>
+        <div class="token"><span>surface/panel</span><span>#0B1326</span><span class="sw" style="background:#0b1326"></span></div>
+        <div class="token"><span>text/primary</span><span>#EAF2FF</span><span class="sw" style="background:#eaf2ff"></span></div>
+        <div class="token"><span>text/secondary</span><span>#8DA4CA</span><span class="sw" style="background:#8da4ca"></span></div>
+        <div class="token"><span>state/ok</span><span>#5FF5D1</span><span class="sw" style="background:#5ff5d1"></span></div>
+        <div class="token"><span>state/warn</span><span>#FFB15F</span><span class="sw" style="background:#ffb15f"></span></div>
+        <div class="token"><span>state/error</span><span>#FF7A90</span><span class="sw" style="background:#ff7a90"></span></div>
+      </article>
+
+      <article class="card">
+        <h2>Typography</h2>
+        <div class="type" style="font:700 29px/1.03 'Space Grotesk',sans-serif">Display / 29 / Space Grotesk</div>
+        <div class="type" style="font:700 22px/1.1 'Space Grotesk',sans-serif">Title / 22 / Space Grotesk</div>
+        <div class="type" style="font:600 13px/1.45 'JetBrains Mono',monospace">Metric / 13 / JetBrains Mono</div>
+        <div class="type" style="font:500 14px/1.45 'Space Grotesk',sans-serif">Body / 14 / Space Grotesk</div>
+      </article>
+
+      <article class="card">
+        <h2>Core Components</h2>
+        <div class="btn-row"><span class="btn primary">Connect</span><span class="btn">Run diagnostics</span><span class="btn warn">Renew</span></div>
+        <div class="state">Terminal card: mono text, line-height 1.52, min-height 88.</div>
+        <div class="state">Health badge states: stable / degraded / incident.</div>
+        <div class="state">Tab bar: 4 tabs with active gradient and clear icon labels.</div>
+      </article>
+
+      <article class="card">
+        <h2>Accessibility + Motion</h2>
+        <div class="metrics">
+          <div class="metric">Touch target >= 44x44</div>
+          <div class="metric">Text contrast >= 4.5:1</div>
+          <div class="metric">Monospace metrics never below 12px</div>
+          <div class="metric">Transition 160-220ms for data refresh</div>
+        </div>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

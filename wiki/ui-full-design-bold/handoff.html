@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Bold Brand — iOS Handoff</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#090b18;--paper:#151936;--ink:#f8f9ff;--muted:#adb3d4;--line:#3b4278}
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font-family:Manrope,system-ui,sans-serif}
+    .wrap{max-width:1080px;margin:0 auto;padding:24px 16px 36px}.back{color:#d7dbfc;text-decoration:none;font-size:14px}
+    h1{margin:10px 0 12px;font:800 clamp(1.8rem,4vw,2.8rem)/.95 Syne,sans-serif;letter-spacing:-.03em}.lead{color:var(--muted);max-width:780px;line-height:1.55}
+    .sec{margin-top:12px;border:1px solid var(--line);border-radius:16px;padding:14px;background:var(--paper)}
+    .sec h2{margin:0 0 8px;font:700 1.16rem/1.1 Syne,sans-serif}.item{border:1px solid #4a528f;border-radius:10px;background:#1a1f3f;padding:9px 10px;margin-bottom:8px;font-size:13px;line-height:1.45;color:#ced4f8}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <a class="back" href="./index.html">← Bold package index</a>
+    <h1>Implementation Handoff</h1>
+    <p class="lead">Спецификация для iOS разработки брендового направления. Важно сохранить эмоцию интерфейса и при этом не потерять функциональную строгость.</p>
+
+    <section class="sec">
+      <h2>Layout Rules</h2>
+      <div class="item">Base horizontal padding 16pt, card internal padding 11pt.</div>
+      <div class="item">Primary orb fixed size 182x182 on compact width.</div>
+      <div class="item">Bottom nav always visible on Home/Locations/Account.</div>
+      <div class="item">Large title block max 2 lines; hard truncation after line 2.</div>
+    </section>
+
+    <section class="sec">
+      <h2>Interaction Contracts</h2>
+      <div class="item">Orb tap toggles connect/disconnect; haptic feedback on state change.</div>
+      <div class="item">Locations list supports quick apply without confirmation modal.</div>
+      <div class="item">Subscription warning pill appears when <= 3 days left.</div>
+      <div class="item">Expired and no-internet states must expose retry path immediately.</div>
+    </section>
+
+    <section class="sec">
+      <h2>Motion Rules</h2>
+      <div class="item">Orb float animation: 3.1s ease-in-out, amplitude 5px.</div>
+      <div class="item">Card transitions: 220ms ease-out for status updates.</div>
+      <div class="item">Reduce Motion: disable orb float and glow pulsation.</div>
+    </section>
+
+    <section class="sec">
+      <h2>QA Checklist</h2>
+      <div class="item">Touch targets >= 44pt on all actionable rows and buttons.</div>
+      <div class="item">Contrast validated for gradient over dark surfaces.</div>
+      <div class="item">State matrix covered: connected, connecting, disconnected, expired, incident.</div>
+      <div class="item">Brand gradients render consistently on iPhone SE to Pro Max widths.</div>
+    </section>
+  </main>
+</body>
+</html>

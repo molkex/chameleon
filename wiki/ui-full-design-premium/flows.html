@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Premium Minimal — UX Flows</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Sora:wght@600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#efe8de;--paper:#fffbf4;--ink:#171a22;--muted:#66635d;--line:#d8cebe;--ok:#0f8b83;--warn:#c67b31;--err:#b84f4f}
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font-family:Manrope,system-ui,sans-serif}
+    .wrap{max-width:1080px;margin:0 auto;padding:24px 16px 36px}.back{color:#49524f;text-decoration:none;font-size:14px}
+    h1{margin:10px 0 12px;font:700 clamp(1.8rem,4vw,2.8rem)/.95 Sora,sans-serif;letter-spacing:-.03em}.lead{color:var(--muted);max-width:760px;line-height:1.55}
+    .flow{border:1px solid var(--line);border-radius:16px;padding:14px;background:var(--paper);margin-top:12px}
+    .flow h2{margin:0 0 8px;font:700 1.16rem/1.1 Sora,sans-serif}.meta{font-size:13px;color:var(--muted);margin-bottom:10px}
+    .steps{display:grid;gap:8px}.step{border:1px solid #e4dacb;border-radius:11px;padding:9px 10px;background:#fff;font-size:13px;line-height:1.45}
+    .kpi{margin-top:10px;border:1px dashed #cfc2ad;border-radius:10px;padding:8px 10px;font-size:13px;color:#5f5d57;background:#faf3e8}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <a class="back" href="./index.html">← Premium package index</a>
+    <h1>UX Flows</h1>
+    <p class="lead">Сценарии оптимизированы под минимальное число действий. Основная цель: подключить пользователя за 1-2 касания и не перегружать навигацией.</p>
+
+    <section class="flow">
+      <h2>Flow 01: First Launch</h2>
+      <div class="meta">Target: первый защищенный запуск за 60 секунд</div>
+      <div class="steps">
+        <div class="step">1. Onboarding screen: value + trial + Continue with Apple.</div>
+        <div class="step">2. iOS VPN permission prompt.</div>
+        <div class="step">3. Home (disconnected) with dominant Connect CTA.</div>
+      </div>
+      <div class="kpi">KPI: onboarding completion > 85%.</div>
+    </section>
+
+    <section class="flow">
+      <h2>Flow 02: Connect / Disconnect</h2>
+      <div class="meta">Target: быстрый контроль состояния туннеля</div>
+      <div class="steps">
+        <div class="step">1. Tap connect on Home.</div>
+        <div class="step">2. Connecting state with cancel option.</div>
+        <div class="step">3. Connected state: session timer, active route, subscription pill.</div>
+        <div class="step">4. Tap orb again for disconnect.</div>
+      </div>
+      <div class="kpi">KPI: time-to-connect p95 < 4.5 sec (product metric).</div>
+    </section>
+
+    <section class="flow">
+      <h2>Flow 03: Change Route (No extra tab)</h2>
+      <div class="meta">Target: сохранить минимальный IA</div>
+      <div class="steps">
+        <div class="step">1. From Home tap Route card.</div>
+        <div class="step">2. Open Route Picker sheet with 5-8 options.</div>
+        <div class="step">3. Select route and apply immediately.</div>
+      </div>
+      <div class="kpi">KPI: route change success > 95%.</div>
+    </section>
+
+    <section class="flow">
+      <h2>Flow 04: Renewal</h2>
+      <div class="meta">Target: вернуть защиту при истекшей подписке</div>
+      <div class="steps">
+        <div class="step">1. Expired banner on Home and Account.</div>
+        <div class="step">2. Open Paywall from CTA.</div>
+        <div class="step">3. Purchase or restore; return to connected flow.</div>
+      </div>
+      <div class="kpi">KPI: renewal start rate from expired state > 35%.</div>
+    </section>
+
+    <section class="flow">
+      <h2>Flow 05: Error Recovery</h2>
+      <div class="meta">Target: восстановить соединение без ухода в support</div>
+      <div class="steps">
+        <div class="step">1. No internet banner + clear explanation.</div>
+        <div class="step">2. Primary action Retry, secondary Diagnostics.</div>
+        <div class="step">3. Copy report and send to support if retry failed.</div>
+      </div>
+      <div class="kpi">KPI: self-recovery within 2 attempts > 70%.</div>
+    </section>
+  </main>
+</body>
+</html>

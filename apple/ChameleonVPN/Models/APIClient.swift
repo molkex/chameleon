@@ -260,4 +260,53 @@ class APIClient {
         }
         return token
     }
+
+    // MARK: - Subscription Verification
+
+    /// Result of POST /api/mobile/subscription/verify.
+    struct SubscriptionVerification: Decodable {
+        let status: String
+        let productId: String
+        let subscriptionExpiry: Int64
+        let alreadyApplied: Bool
+
+        enum CodingKeys: String, CodingKey {
+            case status
+            case productId = "product_id"
+            case subscriptionExpiry = "subscription_expiry"
+            case alreadyApplied = "already_applied"
+        }
+    }
+
+    /// Send a StoreKit 2 signed JWS to the backend for verification and crediting.
+    /// The backend validates the JWS chain against Apple's root CA and extends
+    /// the user's subscription. Idempotent on originalTransactionId, so retries
+    /// from spotty networks are safe.
+    func verifySubscription(signedJWS: String, accessToken: String) async throws -> SubscriptionVerification {
+        guard let url = URL(string: "\(AppConstants.baseURL)/api/v1/mobile/subscription/verify") else {
+            throw APIError.networkError("Invalid URL")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["signed_transaction": signedJWS])
+        request.timeoutInterval = 20
+
+        do {
+            let (data, response) = try await dataWithFallback(for: request)
+            guard let http = response as? HTTPURLResponse else {
+                throw APIError.networkError("No response")
+            }
+            if http.statusCode == 401 { throw APIError.unauthorized }
+            guard http.statusCode == 200 else {
+                throw APIError.serverError(http.statusCode)
+            }
+            return try JSONDecoder().decode(SubscriptionVerification.self, from: data)
+        } catch let error as APIError {
+            throw error
+        } catch {
+            throw APIError.networkError(error.localizedDescription)
+        }
+    }
 }

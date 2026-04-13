@@ -80,6 +80,18 @@ func (db *DB) FindUserByAppleID(ctx context.Context, appleID string) (*User, err
 	return scanUser(row)
 }
 
+// FindUserByOriginalTransactionID looks up a user by their Apple
+// originalTransactionId — the stable id we persist on first IAP purchase.
+// Used by the ASN v2 webhook to route renewals to the right user.
+func (db *DB) FindUserByOriginalTransactionID(ctx context.Context, otxID string) (*User, error) {
+	ctx, cancel := defaultTimeout(ctx)
+	defer cancel()
+
+	row := db.Pool.QueryRow(ctx,
+		`SELECT `+userColumns+` FROM users WHERE original_transaction_id = $1`, otxID)
+	return scanUser(row)
+}
+
 // FindUserByVPNUsername returns the user matching the given vpn_username, or nil if not found.
 func (db *DB) FindUserByVPNUsername(ctx context.Context, username string) (*User, error) {
 	ctx, cancel := defaultTimeout(ctx)

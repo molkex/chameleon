@@ -18,7 +18,7 @@ auth:
   jwt_secret: "${JWT_SECRET}"
   jwt_access_ttl: "24h"
   jwt_refresh_ttl: "720h"
-  apple_bundle_id: "com.chameleonvpn.app"
+  apple_bundle_id: "com.madfrog.vpn"
 
 vpn:
   listen_port: 2096

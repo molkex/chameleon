@@ -5,7 +5,7 @@ import Security
 /// Uses kSecAttrAccessibleAfterFirstUnlock so the tunnel extension
 /// can read values even when the device is locked.
 enum KeychainHelper {
-    private static let service = "com.chameleonvpn.app"
+    private static let service = "com.madfrog.vpn"
 
     static func save(key: String, value: String) {
         guard let data = value.data(using: .utf8) else { return }

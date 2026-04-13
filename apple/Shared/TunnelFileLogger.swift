@@ -15,7 +15,7 @@ enum TunnelFileLogger {
         AppConstants.sharedContainerURL.appendingPathComponent("stderr.log")
     }
 
-    private static let queue = DispatchQueue(label: "com.chameleonvpn.filelogger")
+    private static let queue = DispatchQueue(label: "com.madfrog.vpn.filelogger")
     private static let dateFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "HH:mm:ss.SSS"

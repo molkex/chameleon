@@ -11,6 +11,15 @@ class AppState {
     let vpnManager = VPNManager()
     let commandClient = CommandClientWrapper()
 
+    @ObservationIgnored private(set) lazy var subscriptionManager: SubscriptionManager = {
+        SubscriptionManager { [weak self] signedJWS in
+            guard let self, let token = self.configStore.accessToken else {
+                throw APIError.unauthorized
+            }
+            return try await self.apiClient.verifySubscription(signedJWS: signedJWS, accessToken: token)
+        }
+    }()
+
     var servers: [ServerGroup] = []
     var isLoading = false
     var errorMessage: String?

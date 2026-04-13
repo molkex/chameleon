@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Chameleon Full Design Packages</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Manrope:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&family=Sora:wght@600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #070b17;
+      --ink: #f8faff;
+      --muted: #a9b6d2;
+      --line: #2d3f66;
+      --panel: #0f1730;
+      --c1: #73beff;
+      --c2: #64ffd8;
+      --c3: #ffd98b;
+      --c4: #ff7cc7;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Manrope, system-ui, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(40rem 22rem at -8% -10%, rgba(115,190,255,.25), transparent 70%),
+        radial-gradient(36rem 18rem at 100% 115%, rgba(255,124,199,.20), transparent 72%),
+        var(--bg);
+      min-height: 100vh;
+    }
+    .wrap { max-width: 1160px; margin: 0 auto; padding: 36px 18px 44px; }
+    h1 { margin: 0; font: 800 clamp(2rem, 4.6vw, 4rem)/.93 Syne, sans-serif; letter-spacing: -.03em; }
+    .lead { margin: 14px 0 22px; max-width: 820px; color: var(--muted); line-height: 1.58; }
+    .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+    .card {
+      text-decoration: none;
+      color: inherit;
+      display: block;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 16px;
+      min-height: 220px;
+      background: linear-gradient(160deg, rgba(255,255,255,.07), rgba(255,255,255,.02));
+      transition: .2s ease;
+    }
+    .card:hover { transform: translateY(-4px); border-color: #4b6ea7; box-shadow: 0 22px 36px rgba(0,0,0,.45); }
+    .tag { display: inline-block; padding: 6px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+    .tag.premium { color: #29403f; background: linear-gradient(90deg, #9af0e3, #ffdcb7); }
+    .tag.tech { color: #0f1e33; background: linear-gradient(90deg, #73beff, #6dffda); }
+    .tag.bold { color: #1f172d; background: linear-gradient(90deg, #ff7cc7, #7cc6ff); }
+    .title { margin: 10px 0 8px; font-size: 1.36rem; line-height: 1.08; }
+    .desc { margin: 0; color: var(--muted); line-height: 1.5; font-size: .95rem; }
+    .meta { margin-top: 10px; font-size: .82rem; color: #d2dcf4; letter-spacing: .02em; }
+    .note {
+      margin-top: 16px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px 14px;
+      background: rgba(14, 22, 46, .72);
+      color: var(--muted);
+      line-height: 1.5;
+      font-size: .93rem;
+    }
+    .note b { color: #fff; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <h1>Chameleon Full Design Packages</h1>
+    <p class="lead">Полный набор для всех 3 направлений: <b>экраны</b>, <b>дизайн-система</b>, <b>UX-флоу</b>, <b>handoff-спека</b>. Один из пакетов сделан в минимальном IA (меньше экранов и действий).</p>
+
+    <section class="grid">
+      <a class="card" href="../ui-full-design-premium/index.html">
+        <span class="tag premium">Direction 01</span>
+        <h2 class="title" style="font-family:Sora,sans-serif;">Premium Minimal</h2>
+        <p class="desc">Минимальный IA: Home + Account как база, выбор локации через sheet, сокращенный путь до подключения.</p>
+        <div class="meta">9 screens · 4 deliverables · reduced complexity</div>
+      </a>
+
+      <a class="card" href="../ui-full-design-tech/index.html">
+        <span class="tag tech">Direction 02</span>
+        <h2 class="title" style="font-family:'Space Grotesk',sans-serif;">Tech Pro</h2>
+        <p class="desc">Профессиональный режим с акцентом на health и диагностику: latency, packet loss, route stability, reports.</p>
+        <div class="meta">11 screens · 4 deliverables · observability-first</div>
+      </a>
+
+      <a class="card" href="../ui-full-design-bold/index.html">
+        <span class="tag bold">Direction 03</span>
+        <h2 class="title" style="font-family:Syne,sans-serif;">Bold Brand</h2>
+        <p class="desc">Consumer подача с сильным характером бренда и быстрым основным сценарием connect/disconnect.</p>
+        <div class="meta">12 screens · 4 deliverables · high brand presence</div>
+      </a>
+    </section>
+
+    <div class="note"><b>Открывать удобно так:</b> сначала выбрать пакет, затем посмотреть `screens.html`, после этого `design-system.html` и `flows.html`, и в конце `handoff.html` для реализации в iOS.</div>
+  </main>
+</body>
+</html>

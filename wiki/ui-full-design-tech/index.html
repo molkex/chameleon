@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Chameleon Full Design — Tech Pro</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#060a16;--panel:#0d1428;--ink:#eaf2ff;--muted:#8da4ca;--line:#233c64;--blue:#72b8ff;--mint:#5ff5d1}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:"Space Grotesk",sans-serif;color:var(--ink);background:radial-gradient(44rem 24rem at 98% -8%,rgba(114,184,255,.25),transparent 68%),radial-gradient(34rem 16rem at -6% 108%,rgba(95,245,209,.2),transparent 70%),var(--bg);min-height:100vh}
+    .wrap{max-width:1120px;margin:0 auto;padding:34px 18px 44px}.back{display:inline-block;color:#bfd2ef;text-decoration:none;font-size:14px;margin-bottom:8px}
+    h1{margin:0;font:700 clamp(2rem,4.7vw,3.8rem)/.93 "Space Grotesk",sans-serif;letter-spacing:-.03em}
+    .lead{margin:14px 0 22px;max-width:780px;line-height:1.58;color:var(--muted)}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+    .card{text-decoration:none;color:inherit;display:block;border:1px solid var(--line);border-radius:20px;padding:16px;background:linear-gradient(165deg,#0f1830,#091224);min-height:176px;transition:.2s ease}
+    .card:hover{transform:translateY(-3px);border-color:#3b629b;box-shadow:0 20px 34px rgba(0,0,0,.4)}
+    .tag{display:inline-block;padding:6px 10px;border-radius:999px;background:linear-gradient(90deg,var(--blue),var(--mint));color:#12223b;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;font-family:"JetBrains Mono",monospace}
+    .title{margin:10px 0 8px;font:700 1.28rem/1.06 "Space Grotesk",sans-serif}
+    .desc{margin:0;color:#a7bbe0;font-size:.95rem;line-height:1.5}
+    .note{margin-top:16px;border:1px solid var(--line);border-radius:14px;padding:12px 14px;background:rgba(9,18,35,.75);color:#a8bddf;font-size:.93rem;line-height:1.5}
+    .note b{color:#fff}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <a class="back" href="../ui-full-design/index.html">← Все пакеты</a>
+    <h1>Tech Pro Full Package</h1>
+    <p class="lead">Полный дизайн-пакет для технической аудитории: connection observability, быстрый diagnostics и контроль маршрутов без потери скорости базового сценария.</p>
+
+    <section class="grid">
+      <a class="card" href="./screens.html"><span class="tag">Deliverable 01</span><h2 class="title">Screen Set</h2><p class="desc">11 экранов и состояний, включая health и детальный diagnostics.</p></a>
+      <a class="card" href="./design-system.html"><span class="tag">Deliverable 02</span><h2 class="title">Design System</h2><p class="desc">Токены, типографика, компоненты и state-модель для data-heavy UI.</p></a>
+      <a class="card" href="./flows.html"><span class="tag">Deliverable 03</span><h2 class="title">UX Flows</h2><p class="desc">Сценарии connect, route pinning, diagnostics и incident recovery.</p></a>
+      <a class="card" href="./handoff.html"><span class="tag">Deliverable 04</span><h2 class="title">iOS Handoff</h2><p class="desc">Контракты поведения и правила для реализации в SwiftUI.</p></a>
+    </section>
+
+    <div class="note"><b>IA:</b> Home / Locations / Diagnostics / Account. Diagnostics вынесен в отдельный tab для быстрых проверок и экспортов отчета.</div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,694 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<title>MadFrog VPN — Neon Swamp</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Space+Grotesk:wght@700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0a0e1a;
+    --ink-2:#111726;
+    --ink-3:#182035;
+    --neon:#8CFF4F;
+    --neon-dim:#5fcc2e;
+    --magenta:#FF3D9A;
+    --swamp:#1a2a1f;
+    --muted:#7a8699;
+    --line:rgba(140,255,79,.12);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{background:#1a1a1a;color:#fff;font-family:'Manrope',system-ui,sans-serif;-webkit-font-smoothing:antialiased;}
+  body{min-height:100vh;padding:48px 24px 80px;}
+  .page-title{
+    font-family:'Syne','Space Grotesk',sans-serif;
+    font-weight:800;
+    font-size:42px;
+    letter-spacing:-.02em;
+    text-align:center;
+    margin-bottom:8px;
+    color:#fff;
+  }
+  .page-title span{color:var(--neon);}
+  .page-sub{
+    text-align:center;
+    color:#888;
+    font-size:14px;
+    margin-bottom:48px;
+    letter-spacing:.02em;
+  }
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(4, 390px);
+    gap:40px;
+    justify-content:center;
+  }
+  @media (max-width:1800px){
+    .grid{grid-template-columns:repeat(2, 390px);}
+  }
+  .screen-wrap{display:flex;flex-direction:column;align-items:center;gap:16px;}
+  .phone{
+    width:390px;
+    height:844px;
+    border-radius:54px;
+    background:var(--ink);
+    position:relative;
+    overflow:hidden;
+    box-shadow:
+      0 0 0 12px #0a0a0a,
+      0 0 0 13px #2a2a2a,
+      0 40px 80px rgba(0,0,0,.55),
+      0 0 120px rgba(140,255,79,.05);
+    font-family:'Manrope',sans-serif;
+    color:#fff;
+  }
+  .notch{
+    position:absolute;
+    top:10px;left:50%;transform:translateX(-50%);
+    width:120px;height:34px;
+    background:#000;
+    border-radius:20px;
+    z-index:50;
+  }
+  .statusbar{
+    position:absolute;top:0;left:0;right:0;height:54px;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:18px 32px 0;
+    font-size:15px;font-weight:700;
+    z-index:40;
+    letter-spacing:-.01em;
+  }
+  .statusbar .right{display:flex;gap:6px;align-items:center;}
+  .caption{
+    font-family:'Syne','Space Grotesk',sans-serif;
+    font-weight:800;
+    font-size:13px;
+    letter-spacing:.18em;
+    text-transform:uppercase;
+    color:#666;
+  }
+  /* shared screen content area */
+  .content{
+    position:absolute;inset:0;
+    padding:64px 24px 32px;
+    display:flex;flex-direction:column;
+  }
+
+  /* ---------- MAIN ---------- */
+  .main-bg{
+    position:absolute;inset:0;
+    background:
+      radial-gradient(1200px 500px at 50% -10%, rgba(140,255,79,.22), transparent 60%),
+      radial-gradient(800px 400px at 90% 110%, rgba(255,61,154,.18), transparent 60%),
+      linear-gradient(180deg, #0a0e1a 0%, #070a14 100%);
+  }
+  .header-row{
+    display:flex;align-items:center;justify-content:space-between;
+    margin-top:8px;
+  }
+  .logo{
+    font-family:'Syne',sans-serif;font-weight:800;
+    font-size:22px;letter-spacing:-.02em;
+    display:flex;align-items:center;gap:8px;
+  }
+  .logo .frog{font-size:24px;filter:drop-shadow(0 0 12px rgba(140,255,79,.8));}
+  .pro-pill{
+    background:var(--neon);
+    color:#0a0e1a;
+    font-family:'Syne',sans-serif;font-weight:800;
+    font-size:11px;letter-spacing:.08em;
+    padding:6px 12px;border-radius:8px;
+    text-transform:uppercase;
+  }
+  .big-status{
+    font-family:'Syne','Space Grotesk',sans-serif;
+    font-weight:800;
+    font-size:72px;
+    line-height:.9;
+    letter-spacing:-.04em;
+    margin-top:56px;
+    color:#fff;
+  }
+  .big-status .accent{color:var(--neon);display:block;}
+  .timer{
+    font-family:'Space Grotesk',monospace;
+    font-weight:700;
+    font-size:18px;
+    color:#fff;
+    margin-top:20px;
+    letter-spacing:.04em;
+  }
+  .timer .dot{
+    display:inline-block;width:8px;height:8px;border-radius:50%;
+    background:var(--neon);box-shadow:0 0 12px var(--neon);
+    margin-right:8px;vertical-align:middle;
+  }
+  .frog-huge{
+    position:absolute;
+    right:-30px;top:200px;
+    font-size:220px;
+    line-height:1;
+    opacity:.14;
+    transform:rotate(-12deg);
+    filter:drop-shadow(0 0 40px rgba(140,255,79,.4));
+    pointer-events:none;
+  }
+  .server-card{
+    margin-top:auto;
+    background:rgba(255,255,255,.04);
+    border:1px solid var(--line);
+    border-radius:20px;
+    padding:18px;
+    display:flex;align-items:center;gap:14px;
+    backdrop-filter:blur(10px);
+  }
+  .flag{
+    width:48px;height:48px;border-radius:12px;
+    background:linear-gradient(180deg,#000 33%,#dd0000 33% 66%,#ffcc00 66%);
+    flex-shrink:0;
+    border:1px solid rgba(255,255,255,.15);
+  }
+  .server-meta .t1{
+    font-family:'Syne',sans-serif;font-weight:800;font-size:17px;
+  }
+  .server-meta .t2{color:var(--muted);font-size:12px;margin-top:2px;font-weight:500;}
+  .ip-badge{
+    margin-left:auto;
+    background:var(--swamp);
+    color:var(--neon);
+    font-family:'Space Grotesk',monospace;font-weight:700;
+    font-size:11px;
+    padding:6px 10px;border-radius:8px;
+    border:1px solid var(--line);
+  }
+  .cta-btn{
+    margin-top:16px;
+    width:100%;
+    background:var(--neon);
+    color:#0a0e1a;
+    font-family:'Syne',sans-serif;font-weight:800;
+    font-size:18px;
+    letter-spacing:.02em;
+    padding:22px 24px;
+    border:none;border-radius:18px;
+    display:flex;align-items:center;justify-content:space-between;
+    cursor:pointer;
+    box-shadow:0 0 40px rgba(140,255,79,.35), inset 0 -4px 0 rgba(0,0,0,.2);
+    text-transform:uppercase;
+  }
+  .cta-btn.disconnect{background:var(--neon);}
+  .cta-btn .arrow{font-size:22px;}
+  .sub-strip{
+    margin-top:14px;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:12px 16px;
+    background:rgba(255,61,154,.08);
+    border:1px solid rgba(255,61,154,.25);
+    border-radius:14px;
+    font-size:12px;font-weight:600;
+  }
+  .sub-strip .left{color:var(--magenta);font-family:'Syne',sans-serif;font-weight:800;text-transform:uppercase;letter-spacing:.08em;}
+  .sub-strip .right{color:#fff;font-weight:700;}
+
+  /* ---------- PAYWALL ---------- */
+  .paywall-bg{
+    position:absolute;inset:0;
+    background:
+      radial-gradient(900px 600px at 100% 0%, rgba(255,61,154,.22), transparent 60%),
+      radial-gradient(700px 500px at 0% 100%, rgba(140,255,79,.16), transparent 60%),
+      #0a0e1a;
+  }
+  .pay-head{
+    margin-top:12px;
+    display:flex;justify-content:space-between;align-items:flex-start;
+  }
+  .close-x{
+    width:40px;height:40px;border-radius:12px;
+    background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.08);
+    display:flex;align-items:center;justify-content:center;
+    font-size:20px;color:#fff;font-weight:700;
+  }
+  .pay-title{
+    font-family:'Syne',sans-serif;font-weight:800;
+    font-size:56px;line-height:.9;
+    letter-spacing:-.04em;
+    margin-top:20px;
+  }
+  .pay-title .magenta{color:var(--magenta);display:block;}
+  .pay-sub{
+    margin-top:12px;
+    font-size:14px;color:var(--muted);font-weight:500;max-width:260px;
+    line-height:1.4;
+  }
+  .plans{margin-top:20px;display:flex;flex-direction:column;gap:8px;}
+  .plan{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:14px 16px;
+    background:rgba(255,255,255,.04);
+    border:1.5px solid rgba(255,255,255,.08);
+    border-radius:14px;
+    position:relative;
+  }
+  .plan.popular{
+    border-color:var(--neon);
+    background:rgba(140,255,79,.08);
+    box-shadow:0 0 24px rgba(140,255,79,.15);
+  }
+  .plan.best{
+    border-color:var(--magenta);
+    background:rgba(255,61,154,.06);
+  }
+  .plan-name{font-family:'Syne',sans-serif;font-weight:800;font-size:16px;letter-spacing:-.01em;}
+  .plan-note{font-size:11px;color:var(--muted);font-weight:500;margin-top:2px;}
+  .plan-price{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:18px;}
+  .badge{
+    position:absolute;top:-9px;right:14px;
+    font-family:'Syne',sans-serif;font-weight:800;
+    font-size:9px;letter-spacing:.1em;text-transform:uppercase;
+    padding:4px 8px;border-radius:6px;
+  }
+  .badge.pop{background:var(--neon);color:#0a0e1a;}
+  .badge.best{background:var(--magenta);color:#fff;}
+  .pay-cta{
+    margin-top:auto;
+    width:100%;
+    background:var(--neon);color:#0a0e1a;
+    border:none;border-radius:18px;
+    padding:22px;
+    font-family:'Syne',sans-serif;font-weight:800;
+    font-size:17px;letter-spacing:.02em;text-transform:uppercase;
+    box-shadow:0 0 40px rgba(140,255,79,.3), inset 0 -4px 0 rgba(0,0,0,.2);
+  }
+  .legal{
+    margin-top:12px;
+    display:flex;justify-content:center;gap:16px;
+    font-size:11px;color:var(--muted);font-weight:500;
+  }
+  .legal a{color:var(--muted);text-decoration:underline;text-underline-offset:3px;}
+
+  /* ---------- SERVERS ---------- */
+  .serv-bg{
+    position:absolute;inset:0;
+    background:
+      radial-gradient(700px 400px at 50% -20%, rgba(140,255,79,.14), transparent 60%),
+      #0a0e1a;
+  }
+  .serv-head{
+    display:flex;justify-content:space-between;align-items:center;
+    margin-top:8px;
+  }
+  .back{
+    width:40px;height:40px;border-radius:12px;
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);
+    display:flex;align-items:center;justify-content:center;font-size:18px;
+  }
+  .serv-title{
+    font-family:'Syne',sans-serif;font-weight:800;
+    font-size:44px;letter-spacing:-.03em;
+    margin-top:28px;line-height:.95;
+  }
+  .serv-title .small{display:block;font-size:18px;color:var(--muted);font-weight:700;letter-spacing:0;margin-top:6px;}
+  .search{
+    margin-top:20px;
+    background:rgba(255,255,255,.05);
+    border:1px solid rgba(255,255,255,.08);
+    border-radius:14px;
+    padding:14px 16px;
+    display:flex;align-items:center;gap:10px;
+    color:var(--muted);font-weight:500;font-size:14px;
+  }
+  .label{
+    font-family:'Syne',sans-serif;font-weight:800;
+    font-size:10px;letter-spacing:.15em;text-transform:uppercase;
+    color:var(--muted);
+    margin:20px 0 10px;
+  }
+  .serv-row{
+    display:flex;align-items:center;gap:14px;
+    padding:14px 16px;
+    background:rgba(255,255,255,.04);
+    border:1px solid var(--line);
+    border-radius:16px;
+    margin-bottom:8px;
+  }
+  .serv-row.active{
+    border-color:var(--neon);
+    background:rgba(140,255,79,.08);
+  }
+  .ccode{
+    width:44px;height:44px;border-radius:12px;
+    font-family:'Syne',sans-serif;font-weight:800;
+    font-size:14px;
+    display:flex;align-items:center;justify-content:center;
+    background:var(--swamp);color:var(--neon);
+    border:1px solid var(--line);
+    flex-shrink:0;
+    letter-spacing:.02em;
+  }
+  .ccode.auto{background:var(--neon);color:#0a0e1a;}
+  .ccode.nl{background:#1a1a2a;color:#ff8c42;border-color:rgba(255,140,66,.3);}
+  .srow-meta .t1{font-family:'Syne',sans-serif;font-weight:800;font-size:16px;}
+  .srow-meta .t2{color:var(--muted);font-size:11px;margin-top:2px;font-weight:500;}
+  .ping{
+    margin-left:auto;
+    font-family:'Space Grotesk',monospace;font-weight:700;
+    font-size:13px;
+    padding:6px 10px;border-radius:8px;
+    background:rgba(140,255,79,.12);
+    color:var(--neon);
+  }
+  .ping.mid{background:rgba(255,200,0,.1);color:#ffc800;}
+  .pinned-icon{font-size:12px;color:var(--magenta);margin-left:4px;}
+
+  /* ---------- SETTINGS ---------- */
+  .set-bg{position:absolute;inset:0;background:#0a0e1a;}
+  .set-title{
+    font-family:'Syne',sans-serif;font-weight:800;
+    font-size:44px;letter-spacing:-.03em;margin-top:28px;
+  }
+  .set-group{
+    margin-top:18px;
+    background:rgba(255,255,255,.04);
+    border:1px solid var(--line);
+    border-radius:18px;
+    overflow:hidden;
+  }
+  .set-row{
+    display:flex;align-items:center;gap:14px;
+    padding:16px 18px;
+    border-bottom:1px solid rgba(255,255,255,.05);
+  }
+  .set-row:last-child{border-bottom:none;}
+  .set-icon{
+    width:36px;height:36px;border-radius:10px;
+    background:var(--swamp);
+    display:flex;align-items:center;justify-content:center;
+    font-size:16px;
+    border:1px solid var(--line);
+    flex-shrink:0;
+  }
+  .set-icon.magenta{background:rgba(255,61,154,.12);border-color:rgba(255,61,154,.3);}
+  .set-label{
+    font-family:'Manrope',sans-serif;font-weight:700;font-size:15px;
+    flex:1;
+  }
+  .set-val{color:var(--muted);font-size:13px;font-weight:500;}
+  .chev{color:var(--muted);font-size:16px;}
+  .toggle{
+    width:44px;height:26px;border-radius:13px;
+    background:rgba(255,255,255,.12);
+    position:relative;flex-shrink:0;
+  }
+  .toggle.on{background:var(--neon);box-shadow:0 0 12px rgba(140,255,79,.5);}
+  .toggle::after{
+    content:'';position:absolute;top:3px;left:3px;
+    width:20px;height:20px;border-radius:50%;background:#fff;
+    transition:all .2s;
+  }
+  .toggle.on::after{left:21px;background:#0a0e1a;}
+  .set-hero{
+    display:flex;align-items:center;gap:14px;
+    padding:18px;
+    background:linear-gradient(135deg,rgba(140,255,79,.1),rgba(255,61,154,.08));
+    border:1px solid var(--line);
+    border-radius:18px;
+    margin-top:18px;
+  }
+  .avatar{
+    width:52px;height:52px;border-radius:14px;
+    background:var(--neon);
+    display:flex;align-items:center;justify-content:center;
+    font-size:28px;
+  }
+  .acc-name{font-family:'Syne',sans-serif;font-weight:800;font-size:17px;}
+  .acc-mail{color:var(--muted);font-size:12px;font-weight:500;margin-top:2px;}
+</style>
+</head>
+<body>
+
+<h1 class="page-title">MadFrog VPN — <span>Neon Swamp</span></h1>
+<p class="page-sub">Bold / Brand 2.0 — Mullvad brutalism × Cash App × Arc Search</p>
+
+<div class="grid">
+
+  <!-- ================= MAIN ================= -->
+  <div class="screen-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="statusbar">
+        <span>9:41</span>
+        <span class="right">📶 􀙇 🔋</span>
+      </div>
+      <div class="main-bg"></div>
+      <div class="frog-huge">🐸</div>
+      <div class="content">
+        <div class="header-row">
+          <div class="logo"><span class="frog">🐸</span> MADFROG</div>
+          <div class="pro-pill">● PRO</div>
+        </div>
+
+        <div class="big-status">
+          <span>ТЫ</span>
+          <span class="accent">ПОД</span>
+          <span>ПРИКРЫТИЕМ</span>
+        </div>
+        <div class="timer"><span class="dot"></span>PROTECTED · 00:03:42</div>
+
+        <div class="server-card">
+          <div class="flag"></div>
+          <div class="server-meta">
+            <div class="t1">Германия · DE</div>
+            <div class="t2">Frankfurt · Reality TCP</div>
+          </div>
+          <div class="ip-badge">185.12.ꔛ.42</div>
+        </div>
+
+        <button class="cta-btn disconnect">
+          <span>ОТКЛЮЧИТЬ</span>
+          <span class="arrow">✕</span>
+        </button>
+
+        <div class="sub-strip">
+          <span class="left">◆ PRO · 23 ДНЯ</span>
+          <span class="right">Продлить →</span>
+        </div>
+      </div>
+    </div>
+    <div class="caption">Main</div>
+  </div>
+
+  <!-- ================= PAYWALL ================= -->
+  <div class="screen-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="statusbar">
+        <span>9:41</span>
+        <span class="right">📶 􀙇 🔋</span>
+      </div>
+      <div class="paywall-bg"></div>
+      <div class="content">
+        <div class="pay-head">
+          <div class="logo"><span class="frog">🐸</span></div>
+          <div class="close-x">✕</div>
+        </div>
+
+        <div class="pay-title">
+          <span>СТАНЬ</span>
+          <span class="magenta">PREMIUM</span>
+        </div>
+        <div class="pay-sub">Анлим трафика, все сервера, zero логов. Без спама, без корпоративной фигни.</div>
+
+        <div class="plans">
+          <div class="plan">
+            <div>
+              <div class="plan-name">30 дней</div>
+              <div class="plan-note">6,63 ₽ / день</div>
+            </div>
+            <div class="plan-price">199 ₽</div>
+          </div>
+
+          <div class="plan popular">
+            <div class="badge pop">POPULAR</div>
+            <div>
+              <div class="plan-name">90 дней</div>
+              <div class="plan-note">5,54 ₽ / день</div>
+            </div>
+            <div class="plan-price">499 ₽</div>
+          </div>
+
+          <div class="plan">
+            <div>
+              <div class="plan-name">180 дней</div>
+              <div class="plan-note">4,99 ₽ / день</div>
+            </div>
+            <div class="plan-price">899 ₽</div>
+          </div>
+
+          <div class="plan best">
+            <div class="badge best">ЛУЧШАЯ ЦЕНА</div>
+            <div>
+              <div class="plan-name">365 дней</div>
+              <div class="plan-note">4,38 ₽ / день</div>
+            </div>
+            <div class="plan-price">1 599 ₽</div>
+          </div>
+        </div>
+
+        <button class="pay-cta">ОФОРМИТЬ ПОДПИСКУ →</button>
+        <div class="legal">
+          <a href="#">Условия</a>
+          <a href="#">Конфиденциальность</a>
+        </div>
+      </div>
+    </div>
+    <div class="caption">Paywall</div>
+  </div>
+
+  <!-- ================= SERVERS ================= -->
+  <div class="screen-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="statusbar">
+        <span>9:41</span>
+        <span class="right">📶 􀙇 🔋</span>
+      </div>
+      <div class="serv-bg"></div>
+      <div class="content">
+        <div class="serv-head">
+          <div class="back">←</div>
+          <div class="logo" style="font-size:16px;"><span class="frog" style="font-size:18px;">🐸</span></div>
+          <div style="width:40px;"></div>
+        </div>
+
+        <div class="serv-title">
+          СЕРВЕРА
+          <span class="small">2 локации · все доступны</span>
+        </div>
+
+        <div class="search">
+          <span>🔍</span> Найти страну…
+        </div>
+
+        <div class="label">◆ Закреплено</div>
+
+        <div class="serv-row active">
+          <div class="ccode auto">⚡</div>
+          <div class="srow-meta">
+            <div class="t1">Auto (fastest) <span class="pinned-icon">📌</span></div>
+            <div class="t2">Автовыбор по пингу</div>
+          </div>
+          <div class="ping">42 ms</div>
+        </div>
+
+        <div class="label">◆ Все локации</div>
+
+        <div class="serv-row">
+          <div class="ccode">DE</div>
+          <div class="srow-meta">
+            <div class="t1">Германия</div>
+            <div class="t2">Frankfurt · Reality TCP</div>
+          </div>
+          <div class="ping">42 ms</div>
+        </div>
+
+        <div class="serv-row">
+          <div class="ccode nl">NL</div>
+          <div class="srow-meta">
+            <div class="t1">Нидерланды</div>
+            <div class="t2">Amsterdam · Reality TCP</div>
+          </div>
+          <div class="ping mid">67 ms</div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">Servers</div>
+  </div>
+
+  <!-- ================= SETTINGS ================= -->
+  <div class="screen-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="statusbar">
+        <span>9:41</span>
+        <span class="right">📶 􀙇 🔋</span>
+      </div>
+      <div class="set-bg"></div>
+      <div class="content">
+        <div class="serv-head">
+          <div class="back">←</div>
+          <div class="logo" style="font-size:16px;"><span class="frog" style="font-size:18px;">🐸</span></div>
+          <div style="width:40px;"></div>
+        </div>
+
+        <div class="set-title">НАСТРОЙКИ</div>
+
+        <div class="set-hero">
+          <div class="avatar">🐸</div>
+          <div style="flex:1;">
+            <div class="acc-name">Максим Т.</div>
+            <div class="acc-mail">max@madfrog.vpn</div>
+          </div>
+          <div class="pro-pill">PRO</div>
+        </div>
+
+        <div class="set-group">
+          <div class="set-row">
+            <div class="set-icon">👤</div>
+            <div class="set-label">Аккаунт</div>
+            <div class="chev">›</div>
+          </div>
+          <div class="set-row">
+            <div class="set-icon magenta">◆</div>
+            <div class="set-label">Подписка</div>
+            <div class="set-val">23 дня</div>
+            <div class="chev" style="margin-left:8px;">›</div>
+          </div>
+        </div>
+
+        <div class="set-group">
+          <div class="set-row">
+            <div class="set-icon">🛡</div>
+            <div class="set-label">Kill Switch</div>
+            <div class="toggle on"></div>
+          </div>
+          <div class="set-row">
+            <div class="set-icon">📡</div>
+            <div class="set-label">Auto-connect Wi-Fi</div>
+            <div class="toggle on"></div>
+          </div>
+          <div class="set-row">
+            <div class="set-icon">🚫</div>
+            <div class="set-label">Ad Blocker</div>
+            <div class="toggle"></div>
+          </div>
+          <div class="set-row">
+            <div class="set-icon">🌐</div>
+            <div class="set-label">DNS</div>
+            <div class="set-val">Cloudflare</div>
+            <div class="chev" style="margin-left:8px;">›</div>
+          </div>
+        </div>
+
+        <div class="set-group">
+          <div class="set-row">
+            <div class="set-icon">📋</div>
+            <div class="set-label">Debug Logs</div>
+            <div class="chev">›</div>
+          </div>
+          <div class="set-row">
+            <div class="set-icon">ℹ</div>
+            <div class="set-label">О приложении</div>
+            <div class="set-val">v1.0.0</div>
+            <div class="chev" style="margin-left:8px;">›</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">Settings</div>
+  </div>
+
+</div>
+</body>
+</html>

@@ -16,26 +16,22 @@ enum AppConfig {
     static let russianRelayURL = "http://185.218.0.43"
 
     /// App Group ID (must match your provisioning profile)
-    static let appGroupID = "group.com.chameleonvpn.app"
+    static let appGroupID = "group.com.madfrog.vpn"
 
     /// Network Extension bundle ID
-    static let tunnelBundleID = "com.chameleonvpn.app.tunnel"
+    static let tunnelBundleID = "com.madfrog.vpn.tunnel"
 
     /// App name shown in UI
-    static let appName = "Chameleon"
-
-    /// StoreKit product IDs
-    static let monthlyProductID = "com.chameleonvpn.app.monthly"
-    static let yearlyProductID = "com.chameleonvpn.app.yearly"
+    static let appName = "MadFrog"
 
     /// VPN profile description shown in iOS Settings
-    static let vpnProfileDescription = "Chameleon VPN"
+    static let vpnProfileDescription = "MadFrog VPN"
 
     /// User-Agent for telemetry
-    static let userAgent = "Chameleon-iOS"
+    static let userAgent = "MadFrog-iOS"
 
     /// Logger subsystem identifier
-    static let logSubsystem = "com.chameleonvpn.app"
+    static let logSubsystem = "com.madfrog.vpn"
 }
 
 // ============================================================================

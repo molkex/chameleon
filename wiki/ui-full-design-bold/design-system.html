@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Bold Brand — Design System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#090b18;--paper:#151936;--ink:#f8f9ff;--muted:#adb3d4;--line:#3b4278;--pink:#ff4fab;--cyan:#45deff;--lime:#b8ff62;--orange:#ffb562;--danger:#ff5f7e}
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font-family:Manrope,system-ui,sans-serif}
+    .wrap{max-width:1080px;margin:0 auto;padding:24px 16px 36px}.back{color:#d7dbfc;text-decoration:none;font-size:14px}
+    h1{margin:10px 0 12px;font:800 clamp(1.8rem,4vw,2.8rem)/.95 Syne,sans-serif;letter-spacing:-.03em}.lead{color:var(--muted);max-width:780px;line-height:1.55}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.card{border:1px solid var(--line);border-radius:16px;padding:14px;background:var(--paper)}
+    .card h2{margin:0 0 10px;font:700 1.1rem/1.1 Syne,sans-serif}.token{display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid #4a528f;border-radius:10px;padding:8px 10px;background:#1a1f3f;margin-bottom:8px;font-size:13px}
+    .sw{width:36px;height:22px;border-radius:7px;border:1px solid #6068a4}.type{border:1px solid #4a528f;border-radius:10px;padding:10px;background:#1a1f3f;margin-bottom:8px}
+    .btn-row{display:flex;gap:8px;flex-wrap:wrap}.btn{min-height:44px;padding:0 14px;border-radius:12px;border:1px solid #5660a0;background:#1d2245;color:#f8f9ff;font-weight:700;display:inline-flex;align-items:center}
+    .btn.primary{background:linear-gradient(90deg,var(--pink),var(--cyan));border-color:#7f6bb9}.btn.lime{background:linear-gradient(90deg,var(--lime),#a8ffd8);color:#151722}
+    .state{border:1px solid #4a528f;border-radius:10px;padding:9px 10px;margin-bottom:8px;background:#1a1f3f;color:#ccd2f7;font-size:13px;line-height:1.45}
+    .metrics{display:grid;grid-template-columns:1fr 1fr;gap:8px}.metric{border:1px solid #4a528f;border-radius:10px;padding:9px 10px;background:#1a1f3f;color:#ccd2f7;font-size:13px;line-height:1.45}
+    @media (max-width:880px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <a class="back" href="./index.html">← Bold package index</a>
+    <h1>Design System</h1>
+    <p class="lead">Брендовый токен-набор для эмоциональной подачи без потери читаемости. Главный принцип: один доминирующий акцент и четкая hierarchy в карточках.</p>
+
+    <section class="grid">
+      <article class="card">
+        <h2>Color Tokens</h2>
+        <div class="token"><span>bg/base</span><span>#090B18</span><span class="sw" style="background:#090b18"></span></div>
+        <div class="token"><span>surface/panel</span><span>#151936</span><span class="sw" style="background:#151936"></span></div>
+        <div class="token"><span>text/primary</span><span>#F8F9FF</span><span class="sw" style="background:#f8f9ff"></span></div>
+        <div class="token"><span>accent/pink</span><span>#FF4FAB</span><span class="sw" style="background:#ff4fab"></span></div>
+        <div class="token"><span>accent/cyan</span><span>#45DEFF</span><span class="sw" style="background:#45deff"></span></div>
+        <div class="token"><span>state/safe</span><span>#B8FF62</span><span class="sw" style="background:#b8ff62"></span></div>
+        <div class="token"><span>state/warn</span><span>#FFB562</span><span class="sw" style="background:#ffb562"></span></div>
+      </article>
+
+      <article class="card">
+        <h2>Typography</h2>
+        <div class="type" style="font:800 31px/1.02 Syne,sans-serif">Display / 31 / Syne</div>
+        <div class="type" style="font:700 22px/1.1 Syne,sans-serif">Title / 22 / Syne</div>
+        <div class="type" style="font:700 16px/1.3 Manrope,sans-serif">Button / 16 / Manrope</div>
+        <div class="type" style="font:500 14px/1.45 Manrope,sans-serif">Body / 14 / Manrope</div>
+      </article>
+
+      <article class="card">
+        <h2>Core Components</h2>
+        <div class="btn-row"><span class="btn primary">Connect</span><span class="btn">Choose route</span><span class="btn lime">Renew</span></div>
+        <div class="state">Orb is primary visual anchor on Home (182x182).</div>
+        <div class="state">Info cards have strict single-row summary + optional meta line.</div>
+        <div class="state">Badges: route (lime), warning (orange), error (danger).</div>
+      </article>
+
+      <article class="card">
+        <h2>Accessibility + Motion</h2>
+        <div class="metrics"><div class="metric">Touch target >= 44x44</div><div class="metric">Text contrast >= 4.5:1</div><div class="metric">Motion 200-280ms ease</div><div class="metric">Reduce Motion disables orb float</div></div>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

@@ -18,6 +18,8 @@ import (
 	"github.com/chameleonvpn/chameleon/internal/cluster"
 	"github.com/chameleonvpn/chameleon/internal/config"
 	"github.com/chameleonvpn/chameleon/internal/db"
+	"github.com/chameleonvpn/chameleon/internal/payments"
+	"github.com/chameleonvpn/chameleon/internal/payments/apple"
 	"github.com/chameleonvpn/chameleon/internal/vpn"
 )
 
@@ -111,14 +113,32 @@ func (s *Server) setupRoutes(e *echo.Echo) {
 	// Health check (no auth, no rate limit).
 	e.GET("/health", s.handleHealth)
 
+	// Single payments service shared across mobile + admin handlers.
+	paymentsSvc := payments.New(s.DB.Pool)
+
+	// Apple IAP verifier. A nil *apple.Verifier means the /subscription/verify
+	// handler will reject calls with a "payments not configured" error, which
+	// is the safe default if someone forgets to set payments.apple.bundle_id.
+	appleVerifier, err := apple.New(apple.Config{
+		BundleID:     s.Config.Payments.Apple.BundleID,
+		AllowSandbox: s.Config.Payments.Apple.AllowSandbox,
+		Products:     mobile.ProductDays(),
+	})
+	if err != nil {
+		s.Logger.Warn("apple IAP verifier disabled", zap.Error(err))
+		appleVerifier = nil
+	}
+
 	mobileHandler := &mobile.Handler{
-		DB:     s.DB,
-		Redis:  s.Redis,
-		JWT:    s.JWT,
-		Apple:  s.Apple,
-		VPN:    s.VPN,
-		Config: s.Config,
-		Logger: s.Logger,
+		DB:            s.DB,
+		Redis:         s.Redis,
+		JWT:           s.JWT,
+		Apple:         s.Apple,
+		AppleVerifier: appleVerifier,
+		Payments:      paymentsSvc,
+		VPN:           s.VPN,
+		Config:        s.Config,
+		Logger:        s.Logger,
 	}
 
 	// Mobile API: /api/mobile/* and /api/v1/mobile/* (iOS app uses v1 prefix)
@@ -141,6 +161,7 @@ func (s *Server) setupRoutes(e *echo.Echo) {
 		Redis:         s.Redis,
 		JWT:           s.JWT,
 		VPN:           s.VPN,
+		Payments:      paymentsSvc,
 		Config:        s.Config,
 		Logger:        s.Logger,
 		ClusterSecret: s.Config.Cluster.Secret,

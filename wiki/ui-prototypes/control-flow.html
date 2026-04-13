@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Variant B — Control Grid</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Outfit:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0f15;
+      --card: #121923;
+      --line: #2a3a4f;
+      --text: #f0f4fa;
+      --muted: #96a8bf;
+      --lime: #a8ff61;
+      --blue: #65c7ff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Outfit", sans-serif;
+      color: var(--text);
+      background: radial-gradient(circle at 80% -10%, #16324a 0%, transparent 38%), var(--bg);
+    }
+    .wrap { max-width: 1160px; margin: 0 auto; padding: 24px 16px 34px; }
+    .back { color: #bfd0e5; text-decoration: none; font-size: 14px; }
+    h1 { font-family: "Space Grotesk", sans-serif; margin: 8px 0; font-size: clamp(28px, 4vw, 40px); }
+    .sub { color: var(--muted); margin: 0 0 18px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 14px; }
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: linear-gradient(170deg, rgba(255,255,255,.02), rgba(255,255,255,.01));
+      padding: 14px;
+      min-height: 560px;
+    }
+    .panel h3 { margin: 0 0 12px; font-size: 20px; }
+    .box {
+      border: 1px solid #2a3c54;
+      border-radius: 12px;
+      padding: 11px;
+      margin-bottom: 10px;
+      background: var(--card);
+    }
+    .row { display: flex; justify-content: space-between; gap: 10px; }
+    .small { color: var(--muted); font-size: 13px; }
+    .signal {
+      display: grid;
+      place-items: center;
+      width: 145px;
+      height: 145px;
+      border-radius: 50%;
+      margin: 12px auto;
+      font-size: 46px;
+      color: #07230e;
+      font-weight: 700;
+      background: linear-gradient(150deg, var(--lime), var(--blue));
+      box-shadow: 0 0 30px rgba(101,199,255,.35);
+    }
+    .pill {
+      display: inline-block;
+      padding: 5px 9px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #052315;
+      background: linear-gradient(90deg, var(--lime), #8fffd4);
+      margin-bottom: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <a class="back" href="./index.html">← Все варианты</a>
+    <h1>Variant B: Control Grid</h1>
+    <p class="sub">Для пользователей, которым важна прозрачность статуса. Отдельные вкладки: Home / Locations / Account.</p>
+
+    <div class="grid">
+      <section class="panel">
+        <span class="pill">Home</span>
+        <h3>Connection Hub</h3>
+        <div class="signal">⏻</div>
+        <div class="box">
+          <div class="row"><b>Connection Health</b><span class="small">Stable</span></div>
+          <div class="small">Packet loss 0.2% · Jitter low</div>
+        </div>
+        <div class="box">
+          <div class="row"><span>Current Node</span><b>NL • AMS-1</b></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <span class="pill">Locations</span>
+        <h3>Routing Choices</h3>
+        <div class="box"><div class="row"><span>Auto</span><span class="small">Best route</span></div></div>
+        <div class="box"><div class="row"><span>Netherlands</span><span class="small">42 ms</span></div></div>
+        <div class="box"><div class="row"><span>Germany</span><span class="small">57 ms</span></div></div>
+        <div class="box"><div class="row"><span>Sweden</span><span class="small">76 ms</span></div></div>
+      </section>
+
+      <section class="panel">
+        <span class="pill">Account</span>
+        <h3>Subscription + Tools</h3>
+        <div class="box">
+          <div class="row"><span>Plan</span><b>Premium</b></div>
+          <div class="small">Renews on May 24, 2026</div>
+        </div>
+        <div class="box"><div class="row"><span>Restore Purchase</span><span>→</span></div></div>
+        <div class="box"><div class="row"><span>Diagnostics</span><span>→</span></div></div>
+        <div class="box"><div class="row"><span>Support</span><span>→</span></div></div>
+      </section>
+    </div>
+  </div>
+</body>
+</html>

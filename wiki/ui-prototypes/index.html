@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chameleon UI Prototypes</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a1019;
+      --card: #111a26;
+      --line: #223043;
+      --text: #e7eef7;
+      --muted: #93a3b8;
+      --accent: #25d0bd;
+      --accent2: #5ec9ff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Manrope", sans-serif;
+      background: radial-gradient(circle at 10% 0%, #13263b 0%, var(--bg) 45%);
+      color: var(--text);
+    }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 28px 20px 40px; }
+    h1 {
+      font-family: "Space Grotesk", sans-serif;
+      margin: 0 0 10px;
+      font-size: clamp(30px, 5vw, 44px);
+      line-height: 1;
+    }
+    .lead { margin: 0 0 24px; color: var(--muted); max-width: 760px; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 14px;
+    }
+    .card {
+      background: linear-gradient(170deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 16px;
+      text-decoration: none;
+      color: inherit;
+      min-height: 170px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+    }
+    .card:hover {
+      transform: translateY(-3px);
+      border-color: #2e4f72;
+      box-shadow: 0 14px 30px rgba(0,0,0,.28);
+    }
+    .tag {
+      width: fit-content;
+      font-size: 12px;
+      line-height: 1;
+      color: #0b1b17;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      padding: 6px 9px;
+      border-radius: 999px;
+      font-weight: 800;
+    }
+    .title { font-size: 21px; font-weight: 800; margin: 0; }
+    .desc { margin: 0; color: var(--muted); font-size: 14px; }
+    .notes {
+      margin-top: 20px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 14px 16px;
+      background: rgba(9, 15, 24, .8);
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .notes b { color: var(--text); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Chameleon iOS: Browser Prototypes</h1>
+    <p class="lead">Три направления. Один вариант специально сделан как <b>минимум экранов</b> (2 экрана + унифицированная нижняя панель вместо отдельного Account).</p>
+
+    <div class="grid">
+      <a class="card" href="./minimal-flow.html">
+        <span class="tag">MIN SCREENS</span>
+        <h2 class="title">Variant A: Pulse Minimal</h2>
+        <p class="desc">2 ключевых экрана. Account и debug встроены в smart sheet, чтобы не плодить навигацию.</p>
+      </a>
+
+      <a class="card" href="./control-flow.html">
+        <span class="tag">BALANCED</span>
+        <h2 class="title">Variant B: Control Grid</h2>
+        <p class="desc">Классический Home / Locations / Account, но с более плотной инфо-архитектурой.</p>
+      </a>
+
+      <a class="card" href="./editorial-flow.html">
+        <span class="tag">LIGHT STYLE</span>
+        <h2 class="title">Variant C: Editorial Calm</h2>
+        <p class="desc">Светлая стилистика, спокойные акценты, premium-ощущение без неона.</p>
+      </a>
+    </div>
+
+    <div class="notes">
+      <b>Как собрать минимум экранов:</b> оставить только <b>Home</b> и <b>Locations</b>, а настройки, подписку, диагностику и выход перенести в bottom sheet на Home.
+      Так вы получаете быстрый пользовательский путь: открыть → подключить → при необходимости сменить страну.
+    </div>
+  </div>
+</body>
+</html>

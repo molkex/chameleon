@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MadFrog VPN — Live Signal Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #060a16;
+    --bg-2: #0a1020;
+    --bg-3: #0e1628;
+    --line: #18243c;
+    --line-2: #1f2f4d;
+    --text: #e6ecf5;
+    --dim: #6b7a95;
+    --dim-2: #8a9ab5;
+    --mint: #5FF5D1;
+    --blue: #4A9EFF;
+    --amber: #FFB020;
+    --red: #ff5470;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Grotesk', sans-serif;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page {
+    padding: 60px 40px;
+    background:
+      radial-gradient(ellipse at top, #0a1428 0%, #060a16 60%),
+      var(--bg);
+    min-height: 100vh;
+  }
+  .title {
+    text-align: center;
+    color: var(--dim-2);
+    font-size: 13px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .subtitle {
+    text-align: center;
+    color: var(--mint);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    margin-bottom: 50px;
+    letter-spacing: 1px;
+  }
+  .grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 56px;
+    justify-content: center;
+    max-width: 1900px;
+    margin: 0 auto;
+  }
+  .frame-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+  }
+  .phone {
+    width: 390px;
+    height: 844px;
+    background: var(--bg);
+    border-radius: 52px;
+    border: 2px solid #1a2238;
+    padding: 12px;
+    position: relative;
+    box-shadow:
+      0 0 0 6px #0b1322,
+      0 40px 80px rgba(0,0,0,0.6),
+      0 0 120px rgba(95, 245, 209, 0.04);
+  }
+  .screen {
+    width: 100%;
+    height: 100%;
+    background:
+      linear-gradient(180deg, #070c1a 0%, #060a16 100%);
+    border-radius: 42px;
+    overflow: hidden;
+    position: relative;
+    background-image:
+      radial-gradient(circle at 1px 1px, rgba(95,245,209,0.035) 1px, transparent 0);
+    background-size: 14px 14px;
+  }
+  .screen::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(90deg, transparent 49.9%, rgba(255,255,255,0.015) 50%, transparent 50.1%),
+      linear-gradient(0deg, transparent 49.9%, rgba(255,255,255,0.015) 50%, transparent 50.1%);
+    background-size: 80px 80px;
+    pointer-events: none;
+  }
+  .notch {
+    position: absolute;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 120px;
+    height: 30px;
+    background: #000;
+    border-radius: 20px;
+    z-index: 10;
+  }
+  /* Status bar */
+  .statusbar {
+    position: relative;
+    height: 54px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 32px 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+    z-index: 5;
+  }
+  .statusbar .right { display: flex; gap: 6px; align-items: center; }
+  .statusbar svg { display: block; }
+
+  .label {
+    margin-top: 2px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--dim);
+    text-transform: uppercase;
+  }
+
+  /* Content */
+  .content {
+    padding: 8px 22px 24px;
+    position: relative;
+    z-index: 2;
+    height: calc(100% - 54px);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+  .brand {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--dim-2);
+  }
+  .brand .dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--mint);
+    margin-right: 6px;
+    box-shadow: 0 0 8px var(--mint);
+    animation: pulse 1.8s infinite;
+    vertical-align: middle;
+  }
+  @keyframes pulse {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  .icon-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--dim-2);
+  }
+
+  /* MAIN SCREEN */
+  .status-heading {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 42px;
+    letter-spacing: -1px;
+    color: var(--text);
+    line-height: 1;
+    margin-top: 4px;
+  }
+  .status-heading .accent {
+    color: var(--mint);
+  }
+  .status-sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--dim);
+    margin-top: 6px;
+    letter-spacing: 1px;
+  }
+
+  .card {
+    background: rgba(10, 16, 32, 0.7);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 14px;
+    backdrop-filter: blur(4px);
+  }
+
+  .spark-card {
+    margin-top: 14px;
+  }
+  .spark-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--dim);
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+  }
+  .spark-head .val {
+    color: var(--mint);
+    font-size: 11px;
+  }
+  .sparkline {
+    width: 100%;
+    height: 60px;
+  }
+
+  .metrics-row {
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .metric {
+    background: rgba(10, 16, 32, 0.6);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+  .metric .k {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--dim);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+  }
+  .metric .v {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 18px;
+    color: var(--text);
+    margin-top: 3px;
+    font-weight: 500;
+  }
+  .metric .v.mint { color: var(--mint); }
+  .metric .v.blue { color: var(--blue); }
+
+  .server-card {
+    margin-top: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .server-flag {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #1a2540, #0e1628);
+    border: 1px solid var(--line-2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--mint);
+    font-weight: 600;
+  }
+  .server-info { flex: 1; }
+  .server-info .name {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .server-info .meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--dim);
+    margin-top: 2px;
+  }
+  .ip-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--mint);
+    border: 1px solid rgba(95,245,209,0.3);
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: rgba(95,245,209,0.05);
+  }
+
+  .mini-map {
+    margin-top: 12px;
+    height: 90px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: rgba(6, 10, 22, 0.8);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .primary-btn {
+    margin-top: auto;
+    height: 56px;
+    border-radius: 14px;
+    background: rgba(255, 84, 112, 0.08);
+    border: 1px solid rgba(255, 84, 112, 0.4);
+    color: var(--red);
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 15px;
+    letter-spacing: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  .primary-btn.mint {
+    background: rgba(95, 245, 209, 0.1);
+    border: 1px solid rgba(95, 245, 209, 0.5);
+    color: var(--mint);
+    box-shadow: 0 0 40px rgba(95,245,209,0.15);
+  }
+
+  /* PAYWALL */
+  .paywall-head {
+    margin-top: 6px;
+  }
+  .paywall-head h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 30px;
+    letter-spacing: -0.5px;
+    line-height: 1.05;
+  }
+  .paywall-head h1 .m { color: var(--mint); }
+  .paywall-head .sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--dim);
+    margin-top: 8px;
+    letter-spacing: 1px;
+  }
+
+  .plans {
+    margin-top: 16px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .plan {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(10,16,32,0.5);
+  }
+  .plan.best {
+    border-color: var(--mint);
+    background: rgba(95,245,209,0.06);
+    box-shadow: 0 0 30px rgba(95,245,209,0.12);
+    position: relative;
+  }
+  .plan .dur {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--text);
+    font-weight: 500;
+  }
+  .plan .dur small {
+    display: block;
+    color: var(--dim);
+    font-size: 9px;
+    margin-top: 2px;
+    letter-spacing: 1px;
+  }
+  .plan .price {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 15px;
+    color: var(--text);
+    font-weight: 600;
+  }
+  .plan.best .price { color: var(--mint); }
+  .plan .badge {
+    position: absolute;
+    top: -8px;
+    right: 12px;
+    background: var(--mint);
+    color: var(--bg);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 4px;
+    letter-spacing: 1px;
+  }
+  .plan .per {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--dim);
+  }
+
+  .features {
+    margin-top: 14px;
+    padding: 12px 14px;
+    background: rgba(6,10,22,0.6);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+  }
+  .features .row {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    color: var(--dim-2);
+  }
+  .features .row .v { color: var(--mint); }
+  .features .comment { color: var(--dim); font-size: 9px; margin-bottom: 4px; }
+
+  /* SERVERS */
+  .servers-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-top: 4px;
+    margin-bottom: 14px;
+  }
+  .servers-head h1 {
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+  }
+  .servers-head .count {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--mint);
+  }
+  .servers-table {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+    background: rgba(10,16,32,0.5);
+  }
+  .srv-head {
+    display: grid;
+    grid-template-columns: 44px 1fr 48px 56px;
+    padding: 10px 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--dim);
+    letter-spacing: 1.5px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(6,10,22,0.6);
+  }
+  .srv-row {
+    display: grid;
+    grid-template-columns: 44px 1fr 48px 56px;
+    padding: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    border-bottom: 1px solid var(--line);
+    align-items: center;
+    color: var(--text);
+  }
+  .srv-row:last-child { border-bottom: none; }
+  .srv-row .code { color: var(--mint); font-weight: 600; }
+  .srv-row .loc { color: var(--dim-2); font-family: 'Space Grotesk', sans-serif; font-size: 12px; }
+  .srv-row .rtt { text-align: right; color: var(--text); }
+  .srv-row .rtt.hi { color: var(--amber); }
+  .srv-row .load {
+    text-align: right;
+    color: var(--mint);
+    letter-spacing: 1px;
+  }
+  .srv-row.auto {
+    background: rgba(95,245,209,0.05);
+  }
+  .srv-row.auto .code { color: var(--mint); }
+  .srv-row.auto .loc { color: var(--text); }
+  .srv-row.current {
+    background: rgba(74,158,255,0.05);
+    border-left: 2px solid var(--blue);
+  }
+
+  /* SETTINGS */
+  .settings-head h1 {
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    margin-top: 4px;
+  }
+  .settings-head .sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--dim);
+    margin-top: 4px;
+    letter-spacing: 1px;
+  }
+  .config-block {
+    margin-top: 14px;
+    background: rgba(6,10,22,0.6);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+  }
+  .config-block .section {
+    color: var(--mint);
+    font-size: 10px;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+  }
+  .config-block .kv {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 0;
+    color: var(--dim-2);
+  }
+  .config-block .kv .k::before { content: "  "; }
+  .config-block .kv .v { color: var(--text); }
+  .config-block .kv .v.on { color: var(--mint); }
+  .config-block .kv .v.off { color: var(--dim); }
+  .config-block .kv .v.warn { color: var(--amber); }
+  .config-block + .config-block { margin-top: 10px; }
+
+  .footer-line {
+    margin-top: auto;
+    padding-top: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--dim);
+    text-align: center;
+    letter-spacing: 1px;
+    border-top: 1px dashed var(--line);
+  }
+
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="title">MadFrog VPN — Concept 01</div>
+  <div class="subtitle">// LIVE_SIGNAL :: hybrid tech monitor</div>
+
+  <div class="grid">
+
+    <!-- ============ MAIN ============ -->
+    <div class="frame-wrap">
+      <div class="phone">
+        <div class="screen">
+          <div class="notch"></div>
+          <div class="statusbar">
+            <span>9:41</span>
+            <span class="right">
+              <svg width="17" height="11" viewBox="0 0 17 11" fill="none"><path d="M1 10h1M4 8h1v2H4zM7 6h1v4H7zM10 4h1v6h-1zM13 2h1v8h-1zM16 0h1v10h-1z" stroke="#e6ecf5" stroke-width="1" stroke-linecap="round"/><rect x="0" y="9" width="2" height="1" fill="#e6ecf5"/><rect x="3" y="7" width="2" height="3" fill="#e6ecf5"/><rect x="6" y="5" width="2" height="5" fill="#e6ecf5"/><rect x="9" y="3" width="2" height="7" fill="#e6ecf5"/><rect x="12" y="1" width="2" height="9" fill="#e6ecf5"/><rect x="15" y="0" width="2" height="10" fill="#e6ecf5"/></svg>
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="none"><path d="M8 10.5c.8 0 1.5-.7 1.5-1.5S8.8 7.5 8 7.5 6.5 8.2 6.5 9s.7 1.5 1.5 1.5zM2 4.5a9 9 0 0 1 12 0M4 6.5a6 6 0 0 1 8 0" stroke="#e6ecf5" stroke-width="1.2" stroke-linecap="round"/></svg>
+              <svg width="26" height="12" viewBox="0 0 26 12" fill="none"><rect x="0.5" y="0.5" width="22" height="11" rx="3" stroke="#e6ecf5" opacity="0.5"/><rect x="2" y="2" width="19" height="8" rx="1.5" fill="#5FF5D1"/><rect x="23" y="4" width="2" height="4" rx="0.5" fill="#e6ecf5" opacity="0.5"/></svg>
+            </span>
+          </div>
+          <div class="content">
+            <div class="topbar">
+              <div class="brand"><span class="dot"></span>MADFROG // ACTIVE</div>
+              <div class="icon-btn">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="1" fill="currentColor"/><circle cx="2" cy="7" r="1" fill="currentColor"/><circle cx="12" cy="7" r="1" fill="currentColor"/></svg>
+              </div>
+            </div>
+
+            <div class="status-heading">CONNECT<span class="accent">ED</span></div>
+            <div class="status-sub">&gt; tunnel.vless.reality // session_active</div>
+
+            <div class="card spark-card">
+              <div class="spark-head">
+                <span>PING_RTT // LAST_30S</span>
+                <span class="val">42ms ↓</span>
+              </div>
+              <svg class="sparkline" viewBox="0 0 320 60" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="sparkG" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stop-color="#5FF5D1" stop-opacity="0.35"/>
+                    <stop offset="100%" stop-color="#5FF5D1" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+                <g stroke="#18243c" stroke-width="0.5">
+                  <line x1="0" y1="15" x2="320" y2="15"/>
+                  <line x1="0" y1="30" x2="320" y2="30"/>
+                  <line x1="0" y1="45" x2="320" y2="45"/>
+                </g>
+                <path d="M0,32 L16,28 L32,35 L48,30 L64,26 L80,29 L96,22 L112,27 L128,24 L144,20 L160,25 L176,18 L192,22 L208,17 L224,24 L240,20 L256,15 L272,19 L288,14 L304,18 L320,16 L320,60 L0,60 Z" fill="url(#sparkG)"/>
+                <path d="M0,32 L16,28 L32,35 L48,30 L64,26 L80,29 L96,22 L112,27 L128,24 L144,20 L160,25 L176,18 L192,22 L208,17 L224,24 L240,20 L256,15 L272,19 L288,14 L304,18 L320,16" fill="none" stroke="#5FF5D1" stroke-width="1.5" stroke-linejoin="round"/>
+                <circle cx="320" cy="16" r="2.5" fill="#5FF5D1"/>
+              </svg>
+            </div>
+
+            <div class="metrics-row">
+              <div class="metric">
+                <div class="k">↑ UPLOAD</div>
+                <div class="v mint">1.2 MB/s</div>
+              </div>
+              <div class="metric">
+                <div class="k">↓ DOWNLOAD</div>
+                <div class="v blue">8.7 MB/s</div>
+              </div>
+              <div class="metric">
+                <div class="k">RTT</div>
+                <div class="v">42 ms</div>
+              </div>
+              <div class="metric">
+                <div class="k">SESSION</div>
+                <div class="v">00:03:42</div>
+              </div>
+            </div>
+
+            <div class="card server-card">
+              <div class="server-flag">DE</div>
+              <div class="server-info">
+                <div class="name">Frankfurt-01</div>
+                <div class="meta">node.de // load 31%</div>
+              </div>
+              <div class="ip-badge">162.19.242.30</div>
+            </div>
+
+            <button class="primary-btn">◼  DISCONNECT</button>
+          </div>
+        </div>
+      </div>
+      <div class="label">01 · MAIN</div>
+    </div>
+
+    <!-- ============ PAYWALL ============ -->
+    <div class="frame-wrap">
+      <div class="phone">
+        <div class="screen">
+          <div class="notch"></div>
+          <div class="statusbar">
+            <span>9:41</span>
+            <span class="right">
+              <svg width="17" height="11" viewBox="0 0 17 11" fill="none"><rect x="0" y="9" width="2" height="1" fill="#e6ecf5"/><rect x="3" y="7" width="2" height="3" fill="#e6ecf5"/><rect x="6" y="5" width="2" height="5" fill="#e6ecf5"/><rect x="9" y="3" width="2" height="7" fill="#e6ecf5"/><rect x="12" y="1" width="2" height="9" fill="#e6ecf5"/><rect x="15" y="0" width="2" height="10" fill="#e6ecf5"/></svg>
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="none"><path d="M8 10.5c.8 0 1.5-.7 1.5-1.5S8.8 7.5 8 7.5 6.5 8.2 6.5 9s.7 1.5 1.5 1.5zM2 4.5a9 9 0 0 1 12 0M4 6.5a6 6 0 0 1 8 0" stroke="#e6ecf5" stroke-width="1.2" stroke-linecap="round"/></svg>
+              <svg width="26" height="12" viewBox="0 0 26 12" fill="none"><rect x="0.5" y="0.5" width="22" height="11" rx="3" stroke="#e6ecf5" opacity="0.5"/><rect x="2" y="2" width="19" height="8" rx="1.5" fill="#5FF5D1"/><rect x="23" y="4" width="2" height="4" rx="0.5" fill="#e6ecf5" opacity="0.5"/></svg>
+            </span>
+          </div>
+          <div class="content">
+            <div class="topbar">
+              <div class="brand">BILLING // MODULE</div>
+              <div class="icon-btn">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 2L10 10M10 2L2 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              </div>
+            </div>
+
+            <div class="paywall-head">
+              <h1>UPGRADE TO<br/><span class="m">PRO TIER</span></h1>
+              <div class="sub">&gt; unlock all nodes + kill_switch</div>
+            </div>
+
+            <div class="plans">
+              <div class="plan">
+                <div class="dur">30_DAYS <small>MONTHLY</small></div>
+                <div class="price">$4.99</div>
+              </div>
+              <div class="plan">
+                <div class="dur">90_DAYS <small>QUARTERLY</small></div>
+                <div class="price">$12.99</div>
+              </div>
+              <div class="plan">
+                <div class="dur">180_DAYS <small>SEMI-ANNUAL</small></div>
+                <div class="price">$22.99</div>
+              </div>
+              <div class="plan best">
+                <div class="badge">BEST_VALUE</div>
+                <div class="dur">365_DAYS <small>ANNUAL · SAVE 58%</small></div>
+                <div class="price">$39.99</div>
+              </div>
+            </div>
+
+            <div class="features">
+              <div class="comment"># features.enabled</div>
+              <div class="row"><span>kill_switch</span><span class="v">= on</span></div>
+              <div class="row"><span>dns_filter</span><span class="v">= on</span></div>
+              <div class="row"><span>ad_block</span><span class="v">= on</span></div>
+              <div class="row"><span>multi_hop</span><span class="v">= on</span></div>
+            </div>
+
+            <button class="primary-btn mint" style="margin-top:14px">→  SUBSCRIBE</button>
+          </div>
+        </div>
+      </div>
+      <div class="label">02 · PAYWALL</div>
+    </div>
+
+    <!-- ============ SERVERS ============ -->
+    <div class="frame-wrap">
+      <div class="phone">
+        <div class="screen">
+          <div class="notch"></div>
+          <div class="statusbar">
+            <span>9:41</span>
+            <span class="right">
+              <svg width="17" height="11" viewBox="0 0 17 11" fill="none"><rect x="0" y="9" width="2" height="1" fill="#e6ecf5"/><rect x="3" y="7" width="2" height="3" fill="#e6ecf5"/><rect x="6" y="5" width="2" height="5" fill="#e6ecf5"/><rect x="9" y="3" width="2" height="7" fill="#e6ecf5"/><rect x="12" y="1" width="2" height="9" fill="#e6ecf5"/><rect x="15" y="0" width="2" height="10" fill="#e6ecf5"/></svg>
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="none"><path d="M8 10.5c.8 0 1.5-.7 1.5-1.5S8.8 7.5 8 7.5 6.5 8.2 6.5 9s.7 1.5 1.5 1.5zM2 4.5a9 9 0 0 1 12 0M4 6.5a6 6 0 0 1 8 0" stroke="#e6ecf5" stroke-width="1.2" stroke-linecap="round"/></svg>
+              <svg width="26" height="12" viewBox="0 0 26 12" fill="none"><rect x="0.5" y="0.5" width="22" height="11" rx="3" stroke="#e6ecf5" opacity="0.5"/><rect x="2" y="2" width="19" height="8" rx="1.5" fill="#5FF5D1"/><rect x="23" y="4" width="2" height="4" rx="0.5" fill="#e6ecf5" opacity="0.5"/></svg>
+            </span>
+          </div>
+          <div class="content">
+            <div class="topbar">
+              <div class="brand"><span class="dot"></span>NODES // SCAN</div>
+              <div class="icon-btn">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2v10M2 7h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              </div>
+            </div>
+
+            <div class="servers-head">
+              <h1>NODES</h1>
+              <div class="count">12/12 ONLINE</div>
+            </div>
+
+            <div class="servers-table">
+              <div class="srv-head">
+                <div>CODE</div>
+                <div>LOCATION</div>
+                <div style="text-align:right">RTT</div>
+                <div style="text-align:right">LOAD</div>
+              </div>
+              <div class="srv-row auto">
+                <div class="code">~AUTO</div>
+                <div class="loc">[fastest]</div>
+                <div class="rtt">38</div>
+                <div class="load">●●○○○</div>
+              </div>
+              <div class="srv-row current">
+                <div class="code">DE-01</div>
+                <div class="loc">Frankfurt</div>
+                <div class="rtt">42</div>
+                <div class="load">●●○○○</div>
+              </div>
+              <div class="srv-row">
+                <div class="code">NL-01</div>
+                <div class="loc">Amsterdam</div>
+                <div class="rtt">51</div>
+                <div class="load">●●●○○</div>
+              </div>
+              <div class="srv-row">
+                <div class="code">US-01</div>
+                <div class="loc">New York</div>
+                <div class="rtt hi">118</div>
+                <div class="load">●●○○○</div>
+              </div>
+              <div class="srv-row">
+                <div class="code">US-02</div>
+                <div class="loc">Los Angeles</div>
+                <div class="rtt hi">164</div>
+                <div class="load">●●●●○</div>
+              </div>
+              <div class="srv-row">
+                <div class="code">UK-01</div>
+                <div class="loc">London</div>
+                <div class="rtt">58</div>
+                <div class="load">●●○○○</div>
+              </div>
+              <div class="srv-row">
+                <div class="code">FR-01</div>
+                <div class="loc">Paris</div>
+                <div class="rtt">47</div>
+                <div class="load">●●●○○</div>
+              </div>
+              <div class="srv-row">
+                <div class="code">JP-01</div>
+                <div class="loc">Tokyo</div>
+                <div class="rtt hi">212</div>
+                <div class="load">●○○○○</div>
+              </div>
+              <div class="srv-row">
+                <div class="code">SG-01</div>
+                <div class="loc">Singapore</div>
+                <div class="rtt hi">188</div>
+                <div class="load">●●○○○</div>
+              </div>
+            </div>
+
+            <div class="footer-line">[ scan_interval = 5s · last_update 00:00:02 ]</div>
+          </div>
+        </div>
+      </div>
+      <div class="label">03 · SERVERS</div>
+    </div>
+
+    <!-- ============ SETTINGS ============ -->
+    <div class="frame-wrap">
+      <div class="phone">
+        <div class="screen">
+          <div class="notch"></div>
+          <div class="statusbar">
+            <span>9:41</span>
+            <span class="right">
+              <svg width="17" height="11" viewBox="0 0 17 11" fill="none"><rect x="0" y="9" width="2" height="1" fill="#e6ecf5"/><rect x="3" y="7" width="2" height="3" fill="#e6ecf5"/><rect x="6" y="5" width="2" height="5" fill="#e6ecf5"/><rect x="9" y="3" width="2" height="7" fill="#e6ecf5"/><rect x="12" y="1" width="2" height="9" fill="#e6ecf5"/><rect x="15" y="0" width="2" height="10" fill="#e6ecf5"/></svg>
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="none"><path d="M8 10.5c.8 0 1.5-.7 1.5-1.5S8.8 7.5 8 7.5 6.5 8.2 6.5 9s.7 1.5 1.5 1.5zM2 4.5a9 9 0 0 1 12 0M4 6.5a6 6 0 0 1 8 0" stroke="#e6ecf5" stroke-width="1.2" stroke-linecap="round"/></svg>
+              <svg width="26" height="12" viewBox="0 0 26 12" fill="none"><rect x="0.5" y="0.5" width="22" height="11" rx="3" stroke="#e6ecf5" opacity="0.5"/><rect x="2" y="2" width="19" height="8" rx="1.5" fill="#5FF5D1"/><rect x="23" y="4" width="2" height="4" rx="0.5" fill="#e6ecf5" opacity="0.5"/></svg>
+            </span>
+          </div>
+          <div class="content">
+            <div class="topbar">
+              <div class="brand">CONFIG // madfrog.cfg</div>
+              <div class="icon-btn">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1v10M1 6h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              </div>
+            </div>
+
+            <div class="settings-head">
+              <h1>SETTINGS</h1>
+              <div class="sub">&gt; edit system parameters</div>
+            </div>
+
+            <div class="config-block">
+              <div class="section">[connection]</div>
+              <div class="kv"><span class="k">auto_connect</span><span class="v on">= [on]</span></div>
+              <div class="kv"><span class="k">kill_switch</span><span class="v on">= [on]</span></div>
+              <div class="kv"><span class="k">protocol</span><span class="v">= vless_reality</span></div>
+              <div class="kv"><span class="k">obfuscation</span><span class="v on">= [on]</span></div>
+            </div>
+
+            <div class="config-block">
+              <div class="section">[dns]</div>
+              <div class="kv"><span class="k">filter</span><span class="v on">= [on]</span></div>
+              <div class="kv"><span class="k">block_ads</span><span class="v on">= [on]</span></div>
+              <div class="kv"><span class="k">custom</span><span class="v off">= [off]</span></div>
+            </div>
+
+            <div class="config-block">
+              <div class="section">[diagnostics]</div>
+              <div class="kv"><span class="k">debug_logs</span><span class="v warn">= [off]</span></div>
+              <div class="kv"><span class="k">export_logs</span><span class="v">→</span></div>
+              <div class="kv"><span class="k">reset_config</span><span class="v">→</span></div>
+            </div>
+
+            <div class="footer-line">v2.3.1 · build #4821 · tier=pro</div>
+          </div>
+        </div>
+      </div>
+      <div class="label">04 · SETTINGS</div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

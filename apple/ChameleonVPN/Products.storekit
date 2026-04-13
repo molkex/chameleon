@@ -1,0 +1,94 @@
+{
+  "identifier" : "B2A4F9E1-7C3D-4E1B-9F2A-MADFROGLOCAL",
+  "nonRenewingSubscriptions" : [
+    {
+      "displayPrice" : "1.99",
+      "familyShareable" : false,
+      "internalID" : "30001",
+      "localizations" : [
+        {
+          "description" : "Безлимитный VPN на 30 дней",
+          "displayName" : "30 дней",
+          "locale" : "ru_RU"
+        },
+        {
+          "description" : "Unlimited VPN for 30 days",
+          "displayName" : "30 days",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.madfrog.vpn.sub.30days",
+      "referenceName" : "30 days",
+      "type" : "NonRenewingSubscription"
+    },
+    {
+      "displayPrice" : "4.99",
+      "familyShareable" : false,
+      "internalID" : "30002",
+      "localizations" : [
+        {
+          "description" : "Безлимитный VPN на 90 дней",
+          "displayName" : "90 дней",
+          "locale" : "ru_RU"
+        },
+        {
+          "description" : "Unlimited VPN for 90 days",
+          "displayName" : "90 days",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.madfrog.vpn.sub.90days",
+      "referenceName" : "90 days",
+      "type" : "NonRenewingSubscription"
+    },
+    {
+      "displayPrice" : "8.99",
+      "familyShareable" : false,
+      "internalID" : "30003",
+      "localizations" : [
+        {
+          "description" : "Безлимитный VPN на 180 дней",
+          "displayName" : "180 дней",
+          "locale" : "ru_RU"
+        },
+        {
+          "description" : "Unlimited VPN for 180 days",
+          "displayName" : "180 days",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.madfrog.vpn.sub.180days",
+      "referenceName" : "180 days",
+      "type" : "NonRenewingSubscription"
+    },
+    {
+      "displayPrice" : "15.99",
+      "familyShareable" : false,
+      "internalID" : "30004",
+      "localizations" : [
+        {
+          "description" : "Безлимитный VPN на 365 дней",
+          "displayName" : "365 дней",
+          "locale" : "ru_RU"
+        },
+        {
+          "description" : "Unlimited VPN for 365 days",
+          "displayName" : "365 days",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.madfrog.vpn.sub.365days",
+      "referenceName" : "365 days",
+      "type" : "NonRenewingSubscription"
+    }
+  ],
+  "products" : [],
+  "settings" : {
+
+  },
+  "subscriptionGroups" : [],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}

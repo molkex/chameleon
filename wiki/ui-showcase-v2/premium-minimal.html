@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Premium Minimal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #f4f1ea;
+      --paper: #fffdf8;
+      --line: #ded6c8;
+      --text: #12131a;
+      --muted: #6d6a65;
+      --accent: #127f79;
+      --accentSoft: #d8f1ee;
+      --warn: #c87c2f;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Manrope, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 85% -10%, #dceee9 0%, transparent 35%),
+        radial-gradient(circle at 10% 120%, #f2e8d8 0%, transparent 30%),
+        var(--bg);
+    }
+    .wrap { max-width: 1220px; margin: 0 auto; padding: 22px 16px 34px; }
+    .back { text-decoration: none; color: #4f5652; font-size: 14px; }
+    h1 { margin: 12px 0 8px; font-family: Sora, sans-serif; font-size: clamp(28px,4vw,42px); }
+    .lead { margin: 0 0 18px; color: var(--muted); max-width: 830px; }
+    .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+    .chip { font-size: 12px; border: 1px solid #d5cdbf; border-radius: 999px; padding: 6px 10px; color: #5e5a53; background: rgba(255,255,255,.7); }
+    .layout { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px,1fr)); gap: 14px; }
+    .phone { border: 1px solid #cfc7bc; border-radius: 30px; padding: 12px; background: linear-gradient(175deg,#faf7f1,#efe9de); box-shadow: 0 14px 34px rgba(48,37,20,.14); }
+    .screen { border-radius: 22px; min-height: 620px; padding: 16px; background: var(--paper); border: 1px solid #e9e1d4; position: relative; overflow: hidden; }
+    .label { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #7f7a70; }
+    .title { font-size: 34px; font-family: Sora, sans-serif; margin: 10px 0 18px; line-height: 1.05; }
+    .power {
+      width: 190px; height: 190px; border-radius: 50%; margin: 0 auto;
+      background: linear-gradient(145deg,#0f8d86,#34b9b0);
+      display: grid; place-items: center; color: #f4fffe; font-size: 64px;
+      box-shadow: 0 16px 28px rgba(15,141,134,.3);
+    }
+    .card { margin-top: 16px; border: 1px solid var(--line); border-radius: 14px; padding: 12px; background: #fff; }
+    .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+    .muted { color: var(--muted); font-size: 14px; }
+    .sheet {
+      margin-top: 12px;
+      border: 1px solid #d7cebf;
+      border-radius: 16px;
+      background: linear-gradient(180deg,#f8f4ec,#f2ece1);
+      padding: 10px;
+      display: grid;
+      gap: 8px;
+    }
+    .item { background: #fffaf1; border: 1px solid #ddd2c1; border-radius: 11px; padding: 10px; display:flex; justify-content:space-between; align-items:center; font-size:14px; }
+    .warn { color: var(--warn); font-weight: 700; font-size: 13px; }
+    .accent { color: var(--accent); font-weight: 700; }
+    .info {
+      border: 1px solid #dacfbf;
+      border-radius: 16px;
+      background: rgba(255,252,245,.92);
+      padding: 14px;
+      min-height: 620px;
+    }
+    .info h3 { margin: 0 0 10px; font-family: Sora, sans-serif; font-size: 22px; }
+    .info .block { border: 1px solid #dfd4c3; border-radius: 12px; padding: 10px; margin-bottom: 8px; background: #fff; }
+    .info b { font-weight: 800; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <a class="back" href="./index.html">← Назад к вариантам</a>
+    <h1>Premium Minimal</h1>
+    <p class="lead">Вариант для быстрого опыта: спокойный premium-визуал, минимум шумных элементов, IA из двух экранов. `Home` закрывает 90% действий, `Locations` — только выбор страны/маршрута.</p>
+    <div class="chips">
+      <span class="chip">2 экрана</span><span class="chip">Bottom sheet вместо Account</span><span class="chip">High trust visual</span>
+    </div>
+
+    <section class="layout">
+      <article class="phone">
+        <div class="screen">
+          <div class="label">Screen 1 / Home</div>
+          <div class="title">Protected</div>
+          <div class="power">⏻</div>
+
+          <div class="card">
+            <div class="row"><b>Smart Route</b><span class="accent">NL · 38 ms</span></div>
+            <div class="muted">Fastest available route is applied automatically.</div>
+          </div>
+
+          <div class="sheet">
+            <div class="item"><span>Locations</span><span>→</span></div>
+            <div class="item"><span>Subscription</span><span class="warn">2 days left</span></div>
+            <div class="item"><span>Quick Diagnostics</span><span>Run</span></div>
+            <div class="item"><span>Support</span><span>Chat</span></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="phone">
+        <div class="screen">
+          <div class="label">Screen 2 / Locations</div>
+          <div class="title">Choose Route</div>
+
+          <div class="card"><div class="row"><b>Auto</b><span class="accent">Recommended</span></div></div>
+          <div class="card"><div class="row"><span>Netherlands</span><span class="muted">38 ms</span></div></div>
+          <div class="card"><div class="row"><span>Germany</span><span class="muted">52 ms</span></div></div>
+          <div class="card"><div class="row"><span>Finland</span><span class="muted">67 ms</span></div></div>
+          <div class="card"><div class="row"><span>France</span><span class="muted">74 ms</span></div></div>
+
+          <div class="sheet" style="margin-top:14px;">
+            <div class="item"><b>Apply and return to Home</b><span>✓</span></div>
+          </div>
+        </div>
+      </article>
+
+      <aside class="info">
+        <h3>Почему это работает</h3>
+        <div class="block"><b>Главный принцип:</b> один главный call-to-action на Home, всё остальное вторично.</div>
+        <div class="block"><b>Минимум экранов:</b> убираем отдельный Account из tab bar. Его функции в sheet на Home.</div>
+        <div class="block"><b>Что в sheet:</b> подписка, quick diagnostics, support, legal.</div>
+        <div class="block"><b>Результат:</b> меньше навигации, быстрее first success connect.</div>
+      </aside>
+    </section>
+  </main>
+</body>
+</html>

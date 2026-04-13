@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Tech Pro — iOS Handoff</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#060a16;--paper:#0b1326;--ink:#eaf2ff;--muted:#8da4ca;--line:#223c64}
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font-family:"Space Grotesk",sans-serif}
+    .wrap{max-width:1080px;margin:0 auto;padding:24px 16px 36px}.back{color:#bfd2ef;text-decoration:none;font-size:14px}
+    h1{margin:10px 0 12px;font:700 clamp(1.8rem,4vw,2.8rem)/.95 "Space Grotesk",sans-serif;letter-spacing:-.03em}.lead{color:var(--muted);max-width:780px;line-height:1.55}
+    .sec{margin-top:12px;border:1px solid var(--line);border-radius:16px;padding:14px;background:var(--paper)}
+    .sec h2{margin:0 0 8px;font:700 1.16rem/1.1 "Space Grotesk",sans-serif}.item{border:1px solid #2a4a77;border-radius:10px;background:#0e1930;padding:9px 10px;margin-bottom:8px;font:12px/1.45 "JetBrains Mono",monospace;color:#b4c8ea}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <a class="back" href="./index.html">← Tech package index</a>
+    <h1>Implementation Handoff</h1>
+    <p class="lead">Контракт для iOS реализации технического направления. Важна предсказуемость данных и консистентность state-machine во всех экранах.</p>
+
+    <section class="sec">
+      <h2>Data + State Contracts</h2>
+      <div class="item">Single source of truth for tunnel state: disconnected / connecting / connected / incident / expired.</div>
+      <div class="item">Metrics block updates by timer (1s) only while connected; paused in background.</div>
+      <div class="item">Locations list sorted by RTT, with pinned node surfaced on top.</div>
+      <div class="item">Diagnostics report generated as JSON and share-sheet ready.</div>
+    </section>
+
+    <section class="sec">
+      <h2>Layout + Components</h2>
+      <div class="item">Base padding: 16pt. Card padding: 11pt. Row min height: 44pt.</div>
+      <div class="item">Terminal cards use JetBrains Mono 12/1.52 for dense metrics.</div>
+      <div class="item">Bottom navigation has exactly 4 tabs in this direction.</div>
+      <div class="item">Incident banner stays sticky until retry outcome is known.</div>
+    </section>
+
+    <section class="sec">
+      <h2>Motion + Interaction</h2>
+      <div class="item">Connect orb animates with subtle glow in connected state; no infinite heavy loops.</div>
+      <div class="item">Screen transitions 160-220ms ease-out; diagnostics refresh animates with crossfade.</div>
+      <div class="item">Reduce Motion: replace animated orb with static icon + textual state badge.</div>
+    </section>
+
+    <section class="sec">
+      <h2>QA Checklist</h2>
+      <div class="item">All interactive controls >= 44x44 pt.</div>
+      <div class="item">Color contrast passes 4.5:1 for text and 3:1 for UI elements.</div>
+      <div class="item">Incident flow tested offline and with simulated API timeout.</div>
+      <div class="item">Exported diagnostics report includes timestamp, route, metrics, app version.</div>
+    </section>
+  </main>
+</body>
+</html>

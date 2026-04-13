@@ -12,6 +12,7 @@ import (
 	"github.com/chameleonvpn/chameleon/internal/auth"
 	"github.com/chameleonvpn/chameleon/internal/config"
 	"github.com/chameleonvpn/chameleon/internal/db"
+	"github.com/chameleonvpn/chameleon/internal/payments"
 	"github.com/chameleonvpn/chameleon/internal/vpn"
 )
 
@@ -21,6 +22,7 @@ type Handler struct {
 	Redis          *redis.Client
 	JWT            *auth.JWTManager
 	VPN            vpn.Engine // may be nil if VPN engine is not configured
+	Payments       *payments.Service
 	Config         *config.Config
 	Logger         *zap.Logger
 	ClusterSecret  string // shared secret for cluster peer requests

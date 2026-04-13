@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Bold Brand</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@500;600;700&family=Manrope:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #11121f;
+      --text: #f6f7ff;
+      --muted: #b0b4d2;
+      --panel: #191b2f;
+      --line: #35385e;
+      --pink: #ff5cb7;
+      --cyan: #4be5ff;
+      --lime: #b9ff5d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Manrope, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 5% -10%, #442f72 0%, transparent 35%),
+        radial-gradient(circle at 100% 100%, #1f4a54 0%, transparent 35%),
+        var(--bg);
+    }
+    .wrap { max-width: 1220px; margin: 0 auto; padding: 22px 16px 34px; }
+    .back { color: #d4daf7; text-decoration: none; font-size: 14px; }
+    h1 { margin: 12px 0 8px; font-family: "Clash Display", Sora, sans-serif; font-size: clamp(30px, 4.5vw, 46px); line-height: 1.02; }
+    .lead { margin: 0 0 18px; color: var(--muted); max-width: 860px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(280px,1fr)); gap: 14px; }
+    .phone { border: 1px solid #434776; border-radius: 30px; padding: 12px; background: #101226; box-shadow: 0 16px 36px rgba(0,0,0,.45); }
+    .screen {
+      min-height: 620px;
+      border-radius: 22px;
+      padding: 14px;
+      border: 1px solid #40447a;
+      background:
+        radial-gradient(circle at 20% 15%, rgba(255,92,183,.18), transparent 32%),
+        radial-gradient(circle at 100% 0%, rgba(75,229,255,.16), transparent 28%),
+        #161830;
+    }
+    .label { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: #a8b0da; }
+    .title { font-size: 34px; margin: 8px 0 14px; font-family: "Clash Display", sans-serif; }
+    .power {
+      width: 178px; height: 178px; border-radius: 50%; margin: 8px auto;
+      display: grid; place-items: center; font-size: 62px; color: #fff;
+      background: linear-gradient(155deg,var(--pink),var(--cyan));
+      box-shadow: 0 0 34px rgba(255,92,183,.35);
+    }
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 11px;
+      margin-top: 8px;
+      background: var(--panel);
+    }
+    .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+    .muted { color: var(--muted); font-size: 13px; }
+    .badge {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      border-radius: 999px;
+      padding: 5px 9px;
+      color: #1a1120;
+      background: linear-gradient(90deg,var(--lime),#a9ffe7);
+    }
+    .info {
+      border: 1px solid #44497d;
+      border-radius: 16px;
+      background: #171934;
+      padding: 14px;
+      min-height: 620px;
+    }
+    .info h3 { margin: 0 0 10px; font-family: "Clash Display", sans-serif; font-size: 22px; }
+    .info .block { border: 1px solid #454b84; border-radius: 11px; padding: 10px; margin-bottom: 8px; color: #cad0f6; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <a class="back" href="./index.html">← Назад к вариантам</a>
+    <h1>Bold / Brand</h1>
+    <p class="lead">Эмоциональный стиль: сильный фирменный акцент и более "живой" образ бренда. Подходит, если хочешь выделиться среди типичных VPN-приложений.</p>
+
+    <section class="grid">
+      <article class="phone">
+        <div class="screen">
+          <div class="label">Screen 1 / Home</div>
+          <div class="title">Chameleon On</div>
+          <div class="power">⏻</div>
+          <div class="card">
+            <div class="row"><b>Route</b><span class="badge">NL · AMS</span></div>
+            <div class="muted">Adaptive mode picks best route for streaming.</div>
+          </div>
+          <div class="card"><div class="row"><span>Expires</span><span class="badge" style="background:linear-gradient(90deg,#ffd275,#ffb871);">2 days</span></div></div>
+        </div>
+      </article>
+
+      <article class="phone">
+        <div class="screen">
+          <div class="label">Screen 2 / Locations</div>
+          <div class="title">Pick Vibe</div>
+          <div class="card"><div class="row"><span>Auto</span><span class="badge">smart</span></div></div>
+          <div class="card"><div class="row"><span>Netherlands</span><span class="muted">39 ms</span></div></div>
+          <div class="card"><div class="row"><span>Germany</span><span class="muted">52 ms</span></div></div>
+          <div class="card"><div class="row"><span>UK</span><span class="muted">69 ms</span></div></div>
+          <div class="card"><div class="row"><span>USA</span><span class="muted">131 ms</span></div></div>
+        </div>
+      </article>
+
+      <aside class="info">
+        <h3>Brand strategy</h3>
+        <div class="block">Tone: energetic, bold, memorable.</div>
+        <div class="block">Best for: direct-to-consumer growth with strong visual identity.</div>
+        <div class="block">Risk: важно не уйти в перегруженный UI — ограничить яркие акценты до CTA/статуса.</div>
+        <div class="block">Core UX rule: 1 dominant action per screen.</div>
+      </aside>
+    </section>
+  </main>
+</body>
+</html>

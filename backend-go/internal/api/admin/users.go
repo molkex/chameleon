@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"fmt"
 	"math"
 	"net/http"
 	"strconv"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/chameleonvpn/chameleon/internal/auth"
 	"github.com/chameleonvpn/chameleon/internal/db"
+	"github.com/chameleonvpn/chameleon/internal/payments"
 )
 
 // userResponse is the JSON representation of a user for the admin API.
@@ -219,27 +221,41 @@ func (h *Handler) ExtendSubscription(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "days must be between 1 and 3650")
 	}
 
-	// Determine if the parameter is a numeric ID or vpn_username.
+	// Resolve :id (numeric) or :id (vpn_username) to a numeric user id so we can
+	// route the grant through the unified payments ledger instead of a raw UPDATE.
 	id, parseErr := strconv.ParseInt(idParam, 10, 64)
-
-	var err error
-	if parseErr == nil {
-		err = h.DB.ExtendSubscription(ctx, id, req.Days)
-	} else {
-		err = h.DB.ExtendSubscriptionByUsername(ctx, idParam, req.Days)
+	if parseErr != nil {
+		u, err := h.DB.FindUserByVPNUsername(ctx, idParam)
+		if err != nil {
+			if err == db.ErrNotFound {
+				return echo.NewHTTPError(http.StatusNotFound, "user not found")
+			}
+			h.Logger.Error("admin: lookup user by username", zap.Error(err))
+			return echo.NewHTTPError(http.StatusInternalServerError, "failed to extend subscription")
+		}
+		id = u.ID
 	}
 
+	// Admin grants are idempotent per (admin actor, target, timestamp). We synthesize
+	// a charge_id so reruns of the same API call don't double-credit, while distinct
+	// admin clicks remain distinct charges.
+	chargeID := fmt.Sprintf("admin:%d:%d:%d", id, req.Days, time.Now().UnixNano())
+
+	_, err := h.Payments.CreditDays(ctx, payments.Credit{
+		UserID:   id,
+		Source:   payments.SourceAdmin,
+		ChargeID: chargeID,
+		Days:     req.Days,
+	})
 	if err != nil {
-		if err == db.ErrNotFound {
-			return echo.NewHTTPError(http.StatusNotFound, "user not found")
-		}
 		h.Logger.Error("admin: extend subscription", zap.Error(err))
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to extend subscription")
 	}
 
 	h.Logger.Info("admin: subscription extended",
 		zap.String("user", idParam),
-		zap.Int("days", req.Days))
+		zap.Int("days", req.Days),
+		zap.String("charge_id", chargeID))
 
 	return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 }
