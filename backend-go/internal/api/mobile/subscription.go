@@ -138,6 +138,25 @@ func (h *Handler) VerifySubscription(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "failed to apply subscription"})
 	}
 
+	// Restore Purchases after account wipe: the payment row is already in
+	// the ledger, so CreditDays returns alreadyApplied=true and does nothing.
+	// Reconcile entitlement from the ledger to restore subscription_expiry.
+	if alreadyApplied {
+		if newExpiry, rerr := h.Payments.ReconcileFromLedger(ctx, claims.UserID, payments.SourceAppleIAP, chargeID); rerr != nil {
+			h.Logger.Warn("payments: reconcile from ledger failed",
+				zap.Error(rerr),
+				zap.Int64("user_id", claims.UserID),
+				zap.String("charge_id", chargeID),
+			)
+		} else if !newExpiry.IsZero() {
+			h.Logger.Info("subscription reconciled from ledger",
+				zap.Int64("user_id", claims.UserID),
+				zap.String("charge_id", chargeID),
+				zap.Time("new_expiry", newExpiry),
+			)
+		}
+	}
+
 	// Persist the Apple-specific fields on the user row so the admin UI and
 	// future ASN webhook can look up the user by originalTransactionId.
 	user, err := h.DB.FindUserByID(ctx, claims.UserID)

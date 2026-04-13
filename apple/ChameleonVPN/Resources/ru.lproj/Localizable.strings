@@ -1,0 +1,153 @@
+/* ===== Главный экран ===== */
+"home.status.protected"          = "Защищены";
+"home.status.exposed"            = "Не защищены";
+"home.status.connecting"         = "Подключение…";
+"home.status.reconnecting"       = "Переподключение…";
+"home.status.disconnecting"      = "Отключение…";
+"home.status.permission_denied"  = "Нет доступа";
+
+"home.status.label"              = "ВАШ СТАТУС";
+"home.subtitle.connected"        = "Трафик зашифрован";
+"home.subtitle.disconnected"     = "Нажмите, чтобы стать защищённым";
+"home.subtitle.connecting"       = "Поднимаем защищённый туннель…";
+"home.subtitle.reconnecting"     = "Сеть изменилась — переподключаемся";
+"home.subtitle.disconnecting"    = "Отключаемся…";
+"home.subtitle.permission"       = "Нужно разрешение VPN в Настройках iOS";
+
+"home.cta.connect"               = "Нажмите, чтобы подключить";
+"home.cta.cancel"                = "Нажмите, чтобы отменить";
+"home.cta.disconnect"            = "Нажмите, чтобы отключить";
+"home.cta.permission"            = "Откройте Настройки iOS";
+"home.cta.reconnecting"          = "Восстанавливаем соединение";
+"home.cta.waiting"               = "Подождите…";
+
+"home.cta.connect_now"           = "ПОДКЛЮЧИТЬ";
+"home.cta.grant_access"          = "ДАТЬ ДОСТУП";
+"home.cta.disconnect_caps"       = "ОТКЛЮЧИТЬ";
+"home.cta.connecting_caps"       = "ПОДКЛЮЧАЕМСЯ…";
+"home.cta.reconnecting_caps"     = "ПЕРЕПОДКЛЮЧЕНИЕ…";
+"home.cta.stopping_caps"         = "ОСТАНОВКА…";
+
+"home.neon.you_are"              = "ВЫ";
+"home.neon.protected"            = "ЗАЩИЩЕНЫ";
+"home.neon.exposed"              = "В ОПАСНОСТИ";
+"home.neon.connecting"           = "ПОДКЛЮЧАЕМ";
+"home.neon.reconnecting"         = "ВОЗВРАЩАЕМ";
+"home.neon.stopping"             = "ОСТАНАВЛИВАЕМ";
+"home.neon.permission"           = "НУЖЕН";
+"home.neon.permission_needed"    = "ДОСТУП";
+"home.neon.dots"                 = "…";
+
+"home.header.pro"                = "PRO";
+"home.header.free"               = "Бесплатный план";
+"home.header.pro_member"         = "Подписка Pro";
+
+"home.server.active"             = "АКТИВЕН";
+"home.server.standby"            = "ОЖИДАНИЕ";
+
+"home.subscription.get_pro"      = "ПОЛУЧИТЬ PRO";
+"home.subscription.pro_active"   = "PRO · АКТИВНА";
+"home.subscription.unlock"       = "Открыть всё →";
+"home.subscription.days_left"    = "осталось %d дн.";
+"home.subscription.expired"      = "Истекла";
+"home.subscription.pro_days"     = "Pro · %d дн. осталось";
+"home.subscription.expired_full" = "Подписка истекла";
+"home.subscription.unlock_full"  = "Разблокировать Pro — без ограничений";
+
+"home.chip.server"               = "Сервер";
+"home.chip.session"              = "Сессия";
+"home.chip.session_idle"         = "—";
+
+"home.server.auto"               = "Авто";
+"home.server.auto_long"          = "Авто (быстрейший)";
+
+/* ===== Онбординг ===== */
+"onboarding.title"               = "MadFrog VPN";
+"onboarding.subtitle"            = "Приватно. Быстро. Без блокировок.";
+"onboarding.feature.trial"       = "3 дня бесплатно";
+"onboarding.feature.no_logs"     = "Не храним логи";
+"onboarding.feature.servers"     = "Быстрые надёжные серверы";
+"onboarding.signin_failed"       = "Не удалось войти. Попробуйте ещё раз.";
+"onboarding.terms"               = "Продолжая, вы принимаете Условия использования и Политику конфиденциальности";
+
+/* ===== Paywall ===== */
+"paywall.title"                  = "Premium";
+"paywall.header.title"           = "Безлимитный доступ";
+"paywall.header.subtitle"        = "Быстрые серверы, без рекламы, без лимитов.";
+"paywall.no_products.title"      = "Тарифы недоступны";
+"paywall.no_products.hint"       = "Проверьте подключение и попробуйте ещё раз.";
+"paywall.retry"                  = "Повторить";
+"paywall.purchase"               = "Оформить подписку";
+"paywall.restore"                = "Восстановить покупки";
+"paywall.restored_alert"         = "Покупки восстановлены";
+"paywall.ok"                     = "ОК";
+"paywall.close"                  = "Закрыть";
+"paywall.legal"                  = "Оплата списывается с вашего Apple ID. Подписка не продлевается автоматически — это разовая покупка на выбранный срок.";
+"paywall.terms"                  = "Условия";
+"paywall.privacy"                = "Конфиденциальность";
+
+/* ===== Выбор темы ===== */
+"theme.title"                    = "Выберите оформление";
+"theme.subtitle"                 = "Можно поменять позже в настройках";
+"theme.done"                     = "Готово";
+"theme.calm.name"                = "Calm";
+"theme.calm.tagline"             = "Тёплый уют, мягкие карточки";
+"theme.neon.name"                = "Neon Swamp";
+"theme.neon.tagline"             = "Кислотный, дерзкий, street-art";
+
+/* ===== Список серверов ===== */
+"servers.title"                  = "Серверы";
+"servers.done"                   = "Готово";
+"servers.auto_best"              = "Авто (лучший пинг)";
+"servers.ping.ms"                = "%d мс";
+"servers.ping.unknown"           = "— мс";
+"servers.refresh"                = "Обновить пинги";
+"servers.country.nl"             = "Нидерланды";
+"servers.country.de"             = "Германия";
+"servers.country.ru"             = "Россия";
+"servers.country.other"          = "Другие";
+"servers.section.countries"      = "СТРАНЫ";
+"servers.servers_in"             = "Серверы · %@";
+
+/* ===== Настройки ===== */
+"settings.title"                 = "Настройки";
+"settings.section.appearance"    = "Оформление";
+"settings.section.account"       = "Аккаунт";
+"settings.section.about"         = "О программе";
+"settings.section.diagnostics"   = "Диагностика";
+"settings.theme"                 = "Тема";
+"settings.logout"                = "Выйти";
+"settings.delete_account"        = "Удалить аккаунт";
+"settings.delete_confirm.title"  = "Удалить аккаунт?";
+"settings.delete_confirm.body"   = "Ваш аккаунт и подписка будут удалены безвозвратно. Это действие нельзя отменить.";
+"settings.delete_confirm.ok"     = "Удалить";
+"settings.delete_confirm.cancel" = "Отмена";
+"settings.version"               = "Версия";
+"settings.debug_logs"            = "Логи отладки";
+
+/* ===== Аккаунт ===== */
+"account.title"                  = "Аккаунт";
+"account.username"               = "Логин";
+"account.subscription"           = "Подписка";
+"account.subscription.pro_until" = "Pro до %@";
+"account.subscription.free"      = "Бесплатный триал";
+
+/* ===== Юридическое ===== */
+"legal.terms.title"              = "Условия использования";
+"legal.privacy.title"            = "Политика конфиденциальности";
+"legal.terms.body"               = "Используя MadFrog VPN, вы соглашаетесь со следующими условиями.\n\n1. Сервис\nMadFrog VPN предоставляет зашифрованный VPN-туннель для личного некоммерческого использования.\n\n2. Допустимое использование\nЗапрещено использовать сервис для незаконной деятельности, атак на сторонние сервисы, сканирования портов, рассылки спама и любых действий, нарушающих законы вашей юрисдикции.\n\n3. Подписки\nПлатные тарифы продаются через Apple App Store и являются разовой покупкой на фиксированный срок (автопродления нет). Возвраты производит Apple.\n\n4. Ответственность\nСервис предоставляется \"как есть\", без гарантий. Мы не несём ответственности за перебои, блокировки трафика или потерю данных.\n\n5. Прекращение действия\nМы можем заблокировать аккаунты, нарушающие эти условия. Вы можете удалить свой аккаунт в любой момент через Настройки → Аккаунт.\n\nПоследнее обновление: апрель 2026.";
+"legal.privacy.body"             = "MadFrog VPN построен на политике строгого отсутствия логов.\n\n1. Что мы храним\nТолько минимум, необходимый для работы сервиса: анонимный идентификатор аккаунта, срок активной подписки и текущие учётные данные VPN.\n\n2. Что мы НЕ храним\nМы не ведём логи вашего трафика, посещённых доменов, IP-адресов, DNS-запросов, времени сессий и любых других метаданных, связанных с использованием.\n\n3. Платежи\nОплата проходит через Apple App Store. Мы никогда не видим данные вашей карты. Apple передаёт нам идентификатор транзакции и подписанный чек, который мы проверяем на серверах Apple.\n\n4. Вход через Apple\nПри входе через Apple мы получаем только хешированный идентификатор. Ваш настоящий email мы не получаем, если вы не поделились им явно.\n\n5. Удаление аккаунта\nВы можете удалить аккаунт в любой момент через Настройки → Аккаунт. Удаление происходит сразу: учётные данные отзываются, связанная запись деактивируется.\n\n6. Контакт\nВопросы: privacy@madfrog.vpn\n\nПоследнее обновление: апрель 2026.";
+
+/* ===== Ошибки ===== */
+"error.no_config"                = "Нет конфигурации. Проверьте интернет.";
+"error.server_rejected"          = "Сервер отклонил подключение. Попробуйте другой сервер.";
+"error.timeout"                  = "Подключение занимает слишком долго. Попробуйте другой сервер.";
+"error.permission"               = "Разрешение VPN не выдано. Включите VPN в Настройках iOS → Основные → VPN.";
+"error.generic"                  = "Не удалось подключиться.";
+"error.config_invalid"           = "Конфигурация VPN повреждена. Переустановите приложение.";
+"error.config_disabled"          = "VPN-профиль выключен. Включите его в Настройках iOS → VPN.";
+"error.connection_failed"        = "Не удалось подключиться к серверу. Попробуйте другой сервер.";
+"error.config_stale"             = "Профиль VPN устарел. Переподключитесь ещё раз.";
+"error.rw_failed"                = "Не удалось сохранить профиль VPN. Проверьте разрешения.";
+"error.offline"                  = "Нет интернет-соединения. Проверьте Wi-Fi или мобильный интернет.";
+"error.server_timeout"           = "Сервер не отвечает. Попробуйте другой сервер.";

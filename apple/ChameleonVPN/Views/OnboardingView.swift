@@ -3,10 +3,15 @@ import AuthenticationServices
 
 struct OnboardingView: View {
     @Environment(AppState.self) private var app
+    @Environment(ThemeManager.self) private var themeManager
+    private var theme: Theme { themeManager.current }
+
+    @State private var showTerms = false
+    @State private var showPrivacy = false
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            theme.background.ignoresSafeArea()
 
             VStack(spacing: 0) {
                 Spacer()
@@ -14,41 +19,33 @@ struct OnboardingView: View {
                 // Logo
                 ZStack {
                     Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [.cyan.opacity(0.3), .blue.opacity(0.15)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 120, height: 120)
+                        .fill(theme.accent.opacity(0.18))
+                        .frame(width: 128, height: 128)
 
                     Image(systemName: "shield.lefthalf.filled")
-                        .font(.system(size: 52, weight: .light))
-                        .foregroundStyle(
-                            LinearGradient(colors: [.cyan, .blue], startPoint: .top, endPoint: .bottom)
-                        )
+                        .font(.system(size: 54, weight: .bold))
+                        .foregroundStyle(theme.accent)
                 }
 
                 Spacer().frame(height: 32)
 
-                Text("Chameleon")
-                    .font(.system(size: 34, weight: .bold))
-                    .foregroundStyle(.white)
+                Text(L10n.Onboarding.title)
+                    .font(theme.displayFont(size: 34, weight: .black))
+                    .foregroundStyle(theme.textPrimary)
 
                 Spacer().frame(height: 8)
 
-                Text("Secure VPN")
-                    .font(.title3)
-                    .foregroundStyle(.gray)
+                Text(L10n.Onboarding.subtitle)
+                    .font(theme.font(size: 18))
+                    .foregroundStyle(theme.textSecondary)
 
                 Spacer()
 
                 // Features
                 VStack(spacing: 14) {
-                    FeatureRow(icon: "clock.badge.checkmark", text: "3 days free trial")
-                    FeatureRow(icon: "lock.shield", text: "No logs policy")
-                    FeatureRow(icon: "bolt.fill", text: "Fast & reliable servers")
+                    FeatureRow(icon: "clock.badge.checkmark", text: L10n.Onboarding.featureTrial, theme: theme)
+                    FeatureRow(icon: "lock.shield", text: L10n.Onboarding.featureNoLogs, theme: theme)
+                    FeatureRow(icon: "bolt.fill", text: L10n.Onboarding.featureServers, theme: theme)
                 }
                 .padding(.horizontal, 32)
 
@@ -65,7 +62,7 @@ struct OnboardingView: View {
                     case .failure(let error):
                         // User cancelled — don't show error
                         if (error as NSError).code != ASAuthorizationError.canceled.rawValue {
-                            app.errorMessage = "Sign in failed. Please try again."
+                            app.errorMessage = String(localized: "onboarding.signin_failed")
                         }
                     }
                 }
@@ -76,17 +73,34 @@ struct OnboardingView: View {
 
                 if app.isLoading {
                     ProgressView()
-                        .tint(.white)
+                        .tint(theme.textPrimary)
                         .padding(.top, 16)
                 }
 
                 Spacer().frame(height: 16)
 
-                Text("By continuing you agree to our Terms of Service and Privacy Policy")
-                    .font(.caption2)
-                    .foregroundStyle(.gray.opacity(0.5))
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
+                VStack(spacing: 6) {
+                    Text(L10n.Onboarding.terms)
+                        .font(.caption2)
+                        .foregroundStyle(theme.textSecondary.opacity(0.7))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                    HStack(spacing: 16) {
+                        Button { showTerms = true } label: {
+                            Text(L10n.Legal.termsTitle)
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(theme.accent)
+                        }
+                        Text("·")
+                            .font(.caption2)
+                            .foregroundStyle(theme.textSecondary.opacity(0.5))
+                        Button { showPrivacy = true } label: {
+                            Text(L10n.Legal.privacyTitle)
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(theme.accent)
+                        }
+                    }
+                }
 
                 Spacer().frame(height: 40)
             }
@@ -109,22 +123,33 @@ struct OnboardingView: View {
         }
         .animation(.easeInOut(duration: 0.3), value: app.errorMessage != nil)
         .animation(.easeInOut(duration: 0.3), value: app.isLoading)
+        .sheet(isPresented: $showTerms) {
+            NavigationStack {
+                LegalView(title: L10n.Legal.termsTitle, body: L10n.Legal.termsBody)
+            }
+        }
+        .sheet(isPresented: $showPrivacy) {
+            NavigationStack {
+                LegalView(title: L10n.Legal.privacyTitle, body: L10n.Legal.privacyBody)
+            }
+        }
     }
 }
 
 private struct FeatureRow: View {
     let icon: String
-    let text: String
+    let text: LocalizedStringKey
+    let theme: Theme
 
     var body: some View {
         HStack(spacing: 14) {
             Image(systemName: icon)
                 .font(.body)
-                .foregroundStyle(.cyan)
+                .foregroundStyle(theme.accent)
                 .frame(width: 24)
             Text(text)
-                .font(.body)
-                .foregroundStyle(.white.opacity(0.85))
+                .font(theme.font(size: 16))
+                .foregroundStyle(theme.textPrimary.opacity(0.9))
             Spacer()
         }
     }

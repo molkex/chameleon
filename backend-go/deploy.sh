@@ -74,6 +74,7 @@ echo ">>> Syncing files to ${NODE_SSH}:${NODE_DIR}..."
 rsync -avz --delete \
     --exclude='.git' \
     --exclude='backend-go/chameleon' \
+    --exclude='backend-go/ascinit' \
     --exclude='.env' \
     --exclude='backend-go/.env' \
     --exclude='backend-go/config.yaml' \

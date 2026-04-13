@@ -226,6 +226,38 @@ func (db *DB) DeleteUser(ctx context.Context, id int64) error {
 	return nil
 }
 
+// WipeUserOnDelete is a stronger form of DeleteUser for the self-service
+// "Delete Account" flow. In addition to flipping is_active=false, it nulls
+// out subscription/config/device state so that if the user comes back via
+// Apple Sign-In the row reactivates as a blank slate — no lingering Pro
+// status, no stale VPN credentials. The user must restore purchases or buy
+// again to regain premium access, and will be re-assigned fresh VPN creds.
+// The row itself is retained for audit and for receipt replay (Apple IAP
+// notifications can still land on the original_transaction_id).
+func (db *DB) WipeUserOnDelete(ctx context.Context, id int64) error {
+	ctx, cancel := defaultTimeout(ctx)
+	defer cancel()
+
+	tag, err := db.Pool.Exec(ctx,
+		`UPDATE users SET
+			is_active = false,
+			subscription_expiry = NULL,
+			vpn_username = NULL,
+			vpn_uuid = NULL,
+			vpn_short_id = NULL,
+			device_id = NULL,
+			current_plan = NULL,
+			subscription_token = NULL
+		 WHERE id = $1`, id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // ListActiveVPNUsers returns all active users that have VPN credentials assigned.
 func (db *DB) ListActiveVPNUsers(ctx context.Context) ([]User, error) {
 	ctx, cancel := defaultTimeout(ctx)

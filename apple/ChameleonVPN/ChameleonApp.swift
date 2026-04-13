@@ -4,6 +4,7 @@ import Libbox
 @main
 struct ChameleonApp: App {
     @State private var appState = AppState()
+    @State private var themeManager = ThemeManager()
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
@@ -29,6 +30,8 @@ struct ChameleonApp: App {
             Group {
                 if !appState.isInitialized {
                     Color.black.ignoresSafeArea()
+                } else if !themeManager.hasSelected {
+                    ThemePickerView()
                 } else if appState.isAuthenticated {
                     MainView()
                 } else {
@@ -36,7 +39,18 @@ struct ChameleonApp: App {
                 }
             }
             .environment(appState)
+            .environment(themeManager)
             .task { await appState.initialize() }
+            .task {
+                // Wire best-effort server sync: local is source of truth,
+                // so errors are swallowed and the UI is never blocked.
+                themeManager.remoteSync = { [weak appState] themeID in
+                    guard let token = appState?.configStore.accessToken else { return }
+                    Task.detached {
+                        try? await appState?.apiClient.setTheme(themeID, accessToken: token)
+                    }
+                }
+            }
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase == .active {
                     Task { await appState.handleForeground() }

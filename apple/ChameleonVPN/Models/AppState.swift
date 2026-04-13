@@ -10,6 +10,7 @@ class AppState {
     let apiClient = APIClient()
     let vpnManager = VPNManager()
     let commandClient = CommandClientWrapper()
+    let pingService = PingService()
 
     @ObservationIgnored private(set) lazy var subscriptionManager: SubscriptionManager = {
         SubscriptionManager { [weak self] signedJWS in
@@ -73,9 +74,10 @@ class AppState {
         do {
             try await vpnManager.load()
             startObservingVPNStatus()
-            if vpnManager.isConnected {
-                commandClient.connect()
-            }
+            // Sync initial state: if VPN is already up (e.g. cold start while On Demand
+            // reconnected the tunnel), proactively stamp vpnConnectedAt and kick the
+            // command client so chips/timers render correctly.
+            handleStatus()
         } catch {
             AppLogger.app.error("VPN load failed: \(error)")
         }
@@ -179,6 +181,10 @@ class AppState {
         }
         servers = configStore.parseServersFromConfig()
         AppLogger.app.info("fetchAndSaveConfig: parsed \(self.servers.count) groups, total items=\(self.servers.flatMap(\.items).count)")
+        // Warm the ping cache in the background so the server picker shows
+        // values instantly the first time the user opens it.
+        let allItems = servers.flatMap(\.items)
+        Task { [pingService] in await pingService.probe(allItems) }
     }
 
     private func tryRefreshToken() async -> Bool {
@@ -244,7 +250,7 @@ class AppState {
     func signInWithApple(credential: ASAuthorizationAppleIDCredential) async {
         guard let tokenData = credential.identityToken,
               let token = String(data: tokenData, encoding: .utf8) else {
-            errorMessage = "Sign in failed: no identity token"
+            errorMessage = String(localized: "onboarding.signin_failed")
             return
         }
 
@@ -263,8 +269,62 @@ class AppState {
             isAuthenticated = true
         } catch {
             AppLogger.app.error("signInWithApple: failed: \(error.localizedDescription)")
-            errorMessage = "Sign in failed. Please try again."
+            errorMessage = String(localized: "onboarding.signin_failed")
         }
+    }
+
+    /// Called from Paywall after a successful StoreKit purchase or restore.
+    /// Re-fetches the config so `subscriptionExpire` and the `servers` list
+    /// reflect the freshly-extended plan.
+    func refreshAfterPurchase() async {
+        AppLogger.app.info("refreshAfterPurchase: pulling updated config")
+        do {
+            try await fetchAndSaveConfig()
+        } catch {
+            AppLogger.app.error("refreshAfterPurchase: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - Account lifecycle
+
+    /// Sign the user out locally. Disconnects VPN, wipes all credentials,
+    /// and returns to the onboarding screen. Does not call any backend —
+    /// tokens will expire on their own.
+    func logout() async {
+        AppLogger.app.info("logout: begin")
+        if vpnManager.status == .connected || vpnManager.status == .connecting || vpnManager.status == .reasserting {
+            vpnManager.disconnect()
+            await vpnManager.waitUntilDisconnected(timeout: .seconds(5))
+        }
+        try? await vpnManager.resetProfile()
+        configStore.clear()
+        subscriptionExpire = nil
+        servers = []
+        isAuthenticated = false
+        errorMessage = nil
+        AppLogger.app.info("logout: done")
+    }
+
+    /// Permanently delete the authenticated user's account on the backend,
+    /// then perform a local logout. Required by App Store Review 5.1.1(v).
+    func deleteAccount() async {
+        AppLogger.app.info("deleteAccount: begin")
+        guard let token = configStore.accessToken else {
+            AppLogger.app.info("deleteAccount: no access token, local-only cleanup")
+            await logout()
+            return
+        }
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            try await apiClient.deleteAccount(accessToken: token)
+            AppLogger.app.info("deleteAccount: backend confirmed")
+        } catch {
+            AppLogger.app.error("deleteAccount: backend failed: \(error.localizedDescription)")
+            errorMessage = VPNErrorMapper.humanMessage(error)
+            return
+        }
+        await logout()
     }
 
     // MARK: - VPN
@@ -298,7 +358,31 @@ class AppState {
                 TunnelFileLogger.log("toggleVPN: vpnManager.connect returned OK", category: "ui")
             } catch {
                 TunnelFileLogger.log("toggleVPN: vpnManager.connect FAILED: \(error)", category: "ui")
-                errorMessage = error.localizedDescription
+                errorMessage = VPNErrorMapper.humanMessage(error)
+                return
+            }
+
+            // Watchdog: the tunnel must actually reach .connected within 30s.
+            // Without this the UI can sit in "Connecting…" forever when the
+            // extension silently dies or the config is rejected.
+            let outcome = await vpnManager.waitUntilConnected(timeout: .seconds(30))
+            switch outcome {
+            case .connected:
+                break
+            case .failed:
+                TunnelFileLogger.log("toggleVPN: watchdog — extension rejected connection", category: "ui")
+                vpnManager.disconnect()
+                errorMessage = L10n.Error.serverRejected
+                return
+            case .permissionDenied:
+                TunnelFileLogger.log("toggleVPN: watchdog — permission denied", category: "ui")
+                vpnManager.disconnect()
+                errorMessage = VPNErrorMapper.permissionMissing
+                return
+            case .timedOut:
+                TunnelFileLogger.log("toggleVPN: watchdog — timed out after 30s", category: "ui")
+                vpnManager.disconnect()
+                errorMessage = VPNErrorMapper.watchdogTimeout
                 return
             }
 
@@ -320,7 +404,7 @@ class AppState {
         await refreshConfig(timeout: .seconds(5))
 
         guard configStore.hasConfig() else {
-            errorMessage = "No config available. Check internet connection."
+            errorMessage = L10n.Error.noConfig
             return
         }
 
@@ -334,7 +418,23 @@ class AppState {
         do {
             try await vpnManager.connect(configJSON: config)
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = VPNErrorMapper.humanMessage(error)
+            return
+        }
+
+        let outcome = await vpnManager.waitUntilConnected(timeout: .seconds(30))
+        switch outcome {
+        case .connected:
+            return
+        case .failed:
+            vpnManager.disconnect()
+            errorMessage = L10n.Error.serverRejected
+        case .permissionDenied:
+            vpnManager.disconnect()
+            errorMessage = VPNErrorMapper.permissionMissing
+        case .timedOut:
+            vpnManager.disconnect()
+            errorMessage = VPNErrorMapper.watchdogTimeout
         }
     }
 

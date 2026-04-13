@@ -174,12 +174,16 @@ class ConfigStore {
                           let memberType = member["type"] as? String,
                           Self.proxyOutboundTypes.contains(memberType)
                     else { return nil }
+                    let host = (member["server"] as? String) ?? ""
+                    let port = (member["server_port"] as? Int) ?? 0
                     return ServerItem(
                         id: memberTag,
                         tag: memberTag,
                         type: memberType,
                         delay: 0,
-                        delayTime: 0
+                        delayTime: 0,
+                        host: host,
+                        port: port
                     )
                 }
                 if !items.isEmpty {
@@ -197,14 +201,23 @@ class ConfigStore {
                 }
             } else if type == "selector" {
                 let memberTags = ob["outbounds"] as? [String] ?? []
-                let items = memberTags.map { memberTag in
-                    let memberType = (outboundsByTag[memberTag]?["type"] as? String) ?? "unknown"
+                // Exclude nested urltest/selector tags (e.g. "Auto") — those are
+                // control outbounds, not real servers, and would otherwise show
+                // up as an unrecognized entry in the UI.
+                let items = memberTags.compactMap { memberTag -> ServerItem? in
+                    guard let member = outboundsByTag[memberTag] else { return nil }
+                    let memberType = (member["type"] as? String) ?? "unknown"
+                    guard Self.proxyOutboundTypes.contains(memberType) else { return nil }
+                    let host = (member["server"] as? String) ?? ""
+                    let port = (member["server_port"] as? Int) ?? 0
                     return ServerItem(
                         id: memberTag,
                         tag: memberTag,
                         type: memberType,
                         delay: 0,
-                        delayTime: 0
+                        delayTime: 0,
+                        host: host,
+                        port: port
                     )
                 }
                 let defaultSelected = ob["default"] as? String ?? items.first?.tag ?? ""
@@ -227,7 +240,9 @@ class ConfigStore {
                       let tag = ob["tag"] as? String,
                       Self.proxyOutboundTypes.contains(type)
                 else { return nil }
-                return ServerItem(id: tag, tag: tag, type: type, delay: 0, delayTime: 0)
+                let host = (ob["server"] as? String) ?? ""
+                let port = (ob["server_port"] as? Int) ?? 0
+                return ServerItem(id: tag, tag: tag, type: type, delay: 0, delayTime: 0, host: host, port: port)
             }
             if !standaloneProxies.isEmpty {
                 let savedTag = selectedServerTag

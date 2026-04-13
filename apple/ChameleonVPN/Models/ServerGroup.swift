@@ -6,6 +6,10 @@ struct ServerItem: Identifiable {
     let type: String
     var delay: Int32
     var delayTime: Int64
+    /// TCP endpoint for out-of-band latency probing. Parsed from the sing-box
+    /// outbound so PingService can measure RTT before the tunnel is up.
+    var host: String = ""
+    var port: Int = 0
 
     var delayText: String {
         if delay <= 0 { return "—" }
@@ -53,14 +57,20 @@ struct ServerItem: Identifiable {
     }
 
     /// Country grouping key for display purposes.
+    /// Flag emoji wins over substring matching — a tag like "VLESS 🇷🇺 Russia → DE"
+    /// must go to Russia, not Germany (where it would land if we matched "de" first).
     var countryKey: String {
         let t = tag.lowercased()
         // CDN fallback — hidden from UI
         if t.contains("cdn") { return "cdn" }
-        // Country detection (Hysteria2 merges into same country card)
-        if tag.contains("🇳🇱") || t.contains("nl") || t.contains("нидерланды") { return "nl" }
-        if tag.contains("🇩🇪") || t.contains("de") || t.contains("германия") { return "de" }
-        if tag.contains("🇷🇺") || t.contains("ru") || t.contains("москва") { return "ru" }
+        // Flag emoji is authoritative — check it first.
+        if tag.contains("🇳🇱") { return "nl" }
+        if tag.contains("🇩🇪") { return "de" }
+        if tag.contains("🇷🇺") { return "ru" }
+        // Fallback: substring match on localized/ASCII names.
+        if t.contains("нидерланды") || t.contains("netherlands") { return "nl" }
+        if t.contains("германия") || t.contains("germany") { return "de" }
+        if t.contains("россия") || t.contains("russia") || t.contains("москва") { return "ru" }
         return "other"
     }
 
@@ -83,37 +93,41 @@ struct ServerItem: Identifiable {
     }
 
     /// Human-readable label for the individual server row.
-    /// E.g. "HY2 · Relay", "VLESS · TCP", "VLESS · gRPC"
+    /// Extracts the server name from the tag: backend emits tags like
+    /// "VLESS 🇩🇪 Germany" or "VLESS 🇷🇺 Russia → DE", and we want the
+    /// trailing name part so the user can distinguish direct vs relay.
     var displayLabel: String {
+        let cleaned = tag
+            .replacingOccurrences(of: "VLESS", with: "")
+            .replacingOccurrences(of: "🇳🇱", with: "")
+            .replacingOccurrences(of: "🇩🇪", with: "")
+            .replacingOccurrences(of: "🇷🇺", with: "")
+            .trimmingCharacters(in: .whitespaces)
+        if !cleaned.isEmpty { return cleaned }
+        // Fallback for hysteria / cdn / unknown shapes.
         let t = tag.lowercased()
-        let isRelay = t.contains("relay")
-        if isHysteria { return "HY2 · \(isRelay ? "Relay" : "Direct")" }
-        if t.contains("grpc") { return "VLESS · gRPC" }
-        if t.contains("cdn") || t.contains("ws") { return "CDN · Cloudflare" }
-        return "VLESS · \(isRelay ? "Relay" : "TCP")"
+        if isHysteria { return t.contains("relay") ? "HY2 Relay" : "HY2 Direct" }
+        if t.contains("cdn") || t.contains("ws") { return "CDN Cloudflare" }
+        return tag
     }
 
-    /// Full label for the Home screen pill: "NL · HY2 Relay", "DE · VLESS TCP", "CDN · Cloudflare".
+    /// Full label for the Home screen pill: "Germany", "Russia → DE", "Netherlands".
+    /// Matches what the user sees inside the country drill-down so there's
+    /// no mismatch between home and picker.
     var homePillLabel: String {
-        let t = tag.lowercased()
-        if t.contains("cdn") || (countryKey == "cdn") {
-            return "CDN · Cloudflare"
-        }
-        let isRelay = t.contains("relay")
-        let proto: String
-        if isHysteria {
-            proto = isRelay ? "HY2 Relay" : "HY2 Direct"
-        } else if t.contains("grpc") {
-            proto = "VLESS gRPC"
-        } else {
-            proto = isRelay ? "VLESS Relay" : "VLESS TCP"
-        }
-        return "\(countryCode) · \(proto)"
+        if countryKey == "cdn" { return "CDN Cloudflare" }
+        return displayLabel
     }
 }
 
 /// A country-level group of servers displayed to the user.
 struct CountryGroup: Identifiable {
+    /// Which section of the server picker this group belongs to.
+    enum Section {
+        case direct   // normal country entry (NL, DE)
+        case relay    // russia-exit relays that tunnel into another country
+    }
+
     let id: String
     let name: String
     /// Two-letter country code (e.g. "NL", "DE", "RU").
@@ -123,6 +137,7 @@ struct CountryGroup: Identifiable {
     let serverTags: [String]
     /// Best delay among servers in this group (0 = unknown).
     var bestDelay: Int32
+    let section: Section
 
     var bestDelayText: String {
         if bestDelay <= 0 { return "" }
@@ -149,42 +164,56 @@ struct CountryGroup: Identifiable {
         }
     }
 
-    /// Subtitle showing protocol breakdown (e.g. "5 VLESS + 1 HY2").
+    /// Short human-readable subtitle for the country row.
     let subtitle: String
 
     static func from(key: String, items: [ServerItem]) -> CountryGroup {
         let bestDelay = items.filter { $0.delay > 0 }.min(by: { $0.delay < $1.delay })?.delay ?? 0
-        let subtitle = protocolSubtitle(items)
 
         switch key {
         case "nl":
-            return CountryGroup(id: key, name: "Нидерланды", countryCode: "NL",
-                                serverCount: items.count, serverTags: items.map(\.tag), bestDelay: bestDelay, subtitle: subtitle)
+            return CountryGroup(
+                id: key, name: "Нидерланды", countryCode: "NL",
+                serverCount: items.count, serverTags: items.map(\.tag),
+                bestDelay: bestDelay, section: .direct,
+                subtitle: subtitleForDirect(count: items.count)
+            )
         case "de":
-            return CountryGroup(id: key, name: "Германия", countryCode: "DE",
-                                serverCount: items.count, serverTags: items.map(\.tag), bestDelay: bestDelay, subtitle: subtitle)
+            return CountryGroup(
+                id: key, name: "Германия", countryCode: "DE",
+                serverCount: items.count, serverTags: items.map(\.tag),
+                bestDelay: bestDelay, section: .direct,
+                subtitle: subtitleForDirect(count: items.count)
+            )
         case "ru":
-            return CountryGroup(id: key, name: "Россия", countryCode: "RU",
-                                serverCount: items.count, serverTags: items.map(\.tag), bestDelay: bestDelay, subtitle: subtitle)
+            // Russia-exit relays: each server tunnels into another country.
+            return CountryGroup(
+                id: key, name: "Россия", countryCode: "RU",
+                serverCount: items.count, serverTags: items.map(\.tag),
+                bestDelay: bestDelay, section: .relay,
+                subtitle: "\(items.count) \(pluralServers(items.count))"
+            )
         default:
-            return CountryGroup(id: key, name: "Другие", countryCode: "—",
-                                serverCount: items.count, serverTags: items.map(\.tag), bestDelay: bestDelay, subtitle: subtitle)
+            return CountryGroup(
+                id: key, name: "Другие", countryCode: "—",
+                serverCount: items.count, serverTags: items.map(\.tag),
+                bestDelay: bestDelay, section: .direct,
+                subtitle: ""
+            )
         }
     }
 
-    /// Build subtitle like "5 VLESS + 1 HY2"
-    private static func protocolSubtitle(_ items: [ServerItem]) -> String {
-        var vless = 0, hy2 = 0, other = 0
-        for item in items {
-            if item.isHysteria { hy2 += 1 }
-            else if item.type.lowercased() == "vless" { vless += 1 }
-            else { other += 1 }
-        }
-        var parts: [String] = []
-        if vless > 0 { parts.append("\(vless) VLESS") }
-        if hy2 > 0 { parts.append("\(hy2) HY2") }
-        if other > 0 { parts.append("\(other) \(items.first { !$0.isHysteria && $0.type.lowercased() != "vless" }?.protocolLabel ?? "other")") }
-        return parts.joined(separator: " + ")
+    private static func subtitleForDirect(count: Int) -> String {
+        if count <= 1 { return "Прямое подключение" }
+        return "\(count) \(pluralServers(count))"
+    }
+
+    private static func pluralServers(_ n: Int) -> String {
+        let mod10 = n % 10
+        let mod100 = n % 100
+        if mod10 == 1 && mod100 != 11 { return "сервер" }
+        if (2...4).contains(mod10) && !(12...14).contains(mod100) { return "сервера" }
+        return "серверов"
     }
 }
 

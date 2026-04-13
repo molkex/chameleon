@@ -139,6 +139,51 @@ class VPNManager {
         }
     }
 
+    /// Result of a connect watchdog: success, early failure, or timeout.
+    /// `failed` means we observed the tunnel start (.connecting) and then fall
+    /// back to .disconnected — usually a rejected config or killed extension.
+    /// `timedOut` means we never reached .connected within the window.
+    enum ConnectOutcome {
+        case connected
+        case failed
+        case timedOut
+        case permissionDenied
+    }
+
+    /// Wait until the tunnel reports `.connected`. Polls the @Observable
+    /// `status` at 200ms and gives up after `timeout`. Detects rejected
+    /// connects (connecting → disconnected) so the caller can show a real
+    /// error instead of sitting forever.
+    func waitUntilConnected(timeout: Duration = .seconds(30)) async -> ConnectOutcome {
+        if status == .connected { return .connected }
+
+        let deadline = ContinuousClock.now + timeout
+        var sawConnecting = false
+        // Give iOS a short grace window to flip out of .disconnected at the
+        // very start — observer-driven updates can lag by one runloop.
+        let startupGrace = ContinuousClock.now + .seconds(3)
+
+        while ContinuousClock.now < deadline {
+            switch status {
+            case .connected:
+                return .connected
+            case .connecting, .reasserting:
+                sawConnecting = true
+            case .disconnecting:
+                return .failed
+            case .invalid:
+                return .permissionDenied
+            case .disconnected:
+                if sawConnecting { return .failed }
+                if ContinuousClock.now >= startupGrace { return .timedOut }
+            @unknown default:
+                break
+            }
+            try? await Task.sleep(for: .milliseconds(200))
+        }
+        return .timedOut
+    }
+
     /// Send message to tunnel extension.
     func sendMessage(_ data: Data) async throws -> Data? {
         guard let session = manager?.connection as? NETunnelProviderSession else { return nil }

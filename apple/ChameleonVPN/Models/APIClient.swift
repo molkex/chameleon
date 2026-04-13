@@ -278,6 +278,49 @@ class APIClient {
         }
     }
 
+    // MARK: - User Preferences
+
+    /// Persist the user's chosen UI theme server-side (analytics + cross-device).
+    /// Device is the source of truth — this is best-effort and errors are ignored
+    /// by callers. Requires a valid access token.
+    /// Permanently deactivate the authenticated user account.
+    /// Required by App Store Review 5.1.1(v). Server returns 204 on success.
+    func deleteAccount(accessToken: String) async throws {
+        guard let url = URL(string: "\(AppConstants.baseURL)/api/v1/mobile/user") else {
+            throw APIError.networkError("Invalid URL")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 10
+
+        let (_, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw APIError.networkError("No response")
+        }
+        if http.statusCode == 401 { throw APIError.unauthorized }
+        guard http.statusCode == 204 || http.statusCode == 200 else {
+            throw APIError.serverError(http.statusCode)
+        }
+    }
+
+    func setTheme(_ themeID: String, accessToken: String) async throws {
+        guard let url = URL(string: "\(AppConstants.baseURL)/api/v1/mobile/user/theme") else {
+            throw APIError.networkError("Invalid URL")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["theme": themeID])
+        request.timeoutInterval = 10
+
+        let (_, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw APIError.serverError((response as? HTTPURLResponse)?.statusCode ?? 0)
+        }
+    }
+
     /// Send a StoreKit 2 signed JWS to the backend for verification and crediting.
     /// The backend validates the JWS chain against Apple's root CA and extends
     /// the user's subscription. Idempotent on originalTransactionId, so retries

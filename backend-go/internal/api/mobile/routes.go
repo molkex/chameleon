@@ -54,6 +54,11 @@ func RegisterRoutes(g *echo.Group, h *Handler) {
 	subGroup := g.Group("/subscription", requireAuth)
 	subGroup.POST("/verify", h.VerifySubscription)
 
+	// User preferences.
+	userGroup := g.Group("/user", requireAuth)
+	userGroup.PATCH("/theme", h.SetTheme)
+	userGroup.DELETE("", h.DeleteAccount)
+
 	// Apple App Store Server Notifications V2 — public endpoint (trust comes
 	// from JWS verification, not HTTP auth). Registered at the group root so
 	// Apple sees /api/mobile/subscription/notification AND

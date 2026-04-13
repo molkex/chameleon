@@ -1,0 +1,153 @@
+/* ===== Home / Main screen ===== */
+"home.status.protected"          = "Protected";
+"home.status.exposed"            = "Not protected";
+"home.status.connecting"         = "Connecting…";
+"home.status.reconnecting"       = "Reconnecting…";
+"home.status.disconnecting"      = "Disconnecting…";
+"home.status.permission_denied"  = "Access denied";
+
+"home.status.label"              = "YOUR STATUS";
+"home.subtitle.connected"        = "Your traffic is encrypted";
+"home.subtitle.disconnected"     = "Tap to go private";
+"home.subtitle.connecting"       = "Establishing a secure tunnel…";
+"home.subtitle.reconnecting"     = "Network changed — reconnecting";
+"home.subtitle.disconnecting"    = "Disconnecting…";
+"home.subtitle.permission"       = "VPN permission required in iOS Settings";
+
+"home.cta.connect"               = "Tap to connect";
+"home.cta.cancel"                = "Tap to cancel";
+"home.cta.disconnect"            = "Tap to disconnect";
+"home.cta.permission"            = "Open iOS Settings";
+"home.cta.reconnecting"          = "Restoring connection";
+"home.cta.waiting"               = "Please wait…";
+
+"home.cta.connect_now"           = "CONNECT NOW";
+"home.cta.grant_access"          = "GRANT ACCESS";
+"home.cta.disconnect_caps"       = "DISCONNECT";
+"home.cta.connecting_caps"       = "CONNECTING…";
+"home.cta.reconnecting_caps"     = "RECONNECTING…";
+"home.cta.stopping_caps"         = "STOPPING…";
+
+"home.neon.you_are"              = "YOU ARE";
+"home.neon.protected"            = "PROTECTED";
+"home.neon.exposed"              = "EXPOSED";
+"home.neon.connecting"           = "CONNECTING";
+"home.neon.reconnecting"         = "RECONNECTING";
+"home.neon.stopping"             = "STOPPING";
+"home.neon.permission"           = "PERMISSION";
+"home.neon.permission_needed"    = "NEEDED";
+"home.neon.dots"                 = "…";
+
+"home.header.pro"                = "PRO";
+"home.header.free"               = "Free plan";
+"home.header.pro_member"         = "Pro member";
+
+"home.server.active"             = "ACTIVE";
+"home.server.standby"            = "STANDBY";
+
+"home.subscription.get_pro"      = "GET PRO";
+"home.subscription.pro_active"   = "PRO · ACTIVE";
+"home.subscription.unlock"       = "Unlock everything →";
+"home.subscription.days_left"    = "%d days left";
+"home.subscription.expired"      = "Expired";
+"home.subscription.pro_days"     = "Pro · %d days left";
+"home.subscription.expired_full" = "Subscription expired";
+"home.subscription.unlock_full"  = "Unlock Pro — unlimited access";
+
+"home.chip.server"               = "Server";
+"home.chip.session"              = "Session";
+"home.chip.session_idle"         = "—";
+
+"home.server.auto"               = "Auto";
+"home.server.auto_long"          = "Auto (fastest)";
+
+/* ===== Onboarding ===== */
+"onboarding.title"               = "MadFrog VPN";
+"onboarding.subtitle"            = "Private. Fast. Unblocked.";
+"onboarding.feature.trial"       = "3 days free trial";
+"onboarding.feature.no_logs"     = "No logs policy";
+"onboarding.feature.servers"     = "Fast & reliable servers";
+"onboarding.signin_failed"       = "Sign in failed. Please try again.";
+"onboarding.terms"               = "By continuing you agree to our Terms of Service and Privacy Policy";
+
+/* ===== Paywall ===== */
+"paywall.title"                  = "Premium";
+"paywall.header.title"           = "Unlimited access";
+"paywall.header.subtitle"        = "Fast servers, no ads, no limits.";
+"paywall.no_products.title"      = "Plans unavailable";
+"paywall.no_products.hint"       = "Check your connection and try again.";
+"paywall.retry"                  = "Retry";
+"paywall.purchase"               = "Subscribe";
+"paywall.restore"                = "Restore purchases";
+"paywall.restored_alert"         = "Purchases restored";
+"paywall.ok"                     = "OK";
+"paywall.close"                  = "Close";
+"paywall.legal"                  = "Charged to your Apple ID. Subscription does not auto-renew — it is a one-time purchase for the selected period.";
+"paywall.terms"                  = "Terms";
+"paywall.privacy"                = "Privacy";
+
+/* ===== Theme picker ===== */
+"theme.title"                    = "Choose a look";
+"theme.subtitle"                 = "You can switch later in Settings";
+"theme.done"                     = "Done";
+"theme.calm.name"                = "Calm";
+"theme.calm.tagline"             = "Warm comfort, soft cards";
+"theme.neon.name"                = "Neon Swamp";
+"theme.neon.tagline"             = "Acid, bold, street-art";
+
+/* ===== Server list ===== */
+"servers.title"                  = "Servers";
+"servers.done"                   = "Done";
+"servers.auto_best"              = "Auto (best ping)";
+"servers.ping.ms"                = "%d ms";
+"servers.ping.unknown"           = "— ms";
+"servers.refresh"                = "Refresh pings";
+"servers.country.nl"             = "Netherlands";
+"servers.country.de"             = "Germany";
+"servers.country.ru"             = "Russia";
+"servers.country.other"          = "Other";
+"servers.section.countries"      = "COUNTRIES";
+"servers.servers_in"             = "Servers in %@";
+
+/* ===== Settings ===== */
+"settings.title"                 = "Settings";
+"settings.section.appearance"    = "Appearance";
+"settings.section.account"       = "Account";
+"settings.section.about"         = "About";
+"settings.section.diagnostics"   = "Diagnostics";
+"settings.theme"                 = "Theme";
+"settings.logout"                = "Log out";
+"settings.delete_account"        = "Delete account";
+"settings.delete_confirm.title"  = "Delete account?";
+"settings.delete_confirm.body"   = "Your account and subscription will be permanently deleted. This cannot be undone.";
+"settings.delete_confirm.ok"     = "Delete";
+"settings.delete_confirm.cancel" = "Cancel";
+"settings.version"               = "Version";
+"settings.debug_logs"            = "Debug logs";
+
+/* ===== Account ===== */
+"account.title"                  = "Account";
+"account.username"               = "Username";
+"account.subscription"           = "Subscription";
+"account.subscription.pro_until" = "Pro until %@";
+"account.subscription.free"      = "Free trial";
+
+/* ===== Legal ===== */
+"legal.terms.title"              = "Terms of Service";
+"legal.privacy.title"            = "Privacy Policy";
+"legal.terms.body"               = "By using MadFrog VPN you agree to the following terms.\n\n1. Service\nMadFrog VPN provides encrypted VPN tunneling for personal, non-commercial use.\n\n2. Acceptable use\nYou may not use the service for illegal activity, abuse of third-party services, port scanning, spam, or any action that breaches the laws of your jurisdiction.\n\n3. Subscriptions\nPaid plans are sold through the Apple App Store and are non-recurring (one-time purchases for a fixed duration). Refunds are handled by Apple.\n\n4. Liability\nThe service is provided \"as is\" without warranty. We are not liable for interruptions, blocked traffic, or loss of data.\n\n5. Termination\nWe may suspend accounts that violate these terms. You can delete your account at any time from Settings → Account.\n\nLast updated: April 2026.";
+"legal.privacy.body"             = "MadFrog VPN is built around a strict no-logs policy.\n\n1. What we store\nWe store only the minimum needed to run the service: your anonymous account identifier, your active subscription expiry, and your current VPN credentials.\n\n2. What we do NOT store\nWe do not log your traffic, visited domains, IP addresses, DNS queries, session timestamps, or any metadata tied to your usage.\n\n3. Payments\nPayments go through the Apple App Store. We never see your card data. Apple sends us a transaction identifier and the signed receipt, which we verify against Apple's servers.\n\n4. Sign in with Apple\nIf you sign in with Apple, we receive a hashed user identifier. We do not receive your real email unless you choose to share it.\n\n5. Account deletion\nYou can delete your account at any time from Settings → Account. Deletion is immediate; your credentials are revoked and the associated row is deactivated.\n\n6. Contact\nQuestions: privacy@madfrog.vpn\n\nLast updated: April 2026.";
+
+/* ===== Errors ===== */
+"error.no_config"                = "No config available. Check your internet connection.";
+"error.server_rejected"          = "Server rejected the connection. Try another server.";
+"error.timeout"                  = "Connection takes too long. Try another server.";
+"error.permission"               = "VPN permission denied. Grant VPN access in iOS Settings → General → VPN.";
+"error.generic"                  = "Could not connect.";
+"error.config_invalid"           = "VPN configuration is corrupted. Reinstall the app.";
+"error.config_disabled"          = "VPN profile disabled. Enable it in iOS Settings → VPN.";
+"error.connection_failed"        = "Could not reach the server. Try another server.";
+"error.config_stale"             = "VPN profile is stale. Reconnect once more.";
+"error.rw_failed"                = "Could not save VPN profile. Check permissions.";
+"error.offline"                  = "No internet. Check Wi-Fi or cellular.";
+"error.server_timeout"           = "Server isn't responding. Try another server.";

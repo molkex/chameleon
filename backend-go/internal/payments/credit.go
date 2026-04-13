@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -127,4 +128,52 @@ func (s *Service) CreditDays(ctx context.Context, c Credit) (alreadyApplied bool
 		return false, fmt.Errorf("payments: commit: %w", err)
 	}
 	return false, nil
+}
+
+// ReconcileFromLedger recomputes users.subscription_expiry for a single Apple
+// subscription from the payments ledger. Used by Restore Purchases when the
+// user was previously wiped (account deletion) — the original payment row is
+// still in the ledger by original_transaction_id, so we replay it without
+// inserting a duplicate.
+//
+// Expiry formula: created_at + SUM(days) across all ledger rows for this
+// (source, charge_id) pair that belong to this user. For a simple 30-day IAP
+// with no renewals this is just `created_at + 30 days`. If that's in the past,
+// the subscription has already expired and we leave subscription_expiry as NULL.
+//
+// Returns the new expiry (zero time if expired / not found).
+func (s *Service) ReconcileFromLedger(ctx context.Context, userID int64, source Source, chargeID string) (newExpiry time.Time, err error) {
+	if userID == 0 || source == "" || chargeID == "" {
+		return time.Time{}, errors.New("payments: reconcile requires user_id, source, charge_id")
+	}
+
+	var createdAt time.Time
+	var totalDays int
+	err = s.pool.QueryRow(ctx, `
+		SELECT MIN(created_at), COALESCE(SUM(days), 0)
+		FROM payments
+		WHERE user_id = $1 AND source = $2 AND charge_id = $3 AND status = 'completed'`,
+		userID, string(source), chargeID,
+	).Scan(&createdAt, &totalDays)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("payments: reconcile query: %w", err)
+	}
+	if totalDays == 0 {
+		return time.Time{}, nil
+	}
+
+	expiry := createdAt.AddDate(0, 0, totalDays)
+	if expiry.Before(time.Now()) {
+		return time.Time{}, nil
+	}
+
+	_, err = s.pool.Exec(ctx, `
+		UPDATE users SET
+			subscription_expiry = GREATEST(COALESCE(subscription_expiry, $2), $2),
+			is_active = true
+		WHERE id = $1`, userID, expiry)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("payments: reconcile update: %w", err)
+	}
+	return expiry, nil
 }

@@ -168,11 +168,46 @@ func (h *Handler) AppleSignIn(c echo.Context) error {
 			zap.String("apple_id", appleID),
 		)
 	} else {
-		// Existing user — update device_id if changed.
+		// Existing user — reactivate if previously soft-deleted, and update
+		// device_id if changed. Reactivation on Sign-in is the standard soft-
+		// delete pattern: the user explicitly asked to come back, so we grant
+		// access again (their row was retained for audit/receipt replay).
+		dirty := false
+		if !user.IsActive {
+			user.IsActive = true
+			dirty = true
+			h.Logger.Info("reactivating soft-deleted apple user",
+				zap.Int64("user_id", user.ID),
+				zap.String("apple_id", appleID),
+			)
+		}
+		// Wiped users (option B delete) come back with NULL VPN creds.
+		// Regenerate so they can connect again — subscription stays wiped
+		// until they Restore Purchases.
+		if user.VPNUsername == nil || user.VPNUUID == nil {
+			vpnUsername := generateVPNUsername(req.DeviceID)
+			vpnUUID, err := generateUUID()
+			if err != nil {
+				h.Logger.Error("regen vpn uuid", zap.Error(err))
+				return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
+			}
+			vpnShortID := ""
+			user.VPNUsername = &vpnUsername
+			user.VPNUUID = &vpnUUID
+			user.VPNShortID = &vpnShortID
+			dirty = true
+			h.Logger.Info("regenerated vpn creds for returning user",
+				zap.Int64("user_id", user.ID),
+				zap.String("vpn_username", vpnUsername),
+			)
+		}
 		if user.DeviceID == nil || *user.DeviceID != req.DeviceID {
 			user.DeviceID = &req.DeviceID
+			dirty = true
+		}
+		if dirty {
 			if err := h.DB.UpdateUser(ctx, user); err != nil {
-				h.Logger.Error("db: update user device_id", zap.Error(err))
+				h.Logger.Error("db: update user", zap.Error(err))
 				return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
 			}
 		}

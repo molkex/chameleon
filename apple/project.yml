@@ -6,6 +6,12 @@ options:
   xcodeVersion: "16.0"
   createIntermediateGroups: true
   defaultConfig: Release
+  developmentLanguage: en
+
+knownRegions:
+  - en
+  - ru
+  - Base
 
 settings:
   base:
