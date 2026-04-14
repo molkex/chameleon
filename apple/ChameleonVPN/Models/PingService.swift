@@ -93,6 +93,12 @@ final class PingService {
 
     // MARK: - Probe implementation
 
+    /// Public one-shot TCP probe. Does not mutate cache or `results`.
+    /// Returns RTT in ms, or 0 on timeout/failure. Safe to call from any actor.
+    nonisolated static func probeTCP(host: String, port: Int, timeout: TimeInterval = 2.0) async -> Int {
+        await measure(host: host, port: port, timeout: timeout)
+    }
+
     /// Measure TCP handshake RTT in milliseconds. Returns 0 on failure/timeout.
     ///
     /// We use `NWConnection` with a dedicated concurrent queue so many probes

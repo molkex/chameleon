@@ -189,6 +189,10 @@ enum L10n {
         static let rwFailed         = "error.rw_failed".localized
         static let offline          = "error.offline".localized
         static let serverTimeout    = "error.server_timeout".localized
+        static let allServersUnreachable = "error.all_servers_unreachable".localized
+        static func selectedUnreachable(_ name: String) -> String {
+            String(format: "error.selected_unreachable".localized, name)
+        }
     }
 }
 

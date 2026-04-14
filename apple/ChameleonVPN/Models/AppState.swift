@@ -351,7 +351,26 @@ class AppState {
             } else {
                 config = configStore.loadConfig()
             }
-            TunnelFileLogger.log("toggleVPN: config built, calling vpnManager.connect", category: "ui")
+            TunnelFileLogger.log("toggleVPN: config built, running preflight probe", category: "ui")
+
+            // Fail-fast preflight: probe each outbound's TCP endpoint before
+            // committing to a 10s watchdog. This catches "all servers dead"
+            // in ~2s and gives the user a specific, actionable error instead
+            // of a generic "server rejected" after 30 seconds of silence.
+            switch await preflightProbe() {
+            case .ok, .skipped:
+                break
+            case .allDead:
+                TunnelFileLogger.log("toggleVPN: preflight — all servers unreachable", category: "ui")
+                errorMessage = L10n.Error.allServersUnreachable
+                return
+            case .selectedDead(let name):
+                TunnelFileLogger.log("toggleVPN: preflight — selected '\(name)' unreachable", category: "ui")
+                errorMessage = L10n.Error.selectedUnreachable(name)
+                return
+            }
+
+            TunnelFileLogger.log("toggleVPN: preflight OK, calling vpnManager.connect", category: "ui")
 
             do {
                 try await vpnManager.connect(configJSON: config)
@@ -362,10 +381,12 @@ class AppState {
                 return
             }
 
-            // Watchdog: the tunnel must actually reach .connected within 30s.
-            // Without this the UI can sit in "Connecting…" forever when the
-            // extension silently dies or the config is rejected.
-            let outcome = await vpnManager.waitUntilConnected(timeout: .seconds(30))
+            // Watchdog: the tunnel must reach .connected within 10s. The
+            // preflight probe already confirmed at least one outbound is
+            // network-reachable, so the remaining failure modes (Reality
+            // handshake mismatch, bad UUID) surface in <10s — no reason
+            // to make the user wait 30.
+            let outcome = await vpnManager.waitUntilConnected(timeout: .seconds(10))
             switch outcome {
             case .connected:
                 break
@@ -380,7 +401,7 @@ class AppState {
                 errorMessage = VPNErrorMapper.permissionMissing
                 return
             case .timedOut:
-                TunnelFileLogger.log("toggleVPN: watchdog — timed out after 30s", category: "ui")
+                TunnelFileLogger.log("toggleVPN: watchdog — timed out after 10s", category: "ui")
                 vpnManager.disconnect()
                 errorMessage = VPNErrorMapper.watchdogTimeout
                 return
@@ -415,6 +436,18 @@ class AppState {
             config = configStore.loadConfig()
         }
 
+        // Same fail-fast preflight as the cached-config path above.
+        switch await preflightProbe() {
+        case .ok, .skipped:
+            break
+        case .allDead:
+            errorMessage = L10n.Error.allServersUnreachable
+            return
+        case .selectedDead(let name):
+            errorMessage = L10n.Error.selectedUnreachable(name)
+            return
+        }
+
         do {
             try await vpnManager.connect(configJSON: config)
         } catch {
@@ -422,7 +455,7 @@ class AppState {
             return
         }
 
-        let outcome = await vpnManager.waitUntilConnected(timeout: .seconds(30))
+        let outcome = await vpnManager.waitUntilConnected(timeout: .seconds(10))
         switch outcome {
         case .connected:
             return
@@ -436,6 +469,57 @@ class AppState {
             vpnManager.disconnect()
             errorMessage = VPNErrorMapper.watchdogTimeout
         }
+    }
+
+    // MARK: - Preflight probe
+
+    private enum PreflightOutcome {
+        case ok
+        case allDead
+        case selectedDead(name: String)
+        case skipped
+    }
+
+    /// Parallel TCP probe of the outbounds in the current config. Runs with a
+    /// 2-second budget per target (PingService default). Returns fast:
+    /// `.ok` if at least one outbound is reachable; `.allDead` if none are;
+    /// `.selectedDead` if the user picked a specific server and *that* one
+    /// is unreachable (even if others are up); `.skipped` if we have no
+    /// parsed servers yet (cold start / no config).
+    private func preflightProbe() async -> PreflightOutcome {
+        let items: [ServerItem] = servers
+            .flatMap { $0.items }
+            .filter { !$0.host.isEmpty && $0.port > 0 }
+        guard !items.isEmpty else { return .skipped }
+
+        let selectedTag = configStore.selectedServerTag
+        let targets: [ServerItem]
+        if let tag = selectedTag {
+            targets = items.filter { $0.tag == tag }
+        } else {
+            targets = items
+        }
+        guard !targets.isEmpty else { return .skipped }
+
+        let results: [(String, Int)] = await withTaskGroup(of: (String, Int).self) { group in
+            for target in targets {
+                group.addTask {
+                    let ms = await PingService.probeTCP(host: target.host, port: target.port, timeout: 2.0)
+                    return (target.tag, ms)
+                }
+            }
+            var out: [(String, Int)] = []
+            for await r in group { out.append(r) }
+            return out
+        }
+
+        let anyAlive = results.contains { $0.1 > 0 }
+        if anyAlive { return .ok }
+
+        if selectedTag != nil, let dead = targets.first {
+            return .selectedDead(name: dead.tag)
+        }
+        return .allDead
     }
 
     func selectServer(groupTag: String, serverTag: String) {
