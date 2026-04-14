@@ -53,7 +53,7 @@
 | Сервер | IP | Роль | Хостинг | SSH |
 |---|---|---|---|---|
 | **DE (Main)** | `162.19.242.30` | Backend API + VPN нода | OVH | `ubuntu@162.19.242.30` |
-| **NL** | `194.135.38.90` | VPN нода | Timeweb Cloud | `root@194.135.38.90` |
+| **NL (nl2)** | `147.45.252.234` | Backend + VPN нода | Timeweb Cloud | `root@147.45.252.234` |
 | **SPB Relay** | `185.218.0.43` | TCP relay (nginx stream) | SprintHost | — |
 
 ### Домен и Cloudflare

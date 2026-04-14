@@ -407,7 +407,7 @@ struct DebugLogsView: View {
             // Direct servers
             ("DE Direct (VLESS)",       "162.19.242.30", 2096),
             ("DE Direct HTTP",          "162.19.242.30", 80),
-            ("NL Direct (VLESS)",       "194.135.38.90", 2096),
+            ("NL Direct (VLESS)",       "147.45.252.234", 2096),
             // General internet
             ("Cloudflare DNS",          "1.1.1.1",       443),
             ("Google DNS",              "8.8.8.8",        53),
@@ -416,7 +416,7 @@ struct DebugLogsView: View {
 
         let udpEndpoints: [(name: String, host: String, port: UInt16)] = [
             ("DE Hysteria2 (UDP)",      "162.19.242.30", 8443),
-            ("NL Hysteria2 (UDP)",      "194.135.38.90", 8443),
+            ("NL Hysteria2 (UDP)",      "147.45.252.234", 8443),
         ]
 
         // --- TCP Tests ---

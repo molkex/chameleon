@@ -1,5 +1,41 @@
 # Chameleon VPN — Troubleshooting
 
+## 2026-04-14: Cluster sync стёр Reality ключи в production БД (миграция NL)
+
+### Симптомы
+- При деплое свежей NL-ноды (nl2, `147.45.252.234`) на DE и NL-1 началось падение chameleon с `reality private key not found`
+- iOS: Germany direct и Russia→NL стали возвращать `reality verification failed`
+
+### Причина
+`backend-go/migrations/init.sql` сидит `vpn_servers` строки для `de`, `nl`, `relay-de`, `relay-nl` **до** того как `ALTER TABLE` добавляет колонки `reality_private_key` / `reality_public_key`. На свежей БД (nl2) эти строки получаются с пустыми ключами. Cluster syncer вызывает `UpsertServerByKey` с политикой "latest updated_at wins" и пушит пустые строки на DE/NL-1, перезаписывая реальные Reality ключи.
+
+Дополнительно: бэкап от 2026-04-13, из которого я восстанавливал ключи, содержал перепутанные public keys между `de`/`relay-de` и `nl`/`relay-nl` — т.е. relay-строки хранили настоящие ключи серверов, а direct-строки — мусор. Почему так — неизвестно (вероятно давняя ручная правка). Это было скрыто тем что iOS кеширует подписку и force-refresh делается редко.
+
+### Как диагностировали
+- `reality private key not found` на NL-1 после деплоя nl2 → стоп nl2 чтобы остановить дальнейшую порчу через sync
+- Извлекли реальные private keys из живых singbox config (`/var/lib/docker/volumes/chameleon-singbox-config/_data/singbox-config.json`)
+- Вывели public keys через `docker run --rm teddysun/xray xray x25519 -i <priv>`:
+  - DE singbox `mMQQZci...` → pub `ug2jX3uFFdLXih4t0O-PTRElQpAkO6v74RiRVJVvpzE`
+  - NL-1 singbox `YKtG3VAu...` → pub `q2prwNjFnbWJq_P3VzkjZE9KMm32mWKMKSc-235yvWE`
+- Это показало что в БД строки `de` (`opMTn_Dm...`) и `relay-nl` (`Lwt1zBDp...`) имеют ключи, не соответствующие ни одному живому серверу
+
+### Решение
+1. Остановили chameleon на nl2 чтобы прервать sync
+2. Восстановили vpn_servers из DB backup (`/var/backups/chameleon/chameleon_20260413_030001.sql.gz` на NL-1)
+3. Поправили перепутанные строки: `de.reality_public_key = ug2jX3u...`, `relay-nl.reality_public_key = q2prwNjF...` (после миграции relay-nl → `99tZN...` от nl2)
+4. Перезагрузили chameleon на всех нодах
+
+### Что надо починить (TODO)
+- **`migrations/init.sql`** не должен сидить `vpn_servers` строки без reality_* полей. Либо убрать seed совсем (пусть заливается вручную), либо объединить schema в одну миграцию, чтобы ALTER TABLE прошёл до INSERT.
+- **`cluster/sync.go` `UpsertServerByKey`** должен защищать непустые поля от перезаписи пустыми — правило "latest wins" опасно когда "latest" — это свежесозданная строка с дефолтами. Вариант: `COALESCE(NULLIF(EXCLUDED.reality_public_key, ''), vpn_servers.reality_public_key)`.
+- Добавить проверку при старте chameleon: если `FindLocalServer` вернул строку с пустым private key — отказаться стартовать вместо того чтобы работать с fallback на env.
+
+### Полезно
+- Проверять фактическую связку pub/priv на сервере: `docker run --rm teddysun/xray xray x25519 -i <private_key>` 
+- Не доверять ни одному значению в `vpn_servers.reality_public_key` — всегда сверять с реальным singbox конфигом ноды
+
+---
+
 ## 2026-04-12: iOS — переключение сервера не меняет трафик + 13-секундный фриз UI
 
 **Коммит:** `90c4f34` — iOS: fix server switching, UI stalls, and tunnel logging

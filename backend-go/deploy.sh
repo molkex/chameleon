@@ -28,9 +28,9 @@ get_node_config() {
             NODE_PREBUILT=0
             ;;
         nl)
-            NODE_SSH="root@194.135.38.90"
+            NODE_SSH="root@147.45.252.234"
             NODE_DIR="/opt/chameleon"
-            NODE_NODE_ID="nl-1"
+            NODE_NODE_ID="nl2-1"
             NODE_SNI="ads.adfox.ru"
             NODE_PREBUILT=1  # 2GB RAM — can't compile Go in Docker
             ;;
@@ -126,8 +126,8 @@ sed -i "s/default: \"ads.adfox.ru\"/default: \"${NODE_SNI}\"/" config.yaml
 
 # Set cluster peers (each node points to all other nodes)
 case "$NODE_ID" in
-    de-1) PEER_BLOCK='  peers:\n    - id: "nl-1"\n      url: "http://194.135.38.90:8000"' ;;
-    nl-1) PEER_BLOCK='  peers:\n    - id: "de-1"\n      url: "http://162.19.242.30:8000"' ;;
+    de-1) PEER_BLOCK='  peers:\n    - id: "nl2-1"\n      url: "http://147.45.252.234:8000"' ;;
+    nl2-1) PEER_BLOCK='  peers:\n    - id: "de-1"\n      url: "http://162.19.242.30:8000"' ;;
     *) PEER_BLOCK='  peers: []' ;;
 esac
 sed -i "s|  peers: \[\]|${PEER_BLOCK}|" config.yaml

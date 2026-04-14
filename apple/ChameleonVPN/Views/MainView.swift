@@ -69,20 +69,17 @@ struct MainView: View {
     private func computeBuildInfoLine() -> String {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
-        let sni: String = {
+        let cfgHash: String = {
             guard let config = app.configStore.loadConfig(),
-                  let data = config.data(using: .utf8),
-                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let outbounds = json["outbounds"] as? [[String: Any]] else { return "?" }
-            for ob in outbounds {
-                if let tls = ob["tls"] as? [String: Any],
-                   let serverName = tls["server_name"] as? String {
-                    return serverName
-                }
+                  let data = config.data(using: .utf8) else { return "?" }
+            var hash: UInt64 = 14695981039346656037
+            for byte in data {
+                hash ^= UInt64(byte)
+                hash = hash &* 1099511628211
             }
-            return "?"
+            return String(format: "%08x", UInt32(hash & 0xFFFFFFFF))
         }()
-        return "v\(version)(\(build)) sni:\(sni)"
+        return "v\(version)(\(build)) cfg:\(cfgHash)"
     }
 }
 
