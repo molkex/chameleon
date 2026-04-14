@@ -30,6 +30,25 @@ type User struct {
 	CurrentPlan            *string    `db:"current_plan"             json:"current_plan,omitempty"`
 	SubscriptionToken      *string    `db:"subscription_token"       json:"subscription_token,omitempty"`
 	ActivationCode         *string    `db:"activation_code"          json:"activation_code,omitempty"`
+	LastSeen               *time.Time `db:"last_seen"                json:"last_seen,omitempty"`
+	LastIP                 string     `db:"last_ip"                  json:"last_ip"`
+	LastUserAgent          string     `db:"last_user_agent"          json:"last_user_agent"`
+	AppVersion             string     `db:"app_version"              json:"app_version"`
+	OSName                 string     `db:"os_name"                  json:"os_name"`
+	OSVersion              string     `db:"os_version"               json:"os_version"`
+	LastCountry            string     `db:"last_country"             json:"last_country"`
+	LastCountryName        string     `db:"last_country_name"        json:"last_country_name"`
+	LastCity               string     `db:"last_city"                json:"last_city"`
+	InitialIP              string     `db:"initial_ip"               json:"initial_ip"`
+	InitialCountry         string     `db:"initial_country"          json:"initial_country"`
+	InitialCountryName     string     `db:"initial_country_name"     json:"initial_country_name"`
+	InitialCity            string     `db:"initial_city"             json:"initial_city"`
+	Timezone               string     `db:"timezone"                 json:"timezone"`
+	DeviceModel            string     `db:"device_model"             json:"device_model"`
+	IOSVersion             string     `db:"ios_version"              json:"ios_version"`
+	AcceptLanguage         string     `db:"accept_language"          json:"accept_language"`
+	InstallDate            *time.Time `db:"install_date"             json:"install_date,omitempty"`
+	StoreCountry           string     `db:"store_country"            json:"store_country"`
 	CreatedAt              time.Time  `db:"created_at"               json:"created_at"`
 	UpdatedAt              time.Time  `db:"updated_at"               json:"updated_at"`
 }

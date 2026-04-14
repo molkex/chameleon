@@ -16,6 +16,10 @@ const userColumns = `
 	original_transaction_id, app_store_product_id, ad_source,
 	cumulative_traffic, device_limit, bot_blocked_at, phone_number, google_id,
 	notified_3d, notified_1d, current_plan, subscription_token, activation_code,
+	last_seen, last_ip, last_user_agent, app_version, os_name, os_version,
+	last_country, last_country_name, last_city,
+	initial_ip, initial_country, initial_country_name, initial_city,
+	timezone, device_model, ios_version, accept_language, install_date, store_country,
 	created_at, updated_at`
 
 // scanUser scans a single user row from pgx.Row into a User struct.
@@ -27,6 +31,10 @@ func scanUser(row pgx.Row) (*User, error) {
 		&u.OriginalTransactionID, &u.AppStoreProductID, &u.AdSource,
 		&u.CumulativeTraffic, &u.DeviceLimit, &u.BotBlockedAt, &u.PhoneNumber, &u.GoogleID,
 		&u.Notified3D, &u.Notified1D, &u.CurrentPlan, &u.SubscriptionToken, &u.ActivationCode,
+		&u.LastSeen, &u.LastIP, &u.LastUserAgent, &u.AppVersion, &u.OSName, &u.OSVersion,
+		&u.LastCountry, &u.LastCountryName, &u.LastCity,
+		&u.InitialIP, &u.InitialCountry, &u.InitialCountryName, &u.InitialCity,
+		&u.Timezone, &u.DeviceModel, &u.IOSVersion, &u.AcceptLanguage, &u.InstallDate, &u.StoreCountry,
 		&u.CreatedAt, &u.UpdatedAt,
 	)
 	if err != nil {
@@ -50,6 +58,10 @@ func scanUsers(rows pgx.Rows) ([]User, error) {
 			&u.OriginalTransactionID, &u.AppStoreProductID, &u.AdSource,
 			&u.CumulativeTraffic, &u.DeviceLimit, &u.BotBlockedAt, &u.PhoneNumber, &u.GoogleID,
 			&u.Notified3D, &u.Notified1D, &u.CurrentPlan, &u.SubscriptionToken, &u.ActivationCode,
+			&u.LastSeen, &u.LastIP, &u.LastUserAgent, &u.AppVersion, &u.OSName, &u.OSVersion,
+			&u.LastCountry, &u.LastCountryName, &u.LastCity,
+			&u.InitialIP, &u.InitialCountry, &u.InitialCountryName, &u.InitialCity,
+			&u.Timezone, &u.DeviceModel, &u.IOSVersion, &u.AcceptLanguage, &u.InstallDate, &u.StoreCountry,
 			&u.CreatedAt, &u.UpdatedAt,
 		)
 		if err != nil {
@@ -584,6 +596,81 @@ func (db *DB) UpsertUserByVPNUUID(ctx context.Context, u *User) (bool, error) {
 		return false, err
 	}
 	return tag.RowsAffected() > 0, nil
+}
+
+// DeviceInfo is the set of client/location fields refreshed each time a user
+// fetches their VPN config. Empty strings leave the existing value unchanged
+// so callers can fill in what they know without wiping prior data.
+type DeviceInfo struct {
+	IP             string
+	UserAgent      string
+	AppVersion     string
+	OSName         string
+	OSVersion      string
+	Country        string
+	CountryName    string
+	City           string
+	Timezone       string
+	DeviceModel    string
+	IOSVersion     string
+	AcceptLanguage string
+}
+
+// TouchUserDevice bumps last_seen to NOW() and overlays any non-empty fields
+// from info onto the user's device/location columns.
+func (db *DB) TouchUserDevice(ctx context.Context, userID int64, info DeviceInfo) error {
+	ctx, cancel := defaultTimeout(ctx)
+	defer cancel()
+
+	_, err := db.Pool.Exec(ctx, `
+		UPDATE users SET
+			last_seen         = NOW(),
+			last_ip           = CASE WHEN $2  = '' THEN last_ip           ELSE $2  END,
+			last_user_agent   = CASE WHEN $3  = '' THEN last_user_agent   ELSE $3  END,
+			app_version       = CASE WHEN $4  = '' THEN app_version       ELSE $4  END,
+			os_name           = CASE WHEN $5  = '' THEN os_name           ELSE $5  END,
+			os_version        = CASE WHEN $6  = '' THEN os_version        ELSE $6  END,
+			last_country      = CASE WHEN $7  = '' THEN last_country      ELSE $7  END,
+			last_country_name = CASE WHEN $8  = '' THEN last_country_name ELSE $8  END,
+			last_city         = CASE WHEN $9  = '' THEN last_city         ELSE $9  END,
+			timezone          = CASE WHEN $10 = '' THEN timezone          ELSE $10 END,
+			device_model      = CASE WHEN $11 = '' THEN device_model      ELSE $11 END,
+			ios_version       = CASE WHEN $12 = '' THEN ios_version       ELSE $12 END,
+			accept_language   = CASE WHEN $13 = '' THEN accept_language   ELSE $13 END
+		WHERE id = $1`,
+		userID, info.IP, info.UserAgent, info.AppVersion, info.OSName, info.OSVersion,
+		info.Country, info.CountryName, info.City,
+		info.Timezone, info.DeviceModel, info.IOSVersion, info.AcceptLanguage)
+	return err
+}
+
+// InitialContext is the snapshot saved at registration time. Only populated
+// once per user — we use COALESCE so repeat /auth/register calls don't
+// overwrite the original signup country once it's been captured.
+type InitialContext struct {
+	IP          string
+	Country     string
+	CountryName string
+	City        string
+	InstallDate *time.Time
+}
+
+// SaveInitialContext writes the signup snapshot iff the relevant columns are
+// still empty. Safe to call on every /auth/register hit.
+func (db *DB) SaveInitialContext(ctx context.Context, userID int64, c InitialContext) error {
+	ctx, cancel := defaultTimeout(ctx)
+	defer cancel()
+
+	_, err := db.Pool.Exec(ctx, `
+		UPDATE users SET
+			initial_ip           = CASE WHEN initial_ip           = '' THEN $2 ELSE initial_ip           END,
+			initial_country      = CASE WHEN initial_country      = '' THEN $3 ELSE initial_country      END,
+			initial_country_name = CASE WHEN initial_country_name = '' THEN $4 ELSE initial_country_name END,
+			initial_city         = CASE WHEN initial_city         = '' THEN $5 ELSE initial_city         END,
+			install_date         = COALESCE(install_date, $6)
+		WHERE id = $1`,
+		userID, c.IP, c.Country, c.CountryName, c.City, c.InstallDate)
+	return err
 }
 
 // InsertTrafficSnapshot records a traffic measurement for the given vpn_username.

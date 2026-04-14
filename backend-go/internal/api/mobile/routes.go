@@ -12,6 +12,7 @@ import (
 	"github.com/chameleonvpn/chameleon/internal/auth"
 	"github.com/chameleonvpn/chameleon/internal/config"
 	"github.com/chameleonvpn/chameleon/internal/db"
+	"github.com/chameleonvpn/chameleon/internal/geoip"
 	"github.com/chameleonvpn/chameleon/internal/payments"
 	"github.com/chameleonvpn/chameleon/internal/payments/apple"
 	"github.com/chameleonvpn/chameleon/internal/vpn"
@@ -27,6 +28,7 @@ type Handler struct {
 	Payments      *payments.Service
 	VPN           vpn.Engine // may be nil if VPN engine is not configured
 	Config        *config.Config
+	GeoIP         *geoip.Resolver
 	Logger        *zap.Logger
 }
 

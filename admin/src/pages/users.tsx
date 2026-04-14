@@ -14,6 +14,28 @@ function StatusBadge({ active }: { active: boolean }) {
   return <Badge className={statusColor(active)}>{active ? "Active" : "Expired"}</Badge>;
 }
 
+function countryFlag(code: string): string {
+  if (!code || code.length !== 2) return "";
+  const base = 0x1f1e6;
+  const A = "A".charCodeAt(0);
+  return String.fromCodePoint(base + code.charCodeAt(0) - A) + String.fromCodePoint(base + code.charCodeAt(1) - A);
+}
+
+function formatLastSeen(iso: string | null): string {
+  if (!iso) return "—";
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "—";
+  const diff = Date.now() - then;
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return "just now";
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const day = Math.floor(hr / 24);
+  if (day < 30) return `${day}d ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
 export default function UsersPage() {
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
@@ -69,7 +91,9 @@ export default function UsersPage() {
                 <TableHead>Username</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Traffic (GB)</TableHead>
-                <TableHead>Devices</TableHead>
+                <TableHead>Device</TableHead>
+                <TableHead>Location</TableHead>
+                <TableHead>Last seen</TableHead>
                 <TableHead>Expiry</TableHead>
                 <TableHead className="w-24">Actions</TableHead>
               </TableRow>
@@ -78,14 +102,14 @@ export default function UsersPage() {
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
-                    {Array.from({ length: 6 }).map((_, j) => (
+                    {Array.from({ length: 8 }).map((_, j) => (
                       <TableCell key={j}><div className="h-4 w-20 animate-pulse rounded bg-zinc-800" /></TableCell>
                     ))}
                   </TableRow>
                 ))
               ) : users.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-zinc-500 py-8">No users found</TableCell>
+                  <TableCell colSpan={8} className="text-center text-zinc-500 py-8">No users found</TableCell>
                 </TableRow>
               ) : (
                 users.map((user) => (
@@ -93,7 +117,53 @@ export default function UsersPage() {
                     <TableCell className="font-mono text-sm">{user.vpn_username}</TableCell>
                     <TableCell><StatusBadge active={user.is_active} /></TableCell>
                     <TableCell className="font-mono text-sm">{user.cumulative_traffic}</TableCell>
-                    <TableCell className="text-sm">{user.devices}{user.device_limit ? `/${user.device_limit}` : ""}</TableCell>
+                    <TableCell className="text-sm">
+                      {user.device_model || user.os_name || user.app_version ? (
+                        <div className="flex flex-col leading-tight">
+                          <span className="text-zinc-200">
+                            {user.device_model || user.os_name || "—"}
+                          </span>
+                          <span className="text-xs text-zinc-500">
+                            {user.os_name && (user.ios_version || user.os_version) ? `${user.os_name} ${user.ios_version || user.os_version}` : user.os_name || ""}
+                            {user.app_version && <span> · app v{user.app_version}</span>}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-zinc-600">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {(() => {
+                        const realCountry = user.initial_country || "";
+                        const realCity = user.initial_city || user.initial_country_name || "";
+                        const realIP = user.initial_ip || "";
+                        if (user.is_via_vpn) {
+                          return (
+                            <div className="flex flex-col leading-tight" title={`via ${user.via_vpn_node || "VPN"} (${user.last_ip})`}>
+                              <span className="text-zinc-200">
+                                {realCountry ? `${countryFlag(realCountry)} ${realCity}` : (user.timezone || "—")}
+                              </span>
+                              <span className="text-xs text-cyan-400">🛡 via {user.via_vpn_node || "VPN"}</span>
+                              {realIP && <span className="font-mono text-xs text-zinc-500">{realIP}</span>}
+                            </div>
+                          );
+                        }
+                        if (user.last_country || user.last_ip) {
+                          return (
+                            <div className="flex flex-col leading-tight" title={user.last_ip}>
+                              <span className="text-zinc-200">
+                                {countryFlag(user.last_country)}{" "}
+                                {user.last_city || user.last_country_name || "—"}
+                              </span>
+                              <span className="font-mono text-xs text-zinc-500">{user.last_ip || ""}</span>
+                              {user.timezone && <span className="text-xs text-zinc-600">{user.timezone}</span>}
+                            </div>
+                          );
+                        }
+                        return <span className="text-zinc-600">—</span>;
+                      })()}
+                    </TableCell>
+                    <TableCell className="text-sm text-zinc-400">{formatLastSeen(user.last_seen)}</TableCell>
                     <TableCell className="text-sm text-zinc-400">
                       {user.subscription_expiry ?? "-"}
                       {user.days_left != null && user.days_left <= 3 && (

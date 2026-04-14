@@ -1,5 +1,20 @@
 # Chameleon VPN — Troubleshooting
 
+## 2026-04-14: Админка показывала VPN-локацию вместо реальной + расширенная телеметрия
+
+### Проблема
+В `/admin/app/users` поле "Location" у подключённых пользователей показывало Лимбург-на-Лане / OVH DE — это наш exit-node, а не реальная страна устройства. Геолокация бралась по `last_ip`, который при активном VPN = IP нашего сервера.
+
+### Решение
+1. **Миграция 006** (`migrations/006_user_context.sql`) — добавлены колонки: `initial_ip`, `initial_country{,_name}`, `initial_city`, `timezone`, `device_model`, `ios_version`, `accept_language`, `install_date`, `store_country`
+2. **`initial_*` снимается один раз** при `/auth/register` и `/auth/apple` (только для новых юзеров) — до того как клиент успеет подключиться к нашему VPN. GeoIP (`ip-api.com`) дёргается ТОЛЬКО в этот момент — раньше дёргался на каждый `/mobile/config`, что было проблемой для Apple privacy disclosure.
+3. **iOS шлёт заголовки на всех API вызовах**: `X-Timezone`, `X-Device-Model` (utsname, напр. `iPhone15,2`), `X-iOS-Version`, `X-Install-Date`. Стандартные HTTP headers, не сенсоры → не требуют App Tracking Transparency. См. `apple/ChameleonVPN/Models/APIClient.swift` → `DeviceTelemetry` + `applyTelemetry(to:)`.
+4. **Via-VPN detection**: админка грузит `vpn_servers.host` → сравнивает с `last_ip`; если match → `is_via_vpn: true` + `via_vpn_node: "de"`, UI показывает 🛡 badge и использует `initial_country` как реальную локацию.
+5. **Federated sync**: `users.updated_at` триггер бьётся на каждый TouchUserDevice, но `UpsertUserByVPNUUID` в reconcile не трогает device-колонки — они node-local. OK для текущего масштаба.
+
+### Грабли при деплое
+- Сначала добавил новые колонки в `userColumns` и `scanUser`, но забыл обновить **`scanUsers`** (отдельная функция для многострочных запросов). Бэкенд падал на старте: `number of field descriptions must equal number of destinations, got 46 and 36` в `ListActiveVPNUsers`. Если добавляешь поля в `users` — обнови **обе** функции в `internal/db/users.go`.
+
 ## 2026-04-14: Per-user traffic accounting не работал — переход на v2ray_api gRPC
 
 ### Симптомы

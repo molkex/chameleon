@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"net/http"
@@ -29,6 +30,32 @@ type userResponse struct {
 	DeviceLimit        *int    `json:"device_limit"`
 	CreatedAt          *string `json:"created_at"`
 	SubscriptionURL    *string `json:"subscription_url"`
+
+	LastSeen        *string `json:"last_seen"`
+	LastIP          string  `json:"last_ip"`
+	AppVersion      string  `json:"app_version"`
+	OSName          string  `json:"os_name"`
+	OSVersion       string  `json:"os_version"`
+	LastCountry     string  `json:"last_country"`
+	LastCountryName string  `json:"last_country_name"`
+	LastCity        string  `json:"last_city"`
+
+	InitialIP          string  `json:"initial_ip"`
+	InitialCountry     string  `json:"initial_country"`
+	InitialCountryName string  `json:"initial_country_name"`
+	InitialCity        string  `json:"initial_city"`
+	Timezone           string  `json:"timezone"`
+	DeviceModel        string  `json:"device_model"`
+	IOSVersion         string  `json:"ios_version"`
+	AcceptLanguage     string  `json:"accept_language"`
+	InstallDate        *string `json:"install_date"`
+	StoreCountry       string  `json:"store_country"`
+
+	// IsViaVPN is true when last_ip matches one of our own VPN exit nodes.
+	// Callers should treat last_country/last_city as meaningless in that
+	// case and fall back to initial_country / timezone for real location.
+	IsViaVPN     bool   `json:"is_via_vpn"`
+	ViaVPNNode   string `json:"via_vpn_node"`
 }
 
 // listUsersResponse is the paginated response for GET /api/admin/users.
@@ -83,6 +110,8 @@ func (h *Handler) ListUsers(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to list users")
 	}
 
+	serverIPs := h.loadServerIPMap(ctx)
+
 	resp := listUsersResponse{
 		Users:    make([]userResponse, 0, len(users)),
 		Total:    total,
@@ -91,10 +120,29 @@ func (h *Handler) ListUsers(c echo.Context) error {
 	}
 
 	for _, u := range users {
-		resp.Users = append(resp.Users, toUserResponse(u))
+		resp.Users = append(resp.Users, toUserResponse(u, serverIPs))
 	}
 
 	return c.JSON(http.StatusOK, resp)
+}
+
+// loadServerIPMap returns a map of host (IP or DNS name) -> node key for all
+// VPN servers. Used to detect when a user's last_ip belongs to our own VPN
+// exit, so the admin UI can distinguish "real location" from "via VPN".
+// A DB failure is non-fatal — we just return an empty map.
+func (h *Handler) loadServerIPMap(ctx context.Context) map[string]string {
+	servers, err := h.DB.ListAllServers(ctx)
+	if err != nil {
+		h.Logger.Warn("admin: load server IPs", zap.Error(err))
+		return map[string]string{}
+	}
+	m := make(map[string]string, len(servers))
+	for _, s := range servers {
+		if s.Host != "" {
+			m[s.Host] = s.Key
+		}
+	}
+	return m
 }
 
 // GetUser handles GET /api/admin/users/:id
@@ -124,7 +172,7 @@ func (h *Handler) GetUser(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusNotFound, "user not found")
 	}
 
-	return c.JSON(http.StatusOK, toUserResponse(*user))
+	return c.JSON(http.StatusOK, toUserResponse(*user, h.loadServerIPMap(ctx)))
 }
 
 // DeleteUser handles DELETE /api/admin/users/:id
@@ -261,14 +309,48 @@ func (h *Handler) ExtendSubscription(c echo.Context) error {
 }
 
 // toUserResponse converts a DB User to the admin API response format.
-func toUserResponse(u db.User) userResponse {
+// serverIPs maps our VPN exit IPs → node key so we can flag users whose
+// last_ip is actually one of our own servers (= they're connected via our
+// VPN, so last_country is the VPN exit location, not the real one).
+func toUserResponse(u db.User, serverIPs map[string]string) userResponse {
 	r := userResponse{
-		ID:                u.ID,
-		IsActive:          u.IsActive,
-		CumulativeTraffic: math.Round(float64(u.CumulativeTraffic)/1073741824*100) / 100, // bytes -> GB, 2 decimals
-		Devices:           1, // Default: 1 device
-		DeviceLimit:       u.DeviceLimit,
-		FullName:          u.FullName,
+		ID:                 u.ID,
+		IsActive:           u.IsActive,
+		CumulativeTraffic:  math.Round(float64(u.CumulativeTraffic)/1073741824*100) / 100, // bytes -> GB, 2 decimals
+		Devices:            1, // Default: 1 device
+		DeviceLimit:        u.DeviceLimit,
+		FullName:           u.FullName,
+		LastIP:             u.LastIP,
+		AppVersion:         u.AppVersion,
+		OSName:             u.OSName,
+		OSVersion:          u.OSVersion,
+		LastCountry:        u.LastCountry,
+		LastCountryName:    u.LastCountryName,
+		LastCity:           u.LastCity,
+		InitialIP:          u.InitialIP,
+		InitialCountry:     u.InitialCountry,
+		InitialCountryName: u.InitialCountryName,
+		InitialCity:        u.InitialCity,
+		Timezone:           u.Timezone,
+		DeviceModel:        u.DeviceModel,
+		IOSVersion:         u.IOSVersion,
+		AcceptLanguage:     u.AcceptLanguage,
+		StoreCountry:       u.StoreCountry,
+	}
+
+	if node, ok := serverIPs[u.LastIP]; ok && u.LastIP != "" {
+		r.IsViaVPN = true
+		r.ViaVPNNode = node
+	}
+
+	if u.InstallDate != nil {
+		s := u.InstallDate.Format("2006-01-02")
+		r.InstallDate = &s
+	}
+
+	if u.LastSeen != nil {
+		formatted := u.LastSeen.Format(time.RFC3339)
+		r.LastSeen = &formatted
 	}
 
 	if u.VPNUsername != nil {

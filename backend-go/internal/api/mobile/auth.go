@@ -95,6 +95,13 @@ func (h *Handler) Register(c echo.Context) error {
 		// Non-fatal: user can still get their token; VPN will sync later.
 	}
 
+	// Snapshot signup-time country. Runs only for brand-new users so the
+	// first IP we see — before they ever connect to our VPN — is the one
+	// we geolocate. For returning logins it's a no-op.
+	if isNew {
+		h.captureInitialContext(c, user.ID)
+	}
+
 	// Issue token pair.
 	vpnUsername := ""
 	if user.VPNUsername != nil {
@@ -114,6 +121,38 @@ func (h *Handler) Register(c echo.Context) error {
 		Username:     vpnUsername,
 		IsNew:        isNew,
 	})
+}
+
+// captureInitialContext geolocates the request IP and stores it in the
+// user's initial_* columns. Runs in a detached goroutine so it never slows
+// the registration response. SaveInitialContext guards against overwriting
+// already-populated values, so multiple callers are safe.
+func (h *Handler) captureInitialContext(c echo.Context, userID int64) {
+	ip := c.RealIP()
+	req := c.Request()
+
+	var installDate *time.Time
+	if s := strings.TrimSpace(req.Header.Get("X-Install-Date")); s != "" {
+		if t, err := time.Parse("2006-01-02", s); err == nil {
+			installDate = &t
+		}
+	}
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		snap := db.InitialContext{IP: ip, InstallDate: installDate}
+		if h.GeoIP != nil && ip != "" {
+			geo := h.GeoIP.Lookup(ctx, ip)
+			snap.Country = geo.Country
+			snap.CountryName = geo.CountryName
+			snap.City = geo.City
+		}
+		if err := h.DB.SaveInitialContext(ctx, userID, snap); err != nil {
+			h.Logger.Warn("save initial context", zap.Error(err), zap.Int64("user_id", userID))
+		}
+	}()
 }
 
 // AppleSignIn handles POST /api/mobile/auth/apple.
@@ -221,6 +260,11 @@ func (h *Handler) AppleSignIn(c echo.Context) error {
 	// Add user to VPN engine.
 	if err := h.addUserToVPN(ctx, user); err != nil {
 		h.Logger.Warn("vpn: add user (non-fatal)", zap.Error(err), zap.Int64("user_id", user.ID))
+	}
+
+	// Snapshot signup-time country on first Apple sign-in.
+	if isNew {
+		h.captureInitialContext(c, user.ID)
 	}
 
 	// Issue token pair.

@@ -1,14 +1,18 @@
 package mobile
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 
 	"github.com/chameleonvpn/chameleon/internal/auth"
+	"github.com/chameleonvpn/chameleon/internal/db"
+	"github.com/chameleonvpn/chameleon/internal/useragent"
 	"github.com/chameleonvpn/chameleon/internal/vpn"
 )
 
@@ -99,6 +103,12 @@ func (h *Handler) GetConfig(c echo.Context) error {
 		zap.Int("servers", len(serverEntries)),
 	)
 
+	// Record this fetch as a "last seen" ping. Everything we save here comes
+	// from HTTP headers the client already sends (UA, Accept-Language, custom
+	// X-* headers) — no sensors, no external geolocation API. Real signup
+	// country lives in initial_*, captured once at /auth/register.
+	h.touchDevice(user.ID, c)
+
 	// Set X-Expire header (unix timestamp).
 	if user.SubscriptionExpiry != nil {
 		c.Response().Header().Set("X-Expire", fmt.Sprintf("%d", user.SubscriptionExpiry.Unix()))
@@ -106,6 +116,45 @@ func (h *Handler) GetConfig(c echo.Context) error {
 
 	// Return raw sing-box config JSON (not wrapped).
 	return c.Blob(http.StatusOK, "application/json", configJSON)
+}
+
+// touchDevice updates the user's last_seen + device metadata columns from
+// the request's headers. Runs in a background goroutine with a detached
+// context so it outlives the request but never blocks the response.
+func (h *Handler) touchDevice(userID int64, c echo.Context) {
+	req := c.Request()
+	ua := req.UserAgent()
+	parsed := useragent.Parse(ua)
+
+	info := db.DeviceInfo{
+		IP:             c.RealIP(),
+		UserAgent:      ua,
+		AppVersion:     parsed.AppVersion,
+		OSName:         parsed.OSName,
+		OSVersion:      parsed.OSVersion,
+		Timezone:       firstValue(req.Header.Get("X-Timezone"), 64),
+		DeviceModel:    firstValue(req.Header.Get("X-Device-Model"), 64),
+		IOSVersion:     firstValue(req.Header.Get("X-iOS-Version"), 32),
+		AcceptLanguage: firstValue(req.Header.Get("Accept-Language"), 128),
+	}
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := h.DB.TouchUserDevice(ctx, userID, info); err != nil {
+			h.Logger.Warn("touch user device", zap.Error(err), zap.Int64("user_id", userID))
+		}
+	}()
+}
+
+// firstValue trims whitespace and truncates to max runes to avoid hostile
+// or malformed headers blowing up our VARCHAR columns.
+func firstValue(s string, max int) string {
+	s = strings.TrimSpace(s)
+	if len(s) > max {
+		s = s[:max]
+	}
+	return s
 }
 
 // GetConfigLegacy handles GET /sub/:token/:mode for subscription link compatibility.

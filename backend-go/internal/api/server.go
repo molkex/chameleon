@@ -18,6 +18,7 @@ import (
 	"github.com/chameleonvpn/chameleon/internal/cluster"
 	"github.com/chameleonvpn/chameleon/internal/config"
 	"github.com/chameleonvpn/chameleon/internal/db"
+	"github.com/chameleonvpn/chameleon/internal/geoip"
 	"github.com/chameleonvpn/chameleon/internal/payments"
 	"github.com/chameleonvpn/chameleon/internal/payments/apple"
 	"github.com/chameleonvpn/chameleon/internal/vpn"
@@ -138,6 +139,7 @@ func (s *Server) setupRoutes(e *echo.Echo) {
 		Payments:      paymentsSvc,
 		VPN:           s.VPN,
 		Config:        s.Config,
+		GeoIP:         geoip.New(),
 		Logger:        s.Logger,
 	}
 

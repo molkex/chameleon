@@ -47,6 +47,29 @@ export interface User {
   device_limit: number | null;
   created_at: string | null;
   subscription_url: string | null;
+
+  last_seen: string | null;
+  last_ip: string;
+  app_version: string;
+  os_name: string;
+  os_version: string;
+  last_country: string;
+  last_country_name: string;
+  last_city: string;
+
+  initial_ip: string;
+  initial_country: string;
+  initial_country_name: string;
+  initial_city: string;
+  timezone: string;
+  device_model: string;
+  ios_version: string;
+  accept_language: string;
+  install_date: string | null;
+  store_country: string;
+
+  is_via_vpn: boolean;
+  via_vpn_node: string;
 }
 
 export interface ContainerInfo {

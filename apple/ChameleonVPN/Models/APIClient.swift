@@ -3,6 +3,40 @@ import Foundation
 import UIKit
 #endif
 
+/// Derived device metadata sent as HTTP headers on every API request.
+/// Standard, non-sensitive data (model identifier, install date) — no
+/// sensors, no permissions, no App Tracking Transparency required.
+private enum DeviceTelemetry {
+
+    /// Hardware model identifier, e.g. "iPhone15,2". Stable across launches.
+    static let modelIdentifier: String = {
+        var systemInfo = utsname()
+        uname(&systemInfo)
+        let mirror = Mirror(reflecting: systemInfo.machine)
+        var id = ""
+        for child in mirror.children {
+            if let value = child.value as? Int8, value != 0 {
+                id.append(Character(UnicodeScalar(UInt8(value))))
+            }
+        }
+        return id.isEmpty ? "unknown" : id
+    }()
+
+    /// First-launch date in ISO-8601 (YYYY-MM-DD), persisted in UserDefaults.
+    static var installDateISO: String {
+        let key = "chameleon.installDate"
+        let defaults = UserDefaults.standard
+        if let cached = defaults.string(forKey: key) {
+            return cached
+        }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withFullDate]
+        let today = formatter.string(from: Date())
+        defaults.set(today, forKey: key)
+        return today
+    }
+}
+
 enum APIError: LocalizedError {
     case invalidCode
     case networkError(String)
@@ -65,6 +99,25 @@ class APIClient {
         fallbackSession = URLSession(configuration: fallbackConfig, delegate: InsecureDelegate(), delegateQueue: nil)
     }
 
+    /// Injects telemetry headers (timezone, device model, precise iOS version,
+    /// install date) into every outgoing API request. These are standard HTTP
+    /// headers, not device sensors — no permission prompt, no App Tracking
+    /// Transparency, so they don't trigger App Store privacy disclosures
+    /// beyond what any networked app already collects. Used to show real
+    /// device info in the admin panel even when the user is connected through
+    /// our own VPN (in which case their IP resolves to our exit node, not
+    /// their actual location).
+    private func applyTelemetry(to request: URLRequest) -> URLRequest {
+        var req = request
+        req.setValue(TimeZone.current.identifier, forHTTPHeaderField: "X-Timezone")
+        #if canImport(UIKit)
+        req.setValue(UIDevice.current.systemVersion, forHTTPHeaderField: "X-iOS-Version")
+        #endif
+        req.setValue(DeviceTelemetry.modelIdentifier, forHTTPHeaderField: "X-Device-Model")
+        req.setValue(DeviceTelemetry.installDateISO, forHTTPHeaderField: "X-Install-Date")
+        return req
+    }
+
     /// Try primary URL, then Russian relay, then direct IP
     private func dataWithFallback(for request: URLRequest) async throws -> (Data, URLResponse) {
         // 1. Try primary (Cloudflare)
@@ -113,7 +166,7 @@ class APIClient {
         request.timeoutInterval = 15
 
         do {
-            let (data, response) = try await dataWithFallback(for: request)
+            let (data, response) = try await dataWithFallback(for: applyTelemetry(to: request))
             guard let http = response as? HTTPURLResponse else {
                 throw APIError.networkError("No response")
             }
@@ -144,7 +197,7 @@ class APIClient {
         request.timeoutInterval = 15
 
         do {
-            let (data, response) = try await session.data(for: request)
+            let (data, response) = try await session.data(for: applyTelemetry(to: request))
             guard let http = response as? HTTPURLResponse else {
                 throw APIError.networkError("No response")
             }
@@ -188,7 +241,7 @@ class APIClient {
         }
 
         do {
-            let (data, response) = try await dataWithFallback(for: request)
+            let (data, response) = try await dataWithFallback(for: applyTelemetry(to: request))
             guard let http = response as? HTTPURLResponse else {
                 throw APIError.networkError("No response")
             }
@@ -229,7 +282,7 @@ class APIClient {
         ])
         request.timeoutInterval = 20
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await session.data(for: applyTelemetry(to: request))
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             let code = (response as? HTTPURLResponse)?.statusCode ?? 0
             throw APIError.serverError(code)
@@ -250,7 +303,7 @@ class APIClient {
         request.httpBody = try JSONSerialization.data(withJSONObject: ["refresh_token": refreshToken])
         request.timeoutInterval = 10
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await session.data(for: applyTelemetry(to: request))
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             throw APIError.unauthorized
         }
@@ -294,7 +347,7 @@ class APIClient {
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.timeoutInterval = 10
 
-        let (_, response) = try await session.data(for: request)
+        let (_, response) = try await session.data(for: applyTelemetry(to: request))
         guard let http = response as? HTTPURLResponse else {
             throw APIError.networkError("No response")
         }
@@ -315,7 +368,7 @@ class APIClient {
         request.httpBody = try JSONSerialization.data(withJSONObject: ["theme": themeID])
         request.timeoutInterval = 10
 
-        let (_, response) = try await session.data(for: request)
+        let (_, response) = try await session.data(for: applyTelemetry(to: request))
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             throw APIError.serverError((response as? HTTPURLResponse)?.statusCode ?? 0)
         }
@@ -337,7 +390,7 @@ class APIClient {
         request.timeoutInterval = 20
 
         do {
-            let (data, response) = try await dataWithFallback(for: request)
+            let (data, response) = try await dataWithFallback(for: applyTelemetry(to: request))
             guard let http = response as? HTTPURLResponse else {
                 throw APIError.networkError("No response")
             }
