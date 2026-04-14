@@ -1,5 +1,79 @@
 # Chameleon VPN — Troubleshooting
 
+## 2026-04-14: Per-user traffic accounting не работал — переход на v2ray_api gRPC
+
+### Симптомы
+- В админке `/admin/app/users` у всех пользователей `cumulative_traffic = 0`
+- `traffic_snapshots` пустая, хотя iPhone активно ходил через VPN
+- `users.last_seen` тоже не обновлялся
+
+### Причина
+Старая `StatsCollector.QueryTraffic` ходила в `clash_api /connections`, агрегировала `upload`/`download` по `metadata.InboundUser` и считала дельты против `prevTraffic` map. Но в sing-box 1.13 `clash_api /connections` — это моментальный срез **только активных** TCP-коннектов; закрытые коннекты пропадают мгновенно. VLESS Reality использует мультиплексированные короткоживущие коннекты, так что между тиками (60с) счётчики сбрасывались, и дельта всегда получалась 0 (или отрицательной — тогда отбрасывалась).
+
+Это не баг 1.13, а фундаментальное ограничение clash_api: он предназначен для UI, а не для учёта.
+
+### Решение: v2ray_api gRPC StatsService
+sing-box унаследовал от v2ray `experimental.v2ray_api` с `stats` сервисом, который ведёт **персистентные** per-user счётчики `uplink`/`downlink`. Это единственный встроенный источник персистентного учёта в sing-box.
+
+1. Пересобран custom sing-box fork с build tag `with_v2ray_api`:
+   - На DE: `/tmp/sing-box-fork/release/DEFAULT_BUILD_TAGS_OTHERS` — добавлен префикс `with_v2ray_api,`
+   - Пересборка занимает ~3 мин на DE (8 CPU), на nl2 (2GB RAM) не пробовал — вместо этого через `docker save` / `scp` / `docker load` перенёс готовый образ с DE
+2. В `backend-go/internal/vpn/singbox.go` добавлен блок `experimental.v2ray_api` с перечислением всех user-ов (`users: []`) и inbound (`inbounds: ["vless-reality-tcp"]`)
+3. Новый клиент `internal/vpn/stats_v2ray.go` ходит gRPC `QueryStats(pattern="user>>>")` и парсит имена `user>>>{username}>>>traffic>>>uplink|downlink`, считает дельты против baseline (первый вызов — baseline, возвращает nil)
+4. `StatsCollector.QueryTraffic` делегирует всё в `v2rayStats`; clash_api остаётся только для `OnlineUsers` / `CurrentSpeed` / `SessionTraffic`
+5. Добавлен `vpn.EngineConfig.V2RayAPIPort` + `config.VPNConfig.V2RayAPIPort` (default 8080)
+6. `internal/vpn/v2rayapi/command/` — минимальный подмножество v2ray stats proto (`QueryStats` / `GetStats`), сгенерировано через `protoc --go_out --go-grpc_out`
+7. Зависимости: `google.golang.org/grpc v1.76.0`, `google.golang.org/protobuf v1.36.10`
+
+### Важные детали
+- **Без `with_v2ray_api` тега** sing-box падает на старте с `v2ray api is not included in this build, rebuild with -tags with_v2ray_api` — ломает VPN. Если после обновления chameleon это случится — временно удалить `v2ray_api` блок из `/etc/singbox/singbox-config.json` и рестарт singbox, пока не пересоберёшь fork с тегом.
+- **Инициализация gRPC клиента**: `grpc.DialContext` с `insecure` creds на `127.0.0.1:8080`; блок `users: []` в config обязателен — без него stats service не заводит счётчики на пользователей (даже если `enabled: true`)
+- **Reset counter protection**: при рестарте sing-box счётчики обнуляются → возможна отрицательная дельта. Код возвращает абсолютное значение как дельту (treat as fresh counter). Без этого потеряем первый цикл после рестарта.
+- **Reload флоу**: когда chameleon добавляет/удаляет пользователя, нужно обновить `experimental.v2ray_api.stats.users` в конфиге и сделать reload (SIGHUP или user-api replace). Сейчас users пишутся только при полной перегенерации конфига — добавление пользователя через user-api (без перегенерации) не регистрирует его в stats service, счётчики не появятся. TODO: либо всегда делать полную перегенерацию, либо исследовать можно ли подставлять users динамически.
+
+### Проверка что работает
+```bash
+# На сервере
+docker exec chameleon-postgres psql -U chameleon -d chameleon -c \
+  "SELECT vpn_username, upload_traffic, download_traffic, timestamp FROM traffic_snapshots ORDER BY timestamp DESC LIMIT 5;"
+
+# Логи коллектора
+docker logs chameleon --since 5m 2>&1 | grep -iE "v2ray|traffic.recorded"
+# Ожидаемо: "traffic recorded", users: N  (каждые 60с если есть трафик)
+
+# Порт sing-box gRPC
+ss -tlnp | grep :8080
+# Ожидаемо: 127.0.0.1:8080 LISTEN sing-box
+```
+
+### Деплой на DE и nl2
+DE (пересобрали fork in-place):
+```bash
+cd /tmp/sing-box-fork
+echo "with_v2ray_api," > release/DEFAULT_BUILD_TAGS_OTHERS  # prepend
+nohup make release > /tmp/singbox-build.log 2>&1 &  # ~3 min
+docker build -t sing-box-fork:v1.13.6-userapi .
+./deploy.sh de  # деплоит новый chameleon
+docker restart chameleon
+docker rm -f singbox && scripts/singbox-run.sh
+```
+
+nl2 (через образ с DE — нет ресурсов на сборку):
+```bash
+# На DE:
+sudo docker save -o /tmp/chameleon-images.tar sing-box-fork:v1.13.6-userapi backend-go-chameleon:latest
+sshpass -p '<nl2 pwd>' scp /tmp/chameleon-images.tar root@147.45.252.234:/tmp/
+
+# На nl2:
+docker load -i /tmp/chameleon-images.tar
+cd /opt/chameleon/backend-go && docker compose up -d --force-recreate --no-deps chameleon
+docker rm -f singbox && bash scripts/singbox-run.sh
+```
+
+⚠️ `docker compose restart chameleon` **не** подхватывает новый digest одного и того же тега — нужен `--force-recreate`.
+
+---
+
 ## 2026-04-14: Cluster sync стёр Reality ключи в production БД (миграция NL)
 
 ### Симптомы

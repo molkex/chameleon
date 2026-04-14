@@ -147,13 +147,22 @@ CREATE INDEX IF NOT EXISTS idx_node_metrics_time ON node_metrics_history (node_k
 ALTER TABLE vpn_servers ADD COLUMN IF NOT EXISTS reality_public_key VARCHAR(255) DEFAULT '';
 ALTER TABLE vpn_servers ADD COLUMN IF NOT EXISTS reality_private_key VARCHAR(255) DEFAULT '';
 
--- Seed default VPN servers (skip if already exist)
-INSERT INTO vpn_servers (key, name, flag, host, port, domain, sni, is_active, sort_order) VALUES
-    ('de', 'Germany', '🇩🇪', '162.19.242.30', 2096, '', 'ads.adfox.ru', true, 1),
-    ('nl', 'Netherlands', '🇳🇱', '194.135.38.90', 2096, '', 'ads.adfox.ru', true, 2),
-    ('relay-de', 'Russia → DE', '🇷🇺', '185.218.0.43', 443, '', 'ads.adfox.ru', true, 3),
-    ('relay-nl', 'Russia → NL', '🇷🇺', '185.218.0.43', 2098, '', 'ads.adfox.ru', true, 4)
-ON CONFLICT (key) DO NOTHING;
+-- NOTE: vpn_servers is intentionally NOT seeded here.
+--
+-- Seeding rows with empty reality_public_key / reality_private_key (which is
+-- what would happen since those columns default to '') was unsafe: on a fresh
+-- node joining an existing cluster, the empty rows would get pushed via
+-- cluster sync and overwrite good Reality keys on peers. This happened during
+-- the nl2 rebuild on 2026-04-14 — see wiki/TROUBLESHOOTING.md.
+--
+-- Operators must insert servers via the admin panel or directly via SQL, e.g.:
+--   INSERT INTO vpn_servers (key, name, flag, host, port, sni, reality_public_key,
+--     reality_private_key, is_active, sort_order)
+--   VALUES ('de', 'Germany', '🇩🇪', '162.19.242.30', 2096, 'ads.adfox.ru',
+--     '<pubkey>', '<privkey>', true, 1);
+--
+-- For local dev, cmd/chameleon/main.go falls back to config.yaml Reality keys
+-- when no matching row exists in vpn_servers for the local node_id.
 
 -- Provider info columns for vpn_servers (hosting provider, cost, credentials, notes).
 ALTER TABLE vpn_servers ADD COLUMN IF NOT EXISTS provider_name VARCHAR(255) DEFAULT '';

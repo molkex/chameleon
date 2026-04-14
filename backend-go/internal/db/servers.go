@@ -207,7 +207,16 @@ func (db *DB) ServersChangedSince(ctx context.Context, since time.Time) ([]VPNSe
 }
 
 // UpsertServerByKey inserts or updates a server by key.
-// Conflict resolution: latest updated_at wins.
+// Conflict resolution: latest updated_at wins, BUT sensitive fields
+// (reality_*, provider_*) are preserved against empty overwrites. This
+// prevents a fresh node with empty/default rows from wiping real Reality
+// keys or provider credentials on peers during cluster sync — see the
+// 2026-04-14 incident in wiki/TROUBLESHOOTING.md.
+//
+// Rule: if EXCLUDED.<field> is '' and vpn_servers.<field> is non-empty,
+// keep the existing value. Operators editing via admin panel always write
+// full values, so this doesn't block legitimate updates.
+//
 // Returns true if the row was actually modified.
 func (db *DB) UpsertServerByKey(ctx context.Context, s *VPNServer) (bool, error) {
 	ctx, cancel := defaultTimeout(ctx)
@@ -222,11 +231,15 @@ func (db *DB) UpsertServerByKey(ctx context.Context, s *VPNServer) (bool, error)
 		ON CONFLICT (key) DO UPDATE SET
 			name = EXCLUDED.name, flag = EXCLUDED.flag, host = EXCLUDED.host, port = EXCLUDED.port,
 			domain = EXCLUDED.domain, sni = EXCLUDED.sni,
-			reality_public_key = EXCLUDED.reality_public_key, reality_private_key = EXCLUDED.reality_private_key,
+			reality_public_key = COALESCE(NULLIF(EXCLUDED.reality_public_key, ''), vpn_servers.reality_public_key),
+			reality_private_key = COALESCE(NULLIF(EXCLUDED.reality_private_key, ''), vpn_servers.reality_private_key),
 			is_active = EXCLUDED.is_active, sort_order = EXCLUDED.sort_order,
-			provider_name = EXCLUDED.provider_name, cost_monthly = EXCLUDED.cost_monthly,
-			provider_url = EXCLUDED.provider_url, provider_login = EXCLUDED.provider_login,
-			provider_password = EXCLUDED.provider_password, notes = EXCLUDED.notes,
+			provider_name = COALESCE(NULLIF(EXCLUDED.provider_name, ''), vpn_servers.provider_name),
+			cost_monthly = EXCLUDED.cost_monthly,
+			provider_url = COALESCE(NULLIF(EXCLUDED.provider_url, ''), vpn_servers.provider_url),
+			provider_login = COALESCE(NULLIF(EXCLUDED.provider_login, ''), vpn_servers.provider_login),
+			provider_password = COALESCE(NULLIF(EXCLUDED.provider_password, ''), vpn_servers.provider_password),
+			notes = COALESCE(NULLIF(EXCLUDED.notes, ''), vpn_servers.notes),
 			updated_at = EXCLUDED.updated_at
 		WHERE vpn_servers.updated_at < EXCLUDED.updated_at`,
 		s.Key, s.Name, s.Flag, s.Host, s.Port, s.Domain, s.SNI,

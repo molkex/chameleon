@@ -57,6 +57,7 @@ type EngineConfig struct {
 	UrltestInterval string // Interval for urltest probing; default: "3m"
 	UserAPIPort     int    // User API port for runtime user management; default: 15380; 0 = disabled
 	UserAPISecret   string // Bearer token for User API auth
+	V2RayAPIPort    int    // v2ray_api gRPC port for per-user traffic stats; default: 8080; 0 = disabled
 }
 
 // RealityConfig holds VLESS Reality TLS settings.

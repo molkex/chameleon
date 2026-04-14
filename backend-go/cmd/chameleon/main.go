@@ -197,6 +197,7 @@ func run() error {
 		UrltestInterval: cfg.VPN.UrltestInterval.Duration.String(),
 		UserAPIPort:     cfg.VPN.UserAPIPort,
 		UserAPISecret:   cfg.VPN.UserAPISecret,
+		V2RayAPIPort:    cfg.VPN.V2RayAPIPort,
 	}
 
 	// Load active VPN users from the database.

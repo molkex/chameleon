@@ -1,21 +1,3 @@
-# Secrets
-.env
-
-# Build output (compiled binary at project root)
+/ascinit
 /chameleon
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Docker volumes (local dev)
-pgdata/
-redisdata/
-chameleon-linux
-metrics-agent-linux
+/chameleon-linux

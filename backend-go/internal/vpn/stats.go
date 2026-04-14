@@ -15,19 +15,21 @@ import (
 
 const recentUserTTL = 2 * time.Minute // consider a user "online" for 2 min after last connection
 
-// StatsCollector periodically collects traffic stats from the sing-box clash_api.
+// StatsCollector periodically collects traffic stats from sing-box.
 //
-// It communicates with the clash_api REST endpoint to fetch connection data
-// and derive per-user traffic statistics.
+// Global metrics (online users, session totals, realtime speed) come from
+// clash_api /connections. Per-user cumulative traffic comes from the v2ray_api
+// gRPC StatsService (via v2rayStats), which is the only source sing-box exposes
+// for persistent per-user counters.
 type StatsCollector struct {
 	mu      sync.RWMutex
 	baseURL string
 	client  *http.Client
 	logger  *zap.Logger
 
-	// prevTraffic stores cumulative traffic from the last query so we can
-	// compute deltas (traffic since last query).
-	prevTraffic map[string]trafficSnapshot
+	// v2rayStats is the per-user traffic source. May be nil if v2ray_api is
+	// not configured; in that case QueryTraffic returns an empty slice.
+	v2rayStats *v2rayStatsClient
 
 	// recentUsers tracks when each user/IP was last seen with an active connection.
 	// Used to report online users even when connections are short-lived.
@@ -52,16 +54,21 @@ type trafficSnapshot struct {
 // NewStatsCollector creates a collector that polls the clash_api at the given address.
 //
 // The baseURL should be the full HTTP URL, e.g. "http://127.0.0.1:9090".
-func NewStatsCollector(baseURL string, logger *zap.Logger) *StatsCollector {
-	return &StatsCollector{
+// If v2rayAPIAddr is non-empty (e.g. "127.0.0.1:8080"), per-user traffic is
+// collected via gRPC from sing-box's experimental.v2ray_api stats service.
+func NewStatsCollector(baseURL string, v2rayAPIAddr string, logger *zap.Logger) *StatsCollector {
+	c := &StatsCollector{
 		baseURL: strings.TrimRight(baseURL, "/"),
 		client: &http.Client{
 			Timeout: 5 * time.Second,
 		},
 		logger:      logger.Named("stats-collector"),
-		prevTraffic: make(map[string]trafficSnapshot),
 		recentUsers: make(map[string]time.Time),
 	}
+	if v2rayAPIAddr != "" {
+		c.v2rayStats = newV2rayStatsClient(v2rayAPIAddr, logger)
+	}
+	return c
 }
 
 // clashConnections is the JSON response from GET /connections.
@@ -95,61 +102,19 @@ type clashMetadata struct {
 	InboundUser string `json:"inboundUser"`
 }
 
-// QueryTraffic fetches current traffic from the clash_api /connections endpoint
-// and returns per-user traffic deltas since the last query.
+// QueryTraffic returns per-user traffic deltas since the last call.
 //
-// On the first call, returns zero deltas (establishes baseline).
+// Data comes from sing-box's experimental.v2ray_api gRPC StatsService, which
+// exposes absolute cumulative byte counters per user. The first call establishes
+// a baseline and returns nil; subsequent calls return deltas.
+//
+// Returns an empty slice (not an error) if v2ray_api is not configured, to keep
+// the traffic collector loop running even if stats collection is disabled.
 func (s *StatsCollector) QueryTraffic(ctx context.Context) ([]UserTraffic, error) {
-	conns, err := s.fetchConnections(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("query traffic: %w", err)
+	if s.v2rayStats == nil {
+		return nil, nil
 	}
-
-	// Aggregate traffic by inbound user (username).
-	currentTraffic := make(map[string]trafficSnapshot)
-	for _, c := range conns.Connections {
-		username := c.Metadata.InboundUser
-		if username == "" {
-			continue
-		}
-		snap := currentTraffic[username]
-		snap.Upload += c.Upload
-		snap.Download += c.Download
-		currentTraffic[username] = snap
-	}
-
-	s.mu.Lock()
-	prev := s.prevTraffic
-	s.prevTraffic = currentTraffic
-	s.mu.Unlock()
-
-	// Compute deltas.
-	var result []UserTraffic
-	for username, curr := range currentTraffic {
-		p := prev[username]
-		delta := UserTraffic{
-			Username: username,
-			Upload:   curr.Upload - p.Upload,
-			Download: curr.Download - p.Download,
-		}
-		// Protect against counter resets (sing-box restart).
-		if delta.Upload < 0 {
-			delta.Upload = curr.Upload
-		}
-		if delta.Download < 0 {
-			delta.Download = curr.Download
-		}
-		if delta.Upload > 0 || delta.Download > 0 {
-			result = append(result, delta)
-		}
-	}
-
-	s.logger.Debug("queried traffic",
-		zap.Int("active_users", len(currentTraffic)),
-		zap.Int("users_with_traffic", len(result)),
-	)
-
-	return result, nil
+	return s.v2rayStats.QueryUserTraffic(ctx)
 }
 
 // OnlineUsers returns the count of recently active users.

@@ -141,7 +141,13 @@ func (e *SingboxEngine) Start(ctx context.Context, cfg EngineConfig, users []VPN
 	if clashAPIPort == 0 {
 		clashAPIPort = 9090
 	}
-	e.stats = NewStatsCollector(fmt.Sprintf("http://127.0.0.1:%d", clashAPIPort), e.logger)
+	v2rayAPIAddr := ""
+	if e.cfg.V2RayAPIPort > 0 {
+		v2rayAPIAddr = fmt.Sprintf("127.0.0.1:%d", e.cfg.V2RayAPIPort)
+	} else {
+		v2rayAPIAddr = "127.0.0.1:8080"
+	}
+	e.stats = NewStatsCollector(fmt.Sprintf("http://127.0.0.1:%d", clashAPIPort), v2rayAPIAddr, e.logger)
 
 	// Initialize User API client if configured.
 	if e.cfg.UserAPIPort > 0 {
@@ -547,6 +553,25 @@ func (e *SingboxEngine) buildServerConfig() ([]byte, error) {
 		},
 	}
 
+	// Enable v2ray_api stats service for per-user traffic accounting.
+	// sing-box exposes gRPC StatsService which we query from the traffic collector.
+	v2rayPort := e.cfg.V2RayAPIPort
+	if v2rayPort == 0 {
+		v2rayPort = 8080
+	}
+	userNames := make([]string, 0, len(e.users))
+	for _, u := range e.users {
+		userNames = append(userNames, u.Username)
+	}
+	config.Experimental.V2RayAPI = &singboxV2RayAPI{
+		Listen: fmt.Sprintf("127.0.0.1:%d", v2rayPort),
+		Stats: singboxV2RayAPIStats{
+			Enabled:  true,
+			Inbounds: []string{InboundTagVLESS},
+			Users:    userNames,
+		},
+	}
+
 	data, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("marshal config: %w", err)
@@ -823,8 +848,20 @@ type singboxService struct {
 
 type singboxExperimental struct {
 	ClashAPI *singboxClashAPI `json:"clash_api,omitempty"`
+	V2RayAPI *singboxV2RayAPI `json:"v2ray_api,omitempty"`
 }
 
 type singboxClashAPI struct {
 	ExternalController string `json:"external_controller"`
+}
+
+type singboxV2RayAPI struct {
+	Listen string              `json:"listen"`
+	Stats  singboxV2RayAPIStats `json:"stats"`
+}
+
+type singboxV2RayAPIStats struct {
+	Enabled  bool     `json:"enabled"`
+	Inbounds []string `json:"inbounds,omitempty"`
+	Users    []string `json:"users,omitempty"`
 }

@@ -183,6 +183,13 @@ func main() {
 		}
 		b, _ := json.MarshalIndent(out, "", "  ")
 		fmt.Println(string(b))
+	case "device-add":
+		if len(os.Args) < 4 {
+			die("usage: device-add <name> <udid>")
+		}
+		if err := addDevice(client, os.Args[2], os.Args[3]); err != nil {
+			die("device-add: %v", err)
+		}
 	case "beta-add":
 		if len(os.Args) < 4 {
 			die("usage: beta-add <betaGroupID> <buildID>")
@@ -928,6 +935,26 @@ func syncIAPScreenshots(c *client) error {
 		}
 		fmt.Printf("      → committed\n")
 	}
+	return nil
+}
+
+func addDevice(c *client, name, udid string) error {
+	body := map[string]any{
+		"data": map[string]any{
+			"type": "devices",
+			"attributes": map[string]any{
+				"name":     name,
+				"udid":     udid,
+				"platform": "IOS",
+			},
+		},
+	}
+	var resp map[string]any
+	if err := c.do("POST", "/v1/devices", body, &resp); err != nil {
+		return err
+	}
+	b, _ := json.MarshalIndent(resp, "", "  ")
+	fmt.Println(string(b))
 	return nil
 }
 

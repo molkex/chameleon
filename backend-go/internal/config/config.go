@@ -87,6 +87,7 @@ type VPNConfig struct {
 	ClashAPIPort    int           `yaml:"clash_api_port"`    // default: 9090
 	UserAPIPort     int           `yaml:"user_api_port"`     // default: 15380; 0 = disabled
 	UserAPISecret   string        `yaml:"user_api_secret"`   // supports ${ENV_VAR}
+	V2RayAPIPort    int           `yaml:"v2ray_api_port"`    // default: 8080; gRPC StatsService for per-user traffic
 }
 
 // RealityConfig holds VLESS Reality protocol settings.
@@ -283,6 +284,9 @@ func (c *Config) applyDefaults() {
 	}
 	if c.VPN.ClashAPIPort == 0 {
 		c.VPN.ClashAPIPort = 9090
+	}
+	if c.VPN.V2RayAPIPort == 0 {
+		c.VPN.V2RayAPIPort = 8080
 	}
 	// UserAPIPort: 0 = disabled (no default — must be explicitly configured)
 

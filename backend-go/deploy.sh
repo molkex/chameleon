@@ -172,13 +172,12 @@ else
     docker compose build chameleon 2>&1 | tail -5
 fi
 
-# ── Build nginx (skip if exists) ───────────────────────────────────────────
-if docker image inspect backend-go-nginx >/dev/null 2>&1 || docker image inspect chameleon-nginx >/dev/null 2>&1; then
-    echo ">>> Nginx image exists, skipping rebuild"
-else
-    echo ">>> Building nginx (admin SPA)..."
-    docker compose build nginx 2>&1 | tail -5
-fi
+# ── Build nginx (always — admin SPA is baked into image) ──────────────────
+# Previously skipped if image existed, which silently ignored admin/src changes
+# for weeks (e.g. missing X-Requested-With header → admin login broken).
+# Docker layer cache makes a no-op rebuild fast, so always rebuild.
+echo ">>> Building nginx (admin SPA)..."
+docker compose build nginx 2>&1 | tail -5
 
 # ── Restart chameleon ONLY (singbox is standalone, compose can't touch it) ─
 echo ">>> Starting chameleon + nginx..."
@@ -237,12 +236,16 @@ if [ -f "$HEALTHCHECK" ]; then
     echo ">>> Health check cron installed (root)"
 fi
 
-# DB backup cron (daily at 3:00 AM)
+# DB backup cron (daily at 3:00 AM) — installed as ROOT because script writes
+# to /var/backups/chameleon and /var/log/chameleon-backup.log (both root-owned).
+# Previously installed under deploy user → cron fired but script failed silently
+# on permission denied, so backups stopped without any visible error.
 BACKUP="${REMOTE_DIR}/backend-go/scripts/db-backup.sh"
 if [ -f "$BACKUP" ]; then
     CRON_LINE="0 3 * * * ${BACKUP} >> /var/log/chameleon-backup.log 2>&1"
-    (crontab -l 2>/dev/null | grep -v "db-backup" ; echo "$CRON_LINE") | crontab -
-    echo ">>> DB backup cron installed (daily 3:00 AM)"
+    sudo bash -c "(crontab -l 2>/dev/null | grep -v 'db-backup' ; echo '$CRON_LINE') | crontab -"
+    (crontab -l 2>/dev/null | grep -v "db-backup") | crontab - 2>/dev/null || true
+    echo ">>> DB backup cron installed (root, daily 3:00 AM)"
 fi
 
 # ── Post-deploy verification ──────────────────────────────────────────────
