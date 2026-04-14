@@ -168,7 +168,9 @@ func (e *SingboxEngine) Start(ctx context.Context, cfg EngineConfig, users []VPN
 // Stop gracefully shuts down the VPN server.
 //
 // For ModeEmbedded: sends SIGTERM to the child process and waits up to 10 seconds.
-// For ModeDocker: sends SIGTERM to the container.
+// For ModeDocker: the singbox container is standalone (runs outside docker-compose)
+// and must survive chameleon restarts to keep VPN connections alive. We only
+// release our in-process references to the engine — the container keeps running.
 func (e *SingboxEngine) Stop() error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -177,27 +179,27 @@ func (e *SingboxEngine) Stop() error {
 		return nil
 	}
 
-	e.logger.Info("stopping sing-box engine", zap.String("mode", e.mode))
+	e.logger.Info("releasing sing-box engine (container keeps running)", zap.String("mode", e.mode))
 
 	var err error
 	switch e.mode {
 	case ModeEmbedded:
 		err = e.stopProcessLocked()
 	case ModeDocker:
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		err = e.signalDockerLocked(ctx, "TERM")
+		// Intentionally no-op. Previous implementation sent SIGTERM to the
+		// container, which defeated the standalone-container design: every
+		// chameleon restart killed singbox and dropped all VPN connections.
 	}
 
 	e.running = false
 	e.stats = nil
 
 	if err != nil {
-		e.logger.Error("error stopping sing-box engine", zap.Error(err))
+		e.logger.Error("error releasing sing-box engine", zap.Error(err))
 		return fmt.Errorf("singbox engine: stop: %w", err)
 	}
 
-	e.logger.Info("sing-box engine stopped")
+	e.logger.Info("sing-box engine released")
 	return nil
 }
 
