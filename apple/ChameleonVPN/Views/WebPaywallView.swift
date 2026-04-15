@@ -194,8 +194,13 @@ struct WebPaywallView: View {
     }
 
     private var legalFooter: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 6) {
             Text("Нажимая «Оплатить», вы соглашаетесь с условиями использования и политикой конфиденциальности.")
+            HStack(spacing: 14) {
+                Link("Условия", destination: URL(string: "https://madfrog.online/terms")!)
+                Link("Конфиденциальность", destination: URL(string: "https://madfrog.online/privacy")!)
+            }
+            .font(.caption2.weight(.medium))
         }
         .font(.caption2)
         .foregroundStyle(.secondary)
