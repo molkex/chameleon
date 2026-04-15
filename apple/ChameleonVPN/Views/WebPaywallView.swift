@@ -66,6 +66,11 @@ struct WebPaywallView: View {
                     Task { await pollStatus() }
                 }
             }
+            .onReceive(NotificationCenter.default.publisher(for: .paymentReturnFromLink)) { _ in
+                if pendingPaymentID != nil {
+                    Task { await pollStatus() }
+                }
+            }
             .alert("Оплата получена", isPresented: $showSuccess) {
                 Button("OK") { dismiss() }
             } message: {

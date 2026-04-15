@@ -56,8 +56,31 @@ struct ChameleonApp: App {
                     Task { await appState.handleForeground() }
                 }
             }
+            .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+                guard let url = activity.webpageURL else { return }
+                handleUniversalLink(url)
+            }
+            .onOpenURL { url in
+                handleUniversalLink(url)
+            }
             .animation(.easeInOut(duration: 0.3), value: appState.isInitialized)
             .animation(.easeInOut(duration: 0.4), value: appState.isAuthenticated)
         }
     }
+
+    private func handleUniversalLink(_ url: URL) {
+        guard url.host == "madfrog.online" else { return }
+        let path = url.path
+        guard path.hasPrefix("/app/payment/") else { return }
+        TunnelFileLogger.log("ChameleonApp: universal link \(path)", category: "ui")
+        NotificationCenter.default.post(
+            name: .paymentReturnFromLink,
+            object: nil,
+            userInfo: ["url": url]
+        )
+    }
+}
+
+extension Notification.Name {
+    static let paymentReturnFromLink = Notification.Name("madfrog.paymentReturnFromLink")
 }

@@ -1,0 +1,19 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["99W3C374T2.com.madfrog.vpn"],
+        "components": [
+          {
+            "/": "/app/payment/*",
+            "comment": "Universal Link for FreeKassa payment return flow"
+          },
+          {
+            "/": "/app/*",
+            "comment": "General app deep links"
+          }
+        ]
+      }
+    ]
+  }
+}
