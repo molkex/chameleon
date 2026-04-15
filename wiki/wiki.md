@@ -56,10 +56,30 @@
 | **NL (nl2)** | `147.45.252.234` | Backend + VPN нода | Timeweb Cloud | `root@147.45.252.234` |
 | **SPB Relay** | `185.218.0.43` | TCP relay (nginx stream) | SprintHost | — |
 
-### Домен и Cloudflare
-- **razblokirator.ru** → Cloudflare (proxied → DE `162.19.242.30`)
-- Admin UI: `https://razblokirator.ru/admin/app/`
-- Subscription: `https://razblokirator.ru/sub/{token}`
+### Домены и Cloudflare (обновлено 2026-04-14)
+Все домены — через Cloudflare (proxied, SSL=flexible), DNS A-записи → DE `162.19.242.30`.
+
+| Домен | Роль |
+|---|---|
+| `madfrog.online` + `www` | Основной: API + маркетинговый лендинг (`backend-go/landing/`) |
+| `mdfrog.site` + `www` | Тот же лендинг (второй домен на случай блокировки) |
+| `razblokirator.ru` | Legacy — админка + старые iOS-клиенты, всё ещё работает |
+
+**iOS клиент**: `AppConfig.baseURL = "https://madfrog.online"` (см. `apple/Shared/Constants.swift`).
+
+- Admin UI (legacy): `https://razblokirator.ru/admin/app/`
+- Admin UI (новый): `https://madfrog.online/admin/app/`
+- Лендинг: `https://madfrog.online/` (served nginx из volume `./landing`)
+- Subscription: `https://madfrog.online/sub/{token}`
+
+**Nginx serving лендинга** (`backend-go/nginx.conf`):
+```nginx
+location = / {
+    root /usr/share/nginx/html/landing;
+    try_files /index.html =404;
+}
+```
+Volume mount: `./landing:/usr/share/nginx/html/landing:ro`
 
 ### SPB Relay — Port Mapping (nginx stream)
 ```

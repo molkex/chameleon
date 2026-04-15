@@ -7,7 +7,7 @@ import Foundation
 
 enum AppConfig {
     /// Your server's base URL (with https://)
-    static let baseURL = "https://razblokirator.ru"
+    static let baseURL = "https://madfrog.online"
 
     /// Fallback base URL (direct IP via HTTP, bypasses Cloudflare/RKN)
     static let fallbackBaseURL = "http://162.19.242.30"

@@ -21,6 +21,7 @@ import (
 	"github.com/chameleonvpn/chameleon/internal/geoip"
 	"github.com/chameleonvpn/chameleon/internal/payments"
 	"github.com/chameleonvpn/chameleon/internal/payments/apple"
+	"github.com/chameleonvpn/chameleon/internal/payments/freekassa"
 	"github.com/chameleonvpn/chameleon/internal/vpn"
 )
 
@@ -130,6 +131,23 @@ func (s *Server) setupRoutes(e *echo.Echo) {
 		appleVerifier = nil
 	}
 
+	// FreeKassa REST client — nil means the /payment/initiate and
+	// /webhooks/freekassa handlers will refuse traffic with a clear error.
+	var fkClient *freekassa.Client
+	if s.Config.Payments.FreeKassa.Enabled {
+		c, err := freekassa.New(freekassa.Config{
+			ShopID:  s.Config.Payments.FreeKassa.ShopID,
+			APIKey:  s.Config.Payments.FreeKassa.APIKey,
+			Secret2: s.Config.Payments.FreeKassa.Secret2,
+			BaseURL: s.Config.Payments.FreeKassa.BaseURL,
+		})
+		if err != nil {
+			s.Logger.Warn("freekassa disabled", zap.Error(err))
+		} else {
+			fkClient = c
+		}
+	}
+
 	mobileHandler := &mobile.Handler{
 		DB:            s.DB,
 		Redis:         s.Redis,
@@ -137,6 +155,7 @@ func (s *Server) setupRoutes(e *echo.Echo) {
 		Apple:         s.Apple,
 		AppleVerifier: appleVerifier,
 		Payments:      paymentsSvc,
+		FreeKassa:     fkClient,
 		VPN:           s.VPN,
 		Config:        s.Config,
 		GeoIP:         geoip.New(),
@@ -151,6 +170,13 @@ func (s *Server) setupRoutes(e *echo.Echo) {
 	mobileV1 := e.Group("/api/v1/mobile")
 	mobileV1.Use(mw.RateLimit(s.Config.RateLimit.MobilePerMinute))
 	mobile.RegisterRoutes(mobileV1, mobileHandler)
+
+	// FreeKassa server-to-server webhook. Public, unauthenticated — trust
+	// comes from IP allowlist + HMAC signature verification inside the
+	// handler. Registered at the root, not under /api/mobile, because FK
+	// calls it directly and we want a short, stable URL.
+	webhooks := e.Group("/api/webhooks")
+	webhooks.POST("/freekassa", mobileHandler.FreeKassaWebhook)
 
 	// Subscription link: /sub/:token/:mode (legacy config download)
 	subRL := mw.RateLimit(s.Config.RateLimit.MobilePerMinute)

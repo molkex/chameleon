@@ -31,10 +31,12 @@ type Config struct {
 	Payments  PaymentsConfig  `yaml:"payments"`
 }
 
-// PaymentsConfig groups per-PSP settings. Apple is the IAP rail; FreeKassa/etc.
-// will be added in later phases.
+// PaymentsConfig groups per-PSP settings plus the product catalog.
 type PaymentsConfig struct {
-	Apple ApplePaymentsConfig `yaml:"apple"`
+	Apple     ApplePaymentsConfig     `yaml:"apple"`
+	FreeKassa FreeKassaPaymentsConfig `yaml:"freekassa"`
+	Trial     TrialConfig             `yaml:"trial"`
+	Plans     []PlanConfig            `yaml:"plans"`
 }
 
 // ApplePaymentsConfig is the bundle identity Apple JWS must match and whether
@@ -43,6 +45,38 @@ type PaymentsConfig struct {
 type ApplePaymentsConfig struct {
 	BundleID     string `yaml:"bundle_id"`     // e.g. "com.madfrog.vpn"; default matches Auth.AppleBundleID
 	AllowSandbox bool   `yaml:"allow_sandbox"` // dev/staging only
+}
+
+// FreeKassaPaymentsConfig holds merchant credentials and integration settings.
+// All secrets support ${ENV_VAR} substitution.
+type FreeKassaPaymentsConfig struct {
+	Enabled     bool     `yaml:"enabled"`
+	ShopID      string   `yaml:"shop_id"`      // merchant ID (numeric, stored as string for YAML safety)
+	APIKey      string   `yaml:"api_key"`      // HMAC-SHA256 key for /v1/orders/create signature
+	Secret1     string   `yaml:"secret1"`      // MD5 signature seed for payment form (unused for API-only integration)
+	Secret2     string   `yaml:"secret2"`      // MD5 signature seed for webhook verification
+	BaseURL     string   `yaml:"base_url"`     // default: https://api.fk.life/v1
+	IPWhitelist []string `yaml:"ip_whitelist"` // notification source IPs; empty = allow all (not recommended)
+	// PublicURL is the origin used to build success/fail redirect URLs passed to FreeKassa.
+	// Example: "https://madfrog.online". No trailing slash.
+	PublicURL string `yaml:"public_url"`
+}
+
+// TrialConfig controls the automatic free-day grant on registration.
+type TrialConfig struct {
+	Enabled bool `yaml:"enabled"`
+	Days    int  `yaml:"days"` // default 3
+}
+
+// PlanConfig describes a single purchasable plan. Plans are read by the mobile
+// /api/mobile/plans handler and used by /payment/initiate to resolve amount
+// and days from a plan id.
+type PlanConfig struct {
+	ID       string `yaml:"id"`        // stable identifier, e.g. "m1", "m3", "m6", "m12"
+	Title    string `yaml:"title"`     // human title, e.g. "1 месяц на 1 📱"
+	Days     int    `yaml:"days"`      // number of days credited on purchase
+	PriceRub int    `yaml:"price_rub"` // full price in rubles (integer — FreeKassa uses string "249.00" on wire)
+	Badge    string `yaml:"badge"`     // optional UI badge, e.g. "Хит", "Выгодно" (empty = no badge)
 }
 
 // ServerConfig controls the HTTP listener.
@@ -220,6 +254,12 @@ func (c *Config) resolveAllEnvVars() {
 
 	// Cluster
 	c.Cluster.Secret = resolveEnvVars(c.Cluster.Secret)
+
+	// Payments — FreeKassa
+	c.Payments.FreeKassa.ShopID = resolveEnvVars(c.Payments.FreeKassa.ShopID)
+	c.Payments.FreeKassa.APIKey = resolveEnvVars(c.Payments.FreeKassa.APIKey)
+	c.Payments.FreeKassa.Secret1 = resolveEnvVars(c.Payments.FreeKassa.Secret1)
+	c.Payments.FreeKassa.Secret2 = resolveEnvVars(c.Payments.FreeKassa.Secret2)
 }
 
 // applyDefaults sets sensible default values for fields that were not
@@ -264,6 +304,22 @@ func (c *Config) applyDefaults() {
 
 	if c.Payments.Apple.BundleID == "" {
 		c.Payments.Apple.BundleID = c.Auth.AppleBundleID
+	}
+
+	if c.Payments.FreeKassa.BaseURL == "" {
+		c.Payments.FreeKassa.BaseURL = "https://api.fk.life/v1"
+	}
+	if len(c.Payments.FreeKassa.IPWhitelist) == 0 {
+		c.Payments.FreeKassa.IPWhitelist = []string{
+			"168.119.157.136",
+			"168.119.60.227",
+			"178.154.197.79",
+			"51.250.54.238",
+		}
+	}
+
+	if c.Payments.Trial.Days == 0 {
+		c.Payments.Trial.Days = 3
 	}
 
 	// VPN defaults
@@ -398,6 +454,41 @@ func (c *Config) validate() error {
 		}
 		if srv.Port < 1 || srv.Port > 65535 {
 			ve.add(prefix+".port", fmt.Sprintf("must be between 1 and 65535, got %d", srv.Port))
+		}
+	}
+
+	// Payments — FreeKassa (only when enabled)
+	if c.Payments.FreeKassa.Enabled {
+		if c.Payments.FreeKassa.ShopID == "" {
+			ve.add("payments.freekassa.shop_id", "required when freekassa is enabled (set FREEKASSA_SHOP_ID)")
+		}
+		if c.Payments.FreeKassa.APIKey == "" {
+			ve.add("payments.freekassa.api_key", "required when freekassa is enabled (set FREEKASSA_API_KEY)")
+		}
+		if c.Payments.FreeKassa.Secret2 == "" {
+			ve.add("payments.freekassa.secret2", "required for webhook signature verification (set FREEKASSA_SECRET2)")
+		}
+		if c.Payments.FreeKassa.PublicURL == "" {
+			ve.add("payments.freekassa.public_url", "required when freekassa is enabled (e.g. https://madfrog.online)")
+		}
+	}
+
+	// Payments — plans: all ids must be unique, days and price must be positive.
+	seenPlanIDs := make(map[string]bool, len(c.Payments.Plans))
+	for i, p := range c.Payments.Plans {
+		prefix := fmt.Sprintf("payments.plans[%d]", i)
+		if p.ID == "" {
+			ve.add(prefix+".id", "required")
+		} else if seenPlanIDs[p.ID] {
+			ve.add(prefix+".id", fmt.Sprintf("duplicate id %q", p.ID))
+		} else {
+			seenPlanIDs[p.ID] = true
+		}
+		if p.Days <= 0 {
+			ve.add(prefix+".days", fmt.Sprintf("must be positive, got %d", p.Days))
+		}
+		if p.PriceRub <= 0 {
+			ve.add(prefix+".price_rub", fmt.Sprintf("must be positive, got %d", p.PriceRub))
 		}
 	}
 

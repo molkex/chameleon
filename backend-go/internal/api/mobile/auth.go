@@ -353,7 +353,11 @@ func (h *Handler) createUser(ctx context.Context, deviceID, appleID, authProvide
 	// weren't in the server's allowed short_id list.
 	vpnShortID := ""
 
-	trialExpiry := time.Now().Add(3 * 24 * time.Hour)
+	trialDays := 3
+	if h.Config != nil && h.Config.Payments.Trial.Enabled && h.Config.Payments.Trial.Days > 0 {
+		trialDays = h.Config.Payments.Trial.Days
+	}
+	trialExpiry := time.Now().Add(time.Duration(trialDays) * 24 * time.Hour)
 
 	user := &db.User{
 		DeviceID:           &deviceID,

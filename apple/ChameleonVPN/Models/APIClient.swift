@@ -374,6 +374,115 @@ class APIClient {
         }
     }
 
+    // MARK: - FreeKassa Payments
+
+    /// A plan returned by GET /api/mobile/plans.
+    struct PaymentPlan: Decodable, Identifiable {
+        let id: String
+        let title: String
+        let days: Int
+        let priceRub: Int
+        let badge: String?
+
+        enum CodingKeys: String, CodingKey {
+            case id, title, days, badge
+            case priceRub = "price_rub"
+        }
+    }
+
+    struct PaymentPlansResponse: Decodable {
+        let plans: [PaymentPlan]
+        let methods: [String]
+        let currency: String
+    }
+
+    struct PaymentInitiateResult: Decodable {
+        let paymentId: String
+        let paymentURL: String
+        let amount: Int
+        let currency: String
+        let days: Int
+
+        enum CodingKeys: String, CodingKey {
+            case amount, currency, days
+            case paymentId = "payment_id"
+            case paymentURL = "payment_url"
+        }
+    }
+
+    struct PaymentStatus: Decodable {
+        let status: String // "pending" | "completed"
+        let subscriptionExpiry: Int64?
+
+        enum CodingKeys: String, CodingKey {
+            case status
+            case subscriptionExpiry = "subscription_expiry"
+        }
+    }
+
+    /// Fetch the paywall catalog. No auth required.
+    func fetchPlans() async throws -> PaymentPlansResponse {
+        guard let url = URL(string: "\(AppConstants.baseURL)/api/v1/mobile/plans") else {
+            throw APIError.networkError("Invalid URL")
+        }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 10
+
+        let (data, response) = try await dataWithFallback(for: applyTelemetry(to: request))
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw APIError.serverError((response as? HTTPURLResponse)?.statusCode ?? 0)
+        }
+        return try JSONDecoder().decode(PaymentPlansResponse.self, from: data)
+    }
+
+    /// Start a FreeKassa order. Returns a payment URL the app should open in
+    /// external Safari so Apple treats it as "user visited a website".
+    func initiatePayment(plan: String, method: String, email: String, accessToken: String) async throws -> PaymentInitiateResult {
+        guard let url = URL(string: "\(AppConstants.baseURL)/api/v1/mobile/payment/initiate") else {
+            throw APIError.networkError("Invalid URL")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "plan": plan,
+            "method": method,
+            "email": email,
+        ])
+        request.timeoutInterval = 20
+
+        let (data, response) = try await session.data(for: applyTelemetry(to: request))
+        guard let http = response as? HTTPURLResponse else {
+            throw APIError.networkError("No response")
+        }
+        if http.statusCode == 401 { throw APIError.unauthorized }
+        guard http.statusCode == 200 else {
+            throw APIError.serverError(http.statusCode)
+        }
+        return try JSONDecoder().decode(PaymentInitiateResult.self, from: data)
+    }
+
+    /// Check whether the FreeKassa webhook has already credited this order.
+    func paymentStatus(paymentId: String, accessToken: String) async throws -> PaymentStatus {
+        guard let url = URL(string: "\(AppConstants.baseURL)/api/v1/mobile/payment/status/\(paymentId)") else {
+            throw APIError.networkError("Invalid URL")
+        }
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 10
+
+        let (data, response) = try await session.data(for: applyTelemetry(to: request))
+        guard let http = response as? HTTPURLResponse else {
+            throw APIError.networkError("No response")
+        }
+        if http.statusCode == 401 { throw APIError.unauthorized }
+        guard http.statusCode == 200 else {
+            throw APIError.serverError(http.statusCode)
+        }
+        return try JSONDecoder().decode(PaymentStatus.self, from: data)
+    }
+
     /// Send a StoreKit 2 signed JWS to the backend for verification and crediting.
     /// The backend validates the JWS chain against Apple's root CA and extends
     /// the user's subscription. Idempotent on originalTransactionId, so retries

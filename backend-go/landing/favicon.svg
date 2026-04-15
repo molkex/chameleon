@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="45%" r="50%">
+      <stop offset="0%" stop-color="#3de88e"/>
+      <stop offset="100%" stop-color="#1a9d54"/>
+    </radialGradient>
+  </defs>
+  <!-- Body -->
+  <circle cx="32" cy="34" r="28" fill="url(#bg)"/>
+  <!-- Left eye white -->
+  <ellipse cx="21" cy="22" rx="9" ry="10" fill="#fff"/>
+  <!-- Right eye white -->
+  <ellipse cx="43" cy="22" rx="9" ry="10" fill="#fff"/>
+  <!-- Left pupil -->
+  <ellipse cx="22" cy="23" rx="5" ry="6" fill="#1a1a2e"/>
+  <!-- Right pupil -->
+  <ellipse cx="44" cy="23" rx="5" ry="6" fill="#1a1a2e"/>
+  <!-- Left eye glint -->
+  <circle cx="19.5" cy="20" r="2" fill="#fff" opacity=".8"/>
+  <!-- Right eye glint -->
+  <circle cx="41.5" cy="20" r="2" fill="#fff" opacity=".8"/>
+  <!-- Mouth / smile -->
+  <path d="M20 40 Q32 50 44 40" fill="none" stroke="#0d5c2e" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- Nostrils -->
+  <circle cx="27" cy="33" r="1.5" fill="#0d5c2e" opacity=".5"/>
+  <circle cx="37" cy="33" r="1.5" fill="#0d5c2e" opacity=".5"/>
+</svg>

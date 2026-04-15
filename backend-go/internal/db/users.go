@@ -222,6 +222,24 @@ func (db *DB) UpdateUser(ctx context.Context, u *User) error {
 	return nil
 }
 
+// SetUserEmail stores the receipt email on the user row. Called during the
+// payment initiate flow so FreeKassa gets a real email for the 54-FZ receipt
+// and the admin panel can see which address a user registered with.
+func (db *DB) SetUserEmail(ctx context.Context, id int64, email string) error {
+	ctx, cancel := defaultTimeout(ctx)
+	defer cancel()
+
+	tag, err := db.Pool.Exec(ctx,
+		`UPDATE users SET email = $2 WHERE id = $1`, id, email)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // DeleteUser soft-deletes a user by setting is_active = false.
 func (db *DB) DeleteUser(ctx context.Context, id int64) error {
 	ctx, cancel := defaultTimeout(ctx)

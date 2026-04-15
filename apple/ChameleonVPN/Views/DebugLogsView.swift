@@ -448,7 +448,7 @@ struct DebugLogsView: View {
         let httpTests: [(name: String, url: String)] = [
             ("Google generate_204",  "https://www.gstatic.com/generate_204"),
             ("Cloudflare trace",     "https://1.1.1.1/cdn-cgi/trace"),
-            ("Backend health",       "https://razblokirator.ru/health"),
+            ("Backend health",       "https://madfrog.online/health"),
             ("Backend health (direct IP)", "http://162.19.242.30/health"),
         ]
 

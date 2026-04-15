@@ -15,6 +15,7 @@ import (
 	"github.com/chameleonvpn/chameleon/internal/geoip"
 	"github.com/chameleonvpn/chameleon/internal/payments"
 	"github.com/chameleonvpn/chameleon/internal/payments/apple"
+	"github.com/chameleonvpn/chameleon/internal/payments/freekassa"
 	"github.com/chameleonvpn/chameleon/internal/vpn"
 )
 
@@ -26,6 +27,7 @@ type Handler struct {
 	Apple         *auth.AppleVerifier // Sign In With Apple (identity token)
 	AppleVerifier *apple.Verifier     // App Store IAP JWS verification
 	Payments      *payments.Service
+	FreeKassa     *freekassa.Client // may be nil if FreeKassa is disabled
 	VPN           vpn.Engine // may be nil if VPN engine is not configured
 	Config        *config.Config
 	GeoIP         *geoip.Resolver
@@ -55,6 +57,14 @@ func RegisterRoutes(g *echo.Group, h *Handler) {
 
 	subGroup := g.Group("/subscription", requireAuth)
 	subGroup.POST("/verify", h.VerifySubscription)
+
+	// Paywall catalog — no auth, so the paywall can render before sign-in.
+	g.GET("/plans", h.GetPlans)
+
+	// Payment flow — auth required; the user id is pulled from JWT.
+	payGroup := g.Group("/payment", requireAuth)
+	payGroup.POST("/initiate", h.InitiatePayment)
+	payGroup.GET("/status/:payment_id", h.PaymentStatus)
 
 	// User preferences.
 	userGroup := g.Group("/user", requireAuth)

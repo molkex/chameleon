@@ -31,6 +31,7 @@
 		5658573EF815DA1AB3739A15 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8299479DA88A74A43EA300B2 /* UIKit.framework */; };
 		5704BAC227DC8FC2FC937DF9 /* L10n.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C977742D78B702575B34EDB /* L10n.swift */; };
 		603E08AD0023704FAB351F40 /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E7AB40F684540E3FACAB3EA /* PaywallView.swift */; };
+		AA11BB22CC33DD44EE55FF66 /* WebPaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF66EE55DD44CC33BB22AA11 /* WebPaywallView.swift */; };
 		6772211E4E423C30D3D69D14 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = D465DD76EC827BD967F80B1E /* Logger.swift */; };
 		6C05FDF3E2B5D40809D27DD0 /* DebugLogsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E080B8299D7A6B432DBD59D5 /* DebugLogsView.swift */; };
 		7403D5BC666B83A5449C689F /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C569B64AC8B15976A785085F /* AccountView.swift */; };
@@ -95,6 +96,7 @@
 		4A50A25A4F2306519D129E3E /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		4C977742D78B702575B34EDB /* L10n.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = L10n.swift; sourceTree = "<group>"; };
 		4E7AB40F684540E3FACAB3EA /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
+		FF66EE55DD44CC33BB22AA11 /* WebPaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebPaywallView.swift; sourceTree = "<group>"; };
 		59E9692276EF9DB6E6365AD3 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		5FEEB58777E4D84D49ED3DDA /* RunBlocking.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunBlocking.swift; sourceTree = "<group>"; };
 		66D68BA1C481D2B9ADA57782 /* LegalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegalView.swift; sourceTree = "<group>"; };
@@ -169,6 +171,7 @@
 				037DF0618BBBAAB963EC62E8 /* MainViewNeon.swift */,
 				FDB36CA61FDCF04FCAF6AA68 /* OnboardingView.swift */,
 				4E7AB40F684540E3FACAB3EA /* PaywallView.swift */,
+				FF66EE55DD44CC33BB22AA11 /* WebPaywallView.swift */,
 				4A50A25A4F2306519D129E3E /* SettingsView.swift */,
 				FCD043B2561D33DECC01588F /* ThemePickerView.swift */,
 			);
@@ -379,6 +382,7 @@
 				4DB4FC4662359485A3E200E3 /* MainViewNeon.swift in Sources */,
 				9B5DE79AE51194D9A599FE57 /* OnboardingView.swift in Sources */,
 				603E08AD0023704FAB351F40 /* PaywallView.swift in Sources */,
+				AA11BB22CC33DD44EE55FF66 /* WebPaywallView.swift in Sources */,
 				C1A4123A23281325A857AFC3 /* PingService.swift in Sources */,
 				EF0E4CB9726FB660182A57A4 /* RunBlocking.swift in Sources */,
 				DC7E375502C52F1D97FE1EAC /* ServerGroup.swift in Sources */,

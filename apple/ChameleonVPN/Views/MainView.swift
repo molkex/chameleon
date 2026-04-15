@@ -59,7 +59,7 @@ struct MainView: View {
             SettingsView().environment(app).environment(themeManager)
         }
         .sheet(isPresented: $showPaywall) {
-            PaywallView().environment(app).environment(themeManager)
+            WebPaywallView().environment(app).environment(themeManager)
         }
         .sheet(isPresented: $showThemePicker) {
             ThemePickerView(isModal: true).environment(themeManager)
