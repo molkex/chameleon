@@ -148,22 +148,20 @@ enum VPNStateHelper {
 struct TimerView: View {
     let since: Date
     let theme: Theme
-    @State private var elapsed: TimeInterval = 0
-    let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        Text(formatted)
-            .font(.system(.title2, design: .monospaced))
-            .foregroundStyle(theme.textSecondary)
-            .onReceive(timer) { _ in
-                elapsed = Date().timeIntervalSince(since)
-            }
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            Text(formatted(at: context.date))
+                .font(.system(.title2, design: .monospaced))
+                .foregroundStyle(theme.textSecondary)
+        }
     }
 
-    private var formatted: String {
-        let h = Int(elapsed) / 3600
-        let m = (Int(elapsed) % 3600) / 60
-        let s = Int(elapsed) % 60
+    private func formatted(at now: Date) -> String {
+        let elapsed = Int(now.timeIntervalSince(since))
+        let h = elapsed / 3600
+        let m = (elapsed % 3600) / 60
+        let s = elapsed % 60
         return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%02d:%02d", m, s)
     }
 }
@@ -352,6 +350,8 @@ private struct CountryRow: View {
 
             if bestProbedMs > 0 {
                 PingBadge(ms: bestProbedMs)
+            } else {
+                PingSkeleton()
             }
 
             if isSelected {
@@ -410,9 +410,7 @@ private struct CountryServersView: View {
                         if ms > 0 {
                             PingBadge(ms: ms)
                         } else {
-                            Text(L10n.Servers.pingUnknown)
-                                .font(.caption.monospaced())
-                                .foregroundStyle(.secondary)
+                            PingSkeleton()
                         }
                         if app.configStore.selectedServerTag == server.tag {
                             Image(systemName: "checkmark.circle.fill")
@@ -429,6 +427,21 @@ private struct CountryServersView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await app.pingService.probe(servers)
+        }
+    }
+}
+
+/// Shimmering placeholder shown in place of PingBadge while a country/server
+/// hasn't been probed yet. Same footprint as PingBadge so rows don't jump
+/// when the real value lands.
+private struct PingSkeleton: View {
+    var body: some View {
+        TimelineView(.animation) { timeline in
+            let t = timeline.date.timeIntervalSinceReferenceDate
+            let phase = 0.5 * (1 + sin(t * 2 * .pi / 1.2))
+            Capsule()
+                .fill(Color.secondary.opacity(0.10 + 0.12 * phase))
+                .frame(width: 44, height: 18)
         }
     }
 }

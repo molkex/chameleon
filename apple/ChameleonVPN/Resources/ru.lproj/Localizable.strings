@@ -112,6 +112,14 @@
 /* ===== Настройки ===== */
 "settings.title"                 = "Настройки";
 "settings.section.appearance"    = "Оформление";
+"settings.section.routing"       = "Маршрутизация";
+"settings.routing_mode"          = "Режим";
+"settings.routing_mode.smart"          = "Умный";
+"settings.routing_mode.smart.hint"     = "Через VPN идут только заблокированные в РФ ресурсы (YouTube, Instagram и др.). Остальное — напрямую. Максимальная экономия трафика и защита от детекта VPN в банках/госуслугах.";
+"settings.routing_mode.ru_direct"      = "РФ напрямую";
+"settings.routing_mode.ru_direct.hint" = "Российские сайты идут напрямую, весь остальной мир — через VPN. Классический split tunneling.";
+"settings.routing_mode.full_vpn"       = "Всё через VPN";
+"settings.routing_mode.full_vpn.hint"  = "Весь трафик идёт через VPN (кроме банков и госуслуг, они всегда напрямую). Для поездок и публичных Wi-Fi.";
 "settings.section.account"       = "Аккаунт";
 "settings.section.about"         = "О программе";
 "settings.section.diagnostics"   = "Диагностика";

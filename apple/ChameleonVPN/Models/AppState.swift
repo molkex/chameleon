@@ -2,6 +2,9 @@ import Foundation
 import SwiftUI
 import NetworkExtension
 import AuthenticationServices
+#if canImport(UIKit)
+import UIKit
+#endif
 
 @MainActor
 @Observable
@@ -28,6 +31,11 @@ class AppState {
     var subscriptionExpire: Date?
     var isAuthenticated: Bool = false
     var isInitialized: Bool = false
+    var routingMode: RoutingMode = {
+        let raw = UserDefaults(suiteName: AppConstants.appGroupID)?
+            .string(forKey: AppConstants.routingModeKey) ?? ""
+        return RoutingMode(rawValue: raw) ?? .default
+    }()
 
     nonisolated(unsafe) private var statusObserver: Any?
     /// Background config refresh task (handleForeground, toggleVPN).
@@ -331,6 +339,7 @@ class AppState {
 
     func toggleVPN() async {
         TunnelFileLogger.log("toggleVPN: begin, isConnected=\(vpnManager.isConnected)", category: "ui")
+        Haptics.impact(.medium)
         if vpnManager.isConnected {
             commandClient.disconnect()
             vpnManager.disconnect()
@@ -389,6 +398,7 @@ class AppState {
             let outcome = await vpnManager.waitUntilConnected(timeout: .seconds(10))
             switch outcome {
             case .connected:
+                Haptics.notify(.success)
                 break
             case .failed:
                 TunnelFileLogger.log("toggleVPN: watchdog — extension rejected connection", category: "ui")
@@ -458,15 +468,19 @@ class AppState {
         let outcome = await vpnManager.waitUntilConnected(timeout: .seconds(10))
         switch outcome {
         case .connected:
+            Haptics.notify(.success)
             return
         case .failed:
             vpnManager.disconnect()
+            Haptics.notify(.error)
             errorMessage = L10n.Error.serverRejected
         case .permissionDenied:
             vpnManager.disconnect()
+            Haptics.notify(.error)
             errorMessage = VPNErrorMapper.permissionMissing
         case .timedOut:
             vpnManager.disconnect()
+            Haptics.notify(.error)
             errorMessage = VPNErrorMapper.watchdogTimeout
         }
     }
@@ -539,8 +553,9 @@ class AppState {
         }
 
         let effectiveNew = isAuto ? nil : serverTag
-        guard vpnManager.isConnected, previousTag != effectiveNew else {
-            AppLogger.app.info("selectServer: skipped reconnect (connected=\(self.vpnManager.isConnected), same=\(previousTag == effectiveNew))")
+        let tagChanged = previousTag != effectiveNew
+        guard vpnManager.isConnected else {
+            AppLogger.app.info("selectServer: skipped (not connected), tag persisted")
             return
         }
 
@@ -552,20 +567,29 @@ class AppState {
             return
         }
 
-        AppLogger.app.info("selectServer: selector='\(selectorTag)' target='\(selectorTarget)'")
+        AppLogger.app.info("selectServer: selector='\(selectorTag)' target='\(selectorTarget)' tagChanged=\(tagChanged)")
 
-        // Persist for next cold start — active tunnel will pick up new default
-        UserDefaults(suiteName: AppConstants.appGroupID)?.set(updatedConfig, forKey: AppConstants.startOptionsKey)
+        // Persist updated startOptions only when the tag actually changed.
+        if tagChanged {
+            UserDefaults(suiteName: AppConstants.appGroupID)?.set(updatedConfig, forKey: AppConstants.startOptionsKey)
+        }
 
-        // Fast path: if sing-box command client is live, do a zero-downtime
-        // selector switch via gRPC. No tunnel teardown, no UI freeze.
+        // Fast path: if the command client is live, always fire selectOutbound
+        // — even on a "same tag" tap. sing-box may have resolved Proxy to a
+        // different outbound than configStore thinks (e.g., on cold start the
+        // selector's default wasn't yet pinned to the persisted tag), so the
+        // only reliable way to make the UI and the live tunnel agree is to
+        // assert the selection every time the user taps.
         if commandClient.isConnected {
             TunnelFileLogger.log("selectServer: LIVE switch via selectOutbound selector='\(selectorTag)' → '\(selectorTarget)'", category: "ui")
             commandClient.selectOutbound(groupTag: selectorTag, outboundTag: selectorTarget)
             return
         }
 
-        // Fallback: tunnel up but command client not yet connected — full reconnect.
+        // Fallback: tunnel up but command client not yet connected. Only do a
+        // full reconnect when the tag actually changed — no point tearing the
+        // tunnel down to apply the same selection.
+        guard tagChanged else { return }
         TunnelFileLogger.log("selectServer: FALLBACK reconnect (commandClient not ready)", category: "ui")
         reconnectTask?.cancel()
         reconnectTask = Task {
@@ -575,6 +599,21 @@ class AppState {
             guard !Task.isCancelled else { return }
             try? await vpnManager.connect(configJSON: updatedConfig)
         }
+    }
+
+    /// Re-applies the persisted server selection to the live tunnel. Called from
+    /// handleStatus(.connected) so that a cold-start tunnel whose sing-box Proxy
+    /// selector booted on a stale default gets forced onto the user's real pick.
+    private func applyServerSelectionIfLive() {
+        guard commandClient.isConnected else { return }
+        let serverTag = configStore.selectedServerTag
+        let selectorTarget = serverTag ?? "Auto"
+        guard let built = buildConfigWithSelector(selectorTarget) else {
+            AppLogger.app.error("applyServerSelectionIfLive: buildConfigWithSelector nil for '\(selectorTarget)'")
+            return
+        }
+        TunnelFileLogger.log("applyServerSelectionIfLive: selector='\(built.selectorTag)' → '\(selectorTarget)'", category: "ui")
+        commandClient.selectOutbound(groupTag: built.selectorTag, outboundTag: selectorTarget)
     }
 
     /// Build config with selector default set to the given server tag.
@@ -620,6 +659,29 @@ class AppState {
         return (updatedConfig, selectorTag)
     }
 
+    // MARK: - Routing mode
+
+    /// Persists the routing mode and, if the command client is live, flips
+    /// the three selectors ("RU Traffic", "Blocked Traffic", "Default Route")
+    /// over the libbox unix socket. No reconnect — sing-box applies the switch
+    /// in place. When the tunnel is down, only persistence happens; the mode
+    /// is re-applied from `handleStatus` once the command client reconnects.
+    func setRoutingMode(_ mode: RoutingMode) {
+        routingMode = mode
+        UserDefaults(suiteName: AppConstants.appGroupID)?
+            .set(mode.rawValue, forKey: AppConstants.routingModeKey)
+        TunnelFileLogger.log("setRoutingMode: \(mode.rawValue), cmdClient=\(commandClient.isConnected)", category: "ui")
+        Haptics.selection()
+        applyRoutingModeIfLive(mode)
+    }
+
+    private func applyRoutingModeIfLive(_ mode: RoutingMode) {
+        guard commandClient.isConnected else { return }
+        for (selector, target) in mode.selectorTargets {
+            commandClient.selectOutbound(groupTag: selector, outboundTag: target)
+        }
+    }
+
     // MARK: - Status
 
     private func startObservingVPNStatus() {
@@ -641,6 +703,17 @@ class AppState {
             if !commandClient.isConnected { commandClient.connect() }
             // Clear the user-stopped flag on successful connection
             sharedDefaults?.removeObject(forKey: "user_stopped_vpn")
+            // Re-apply the user's routing mode AND server selection after a
+            // (re)connect. commandClient takes a moment to bind after connect()
+            // above — defer one hop so selectOutbound has a live socket to talk
+            // to. Server selection must be re-asserted because sing-box may
+            // have resolved Proxy to a different default than configStore.
+            let mode = routingMode
+            Task { [weak self] in
+                try? await Task.sleep(for: .milliseconds(400))
+                self?.applyRoutingModeIfLive(mode)
+                self?.applyServerSelectionIfLive()
+            }
         case .disconnected, .invalid:
             vpnConnectedAt = nil
             if commandClient.isConnected { commandClient.disconnect() }

@@ -112,6 +112,14 @@
 /* ===== Settings ===== */
 "settings.title"                 = "Settings";
 "settings.section.appearance"    = "Appearance";
+"settings.section.routing"       = "Routing";
+"settings.routing_mode"          = "Mode";
+"settings.routing_mode.smart"          = "Smart";
+"settings.routing_mode.smart.hint"     = "Only resources blocked in Russia go through the VPN. Everything else stays on the native connection — maximum bandwidth savings and minimal VPN-detection signal in banking and government apps.";
+"settings.routing_mode.ru_direct"      = "RU Direct";
+"settings.routing_mode.ru_direct.hint" = "Russian sites go direct, the rest of the world goes through the VPN. Classic split tunneling.";
+"settings.routing_mode.full_vpn"       = "Full VPN";
+"settings.routing_mode.full_vpn.hint"  = "All traffic goes through the VPN (except banks and gov services — always direct). For travel and public Wi-Fi.";
 "settings.section.account"       = "Account";
 "settings.section.about"         = "About";
 "settings.section.diagnostics"   = "Diagnostics";

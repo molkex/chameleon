@@ -203,23 +203,6 @@ final class CommandClientWrapper {
         }
     }
 
-    /// Currently selected server info.
-    /// Checks server selector group first (new config), falls back to main urltest group.
-    var selectedServer: ServerItem? {
-        // If there's a server selector group, use the selected country group's best server
-        if let selectorGroup = groups.first(where: { g in
-            g.type == "selector" && g.items.contains(where: { $0.type == "urltest" })
-        }) {
-            let selectedTag = selectorGroup.selected
-            if let targetGroup = groups.first(where: { $0.tag == selectedTag && $0.type == "urltest" }),
-               let server = targetGroup.items.first(where: { $0.tag == targetGroup.selected }) {
-                return server
-            }
-        }
-        // Fallback: first urltest group (old config or auto mode)
-        guard let group = groups.first(where: { $0.type == "urltest" }) else { return nil }
-        return group.items.first(where: { $0.tag == group.selected })
-    }
 }
 
 // MARK: - LibboxCommandClientHandlerProtocol

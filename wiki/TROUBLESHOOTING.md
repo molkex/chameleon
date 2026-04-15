@@ -1,5 +1,84 @@
 # Chameleon VPN — Troubleshooting
 
+## 2026-04-15: Routing mode на iOS — Clash API не работает, только libbox unix socket
+
+### Проблема
+Реализовал 3-режимный split tunneling (smart / ru-direct / full-vpn) через три `selector` аутбаунда в конфиге (`RU Traffic`, `Blocked Traffic`, `Default Route`). Переключение в живую попытался сделать через Clash API PUT `/proxies/<tag>` на `127.0.0.1:9091` из расширения. На iPhone постоянно:
+```
+setClashSelector error: NSURLErrorDomain Code=-1004
+routing_mode → smart: partial/failed
+```
+
+### Причина
+`apple/Shared/ConfigSanitizer.swift` **вырезает** `experimental.clash_api` из конфига перед передачей в sing-box:
+> iOS sandbox blocks TCP bind inside the NetworkExtension process.
+
+Clash API на iOS физически не поднимается — любой HTTP на `127.0.0.1:9091` уходит в Connection Refused. Расширению нельзя биндить TCP-сокеты; только unix-сокеты в shared container.
+
+### Решение
+Использовать `LibboxCommandClient.selectOutbound(groupTag:, outboundTag:)` через unix socket `command.sock` — та же инфраструктура что уже работает для live server switch в `AppState.selectServer`.
+
+Архитектура:
+- `apple/Shared/RoutingMode.swift` — enum с `selectorTargets: [(selector, target)]` для каждого режима
+- `apple/ChameleonVPN/Models/AppState.swift::setRoutingMode(_:)` — пишет `routingMode` в shared UserDefaults + зовёт `commandClient.selectOutbound` × 3 (по одному на каждый селектор). Если `commandClient.isConnected == false` — только персистит.
+- `handleStatus` при `.connected` вызывает `applyRoutingModeIfLive` через 400мс после того как command client поднимется.
+- `clientconfig.go` больше **не содержит** `experimental.clash_api` — всё равно срезается.
+- `ExtensionProvider.swift` больше не обрабатывает `routing_mode:` IPC-сообщение — вся логика в main app.
+
+### Грабли
+- Сигнатура `Picker(selection:)` в SwiftUI для `LocalizedStringKey` vs `String`: метод `routingModeHint` должен возвращать `LocalizedStringKey`, иначе `cannot convert return expression of type 'LKey' to return type 'String'`.
+- Сначала пробовал `sendProviderMessage` IPC (main → extension → Clash API), потом — прямой URLSession в расширении. Оба пути сломаны одинаково — Clash API вообще нет.
+
+## 2026-04-15: В режиме «РФ напрямую» 2ip.ru показывал VPN IP
+
+### Проблема
+Юзер в режиме `ru-direct`: ожидал что `.ru` сайты идут direct → 2ip.ru должен показать реальный российский IP. Показывал `162.19.242.30` (OVH DE).
+
+### Причина
+В route rules был только `rule_set: geoip-ru` — он матчит по **IP**, а не по домену. Многие .ru сайты хостятся за CloudFlare / anycast CDN, их IP не попадает в `sing-geoip/geoip-ru.srs` → правило не матчит → запрос падает на `final: Default Route` = `Proxy` в ru-direct.
+
+### Решение
+В `clientconfig.go` добавил route rule **перед** `geoip-ru`:
+```go
+{ DomainSuffix: []string{".ru"}, Outbound: "RU Traffic" }
+```
+Порядок важен:
+1. `refilter` (RKN blocked) → `Blocked Traffic` (чтобы .ru блокированные сайты всё равно шли через VPN)
+2. `.ru` domain → `RU Traffic` (наш новый rule)
+3. `geoip-ru` → `RU Traffic` (catch-all для не-.ru доменов на RU IP)
+
+После фикса: `match[7] domain_suffix=.ru => route(RU Traffic)` → direct.
+
+## 2026-04-15: Timeweb IP выглядит как российский в GeoIP-базах
+
+### Симптом
+whoer.net / 2ip.ru на NL2 ноде (`147.45.252.234`, Timeweb) показывали "Россия, Timeweb, LLP" — хотя сервер физически в Нидерландах.
+
+### Причина
+Timeweb LLC — российская компания, их IP-диапазоны многие GeoIP-базы (включая MaxMind free) классифицируют как RU, хотя ASN может быть в ЕС.
+
+### Следствие для user-facing диагностики
+Нельзя использовать whoer/2ip.ru как единственный способ проверить что VPN работает для NL-ноды — юзер может решить что ничего не включилось. Для честной проверки лучше открывать сайт вне Timeweb ASN (`ipleak.net`, `ifconfig.me`).
+
+## 2026-04-15: UI-чип «Сервер» расходился с реально используемым аутбаундом
+
+### Симптом
+Юзер тапнул DE в списке серверов, чип показывает "VLESS 🇩🇪 Germany". Но whoer.net выдаёт IP NL2-ноды — трафик реально идёт на другой сервер.
+
+### Причина
+`VPNStateHelper.selectedServerName` читал `app.configStore.selectedServerTag` — это "что юзер хотел", а не "что реально активно". Если `Proxy` селектор в `command server` сейчас указывает на `Auto` (который пикнул NL2 по urltest), чип всё равно показывает последний ручной выбор.
+
+### Решение
+В `MainView.swift::VPNStateHelper.selectedServerName` — сначала читаем живое состояние:
+```swift
+if isConnected(app), app.commandClient.isConnected,
+   let live = app.commandClient.selectedServer {
+    return live.tag
+}
+// fallback to configStore.selectedServerTag
+```
+`commandClient.selectedServer` парсит `Groups` из libbox и возвращает реально выбранный аутбаунд в цепочке селекторов (учитывает Proxy→Auto→server).
+
 ## 2026-04-14: Админка показывала VPN-локацию вместо реальной + расширенная телеметрия
 
 ### Проблема

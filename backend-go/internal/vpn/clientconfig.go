@@ -98,6 +98,40 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 		InterruptExistConnections: boolPtr(false),
 	}
 
+	// Three-way routing mode is implemented via three selectors. The iOS app
+	// flips all three together via Clash API to switch modes without
+	// reconnecting. See ExtensionProvider.applyRoutingMode().
+	//
+	//   Mode       | RU Traffic | Blocked Traffic | Default Route
+	//   smart      | direct     | Proxy           | direct         ← default
+	//   ru-direct  | direct     | Proxy           | Proxy
+	//   full-vpn   | Proxy      | Proxy           | Proxy
+	//
+	// In "smart" mode only RKN-blocked resources go through the tunnel —
+	// everything else stays on the native connection, minimising both the
+	// VPN-detection signal and bandwidth usage.
+	ruTrafficOutbound := clientOutbound{
+		Type:                      "selector",
+		Tag:                       "RU Traffic",
+		Outbounds:                 []string{"direct", "Proxy"},
+		Default:                   "direct",
+		InterruptExistConnections: boolPtr(false),
+	}
+	blockedTrafficOutbound := clientOutbound{
+		Type:                      "selector",
+		Tag:                       "Blocked Traffic",
+		Outbounds:                 []string{"Proxy", "direct"},
+		Default:                   "Proxy",
+		InterruptExistConnections: boolPtr(false),
+	}
+	defaultRouteOutbound := clientOutbound{
+		Type:                      "selector",
+		Tag:                       "Default Route",
+		Outbounds:                 []string{"direct", "Proxy"},
+		Default:                   "direct",
+		InterruptExistConnections: boolPtr(false),
+	}
+
 	// System outbounds.
 	directOutbound := clientOutbound{
 		Type: "direct",
@@ -109,7 +143,14 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 	}
 	// Assemble all outbounds in correct order.
 	// Note: dns outbound removed in sing-box 1.13 — use route action hijack-dns instead.
-	allOutbounds := []clientOutbound{proxyOutbound, autoOutbound}
+	// Routing selectors must be defined AFTER "Proxy" since they reference it.
+	allOutbounds := []clientOutbound{
+		proxyOutbound,
+		autoOutbound,
+		ruTrafficOutbound,
+		blockedTrafficOutbound,
+		defaultRouteOutbound,
+	}
 	allOutbounds = append(allOutbounds, serverOutbounds...)
 	allOutbounds = append(allOutbounds, directOutbound, blockOutbound)
 
@@ -126,12 +167,8 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 
 	dnsDirect := engineCfg.DNSDirect
 	if dnsDirect == "" {
-		dnsDirect = "https://8.8.8.8/dns-query"
-	}
-
-	clashAPIPort := engineCfg.ClashAPIPort
-	if clashAPIPort == 0 {
-		clashAPIPort = 9091 // client-side clash API uses 9091 by default
+		// Yandex DNS — resolves .ru zones faster and more reliably than Google.
+		dnsDirect = "https://77.88.8.8/dns-query"
 	}
 
 	config := clientConfig{
@@ -146,14 +183,30 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 					Server: "1.1.1.1",
 				},
 				{
+					// Yandex DNS — faster/cleaner resolution for .ru zones than Google.
 					Tag:    "dns-direct",
 					Type:   "https",
-					Server: "8.8.8.8",
+					Server: "77.88.8.8",
 				},
 				{
 					Tag:        "dns-fakeip",
 					Type:       "fakeip",
 					Inet4Range: "198.18.0.0/15",
+				},
+			},
+			Rules: []clientDNSRule{
+				// Always-direct curated list (banks, gov, Yandex, VK, markets).
+				// Resolved locally via Yandex DNS so bank CDNs return the
+				// correct regional IP.
+				{
+					DomainSuffix: ruAlwaysDirectDomains,
+					Server:       "dns-direct",
+				},
+				// .ru zones resolve via Yandex DNS locally — keeps RU DNS answers
+				// accurate (CDN-aware) and saves a proxy round-trip.
+				{
+					DomainSuffix: []string{".ru"},
+					Server:       "dns-direct",
 				},
 			},
 			IndependentCache: true,
@@ -170,6 +223,31 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 		},
 		Outbounds: allOutbounds,
 		Route: clientRoute{
+			Final: "Default Route",
+			RuleSet: []clientRuleSet{
+				// Remote geoip-ru rule-set — downloaded through the proxy on first
+				// connect and cached. Used for RU split tunneling.
+				{
+					Tag:            "geoip-ru",
+					Type:           "remote",
+					Format:         "binary",
+					URL:            "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-ru.srs",
+					DownloadDetour: "direct",
+					UpdateInterval: "168h",
+				},
+				// RKN-blocked domains — comprehensive list maintained by teidesu.
+				// Used in "smart" mode to route only blocked resources (YouTube,
+				// Instagram, Twitter, Facebook, LinkedIn, etc.) through the VPN.
+				// Direct raw URL (bypasses github.com → raw redirect).
+				{
+					Tag:            "refilter",
+					Type:           "remote",
+					Format:         "binary",
+					URL:            "https://raw.githubusercontent.com/teidesu/rkn-singbox/ruleset/rkn-ruleset.srs",
+					DownloadDetour: "direct",
+					UpdateInterval: "168h",
+				},
+			},
 			Rules: []clientRouteRule{
 				// 1. Sniff MUST be first — enables protocol detection for hijack-dns.
 				//    In sing-box 1.13 sniff was removed from inbound and became a route action.
@@ -197,6 +275,40 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 				{
 					IPIsPrivate: boolPtr(true),
 					Outbound:    "direct",
+				},
+				// 6. Always-direct domains → direct. Banks / gov / Yandex / VK /
+				//    marketplaces MUST bypass the tunnel regardless of the
+				//    user's selector state. This rule sits BEFORE the blocked
+				//    and geoip rules so selectors can never override it.
+				{
+					DomainSuffix: ruAlwaysDirectDomains,
+					Outbound:     "direct",
+				},
+				// 7. RKN-blocked resources (refilter list) → "Blocked Traffic"
+				//    selector. In "smart" and "ru-direct" modes this = Proxy;
+				//    "full-vpn" inherits via "Default Route".
+				//    BEFORE the .ru and geoip-ru rules because a blocked
+				//    domain might be a .ru zone or resolve to a RU IP (CDN).
+				{
+					RuleSet:  "refilter",
+					Outbound: "Blocked Traffic",
+				},
+				// 8. Any *.ru domain → "RU Traffic" selector.
+				//    Intentionally domain-based, not IP-based: many .ru sites
+				//    sit behind CloudFlare/anycast CDNs whose IPs don't show
+				//    up in geoip-ru, so they'd otherwise fall through to the
+				//    default route. "РФ напрямую" only makes sense if any
+				//    .ru zone is treated as Russian regardless of hosting.
+				{
+					DomainSuffix: []string{".ru"},
+					Outbound:     "RU Traffic",
+				},
+				// 9. RU geoip → "RU Traffic" selector.
+				//    Catches non-.ru domains served from Russian IPs
+				//    (.com sites, Yandex CDNs, etc.).
+				{
+					RuleSet:  "geoip-ru",
+					Outbound: "RU Traffic",
 				},
 			},
 			DefaultDomainResolver: &clientDomainResolver{
@@ -253,10 +365,12 @@ type clientDNSServer struct {
 }
 
 type clientDNSRule struct {
-	ClashMode string   `json:"clash_mode,omitempty"`
-	QueryType []string `json:"query_type,omitempty"`
-	Outbound  []string `json:"outbound,omitempty"`
-	Server    string   `json:"server"`
+	ClashMode    string   `json:"clash_mode,omitempty"`
+	QueryType    []string `json:"query_type,omitempty"`
+	Outbound     []string `json:"outbound,omitempty"`
+	DomainSuffix []string `json:"domain_suffix,omitempty"`
+	RuleSet      string   `json:"rule_set,omitempty"`
+	Server       string   `json:"server"`
 }
 
 type clientFakeIP struct {
@@ -317,20 +431,33 @@ type clientMultiplex struct {
 }
 
 type clientRoute struct {
-	Rules                []clientRouteRule     `json:"rules"`
-	AutoDetectInterface  bool                  `json:"auto_detect_interface,omitempty"`
+	RuleSet               []clientRuleSet       `json:"rule_set,omitempty"`
+	Rules                 []clientRouteRule     `json:"rules"`
+	Final                 string                `json:"final,omitempty"`
+	AutoDetectInterface   bool                  `json:"auto_detect_interface,omitempty"`
 	DefaultDomainResolver *clientDomainResolver `json:"default_domain_resolver,omitempty"`
 }
 
+type clientRuleSet struct {
+	Tag            string `json:"tag"`
+	Type           string `json:"type"`
+	Format         string `json:"format,omitempty"`
+	URL            string `json:"url,omitempty"`
+	DownloadDetour string `json:"download_detour,omitempty"`
+	UpdateInterval string `json:"update_interval,omitempty"`
+}
+
 type clientRouteRule struct {
-	ClashMode   string `json:"clash_mode,omitempty"`
-	Protocol    string `json:"protocol,omitempty"`
-	Network     string `json:"network,omitempty"`
-	Port        int    `json:"port,omitempty"`
-	IPIsPrivate *bool  `json:"ip_is_private,omitempty"`
-	Action      string `json:"action,omitempty"`
-	Outbound    string `json:"outbound,omitempty"`
-	NoDrop      *bool  `json:"no_drop,omitempty"`
+	ClashMode    string   `json:"clash_mode,omitempty"`
+	Protocol     string   `json:"protocol,omitempty"`
+	Network      string   `json:"network,omitempty"`
+	Port         int      `json:"port,omitempty"`
+	IPIsPrivate  *bool    `json:"ip_is_private,omitempty"`
+	DomainSuffix []string `json:"domain_suffix,omitempty"`
+	RuleSet      string   `json:"rule_set,omitempty"`
+	Action       string   `json:"action,omitempty"`
+	Outbound     string   `json:"outbound,omitempty"`
+	NoDrop       *bool    `json:"no_drop,omitempty"`
 }
 
 type clientDomainResolver struct {

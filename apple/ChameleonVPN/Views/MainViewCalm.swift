@@ -268,12 +268,16 @@ struct MainViewCalm: View {
                 showServers = true
             }
 
-            chip(
-                title: L10n.Home.chipSession,
-                value: sessionValue,
-                icon: "clock"
-            ) {}
-                .allowsHitTesting(false)
+            // Session chip is wrapped in TimelineView so the running timer
+            // re-renders every second — plain computed properties won't.
+            TimelineView(.periodic(from: .now, by: 1)) { _ in
+                chip(
+                    title: L10n.Home.chipSession,
+                    value: sessionValue,
+                    icon: "clock"
+                ) {}
+                    .allowsHitTesting(false)
+            }
         }
     }
 

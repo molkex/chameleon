@@ -289,40 +289,63 @@ struct MainViewNeon: View {
     // MARK: - CTA
 
     private var ctaButton: some View {
-        Button {
-            TunnelFileLogger.log("TAP: connect button (state=\(connState), isLoading=\(app.isLoading))", category: "ui")
-            Task { await app.toggleVPN() }
-        } label: {
-            HStack {
-                if connState.isBusy {
-                    ProgressView().tint(theme.background)
-                    Spacer()
-                    Text(ctaBusyText)
-                        .font(.system(size: 18, weight: .black))
-                        .kerning(0.5)
-                } else {
-                    Text(ctaIdleText)
-                        .font(.system(size: 18, weight: .black))
-                        .kerning(0.5)
-                    Spacer()
-                    Image(systemName: connState == .connected ? "stop.fill" : "arrow.right")
-                        .font(.system(size: 20, weight: .black))
+        // TimelineView drives a subtle breathing glow while connected
+        // (and a faster pulse while busy). When idle the shadow stays flat.
+        TimelineView(.animation) { timeline in
+            let phase = glowPhase(at: timeline.date)
+            Button {
+                TunnelFileLogger.log("TAP: connect button (state=\(connState), isLoading=\(app.isLoading))", category: "ui")
+                Task { await app.toggleVPN() }
+            } label: {
+                HStack {
+                    if connState.isBusy {
+                        ProgressView().tint(theme.background)
+                        Spacer()
+                        Text(ctaBusyText)
+                            .font(.system(size: 18, weight: .black))
+                            .kerning(0.5)
+                    } else {
+                        Text(ctaIdleText)
+                            .font(.system(size: 18, weight: .black))
+                            .kerning(0.5)
+                        Spacer()
+                        Image(systemName: connState == .connected ? "stop.fill" : "arrow.right")
+                            .font(.system(size: 20, weight: .black))
+                    }
                 }
+                .foregroundStyle(theme.background)
+                .padding(.vertical, 22)
+                .padding(.horizontal, 24)
+                .frame(maxWidth: .infinity)
+                .background(
+                    RoundedRectangle(cornerRadius: 18)
+                        .fill(ctaButtonColor)
+                )
+                .shadow(
+                    color: ctaButtonColor.opacity(0.35 + 0.35 * phase),
+                    radius: 24 + 14 * phase,
+                    y: 0
+                )
             }
-            .foregroundStyle(theme.background)
-            .padding(.vertical, 22)
-            .padding(.horizontal, 24)
-            .frame(maxWidth: .infinity)
-            .background(
-                RoundedRectangle(cornerRadius: 18)
-                    .fill(ctaButtonColor)
-            )
-            .shadow(color: ctaButtonColor.opacity(0.5), radius: 30, y: 0)
+            .buttonStyle(NeonPressStyle())
         }
-        .buttonStyle(.plain)
         // Only block the button for states the user can't do anything about.
         // .connecting stays tappable so they can cancel a slow connect.
         .disabled(connState == .disconnecting || connState == .permissionDenied)
+    }
+
+    /// Returns a 0…1 oscillation for the CTA shadow. Connected → slow breath
+    /// (~2.4s period). Busy → faster pulse (~0.9s). Idle → 0 (flat shadow).
+    private func glowPhase(at date: Date) -> Double {
+        let t = date.timeIntervalSinceReferenceDate
+        switch connState {
+        case .connected:
+            return 0.5 * (1 + sin(t * 2 * .pi / 2.4))
+        case .connecting, .reconnecting:
+            return 0.5 * (1 + sin(t * 2 * .pi / 0.9))
+        default:
+            return 0
+        }
     }
 
     private var ctaIdleText: LocalizedStringKey {
@@ -391,5 +414,15 @@ struct MainViewNeon: View {
             return L10n.Home.subDaysLeft(days)
         }
         return String(localized: "home.subscription.unlock")
+    }
+}
+
+/// Tactile press feedback for the big Neon CTA — scales down + dims on tap.
+private struct NeonPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .opacity(configuration.isPressed ? 0.92 : 1.0)
+            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: configuration.isPressed)
     }
 }

@@ -36,6 +36,8 @@
 		6C05FDF3E2B5D40809D27DD0 /* DebugLogsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E080B8299D7A6B432DBD59D5 /* DebugLogsView.swift */; };
 		7403D5BC666B83A5449C689F /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C569B64AC8B15976A785085F /* AccountView.swift */; };
 		7CEC23D452F2C62AC8E889E7 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = A45618245E5FC7F91A354178 /* Constants.swift */; };
+		F1A2B3C4D5E6F70102030401 /* RoutingMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A2B3C4D5E6F70102030400 /* RoutingMode.swift */; };
+		F1A2B3C4D5E6F70102030402 /* RoutingMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A2B3C4D5E6F70102030400 /* RoutingMode.swift */; };
 		808D398BF959A764FB77EBC2 /* VPNErrorMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AEC6D2088A34DFF86FC1CF3 /* VPNErrorMapper.swift */; };
 		8229FE971B91CD47D9A9F0E8 /* ThemePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCD043B2561D33DECC01588F /* ThemePickerView.swift */; };
 		8D64B2CD70F75BDB7645FF4A /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7533AA628239CD95A1BB7DAB /* KeychainHelper.swift */; };
@@ -51,6 +53,7 @@
 		DC7E375502C52F1D97FE1EAC /* ServerGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86E509671A68D78BD6908FC8 /* ServerGroup.swift */; };
 		DCB20E516F445F1A67E17242 /* ChameleonApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 420665454AF74620F74B6AAA /* ChameleonApp.swift */; };
 		E1AA8104C6CBD8CD19896AF8 /* VPNManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C57BC9A4AAADE5C91FA7C580 /* VPNManager.swift */; };
+		F1A2B3C4D5E6F70102030501 /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A2B3C4D5E6F70102030500 /* Haptics.swift */; };
 		E9AEC92A10554F7624AC5A95 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 0BACAB5F6AA66627BF0F2610 /* Localizable.strings */; };
 		EAD1111C1D1726D3B51A6AF2 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = D465DD76EC827BD967F80B1E /* Logger.swift */; };
 		EF0E4CB9726FB660182A57A4 /* RunBlocking.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FEEB58777E4D84D49ED3DDA /* RunBlocking.swift */; };
@@ -111,6 +114,8 @@
 		90C675EE4BC46E36EF3C1526 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		A06772CE401FD8E92E4E0600 /* CommandClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandClient.swift; sourceTree = "<group>"; };
 		A45618245E5FC7F91A354178 /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
+		F1A2B3C4D5E6F70102030400 /* RoutingMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutingMode.swift; sourceTree = "<group>"; };
+		F1A2B3C4D5E6F70102030500 /* Haptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
 		AA64087016BE4EC7E684E51A /* Products.storekit */ = {isa = PBXFileReference; path = Products.storekit; sourceTree = "<group>"; };
 		B2E3733BE657BF5D349C4AB1 /* ExtensionPlatformInterface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionPlatformInterface.swift; sourceTree = "<group>"; };
 		B613AB9BB3D203C343056E69 /* ExtensionProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionProvider.swift; sourceTree = "<group>"; };
@@ -185,6 +190,7 @@
 				A45618245E5FC7F91A354178 /* Constants.swift */,
 				7533AA628239CD95A1BB7DAB /* KeychainHelper.swift */,
 				D465DD76EC827BD967F80B1E /* Logger.swift */,
+				F1A2B3C4D5E6F70102030400 /* RoutingMode.swift */,
 				5FEEB58777E4D84D49ED3DDA /* RunBlocking.swift */,
 				221A525997AC7F7CA456999C /* StringUtils.swift */,
 				11753AAE7E8E48B9A694425D /* TunnelFileLogger.swift */,
@@ -262,6 +268,7 @@
 				BBBD6B44CB0BDD1033E4BAC3 /* ThemeManager.swift */,
 				1AEC6D2088A34DFF86FC1CF3 /* VPNErrorMapper.swift */,
 				C57BC9A4AAADE5C91FA7C580 /* VPNManager.swift */,
+				F1A2B3C4D5E6F70102030500 /* Haptics.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -384,6 +391,7 @@
 				603E08AD0023704FAB351F40 /* PaywallView.swift in Sources */,
 				AA11BB22CC33DD44EE55FF66 /* WebPaywallView.swift in Sources */,
 				C1A4123A23281325A857AFC3 /* PingService.swift in Sources */,
+				F1A2B3C4D5E6F70102030401 /* RoutingMode.swift in Sources */,
 				EF0E4CB9726FB660182A57A4 /* RunBlocking.swift in Sources */,
 				DC7E375502C52F1D97FE1EAC /* ServerGroup.swift in Sources */,
 				22730516B923B6A25AD48411 /* SettingsView.swift in Sources */,
@@ -395,6 +403,7 @@
 				2038895901967E465B2724F6 /* TunnelFileLogger.swift in Sources */,
 				808D398BF959A764FB77EBC2 /* VPNErrorMapper.swift in Sources */,
 				E1AA8104C6CBD8CD19896AF8 /* VPNManager.swift in Sources */,
+				F1A2B3C4D5E6F70102030501 /* Haptics.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -409,6 +418,7 @@
 				8D64B2CD70F75BDB7645FF4A /* KeychainHelper.swift in Sources */,
 				EAD1111C1D1726D3B51A6AF2 /* Logger.swift in Sources */,
 				47EEE76A81976F7A3F7FB642 /* PacketTunnelProvider.swift in Sources */,
+				F1A2B3C4D5E6F70102030402 /* RoutingMode.swift in Sources */,
 				33D9E14657203DEC43DDBB11 /* RunBlocking.swift in Sources */,
 				9CC6597D84E99998BEAF32DB /* StringUtils.swift in Sources */,
 				AD6859BDD5B9CE20DA75CD4A /* TunnelFileLogger.swift in Sources */,

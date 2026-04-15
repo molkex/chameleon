@@ -73,6 +73,11 @@ enum AppConstants {
     static let grpcAvailableKey = "grpcAvailable"
     static let selectedServerTagKey = "selectedServerTag"
     static let subscriptionExpireKey = "subscriptionExpire"
+    // Routing mode: "smart" (default) | "ru-direct" | "full-vpn".
+    // Controls the three sing-box selectors: "RU Traffic", "Blocked Traffic",
+    // "Default Route". See RoutingMode.applyToClash() for the mapping.
+    static let routingModeKey = "routingMode"
+    static let clashAPIPort = 9091
 
     // Mobile JWT auth tokens (stored in Keychain)
     static let accessTokenKey = "mobileAccessToken"

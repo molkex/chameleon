@@ -37,6 +37,29 @@ struct SettingsView: View {
                     .tint(.primary)
                 }
 
+                Section {
+                    Picker(selection: Binding(
+                        get: { app.routingMode },
+                        set: { app.setRoutingMode($0) }
+                    )) {
+                        Text(L10n.Settings.routingModeSmart).tag(RoutingMode.smart)
+                        Text(L10n.Settings.routingModeRuDirect).tag(RoutingMode.ruDirect)
+                        Text(L10n.Settings.routingModeFullVPN).tag(RoutingMode.fullVPN)
+                    } label: {
+                        Label {
+                            Text(L10n.Settings.routingMode)
+                        } icon: {
+                            Image(systemName: "arrow.triangle.branch")
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    Text(routingModeHint)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } header: {
+                    Text(L10n.Settings.sectionRouting)
+                }
+
                 Section(L10n.Settings.sectionAccount) {
                     NavigationLink {
                         AccountView()
@@ -114,6 +137,14 @@ struct SettingsView: View {
                 )
                 .environment(app)
             }
+        }
+    }
+
+    private var routingModeHint: LocalizedStringKey {
+        switch app.routingMode {
+        case .smart:    return L10n.Settings.routingModeSmartHint
+        case .ruDirect: return L10n.Settings.routingModeRuDirectHint
+        case .fullVPN:  return L10n.Settings.routingModeFullVPNHint
         }
     }
 
