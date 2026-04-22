@@ -72,6 +72,10 @@
 "onboarding.continue_no_account" = "Продолжить как гость";
 "onboarding.sign_in_with_google" = "Войти через Google";
 "onboarding.sign_in_with_email"  = "Войти по email";
+"onboarding.or"                  = "или";
+"onboarding.feature.trial_short"  = "3 дня";
+"onboarding.feature.no_logs_short"= "Без логов";
+"onboarding.feature.fast_short"   = "Быстро";
 
 /* ===== Magic link (passwordless email sign-in) ===== */
 "magic.title"                    = "Войти по email";

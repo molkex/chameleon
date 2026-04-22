@@ -25,6 +25,7 @@
 		10B6986CBF783A2FC5E95116 /* UniformTypeIdentifiers.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A9CC086707BD28C31BF3AA01 /* UniformTypeIdentifiers.framework */; };
 		12FDAC6EE656EC2521C99992 /* MainViewNeon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 037DF0618BBBAAB963EC62E8 /* MainViewNeon.swift */; };
 		130857E7463F97F888385243 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 0BACAB5F6AA66627BF0F2610 /* Localizable.strings */; };
+		14B9B6E86AA784C2613C835B /* DirectConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = D662EF3741B9C04D0E017909 /* DirectConnection.swift */; };
 		1639800AC026FEED8D23E662 /* Libbox.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = CF63E2AA443EBEDBDD3E6F96 /* Libbox.xcframework */; };
 		174BA796324D1262391875BC /* ConfigSanitizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4016E60CA086754CC1BBF19 /* ConfigSanitizer.swift */; };
 		1CC85EA650A8633421685E2E /* ConfigStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC1427098EF08CEAC700CD2C /* ConfigStore.swift */; };
@@ -72,6 +73,7 @@
 		642D9E39A3562E0717AC322B /* RoutingMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 365EB7F3FEC52C9C51B1ED60 /* RoutingMode.swift */; };
 		648A352BF21582E45B92BD30 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = D0060EAF0EA891E11436DA4F /* GoogleSignIn */; };
 		6772211E4E423C30D3D69D14 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = D465DD76EC827BD967F80B1E /* Logger.swift */; };
+		6958BF809BB84484A13D6E16 /* DirectConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = D662EF3741B9C04D0E017909 /* DirectConnection.swift */; };
 		6ACA514C00D2E9EB79C82D57 /* VPNManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C57BC9A4AAADE5C91FA7C580 /* VPNManager.swift */; };
 		6BAAF05855F452DE4192E349 /* PlatformDevice.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4402AF600E58A978FE510BA /* PlatformDevice.swift */; };
 		6C05FDF3E2B5D40809D27DD0 /* DebugLogsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E080B8299D7A6B432DBD59D5 /* DebugLogsView.swift */; };
@@ -114,6 +116,7 @@
 		B5A4B5BCE212A32E89615F12 /* PlatformViewExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAADCF80D8C25BF1B60CBAE1 /* PlatformViewExtensions.swift */; };
 		B76887930CEEC15D7A96DD4B /* PlatformViewExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAADCF80D8C25BF1B60CBAE1 /* PlatformViewExtensions.swift */; };
 		B96E47BE0232564E1622F33A /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C569B64AC8B15976A785085F /* AccountView.swift */; };
+		C0852EE6FF3D9B25BE08C741 /* DirectConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = D662EF3741B9C04D0E017909 /* DirectConnection.swift */; };
 		C124F87CD2E5187CC30A9B7E /* CoreLocation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FFB1DE5C354B901E2D856472 /* CoreLocation.framework */; };
 		C17E9DAA327FCD9EA78BDA6A /* RoutingMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 365EB7F3FEC52C9C51B1ED60 /* RoutingMode.swift */; };
 		C1A4123A23281325A857AFC3 /* PingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 171C8D69FE3BD789A21AFA55 /* PingService.swift */; };
@@ -138,6 +141,7 @@
 		E1AA8104C6CBD8CD19896AF8 /* VPNManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C57BC9A4AAADE5C91FA7C580 /* VPNManager.swift */; };
 		E348DC71F159AE899252CFEE /* CommandClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A06772CE401FD8E92E4E0600 /* CommandClient.swift */; };
 		E3AA2A3BD678A030504ADA21 /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4322C4D5AA019348B7B47600 /* Haptics.swift */; };
+		E4517D9ED173E190C331D28A /* DirectConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = D662EF3741B9C04D0E017909 /* DirectConnection.swift */; };
 		E73B38FBB3516BA865687DBC /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E7AB40F684540E3FACAB3EA /* PaywallView.swift */; };
 		E937B8E5C0C5D27D70F1D4C1 /* WebPaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B44609A85EAB85A9BB6E22B /* WebPaywallView.swift */; };
 		E9AEC92A10554F7624AC5A95 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 0BACAB5F6AA66627BF0F2610 /* Localizable.strings */; };
@@ -271,6 +275,7 @@
 		CF63E2AA443EBEDBDD3E6F96 /* Libbox.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Libbox.xcframework; path = Frameworks/Libbox.xcframework; sourceTree = "<group>"; };
 		D4016E60CA086754CC1BBF19 /* ConfigSanitizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigSanitizer.swift; sourceTree = "<group>"; };
 		D465DD76EC827BD967F80B1E /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
+		D662EF3741B9C04D0E017909 /* DirectConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectConnection.swift; sourceTree = "<group>"; };
 		D81C205D6C9FBEF449EB5D65 /* EmailSignInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailSignInView.swift; sourceTree = "<group>"; };
 		DCFB6346D7BDAAE6E04CF460 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		E080B8299D7A6B432DBD59D5 /* DebugLogsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugLogsView.swift; sourceTree = "<group>"; };
@@ -406,6 +411,7 @@
 				5FEEB58777E4D84D49ED3DDA /* RunBlocking.swift */,
 				221A525997AC7F7CA456999C /* StringUtils.swift */,
 				11753AAE7E8E48B9A694425D /* TunnelFileLogger.swift */,
+				79000A9EB0B4AD2B32A3FF52 /* Networking */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -423,6 +429,14 @@
 				59C5BB770AD568DFAB1BD09F /* Views */,
 			);
 			path = ChameleonVPN;
+			sourceTree = "<group>";
+		};
+		79000A9EB0B4AD2B32A3FF52 /* Networking */ = {
+			isa = PBXGroup;
+			children = (
+				D662EF3741B9C04D0E017909 /* DirectConnection.swift */,
+			);
+			path = Networking;
 			sourceTree = "<group>";
 		};
 		83537F6C9A74A8139FD2848A = {
@@ -654,6 +668,7 @@
 			files = (
 				57B251C66594925870589413 /* ConfigSanitizer.swift in Sources */,
 				1FE433EC194702B645C0660A /* Constants.swift in Sources */,
+				6958BF809BB84484A13D6E16 /* DirectConnection.swift in Sources */,
 				49EB978983561E0508E3B5C9 /* ExtensionPlatformInterface.swift in Sources */,
 				A5A80AE2E32A2A93E416FA91 /* ExtensionProvider.swift in Sources */,
 				00F9DD5B3772DF4475B49FB4 /* KeychainHelper.swift in Sources */,
@@ -681,6 +696,7 @@
 				1CC85EA650A8633421685E2E /* ConfigStore.swift in Sources */,
 				D9083252EC302F9588680DB4 /* Constants.swift in Sources */,
 				6C05FDF3E2B5D40809D27DD0 /* DebugLogsView.swift in Sources */,
+				C0852EE6FF3D9B25BE08C741 /* DirectConnection.swift in Sources */,
 				91417FA9C8E27A02B46625DC /* EmailSignInView.swift in Sources */,
 				08EF71896CDBC3641CC89BB6 /* GoogleAuthCoordinator.swift in Sources */,
 				E3AA2A3BD678A030504ADA21 /* Haptics.swift in Sources */,
@@ -729,6 +745,7 @@
 				1050DEA8FE7B85C7A6DB28F5 /* ConfigStore.swift in Sources */,
 				61820A2F129FE7874D6218A4 /* Constants.swift in Sources */,
 				F64220BF9B5C3084129D0D45 /* DebugLogsView.swift in Sources */,
+				E4517D9ED173E190C331D28A /* DirectConnection.swift in Sources */,
 				A6DB622362455B470F0F444B /* EmailSignInView.swift in Sources */,
 				095A6578B8F39B881C960CAC /* GoogleAuthCoordinator.swift in Sources */,
 				928C53242F019FC4152BCA1E /* Haptics.swift in Sources */,
@@ -770,6 +787,7 @@
 			files = (
 				39D8C9450CD821BB7AA6F329 /* ConfigSanitizer.swift in Sources */,
 				7CEC23D452F2C62AC8E889E7 /* Constants.swift in Sources */,
+				14B9B6E86AA784C2613C835B /* DirectConnection.swift in Sources */,
 				0F65F443B84C6397E38420E3 /* ExtensionPlatformInterface.swift in Sources */,
 				4417CBBDEA850A63D8F5540A /* ExtensionProvider.swift in Sources */,
 				8D64B2CD70F75BDB7645FF4A /* KeychainHelper.swift in Sources */,

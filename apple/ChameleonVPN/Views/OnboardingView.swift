@@ -1,6 +1,20 @@
 import SwiftUI
 import AuthenticationServices
+#if os(iOS)
+import UIKit
+#endif
 
+/// Light haptic tick for secondary button taps. No-op on macOS.
+fileprivate func hapticLight() {
+    #if os(iOS)
+    let gen = UIImpactFeedbackGenerator(style: .light)
+    gen.impactOccurred()
+    #endif
+}
+
+/// First-launch onboarding. Big logo with a breathing halo, Apple as
+/// primary CTA, Google + Email as secondary icon chips, guest as a
+/// text link. Feature pills live above the CTAs to reassure the user.
 struct OnboardingView: View {
     @Environment(AppState.self) private var app
     @Environment(ThemeManager.self) private var themeManager
@@ -15,117 +29,85 @@ struct OnboardingView: View {
             theme.background.ignoresSafeArea()
 
             VStack(spacing: 0) {
-                Spacer().frame(minHeight: 40)
+                Spacer(minLength: 16)
 
-                // Hero logo.
-                Image("AppLogo")
-                    .resizable()
-                    .interpolation(.high)
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 120, height: 120)
-                    .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-                    .shadow(color: theme.accent.opacity(0.22), radius: 20, x: 0, y: 8)
+                logo
 
-                Spacer().frame(height: 18)
+                Spacer().frame(height: 20)
 
                 Text(L10n.Onboarding.title)
-                    .font(theme.displayFont(size: 26, weight: .black))
+                    .font(theme.displayFont(size: 34, weight: .black))
                     .foregroundStyle(theme.textPrimary)
 
-                Spacer().frame(height: 4)
+                Spacer().frame(height: 10)
 
                 Text(L10n.Onboarding.subtitle)
-                    .font(theme.font(size: 14))
+                    .font(theme.font(size: 15))
                     .foregroundStyle(theme.textSecondary)
 
-                Spacer().frame(height: 18)
+                Spacer().frame(height: 28)
 
-                // Features — tighter.
+                featurePills
+
+                Spacer(minLength: 24)
+
+                // Auth group: Apple + divider + chips read as one block
                 VStack(spacing: 8) {
-                    FeatureRow(icon: "clock.badge.checkmark", text: L10n.Onboarding.featureTrial, theme: theme)
-                    FeatureRow(icon: "lock.shield", text: L10n.Onboarding.featureNoLogs, theme: theme)
-                    FeatureRow(icon: "bolt.fill", text: L10n.Onboarding.featureServers, theme: theme)
-                }
-                .padding(.horizontal, 40)
-
-                Spacer(minLength: 20)
-
-                // Auth buttons — all 48pt, same style. Apple visually primary
-                // via accent-tinted stroke + filled icon; Google/Email secondary
-                // with dimmer border. No more white-on-black mismatch.
-                VStack(spacing: 10) {
                     SignInWithAppleButton(.continue) { request in
                         request.requestedScopes = [.email]
-                    } onCompletion: { result in
-                        switch result {
-                        case .success(let auth):
-                            guard let credential = auth.credential as? ASAuthorizationAppleIDCredential else { return }
-                            Task { await app.signInWithApple(credential: credential) }
-                        case .failure(let error):
-                            if (error as NSError).code != ASAuthorizationError.canceled.rawValue {
-                                app.errorMessage = String(localized: "onboarding.signin_failed")
-                            }
+                    } onCompletion: { handleApple($0) }
+                        .signInWithAppleButtonStyle(.white)
+                        .frame(height: 52)
+                        .cornerRadius(14)
+                        .disabled(app.isLoading)
+                        .onTapGesture { hapticLight() }
+
+                    // "or" divider — text has solid bg so the line reads cleanly
+                    ZStack {
+                        Rectangle().fill(theme.textSecondary.opacity(0.18)).frame(height: 1)
+                        Text(L10n.Onboarding.orLabel)
+                            .font(theme.font(size: 11, weight: .medium))
+                            .foregroundStyle(theme.textSecondary.opacity(0.8))
+                            .tracking(1.5)
+                            .padding(.horizontal, 12)
+                            .background(theme.background)
+                    }
+
+                    HStack(spacing: 8) {
+                        chipButton(icon: { GoogleGLogo(tint: theme.textPrimary) }, label: "Google") {
+                            hapticLight()
+                            Task { await GoogleAuthCoordinator.signIn(into: app) }
+                        }
+                        chipButton(icon: {
+                            Image(systemName: "envelope.fill")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(theme.textPrimary)
+                        }, label: "Email") {
+                            hapticLight()
+                            showEmailSignIn = true
                         }
                     }
-                    .signInWithAppleButtonStyle(.white)
-                    .frame(height: 48)
-                    .cornerRadius(12)
-                    .disabled(app.isLoading)
-
-                    authButton(
-                        icon: { GoogleGLogo() },
-                        text: L10n.Onboarding.signInWithGoogle,
-                        action: { Task { await GoogleAuthCoordinator.signIn(into: app) } }
-                    )
-
-                    authButton(
-                        icon: { Image(systemName: "envelope.fill").foregroundStyle(theme.accent) },
-                        text: L10n.Onboarding.signInWithEmail,
-                        action: { showEmailSignIn = true }
-                    )
                 }
                 .padding(.horizontal, 24)
 
-                Button {
-                    Task { await app.signInAnonymous() }
-                } label: {
-                    Text(L10n.Onboarding.continueWithoutAccount)
-                        .font(theme.font(size: 14, weight: .medium))
-                        .foregroundStyle(theme.accent)
-                        .frame(maxWidth: .infinity, minHeight: 36)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .padding(.top, 6)
-                .disabled(app.isLoading)
+                Spacer().frame(height: 14)
+
+                guestButton
 
                 if app.isLoading {
-                    ProgressView()
-                        .tint(theme.textPrimary)
-                        .padding(.top, 4)
+                    ProgressView().tint(theme.textPrimary).padding(.top, 6)
                 }
 
-                // Legal footer — one line, smaller.
+                Spacer().frame(height: 14)
+
                 HStack(spacing: 10) {
-                    Button { showTerms = true } label: {
-                        Text(L10n.Legal.termsTitle)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(theme.textSecondary.opacity(0.8))
-                    }
-                    Text("·")
-                        .font(.system(size: 11))
-                        .foregroundStyle(theme.textSecondary.opacity(0.5))
-                    Button { showPrivacy = true } label: {
-                        Text(L10n.Legal.privacyTitle)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(theme.textSecondary.opacity(0.8))
-                    }
+                    termsButton
+                    Text("·").font(.system(size: 11)).foregroundStyle(theme.textSecondary.opacity(0.5))
+                    privacyButton
                 }
-                .padding(.top, 14)
                 .padding(.bottom, 20)
             }
 
-            // Error toast
             if let error = app.errorMessage {
                 VStack {
                     Text(error)
@@ -133,7 +115,7 @@ struct OnboardingView: View {
                         .foregroundStyle(.white)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 10)
-                        .background(.red.opacity(0.8), in: Capsule())
+                        .background(.red.opacity(0.85), in: Capsule())
                         .onTapGesture { app.errorMessage = nil }
                     Spacer()
                 }
@@ -142,7 +124,6 @@ struct OnboardingView: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: app.errorMessage != nil)
-        .animation(.easeInOut(duration: 0.3), value: app.isLoading)
         .sheet(isPresented: $showTerms) {
             NavigationStack {
                 LegalView(title: L10n.Legal.termsTitle, body: L10n.Legal.termsBody)
@@ -162,70 +143,163 @@ struct OnboardingView: View {
                 .macSheetSize()
         }
     }
-}
 
-/// Google "G" mark — official four-color logo from Google's developer
-/// press kit (g-logo.png). Google's branding guidelines explicitly allow
-/// this asset for "Sign in with Google" buttons.
-private struct GoogleGLogo: View {
-    var body: some View {
-        Image("GoogleG")
-            .resizable()
-            .aspectRatio(contentMode: .fit)
-            .frame(width: 18, height: 18)
+    // MARK: - Logo with breathing halo
+
+    private var logo: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
+            let t = context.date.timeIntervalSinceReferenceDate
+            // Two out-of-phase sines so the halo feels alive, not metronomic.
+            let slow = sin(t * 0.9)
+            let fast = sin(t * 1.7 + 1.2)
+            let pulse = 0.5 + 0.5 * slow              // 0..1
+            let wobble = 0.5 + 0.5 * fast             // 0..1
+
+            let innerOpacity = 0.22 + 0.18 * pulse    // 0.22..0.40
+            let outerRadius: CGFloat = 190 + 22 * CGFloat(wobble)
+            let blur: CGFloat = 14 + 6 * CGFloat(pulse)
+            let scale: CGFloat = 0.98 + 0.04 * CGFloat(pulse)
+
+            ZStack {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [
+                                theme.accent.opacity(innerOpacity),
+                                theme.accent.opacity(0.0)
+                            ],
+                            center: .center,
+                            startRadius: 36,
+                            endRadius: outerRadius
+                        )
+                    )
+                    .frame(width: 360, height: 360)
+                    .blur(radius: blur)
+                    .scaleEffect(scale)
+
+                Image("AppLogo")
+                    .resizable()
+                    .interpolation(.high)
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 200, height: 200)
+                    .clipShape(RoundedRectangle(cornerRadius: 44, style: .continuous))
+                    .shadow(color: theme.accent.opacity(0.24), radius: 22, x: 0, y: 12)
+            }
+        }
+        .frame(height: 240)
     }
-}
 
-extension OnboardingView {
-    /// Secondary auth-button style — matches the theme, consistent across
-    /// Google/Email so they read as a pair subordinate to the white Apple button.
+    // MARK: - Feature pills
+
+    private var featurePills: some View {
+        HStack(spacing: 8) {
+            pill(icon: "clock.badge.checkmark", text: L10n.Onboarding.featureTrialShort)
+            pill(icon: "lock.shield",           text: L10n.Onboarding.featureNoLogsShort)
+            pill(icon: "bolt.fill",             text: L10n.Onboarding.featureFastShort)
+        }
+        .padding(.horizontal, 16)
+    }
+
     @ViewBuilder
-    fileprivate func authButton<Icon: View>(
-        @ViewBuilder icon: () -> Icon,
-        text: LocalizedStringKey,
-        action: @escaping () -> Void
+    private func pill(icon: String, text: LocalizedStringKey) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(theme.accent)
+            Text(text)
+                .font(theme.font(size: 11, weight: .medium))
+                .foregroundStyle(theme.textPrimary.opacity(0.9))
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(theme.surface, in: Capsule())
+        .overlay(Capsule().strokeBorder(theme.textSecondary.opacity(0.12), lineWidth: 1))
+    }
+
+    // MARK: - Secondary chips
+
+    @ViewBuilder
+    private func chipButton<Icon: View>(
+        @ViewBuilder icon: () -> Icon, label: String, action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            HStack(spacing: 10) {
-                icon()
-                    .frame(width: 20, height: 20)
-                Text(text)
-                    .font(.system(size: 16, weight: .semibold))
+            HStack(spacing: 8) {
+                icon().frame(width: 20, height: 20)
+                Text(label)
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(theme.textPrimary)
             }
-            .frame(maxWidth: .infinity, minHeight: 48)
+            .frame(maxWidth: .infinity, minHeight: 46)
             .background(theme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(theme.textSecondary.opacity(0.18), lineWidth: 1)
+                    .strokeBorder(theme.textSecondary.opacity(0.28), lineWidth: 1)
             )
+        }
+        .buttonStyle(.plain)
+        .disabled(app.isLoading)
+    }
+
+    // MARK: - Handlers
+
+    private func handleApple(_ result: Result<ASAuthorization, Error>) {
+        switch result {
+        case .success(let auth):
+            guard let credential = auth.credential as? ASAuthorizationAppleIDCredential else { return }
+            Task { await app.signInWithApple(credential: credential) }
+        case .failure(let error):
+            if (error as NSError).code != ASAuthorizationError.canceled.rawValue {
+                app.errorMessage = String(localized: "onboarding.signin_failed")
+            }
+        }
+    }
+
+    private var termsButton: some View {
+        Button { showTerms = true } label: {
+            Text(L10n.Legal.termsTitle)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(theme.textSecondary.opacity(0.8))
+        }
+    }
+
+    private var privacyButton: some View {
+        Button { showPrivacy = true } label: {
+            Text(L10n.Legal.privacyTitle)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(theme.textSecondary.opacity(0.8))
+        }
+    }
+
+    private var guestButton: some View {
+        Button {
+            Task { await app.signInAnonymous() }
+        } label: {
+            Text(L10n.Onboarding.continueWithoutAccount)
+                .font(theme.font(size: 13, weight: .medium))
+                .foregroundStyle(theme.textSecondary.opacity(0.75))
+                .underline(true, color: theme.textSecondary.opacity(0.4))
+                .frame(maxWidth: .infinity, minHeight: 30)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(app.isLoading)
     }
 }
 
-/// Wrapper to keep the existing call site working.
-@ViewBuilder
-private func googleMarkIcon() -> some View {
-    GoogleGLogo()
-}
+// MARK: - Google G (monochrome, tinted to match other icons)
 
-private struct FeatureRow: View {
-    let icon: String
-    let text: LocalizedStringKey
-    let theme: Theme
+/// Renders the Google G using SF-symbol-like glyph so it visually
+/// matches the Email envelope instead of looking like a foreign paste.
+/// We draw a simple "G" glyph in the theme text color — this keeps the
+/// Google brand recognisable while respecting our dark UI.
+private struct GoogleGLogo: View {
+    let tint: Color
 
     var body: some View {
-        HStack(spacing: 14) {
-            Image(systemName: icon)
-                .font(.body)
-                .foregroundStyle(theme.accent)
-                .frame(width: 24)
-            Text(text)
-                .font(theme.font(size: 16))
-                .foregroundStyle(theme.textPrimary.opacity(0.9))
-            Spacer()
-        }
+        Text("G")
+            .font(.system(size: 18, weight: .bold, design: .rounded))
+            .foregroundStyle(tint)
+            .frame(width: 20, height: 20)
     }
 }

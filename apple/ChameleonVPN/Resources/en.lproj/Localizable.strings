@@ -72,6 +72,10 @@
 "onboarding.continue_no_account" = "Continue as guest";
 "onboarding.sign_in_with_google" = "Sign in with Google";
 "onboarding.sign_in_with_email"  = "Sign in with email";
+"onboarding.or"                  = "or";
+"onboarding.feature.trial_short"  = "3 days free";
+"onboarding.feature.no_logs_short"= "No logs";
+"onboarding.feature.fast_short"   = "Fast servers";
 
 /* ===== Magic link (passwordless email sign-in) ===== */
 "magic.title"                    = "Sign in with email";

@@ -91,11 +91,11 @@ class APIClient {
 
     init() {
         let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 5
+        config.timeoutIntervalForRequest = 8
         session = URLSession(configuration: config)
 
         let fallbackConfig = URLSessionConfiguration.default
-        fallbackConfig.timeoutIntervalForRequest = 5
+        fallbackConfig.timeoutIntervalForRequest = 8
         fallbackSession = URLSession(configuration: fallbackConfig, delegate: InsecureDelegate(), delegateQueue: nil)
     }
 
@@ -125,34 +125,91 @@ class APIClient {
         return req
     }
 
-    /// Try primary URL, then Russian relay, then direct IP
+    /// Cloudflare is SNI-filtered in RU (2026-04). Race URLSession
+    /// against SNI-spoofed NWConnection dials to hardcoded backend IPs.
     private func dataWithFallback(for request: URLRequest) async throws -> (Data, URLResponse) {
-        // 1. Try primary (Cloudflare)
-        do {
-            return try await session.data(for: request)
-        } catch {
-            guard let url = request.url else { throw error }
-            let urlString = url.absoluteString
+        guard let url = request.url else {
+            throw APIError.networkError("missing URL")
+        }
 
-            // 2. Try Russian relay (SPB) — local traffic, less likely blocked
-            if let relayURL = URL(string: urlString.replacingOccurrences(
-                of: AppConfig.baseURL, with: AppConfig.russianRelayURL)) {
-                var relayRequest = request
-                relayRequest.url = relayURL
-                relayRequest.timeoutInterval = 7
-                if let result = try? await fallbackSession.data(for: relayRequest) {
-                    return result
+        let method = request.httpMethod ?? "GET"
+        let path: String = {
+            if let q = url.query, !q.isEmpty { return "\(url.path)?\(q)" }
+            return url.path.isEmpty ? "/" : url.path
+        }()
+        var reqHeaders = request.allHTTPHeaderFields ?? [:]
+        if reqHeaders["User-Agent"] == nil { reqHeaders["User-Agent"] = AppConfig.userAgent }
+        if request.httpBody != nil, reqHeaders["Content-Type"] == nil {
+            reqHeaders["Content-Type"] = "application/json"
+        }
+        let body = request.httpBody
+
+        let raceStart = DispatchTime.now()
+        AppLogger.network.info("race.start path=\(path, privacy: .public) method=\(method, privacy: .public)")
+
+        return try await withThrowingTaskGroup(of: (Data, URLResponse, String)?.self) { group in
+            group.addTask { [session] in
+                AppLogger.network.info("race.primary.start path=\(path, privacy: .public) elapsed=\(Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000, privacy: .public)ms")
+                do {
+                    let (data, response) = try await session.data(for: request)
+                    let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
+                    if let http = response as? HTTPURLResponse, http.statusCode >= 500 {
+                        AppLogger.network.info("race.primary.done rejected status=\(http.statusCode, privacy: .public) elapsed=\(ms, privacy: .public)ms")
+                        return nil
+                    }
+                    let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+                    AppLogger.network.info("race.primary.done ok status=\(status, privacy: .public) elapsed=\(ms, privacy: .public)ms")
+                    return (data, response, "primary")
+                } catch {
+                    let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
+                    AppLogger.network.error("race.primary.done error=\(error.localizedDescription, privacy: .public) elapsed=\(ms, privacy: .public)ms")
+                    return nil
                 }
             }
 
-            // 3. Try direct IP (last resort)
-            guard let ipURL = URL(string: urlString.replacingOccurrences(
-                of: AppConfig.baseURL, with: AppConfig.fallbackBaseURL))
-            else { throw error }
-            var ipRequest = request
-            ipRequest.url = ipURL
-            ipRequest.timeoutInterval = 10
-            return try await fallbackSession.data(for: ipRequest)
+            let sni = AppConfig.baseURLHost
+            for ip in AppConfig.directBackendIPs {
+                group.addTask {
+                    AppLogger.network.info("race.direct.start ip=\(ip, privacy: .public) elapsed=\(Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000, privacy: .public)ms")
+                    do {
+                        let (bodyData, meta) = try await DirectConnection.request(
+                            ip: ip, port: 443, sni: sni,
+                            method: method, path: path,
+                            headers: reqHeaders, body: body,
+                            timeout: 6
+                        )
+                        let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
+                        if meta.status >= 400 {
+                            AppLogger.network.info("race.direct.done ip=\(ip, privacy: .public) rejected status=\(meta.status, privacy: .public) elapsed=\(ms, privacy: .public)ms")
+                            return nil
+                        }
+                        let response = HTTPURLResponse(
+                            url: url,
+                            statusCode: meta.status,
+                            httpVersion: "HTTP/1.1",
+                            headerFields: meta.headers
+                        )!
+                        AppLogger.network.info("race.direct.done ip=\(ip, privacy: .public) ok status=\(meta.status, privacy: .public) elapsed=\(ms, privacy: .public)ms")
+                        return (bodyData, response, "direct-\(ip)")
+                    } catch {
+                        let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
+                        AppLogger.network.error("race.direct.done ip=\(ip, privacy: .public) error=\(error.localizedDescription, privacy: .public) elapsed=\(ms, privacy: .public)ms")
+                        return nil
+                    }
+                }
+            }
+
+            for try await result in group {
+                if let winner = result {
+                    group.cancelAll()
+                    let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
+                    AppLogger.network.info("race.winner leg=\(winner.2, privacy: .public) elapsed=\(ms, privacy: .public)ms")
+                    return (winner.0, winner.1)
+                }
+            }
+            let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
+            AppLogger.network.error("race.failed elapsed=\(ms, privacy: .public)ms")
+            throw APIError.networkError("all paths failed")
         }
     }
 

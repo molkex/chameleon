@@ -15,6 +15,20 @@ enum AppConfig {
     /// Russian relay (SPB) — highest priority fallback for users in Russia
     static let russianRelayURL = "http://185.218.0.43"
 
+    /// Hardcoded backend IPs for TLS-with-custom-SNI direct dial.
+    /// When Cloudflare stalls (RU SNI filtering), we race these as
+    /// parallel NWConnection attempts carrying SNI = baseURL host, so
+    /// nginx on the server still accepts the TLS handshake.
+    static let directBackendIPs: [String] = [
+        "162.19.242.30",  // DE (OVH Frankfurt, main)
+        "147.45.252.234"  // NL (Timeweb)
+    ]
+
+    /// Host portion of baseURL, used as SNI for direct-IP dial.
+    static var baseURLHost: String {
+        URL(string: baseURL)?.host ?? "madfrog.online"
+    }
+
     /// App Group ID (must match your provisioning profile)
     static let appGroupID = "group.com.madfrog.vpn"
 
