@@ -779,7 +779,31 @@ class AppState {
     }
 
     private func applyRoutingModeIfLive(_ mode: RoutingMode) {
-        guard commandClient.isConnected else { return }
+        // Retry with backoff: commandClient binds to the extension's unix
+        // socket after the tunnel is up, and that's racy. If we miss the
+        // window, selectors keep their default-config state (direct for
+        // Default Route) and Full VPN silently degrades to Smart-like
+        // behaviour — exactly the bug users see when whoer.net shows the
+        // real IP. Retry every 500ms for 5s.
+        guard commandClient.isConnected else {
+            TunnelFileLogger.log("applyRoutingMode: cmdClient not connected, scheduling retry for \(mode.rawValue)", category: "ui")
+            Task { [weak self] in
+                for attempt in 1...10 {
+                    try? await Task.sleep(for: .milliseconds(500))
+                    guard let self else { return }
+                    if self.commandClient.isConnected {
+                        TunnelFileLogger.log("applyRoutingMode: cmdClient ready after \(attempt * 500)ms, applying \(mode.rawValue)", category: "ui")
+                        for (selector, target) in mode.selectorTargets {
+                            self.commandClient.selectOutbound(groupTag: selector, outboundTag: target)
+                        }
+                        return
+                    }
+                }
+                TunnelFileLogger.log("applyRoutingMode: cmdClient still not connected after 5s, giving up", category: "ui")
+            }
+            return
+        }
+        TunnelFileLogger.log("applyRoutingMode: applying \(mode.rawValue) via \(mode.selectorTargets.count) selectors", category: "ui")
         for (selector, target) in mode.selectorTargets {
             commandClient.selectOutbound(groupTag: selector, outboundTag: target)
         }
