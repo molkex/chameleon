@@ -199,6 +199,38 @@ class APIClient {
                 }
             }
 
+            // HTTP port 80 legs — RU operators often don't block TCP:80 even
+            // when TCP:443 is TCP-RST'd on foreign IPs. Backend nginx accepts
+            // port-80 requests whose Host is the raw IP (no 301 redirect).
+            for ip in AppConfig.directBackendIPs {
+                group.addTask { [fallbackSession] in
+                    AppLogger.network.info("race.http.start ip=\(ip, privacy: .public) elapsed=\(Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000, privacy: .public)ms")
+                    guard var httpURL = URLComponents(string: "http://\(ip)") else { return nil }
+                    httpURL.path = url.path
+                    httpURL.query = url.query
+                    guard let finalURL = httpURL.url else { return nil }
+                    var httpReq = request
+                    httpReq.url = finalURL
+                    httpReq.timeoutInterval = 8
+                    httpReq.setValue(nil, forHTTPHeaderField: "Host")
+                    do {
+                        let (data, response) = try await fallbackSession.data(for: httpReq)
+                        let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
+                        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+                        if status >= 400 {
+                            AppLogger.network.info("race.http.done ip=\(ip, privacy: .public) rejected status=\(status, privacy: .public) elapsed=\(ms, privacy: .public)ms")
+                            return nil
+                        }
+                        AppLogger.network.info("race.http.done ip=\(ip, privacy: .public) ok status=\(status, privacy: .public) elapsed=\(ms, privacy: .public)ms")
+                        return (data, response, "http-\(ip)")
+                    } catch {
+                        let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
+                        AppLogger.network.error("race.http.done ip=\(ip, privacy: .public) error=\(error.localizedDescription, privacy: .public) elapsed=\(ms, privacy: .public)ms")
+                        return nil
+                    }
+                }
+            }
+
             for try await result in group {
                 if let winner = result {
                     group.cancelAll()
