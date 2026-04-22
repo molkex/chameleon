@@ -33,6 +33,8 @@ services:
       - FREEKASSA_API_KEY=${FREEKASSA_API_KEY}
       - FREEKASSA_SECRET1=${FREEKASSA_SECRET1}
       - FREEKASSA_SECRET2=${FREEKASSA_SECRET2}
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - GOOGLE_IOS_CLIENT_ID=${GOOGLE_IOS_CLIENT_ID}
     deploy:
       resources:
         limits:

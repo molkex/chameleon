@@ -30,8 +30,6 @@ struct ChameleonApp: App {
             Group {
                 if !appState.isInitialized {
                     Color.black.ignoresSafeArea()
-                } else if !themeManager.hasSelected {
-                    ThemePickerView()
                 } else if appState.isAuthenticated {
                     MainView()
                 } else {
@@ -97,13 +95,29 @@ struct ChameleonApp: App {
     private func handleUniversalLink(_ url: URL) {
         guard url.host == "madfrog.online" else { return }
         let path = url.path
-        guard path.hasPrefix("/app/payment/") else { return }
         TunnelFileLogger.log("ChameleonApp: universal link \(path)", category: "ui")
-        NotificationCenter.default.post(
-            name: .paymentReturnFromLink,
-            object: nil,
-            userInfo: ["url": url]
-        )
+
+        if path.hasPrefix("/app/payment/") {
+            NotificationCenter.default.post(
+                name: .paymentReturnFromLink,
+                object: nil,
+                userInfo: ["url": url]
+            )
+            return
+        }
+
+        if path == "/app/signin" {
+            // Magic-link sign-in. Extract token and hand off to AppState
+            // which will call /auth/magic/verify and authenticate the user.
+            guard let comps = URLComponents(url: url, resolvingAgainstBaseURL: false),
+                  let token = comps.queryItems?.first(where: { $0.name == "token" })?.value,
+                  !token.isEmpty else {
+                TunnelFileLogger.log("magic link: missing token", category: "ui")
+                return
+            }
+            Task { await appState.consumeMagicToken(token) }
+            return
+        }
     }
 }
 

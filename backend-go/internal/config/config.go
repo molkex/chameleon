@@ -29,6 +29,28 @@ type Config struct {
 	Cluster   ClusterConfig   `yaml:"cluster"`
 	RateLimit RateLimitConfig `yaml:"rate_limit"`
 	Payments  PaymentsConfig  `yaml:"payments"`
+	Email     EmailConfig     `yaml:"email"`
+	Google    GoogleOAuthConfig `yaml:"google"`
+}
+
+// EmailConfig is the transactional email provider. Resend (resend.com) is
+// the primary; flipping providers is a matter of swapping `internal/email`.
+type EmailConfig struct {
+	Provider  string `yaml:"provider"`   // "resend" | "noop" (default noop if no key)
+	APIKey    string `yaml:"api_key"`    // supports ${ENV_VAR}
+	FromEmail string `yaml:"from_email"` // e.g. info@madfrog.online
+	FromName  string `yaml:"from_name"`  // e.g. MadFrog VPN
+	// AppScheme is the deeplink used in emails. Example: "https://madfrog.online"
+	// means magic links look like https://madfrog.online/app/signin?token=…
+	AppScheme string `yaml:"app_scheme"`
+}
+
+// GoogleOAuthConfig lets the backend verify Google ID tokens coming from the
+// iOS/macOS clients.
+type GoogleOAuthConfig struct {
+	// iOS client ID registered in Google Cloud Console (type: iOS).
+	// The backend uses this as the expected `aud` when verifying id_tokens.
+	IOSClientID string `yaml:"ios_client_id"`
 }
 
 // PaymentsConfig groups per-PSP settings plus the product catalog.
@@ -265,6 +287,10 @@ func (c *Config) resolveAllEnvVars() {
 	c.Payments.FreeKassa.APIKey = resolveEnvVars(c.Payments.FreeKassa.APIKey)
 	c.Payments.FreeKassa.Secret1 = resolveEnvVars(c.Payments.FreeKassa.Secret1)
 	c.Payments.FreeKassa.Secret2 = resolveEnvVars(c.Payments.FreeKassa.Secret2)
+
+	// Email + Google
+	c.Email.APIKey = resolveEnvVars(c.Email.APIKey)
+	c.Google.IOSClientID = resolveEnvVars(c.Google.IOSClientID)
 }
 
 // applyDefaults sets sensible default values for fields that were not

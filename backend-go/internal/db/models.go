@@ -49,6 +49,9 @@ type User struct {
 	AcceptLanguage         string     `db:"accept_language"          json:"accept_language"`
 	InstallDate            *time.Time `db:"install_date"             json:"install_date,omitempty"`
 	StoreCountry           string     `db:"store_country"            json:"store_country"`
+	Email                  *string    `db:"email"                    json:"email,omitempty"`
+	EmailVerifiedAt        *time.Time `db:"email_verified_at"        json:"email_verified_at,omitempty"`
+	PasswordHash           *string    `db:"password_hash"            json:"-"`
 	CreatedAt              time.Time  `db:"created_at"               json:"created_at"`
 	UpdatedAt              time.Time  `db:"updated_at"               json:"updated_at"`
 }

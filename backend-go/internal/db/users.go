@@ -20,6 +20,7 @@ const userColumns = `
 	last_country, last_country_name, last_city,
 	initial_ip, initial_country, initial_country_name, initial_city,
 	timezone, device_model, ios_version, accept_language, install_date, store_country,
+	email, email_verified_at, password_hash,
 	created_at, updated_at`
 
 // scanUser scans a single user row from pgx.Row into a User struct.
@@ -62,6 +63,7 @@ func scanUsers(rows pgx.Rows) ([]User, error) {
 			&u.LastCountry, &u.LastCountryName, &u.LastCity,
 			&u.InitialIP, &u.InitialCountry, &u.InitialCountryName, &u.InitialCity,
 			&u.Timezone, &u.DeviceModel, &u.IOSVersion, &u.AcceptLanguage, &u.InstallDate, &u.StoreCountry,
+			&u.Email, &u.EmailVerifiedAt, &u.PasswordHash,
 			&u.CreatedAt, &u.UpdatedAt,
 		)
 		if err != nil {
@@ -89,6 +91,17 @@ func (db *DB) FindUserByAppleID(ctx context.Context, appleID string) (*User, err
 
 	row := db.Pool.QueryRow(ctx,
 		`SELECT `+userColumns+` FROM users WHERE apple_id = $1`, appleID)
+	return scanUser(row)
+}
+
+// FindUserByGoogleID returns the user matching the given google_id, or nil
+// if not found. Used by /auth/google to decide between login and signup.
+func (db *DB) FindUserByGoogleID(ctx context.Context, googleID string) (*User, error) {
+	ctx, cancel := defaultTimeout(ctx)
+	defer cancel()
+
+	row := db.Pool.QueryRow(ctx,
+		`SELECT `+userColumns+` FROM users WHERE google_id = $1`, googleID)
 	return scanUser(row)
 }
 

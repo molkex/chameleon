@@ -38,6 +38,7 @@ import (
 	"github.com/chameleonvpn/chameleon/internal/cluster"
 	"github.com/chameleonvpn/chameleon/internal/config"
 	"github.com/chameleonvpn/chameleon/internal/db"
+	"github.com/chameleonvpn/chameleon/internal/email"
 	"github.com/chameleonvpn/chameleon/internal/vpn"
 )
 
@@ -128,9 +129,27 @@ func run() error {
 	appleBundleIDs := append([]string{cfg.Auth.AppleBundleID}, cfg.Auth.AppleExtraBundleIDs...)
 	appleVerifier := auth.NewAppleVerifier(appleBundleIDs...)
 
+	googleVerifier := auth.NewGoogleVerifier(cfg.Google.IOSClientID)
+
+	// Email sender — Resend if API key is configured, otherwise a noop that
+	// only logs. Lets dev/staging run without SMTP creds without blocking
+	// the magic-link flow.
+	var emailSender email.Sender
+	if cfg.Email.Provider == "resend" {
+		if s := email.NewResendSender(cfg.Email.APIKey, cfg.Email.FromEmail, cfg.Email.FromName, logger); s != nil {
+			emailSender = s
+			logger.Info("email provider: resend", zap.String("from", cfg.Email.FromEmail))
+		}
+	}
+	if emailSender == nil {
+		emailSender = email.NewNoopSender(logger)
+		logger.Warn("email provider: noop (no API key configured)")
+	}
+
 	logger.Info("auth initialized",
 		zap.Duration("access_ttl", cfg.Auth.AccessTTL.Duration),
 		zap.Duration("refresh_ttl", cfg.Auth.RefreshTTL.Duration),
+		zap.Bool("google_enabled", googleVerifier.IsEnabled()),
 	)
 
 	// Initialize VPN engine (sing-box in Docker mode).
@@ -250,6 +269,8 @@ func run() error {
 		Redis:   rdb,
 		JWT:     jwtManager,
 		Apple:   appleVerifier,
+		Google:  googleVerifier,
+		Email:   emailSender,
 		VPN:     engine,
 		Syncer:  syncer,
 		Logger:  logger,

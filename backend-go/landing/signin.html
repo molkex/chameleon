@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sign in — MadFrog VPN</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  html, body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0a0e1a; color: #f3faff; min-height: 100vh; }
+  .wrap { max-width: 480px; margin: 10vh auto; padding: 40px 28px; background: #121827; border-radius: 20px; box-shadow: 0 30px 60px rgba(0,0,0,.4); }
+  h1 { color: #8CFF4F; font-size: 24px; margin: 0 0 8px; }
+  .sub { color: #8496b4; font-size: 14px; margin: 0 0 32px; }
+  .btn { display: block; width: 100%; padding: 16px; background: #8CFF4F; color: #0a0e1a; border: 0; border-radius: 12px; font-weight: 700; font-size: 16px; cursor: pointer; text-align: center; text-decoration: none; box-sizing: border-box; }
+  .note { color: #8496b4; font-size: 12px; line-height: 1.6; margin: 24px 0 0; }
+  .err { color: #FF3D9A; font-size: 14px; margin: 16px 0 0; display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>MadFrog VPN</h1>
+  <p class="sub">Opening the app to finish signing you in…</p>
+  <a id="openApp" class="btn" href="#">Open MadFrog VPN</a>
+  <p class="note">
+    If the app didn't open automatically, tap the button above. Make sure you have MadFrog VPN installed on this device.
+  </p>
+  <p id="err" class="err"></p>
+</div>
+<script>
+  (function() {
+    var params = new URLSearchParams(window.location.search);
+    var token = params.get("token");
+    var errEl = document.getElementById("err");
+    var btn = document.getElementById("openApp");
+
+    if (!token) {
+      errEl.textContent = "Missing sign-in token.";
+      errEl.style.display = "block";
+      btn.style.display = "none";
+      return;
+    }
+
+    // Universal Link: on iOS, tapping a https://madfrog.online/app/signin link
+    // goes straight to the app. This page is only hit as a fallback — either
+    // the app isn't installed, or the user opened the email on desktop.
+    var href = "https://madfrog.online/app/signin?token=" + encodeURIComponent(token);
+    btn.href = href;
+
+    // Auto-attempt open (only works on iOS with UL installed).
+    try { window.location.replace(href); } catch (e) {}
+  })();
+</script>
+</body>
+</html>

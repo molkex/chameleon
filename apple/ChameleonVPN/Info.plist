@@ -36,5 +36,18 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.madfrog.vpn.googlesignin</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.111150560265-aao2f3qes3b442f14s3cjg3vl77qu2t8</string>
+			</array>
+		</dict>
+	</array>
+	<key>GIDClientID</key>
+	<string>111150560265-aao2f3qes3b442f14s3cjg3vl77qu2t8.apps.googleusercontent.com</string>
 </dict>
 </plist>

@@ -23,7 +23,10 @@ final class ThemeManager {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        let id = defaults.string(forKey: Self.themeIDKey) ?? Theme.calm.id
+        // MadFrog (neon) is the brand default. The theme picker is exposed
+        // in Settings → Appearance — never at onboarding — so a fresh install
+        // lands in the signature look without a detour.
+        let id = defaults.string(forKey: Self.themeIDKey) ?? Theme.neon.id
         self.current = Theme.byID(id)
         self.hasSelected = defaults.bool(forKey: Self.hasSelectedKey)
     }

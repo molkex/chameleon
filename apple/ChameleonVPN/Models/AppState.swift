@@ -267,6 +267,74 @@ class AppState {
 
     // MARK: - Sign In
 
+    /// Sign in by Google ID token received from GoogleSignIn SDK.
+    /// Parallel to `signInWithApple` but without a credential wrapper.
+    func signInWithGoogle(idToken: String) async {
+        AppLogger.app.info("signInWithGoogle: entry, tokenLen=\(idToken.count, privacy: .public)")
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            let result = try await apiClient.signInWithGoogle(idToken: idToken)
+            AppLogger.app.info("signInWithGoogle: username=\(result.username), isNew=\(result.isNew ?? false)")
+            configStore.accessToken = result.accessToken
+            configStore.refreshToken = result.refreshToken
+            configStore.username = result.username
+            try await fetchAndSaveConfig()
+            subscriptionExpire = configStore.subscriptionExpire
+            UserDefaults(suiteName: AppConstants.appGroupID)?.set(true, forKey: AppConstants.onboardingCompletedKey)
+            isAuthenticated = true
+        } catch {
+            AppLogger.app.error("signInWithGoogle: failed: \(String(describing: error), privacy: .public)")
+            errorMessage = String(localized: "onboarding.signin_failed")
+        }
+    }
+
+    /// Email entry: ask backend to send a magic link. Always resolves to a
+    /// "check your email" confirmation in UI, even on rate-limit, because we
+    /// don't want to leak which addresses have accounts.
+    func requestMagicLink(email: String) async -> Bool {
+        let trimmed = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            errorMessage = String(localized: "magic.error.invalid_email")
+            return false
+        }
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            try await apiClient.requestMagicLink(email: trimmed)
+            return true
+        } catch let APIError.serverError(429) {
+            errorMessage = String(localized: "magic.error.rate_limited")
+            return false
+        } catch {
+            AppLogger.app.error("requestMagicLink: failed: \(String(describing: error), privacy: .public)")
+            errorMessage = String(localized: "magic.error.generic")
+            return false
+        }
+    }
+
+    /// Called from ChameleonApp.handleUniversalLink when a /app/signin?token=…
+    /// link is opened. Redeems the token and completes auth.
+    func consumeMagicToken(_ token: String) async {
+        AppLogger.app.info("consumeMagicToken: entry, tokenLen=\(token.count, privacy: .public)")
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            let result = try await apiClient.verifyMagicLink(token: token)
+            AppLogger.app.info("consumeMagicToken: username=\(result.username), isNew=\(result.isNew ?? false)")
+            configStore.accessToken = result.accessToken
+            configStore.refreshToken = result.refreshToken
+            configStore.username = result.username
+            try await fetchAndSaveConfig()
+            subscriptionExpire = configStore.subscriptionExpire
+            UserDefaults(suiteName: AppConstants.appGroupID)?.set(true, forKey: AppConstants.onboardingCompletedKey)
+            isAuthenticated = true
+        } catch {
+            AppLogger.app.error("consumeMagicToken: failed: \(String(describing: error), privacy: .public)")
+            errorMessage = String(localized: "magic.error.invalid_link")
+        }
+    }
+
     func signInWithApple(credential: ASAuthorizationAppleIDCredential) async {
         AppLogger.app.info("signInWithApple: entry, hasToken=\(credential.identityToken != nil, privacy: .public), user=\(credential.user, privacy: .public)")
         guard let tokenData = credential.identityToken,

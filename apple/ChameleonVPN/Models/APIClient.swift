@@ -290,6 +290,82 @@ class APIClient {
         return try JSONDecoder().decode(AuthResult.self, from: data)
     }
 
+    // MARK: - Google Sign In
+
+    /// Sign in with Google — trial or return existing account.
+    /// `idToken` is the ID token returned by GoogleSignIn SDK.
+    func signInWithGoogle(idToken: String) async throws -> AuthResult {
+        let deviceId = PlatformDevice.identifier
+        guard let url = URL(string: "\(AppConstants.baseURL)/api/mobile/auth/google") else {
+            throw APIError.networkError("Invalid URL")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "id_token": idToken,
+            "device_id": deviceId,
+        ])
+        request.timeoutInterval = 20
+
+        let (data, response) = try await session.data(for: applyTelemetry(to: request))
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+            throw APIError.serverError(code)
+        }
+        return try JSONDecoder().decode(AuthResult.self, from: data)
+    }
+
+    // MARK: - Magic Link
+
+    /// Request a magic link email. The server responds 204 regardless of
+    /// whether the email is known — this avoids leaking which addresses
+    /// have accounts. UI should show "if an account exists, check your
+    /// email" to match.
+    func requestMagicLink(email: String) async throws {
+        guard let url = URL(string: "\(AppConstants.baseURL)/api/mobile/auth/magic/request") else {
+            throw APIError.networkError("Invalid URL")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["email": email])
+        request.timeoutInterval = 15
+
+        let (_, response) = try await session.data(for: applyTelemetry(to: request))
+        guard let http = response as? HTTPURLResponse else {
+            throw APIError.networkError("No response")
+        }
+        switch http.statusCode {
+        case 204, 200: return
+        case 429: throw APIError.serverError(429)
+        default:   throw APIError.serverError(http.statusCode)
+        }
+    }
+
+    /// Redeem a magic-link token received via Universal Link.
+    func verifyMagicLink(token: String) async throws -> AuthResult {
+        let deviceId = PlatformDevice.identifier
+        guard let url = URL(string: "\(AppConstants.baseURL)/api/mobile/auth/magic/verify") else {
+            throw APIError.networkError("Invalid URL")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "token": token,
+            "device_id": deviceId,
+        ])
+        request.timeoutInterval = 15
+
+        let (data, response) = try await session.data(for: applyTelemetry(to: request))
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+            throw APIError.serverError(code)
+        }
+        return try JSONDecoder().decode(AuthResult.self, from: data)
+    }
+
     // MARK: - Token Refresh
 
     /// Exchange refresh token for a new access token.

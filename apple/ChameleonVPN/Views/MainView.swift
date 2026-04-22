@@ -225,14 +225,7 @@ struct ServerListView: View {
                 if !directGroups.isEmpty {
                     Section {
                         ForEach(directGroups) { country in
-                            NavigationLink {
-                                CountryServersView(
-                                    country: country,
-                                    servers: allServers.filter { $0.countryKey == country.id }
-                                )
-                            } label: {
-                                CountryRow(country: country, selectedTag: app.configStore.selectedServerTag, pingService: app.pingService)
-                            }
+                            countryRowOrLink(for: country)
                         }
                     } header: {
                         Text(L10n.Servers.sectionDirect)
@@ -243,14 +236,7 @@ struct ServerListView: View {
                 if !relayGroups.isEmpty {
                     Section {
                         ForEach(relayGroups) { country in
-                            NavigationLink {
-                                CountryServersView(
-                                    country: country,
-                                    servers: allServers.filter { $0.countryKey == country.id }
-                                )
-                            } label: {
-                                CountryRow(country: country, selectedTag: app.configStore.selectedServerTag, pingService: app.pingService)
-                            }
+                            countryRowOrLink(for: country)
                         }
                     } header: {
                         Text(L10n.Servers.sectionBypass)
@@ -291,6 +277,33 @@ struct ServerListView: View {
                         Image(systemName: "arrow.clockwise")
                     }
                 }
+            }
+        }
+    }
+
+    /// Row for a country. Countries with a single server collapse to a
+    /// one-tap selection (no submenu). Multi-server countries open a list
+    /// so the user can pick a specific node — we never take that choice
+    /// away, just hide it when there's nothing to pick between.
+    @ViewBuilder
+    private func countryRowOrLink(for country: CountryGroup) -> some View {
+        let serversInCountry = allServers.filter { $0.countryKey == country.id }
+        if serversInCountry.count <= 1, let only = serversInCountry.first {
+            Button {
+                TunnelFileLogger.log("TAP: country row (flat) '\(country.id)' → '\(only.tag)'", category: "ui")
+                if let group = selectorGroup {
+                    app.selectServer(groupTag: group.tag, serverTag: only.tag)
+                }
+                dismiss()
+            } label: {
+                CountryRow(country: country, selectedTag: app.configStore.selectedServerTag, pingService: app.pingService)
+            }
+            .buttonStyle(.plain)
+        } else {
+            NavigationLink {
+                CountryServersView(country: country, servers: serversInCountry)
+            } label: {
+                CountryRow(country: country, selectedTag: app.configStore.selectedServerTag, pingService: app.pingService)
             }
         }
     }

@@ -89,7 +89,19 @@ enum L10n {
         static let signInFailed   = LKey("onboarding.signin_failed")
         static let anonFailed     = LKey("onboarding.anon_failed")
         static let continueWithoutAccount = LKey("onboarding.continue_no_account")
+        static let signInWithGoogle   = LKey("onboarding.sign_in_with_google")
+        static let signInWithEmail    = LKey("onboarding.sign_in_with_email")
         static let terms          = LKey("onboarding.terms")
+    }
+
+    enum Magic {
+        static let title              = LKey("magic.title")
+        static let subtitle           = LKey("magic.subtitle")
+        static let emailPlaceholder   = LKey("magic.email.placeholder")
+        static let send               = LKey("magic.send")
+        static let checkEmailTitle    = LKey("magic.check_email.title")
+        static let checkEmailBody     = LKey("magic.check_email.body")
+        static let checkEmailClose    = LKey("magic.check_email.close")
     }
 
     enum Primer {

@@ -8,6 +8,7 @@ struct OnboardingView: View {
 
     @State private var showTerms = false
     @State private var showPrivacy = false
+    @State private var showEmailSignIn = false
 
     var body: some View {
         ZStack {
@@ -72,12 +73,54 @@ struct OnboardingView: View {
                 .padding(.horizontal, 24)
                 .disabled(app.isLoading)
 
-                Spacer().frame(height: 12)
+                Spacer().frame(height: 10)
 
-                // Fallback: continue without an Apple account (device-bound trial).
-                // Required so users without an Apple ID, or who decline Sign in
-                // with Apple, can still use the app — otherwise we'd be blocking
-                // a legitimate path and App Store review flags this.
+                // Google Sign-In button
+                Button {
+                    Task { await GoogleAuthCoordinator.signIn(into: app) }
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "g.circle.fill")
+                            .foregroundStyle(Color(red: 0.26, green: 0.52, blue: 0.96))
+                        Text(L10n.Onboarding.signInWithGoogle)
+                            .foregroundStyle(Color.black)
+                    }
+                    .font(.system(size: 16, weight: .semibold))
+                    .frame(maxWidth: .infinity, minHeight: 50)
+                    .background(Color.white, in: RoundedRectangle(cornerRadius: 12))
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 24)
+                .disabled(app.isLoading)
+
+                Spacer().frame(height: 10)
+
+                // Email magic-link
+                Button {
+                    showEmailSignIn = true
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "envelope.fill")
+                        Text(L10n.Onboarding.signInWithEmail)
+                    }
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(theme.textPrimary)
+                    .frame(maxWidth: .infinity, minHeight: 50)
+                    .background(theme.surface, in: RoundedRectangle(cornerRadius: 12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .strokeBorder(theme.textSecondary.opacity(0.25), lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 24)
+                .disabled(app.isLoading)
+
+                Spacer().frame(height: 10)
+
+                // Fallback: continue without an account (device-bound trial).
+                // Required so users without any third-party identity can
+                // still use the app — otherwise App Store review flags this.
                 Button {
                     Task { await app.signInAnonymous() }
                 } label: {
@@ -154,6 +197,12 @@ struct OnboardingView: View {
                 LegalView(title: L10n.Legal.privacyTitle, body: L10n.Legal.privacyBody)
             }
             .macSheetSize()
+        }
+        .sheet(isPresented: $showEmailSignIn) {
+            EmailSignInView()
+                .environment(app)
+                .environment(themeManager)
+                .macSheetSize()
         }
     }
 }

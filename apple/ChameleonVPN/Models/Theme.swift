@@ -49,8 +49,8 @@ extension Theme {
     /// plenty of whitespace. Reference: soil-monitor app (dark + #E8FF4B).
     static let calm = Theme(
         id: "calm",
-        displayName: "Calm",
-        tagline: "Тёплый уют, мягкие карточки",
+        displayName: "Classic",
+        tagline: "Minimal. Comfortable. Quiet.",
         background: Color(red: 0.055, green: 0.055, blue: 0.055),       // #0E0E0E
         surface: Color(red: 0.102, green: 0.102, blue: 0.102),          // #1A1A1A
         surfaceElevated: Color(red: 0.14, green: 0.14, blue: 0.14),     // #242424
@@ -69,8 +69,8 @@ extension Theme {
     /// Neon Swamp — dark blue, neon green + magenta, bold street-art energy.
     static let neon = Theme(
         id: "neon",
-        displayName: "Neon Swamp",
-        tagline: "Кислотный, дерзкий, street-art",
+        displayName: "MadFrog",
+        tagline: "Signature neon, bold and loud.",
         background: Color(red: 0.039, green: 0.055, blue: 0.102),       // #0a0e1a
         surface: Color(red: 0.071, green: 0.094, blue: 0.153),          // #121827
         surfaceElevated: Color(red: 0.11, green: 0.14, blue: 0.2),      // #1C2433
@@ -89,6 +89,6 @@ extension Theme {
     static let all: [Theme] = [.calm, .neon]
 
     static func byID(_ id: String) -> Theme {
-        all.first { $0.id == id } ?? .calm
+        all.first { $0.id == id } ?? .neon
     }
 }

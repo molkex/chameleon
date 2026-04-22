@@ -25,6 +25,16 @@ auth:
   jwt_refresh_ttl: "720h"
   apple_bundle_id: "com.madfrog.vpn"
 
+email:
+  provider: "resend"
+  api_key: "${RESEND_API_KEY}"
+  from_email: "info@madfrog.online"
+  from_name: "MadFrog VPN"
+  app_scheme: "https://madfrog.online"
+
+google:
+  ios_client_id: "${GOOGLE_IOS_CLIENT_ID}"
+
 vpn:
   listen_port: 2096
   client_mtu: 1400

@@ -12,6 +12,7 @@ import (
 	"github.com/chameleonvpn/chameleon/internal/auth"
 	"github.com/chameleonvpn/chameleon/internal/config"
 	"github.com/chameleonvpn/chameleon/internal/db"
+	"github.com/chameleonvpn/chameleon/internal/email"
 	"github.com/chameleonvpn/chameleon/internal/geoip"
 	"github.com/chameleonvpn/chameleon/internal/payments"
 	"github.com/chameleonvpn/chameleon/internal/payments/apple"
@@ -25,12 +26,14 @@ type Handler struct {
 	Redis         *redis.Client
 	JWT           *auth.JWTManager
 	Apple         *auth.AppleVerifier // Sign In With Apple (identity token)
+	Google        *auth.GoogleVerifier // Google Sign-In (id_token)
 	AppleVerifier *apple.Verifier     // App Store IAP JWS verification
 	Payments      *payments.Service
 	FreeKassa     *freekassa.Client // may be nil if FreeKassa is disabled
 	VPN           vpn.Engine // may be nil if VPN engine is not configured
 	Config        *config.Config
 	GeoIP         *geoip.Resolver
+	Email         email.Sender // transactional email sender (Resend or noop)
 	Logger        *zap.Logger
 }
 
@@ -47,7 +50,10 @@ func RegisterRoutes(g *echo.Group, h *Handler) {
 	authGroup := g.Group("/auth")
 	authGroup.POST("/register", h.Register)
 	authGroup.POST("/apple", h.AppleSignIn)
+	authGroup.POST("/google", h.GoogleSignIn)
 	authGroup.POST("/refresh", h.RefreshToken)
+	authGroup.POST("/magic/request", h.MagicLinkRequest)
+	authGroup.POST("/magic/verify", h.MagicLinkVerify)
 
 	// Protected endpoints — require valid JWT.
 	requireAuth := auth.RequireAuth(h.JWT)

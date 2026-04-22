@@ -70,6 +70,21 @@
 "onboarding.signin_failed"       = "Не удалось войти. Попробуйте ещё раз.";
 "onboarding.anon_failed"         = "Не удалось начать пробный период. Проверьте подключение и повторите.";
 "onboarding.continue_no_account" = "Продолжить без аккаунта";
+"onboarding.sign_in_with_google" = "Войти через Google";
+"onboarding.sign_in_with_email"  = "Войти по email";
+
+/* ===== Magic link (passwordless email sign-in) ===== */
+"magic.title"                    = "Войти по email";
+"magic.subtitle"                 = "Пришлём ссылку для входа. Пароль не нужен.";
+"magic.email.placeholder"        = "you@example.com";
+"magic.send"                     = "Отправить ссылку";
+"magic.check_email.title"        = "Проверьте почту";
+"magic.check_email.body"         = "Отправили ссылку на %@. Откройте её на этом устройстве, чтобы продолжить.";
+"magic.check_email.close"        = "Готово";
+"magic.error.invalid_email"      = "Введите корректный email.";
+"magic.error.rate_limited"       = "Слишком много запросов. Попробуйте через пару минут.";
+"magic.error.generic"            = "Не удалось отправить ссылку. Проверьте подключение.";
+"magic.error.invalid_link"       = "Ссылка недействительна или устарела. Запросите новую.";
 "onboarding.terms"               = "Продолжая, вы принимаете Условия использования и Политику конфиденциальности";
 
 /* ===== VPN permission primer ===== */
@@ -138,10 +153,10 @@
 "theme.title"                    = "Выберите оформление";
 "theme.subtitle"                 = "Можно поменять позже в настройках";
 "theme.done"                     = "Готово";
-"theme.calm.name"                = "Calm";
-"theme.calm.tagline"             = "Тёплый уют, мягкие карточки";
-"theme.neon.name"                = "Neon Swamp";
-"theme.neon.tagline"             = "Кислотный, дерзкий, street-art";
+"theme.calm.name"                = "Classic";
+"theme.calm.tagline"             = "Минимализм. Спокойно. Без перегибов.";
+"theme.neon.name"                = "MadFrog";
+"theme.neon.tagline"             = "Фирменный неон, дерзко и ярко.";
 
 /* ===== Список серверов ===== */
 "servers.title"                  = "Серверы";

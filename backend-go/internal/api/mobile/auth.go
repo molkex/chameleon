@@ -178,11 +178,12 @@ func (h *Handler) AppleSignIn(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// Verify the Apple identity token.
-	appleID, err := h.Apple.VerifyIdentityToken(ctx, req.IdentityToken)
+	appleClaims, err := h.Apple.VerifyAndExtract(ctx, req.IdentityToken)
 	if err != nil {
 		h.Logger.Warn("apple: verify identity token", zap.Error(err))
 		return c.JSON(http.StatusUnauthorized, ErrorResponse{Error: "invalid apple identity token"})
 	}
+	appleID := appleClaims.Sub
 
 	// Look up existing user by apple_id.
 	user, err := h.DB.FindUserByAppleID(ctx, appleID)
@@ -265,6 +266,26 @@ func (h *Handler) AppleSignIn(c echo.Context) error {
 	// Snapshot signup-time country on first Apple sign-in.
 	if isNew {
 		h.captureInitialContext(c, user.ID)
+	}
+
+	// Persist Apple-provided email (once, on first sign-in) so the user has
+	// a recoverable identity beyond their Apple account. Apple only sends
+	// email on the very first sign-in; after that the field is empty, so we
+	// only write if missing.
+	if appleClaims.Email != "" && (user.Email == nil || *user.Email == "") {
+		if err := h.DB.SetUserEmail(ctx, user.ID, appleClaims.Email); err != nil {
+			h.Logger.Warn("apple: set email (non-fatal)", zap.Error(err))
+		} else {
+			e := appleClaims.Email
+			user.Email = &e
+			// Apple has already verified the email for us.
+			_ = h.DB.MarkEmailVerified(ctx, user.ID)
+		}
+		// Fire-and-forget backup magic link so the user has a second way to
+		// sign in if they lose their Apple account. Only on signup.
+		if isNew {
+			go h.issueBackupMagicLink(user.ID, appleClaims.Email, "apple_backup")
+		}
 	}
 
 	// Issue token pair.

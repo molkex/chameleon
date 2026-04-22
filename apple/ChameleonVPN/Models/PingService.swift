@@ -22,7 +22,11 @@ final class PingService {
 
     private let timeout: TimeInterval = 2.0
     private let cacheKey = "PingService.cache.v1"
-    private let cacheTTL: TimeInterval = 10 * 60 // 10 minutes
+    // 24h: latency to a given server barely changes day-to-day, and showing
+    // a slightly stale value is way better UX than showing "— ms" while a
+    // fresh probe is in flight. Fresh probes run in the background on every
+    // server list open and overwrite the stale values.
+    private let cacheTTL: TimeInterval = 24 * 60 * 60
 
     init() {
         loadCache()

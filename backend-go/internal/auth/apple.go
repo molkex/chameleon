@@ -75,22 +75,41 @@ func (v *AppleVerifier) audienceAllowed(aud string) bool {
 	return false
 }
 
+// AppleClaims carries the parts of an Apple ID token our auth flow needs.
+type AppleClaims struct {
+	Sub           string // stable Apple user ID
+	Email         string // hidden/relay or real, depending on user choice
+	EmailVerified bool
+}
+
 // VerifyIdentityToken validates an Apple Sign-In identity token (JWT).
 // Returns the Apple user ID (the "sub" claim) on success.
+//
+// Kept for backward compatibility. New code should use VerifyAndExtract
+// which returns the full claims including email.
 func (v *AppleVerifier) VerifyIdentityToken(ctx context.Context, tokenString string) (string, error) {
-	// Extract the kid from the token header without verifying (we need kid to find the key).
+	claims, err := v.VerifyAndExtract(ctx, tokenString)
+	if err != nil {
+		return "", err
+	}
+	return claims.Sub, nil
+}
+
+// VerifyAndExtract validates the token and returns both sub and email info.
+// Apple may omit the email field entirely once the user has signed in before
+// — the policy is "email sent only on first sign-in unless user revokes". So
+// callers should gracefully handle an empty Email.
+func (v *AppleVerifier) VerifyAndExtract(ctx context.Context, tokenString string) (*AppleClaims, error) {
 	kid, err := extractKID(tokenString)
 	if err != nil {
-		return "", fmt.Errorf("auth/apple: extract kid: %w", err)
+		return nil, fmt.Errorf("auth/apple: extract kid: %w", err)
 	}
 
-	// Get the RSA public key matching this kid.
 	pubKey, err := v.getPublicKey(ctx, kid)
 	if err != nil {
-		return "", fmt.Errorf("auth/apple: get public key: %w", err)
+		return nil, fmt.Errorf("auth/apple: get public key: %w", err)
 	}
 
-	// Parse and verify the token.
 	claims := jwt.MapClaims{}
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodRSA); !ok {
@@ -102,26 +121,34 @@ func (v *AppleVerifier) VerifyIdentityToken(ctx context.Context, tokenString str
 		jwt.WithValidMethods([]string{"RS256"}),
 	)
 	if err != nil {
-		return "", fmt.Errorf("auth/apple: verify token: %w", err)
+		return nil, fmt.Errorf("auth/apple: verify token: %w", err)
 	}
 	if !token.Valid {
-		return "", fmt.Errorf("auth/apple: token is not valid")
+		return nil, fmt.Errorf("auth/apple: token is not valid")
 	}
 
-	// Verify audience: any configured bundle ID is acceptable so the iOS
-	// and macOS builds (with distinct IDs) share one auth backend.
 	aud, _ := claims["aud"].(string)
 	if !v.audienceAllowed(aud) {
-		return "", fmt.Errorf("auth/apple: audience mismatch: got %q, want one of %v", aud, v.bundleIDs)
+		return nil, fmt.Errorf("auth/apple: audience mismatch: got %q, want one of %v", aud, v.bundleIDs)
 	}
 
-	// Extract subject (Apple user ID).
 	sub, _ := claims["sub"].(string)
 	if sub == "" {
-		return "", fmt.Errorf("auth/apple: missing sub claim")
+		return nil, fmt.Errorf("auth/apple: missing sub claim")
 	}
 
-	return sub, nil
+	out := &AppleClaims{Sub: sub}
+	if s, ok := claims["email"].(string); ok {
+		out.Email = s
+	}
+	// Apple uses "true"/"false" strings here — sometimes bools. Handle both.
+	switch v := claims["email_verified"].(type) {
+	case bool:
+		out.EmailVerified = v
+	case string:
+		out.EmailVerified = v == "true"
+	}
+	return out, nil
 }
 
 // getPublicKey returns the RSA public key matching the given kid.

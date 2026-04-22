@@ -18,6 +18,7 @@ import (
 	"github.com/chameleonvpn/chameleon/internal/cluster"
 	"github.com/chameleonvpn/chameleon/internal/config"
 	"github.com/chameleonvpn/chameleon/internal/db"
+	"github.com/chameleonvpn/chameleon/internal/email"
 	"github.com/chameleonvpn/chameleon/internal/geoip"
 	"github.com/chameleonvpn/chameleon/internal/payments"
 	"github.com/chameleonvpn/chameleon/internal/payments/apple"
@@ -34,6 +35,8 @@ type Server struct {
 	Redis  *redis.Client
 	JWT    *auth.JWTManager
 	Apple  *auth.AppleVerifier
+	Google *auth.GoogleVerifier
+	Email  email.Sender
 	VPN    vpn.Engine // VPN engine interface (may be nil)
 	Syncer *cluster.Syncer
 	Logger *zap.Logger
@@ -153,12 +156,14 @@ func (s *Server) setupRoutes(e *echo.Echo) {
 		Redis:         s.Redis,
 		JWT:           s.JWT,
 		Apple:         s.Apple,
+		Google:        s.Google,
 		AppleVerifier: appleVerifier,
 		Payments:      paymentsSvc,
 		FreeKassa:     fkClient,
 		VPN:           s.VPN,
 		Config:        s.Config,
 		GeoIP:         geoip.New(),
+		Email:         s.Email,
 		Logger:        s.Logger,
 	}
 

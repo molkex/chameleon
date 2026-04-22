@@ -70,6 +70,21 @@
 "onboarding.signin_failed"       = "Sign in failed. Please try again.";
 "onboarding.anon_failed"         = "Could not start a trial. Check your connection and try again.";
 "onboarding.continue_no_account" = "Continue without an account";
+"onboarding.sign_in_with_google" = "Sign in with Google";
+"onboarding.sign_in_with_email"  = "Sign in with email";
+
+/* ===== Magic link (passwordless email sign-in) ===== */
+"magic.title"                    = "Sign in with email";
+"magic.subtitle"                 = "We'll send you a sign-in link. No password needed.";
+"magic.email.placeholder"        = "you@example.com";
+"magic.send"                     = "Send link";
+"magic.check_email.title"        = "Check your email";
+"magic.check_email.body"         = "We sent a sign-in link to %@. Tap it on this device to continue.";
+"magic.check_email.close"        = "Done";
+"magic.error.invalid_email"      = "Enter a valid email.";
+"magic.error.rate_limited"       = "Too many requests. Try again in a few minutes.";
+"magic.error.generic"            = "Could not send the link. Check your connection.";
+"magic.error.invalid_link"       = "This link is invalid or expired. Request a new one.";
 "onboarding.terms"               = "By continuing you agree to our Terms of Service and Privacy Policy";
 
 /* ===== VPN permission primer ===== */
@@ -138,10 +153,10 @@
 "theme.title"                    = "Choose a look";
 "theme.subtitle"                 = "You can switch later in Settings";
 "theme.done"                     = "Done";
-"theme.calm.name"                = "Calm";
-"theme.calm.tagline"             = "Warm comfort, soft cards";
-"theme.neon.name"                = "Neon Swamp";
-"theme.neon.tagline"             = "Acid, bold, street-art";
+"theme.calm.name"                = "Classic";
+"theme.calm.tagline"             = "Minimal. Comfortable. Quiet.";
+"theme.neon.name"                = "MadFrog";
+"theme.neon.tagline"             = "Signature neon, bold and loud.";
 
 /* ===== Server list ===== */
 "servers.title"                  = "Servers";
