@@ -7,7 +7,7 @@ import Foundation
 
 enum AppConfig {
     /// Your server's base URL (with https://)
-    static let baseURL = "https://madfrog.online"
+    static let baseURL = "https://api.madfrog.online"
 
     /// Fallback base URL (direct IP via HTTP, bypasses Cloudflare/RKN)
     static let fallbackBaseURL = "http://162.19.242.30"
@@ -21,7 +21,8 @@ enum AppConfig {
     /// nginx on the server still accepts the TLS handshake.
     static let directBackendIPs: [String] = [
         "162.19.242.30",  // DE (OVH Frankfurt, main)
-        "147.45.252.234"  // NL (Timeweb)
+        "147.45.252.234", // NL (Timeweb)
+        "185.218.0.43"    // SPB relay (RU) — HTTPS 443 may hijack, HTTP 80 untested
     ]
 
     /// Host portion of baseURL, used as SNI for direct-IP dial.

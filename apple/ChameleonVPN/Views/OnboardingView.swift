@@ -54,13 +54,13 @@ struct OnboardingView: View {
                 // Auth group: Apple + divider + chips read as one block
                 VStack(spacing: 8) {
                     SignInWithAppleButton(.continue) { request in
+                        hapticLight()
                         request.requestedScopes = [.email]
                     } onCompletion: { handleApple($0) }
                         .signInWithAppleButtonStyle(.white)
                         .frame(height: 52)
                         .cornerRadius(14)
                         .disabled(app.isLoading)
-                        .onTapGesture { hapticLight() }
 
                     // "or" divider — text has solid bg so the line reads cleanly
                     ZStack {
