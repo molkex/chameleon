@@ -210,23 +210,31 @@ func (h *Handler) sendMagicLinkEmail(ctx context.Context, toEmail, rawToken, pur
 	}
 	link := fmt.Sprintf("%s/app/signin?token=%s", scheme, rawToken)
 
-	subject := "Sign in to MadFrog VPN"
+	// Inbox-friendly email: light HTML, no dark theme, minimal styling.
+	// Dark-themed marketing HTML was reliably classified as spam by iCloud
+	// and Gmail on a fresh domain. Plain, short, one CTA works better for
+	// deliverability and doesn't trigger image-heavy phishing filters.
+	subject := "Your MadFrog VPN sign-in link"
+	greeting := "Hi,"
+	intro := "Tap the link below to sign in on your device."
 	if purpose == "email_signup" {
-		subject = "Welcome to MadFrog VPN"
+		subject = "Finish creating your MadFrog VPN account"
+		greeting = "Welcome to MadFrog VPN!"
+		intro = "Tap the link below to finish setting up your account on your device."
 	}
 
 	html := fmt.Sprintf(`<!doctype html>
-<html><body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 32px; background: #0a0e1a; color: #f3faff;">
-<div style="max-width: 480px; margin: 0 auto; background: #121827; border-radius: 16px; padding: 32px;">
-<h1 style="color: #8CFF4F; font-size: 22px; margin: 0 0 16px;">MadFrog VPN</h1>
-<p style="color: #f3faff; font-size: 16px; line-height: 1.5;">Tap the button below to sign in on your device. This link works once and expires in 15 minutes.</p>
-<p style="margin: 32px 0;"><a href="%s" style="background: #8CFF4F; color: #0a0e1a; text-decoration: none; padding: 14px 28px; border-radius: 10px; font-weight: 700; display: inline-block;">Sign in</a></p>
-<p style="color: #8496b4; font-size: 13px;">If you didn't request this, ignore the email — your account stays safe.</p>
-<p style="color: #8496b4; font-size: 11px; margin-top: 24px; word-break: break-all;">Or paste this link in Safari: <br>%s</p>
-</div>
-</body></html>`, link, link)
+<html lang="en">
+<body style="font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif; font-size: 15px; line-height: 1.55; color: #222; margin: 0; padding: 24px;">
+<p>%s</p>
+<p>%s</p>
+<p><a href="%s" style="color: #1a73e8;">Sign in to MadFrog VPN</a></p>
+<p style="color: #666; font-size: 13px;">This link works once and expires in 15 minutes. If you didn't request it, you can ignore this email.</p>
+<p style="color: #999; font-size: 12px; margin-top: 32px;">MadFrog VPN · info@madfrog.online</p>
+</body>
+</html>`, greeting, intro, link)
 
-	text := fmt.Sprintf("Sign in to MadFrog VPN:\n\n%s\n\nThis link works once and expires in 15 minutes.\nIf you didn't request this, ignore the email.\n", link)
+	text := fmt.Sprintf("%s\n\n%s\n\n%s\n\nThis link works once and expires in 15 minutes.\nIf you didn't request it, you can ignore this email.\n\n— MadFrog VPN\n", greeting, intro, link)
 
 	if err := h.Email.Send(ctx, email.Message{
 		To:       toEmail,
