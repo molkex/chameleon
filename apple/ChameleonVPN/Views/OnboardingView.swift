@@ -15,163 +15,114 @@ struct OnboardingView: View {
             theme.background.ignoresSafeArea()
 
             VStack(spacing: 0) {
-                Spacer()
+                Spacer().frame(minHeight: 40)
 
-                // Hero logo — larger, dominant. Rounded to match iOS home icon.
+                // Hero logo.
                 Image("AppLogo")
                     .resizable()
                     .interpolation(.high)
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 140, height: 140)
-                    .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
-                    .shadow(color: theme.accent.opacity(0.28), radius: 24, x: 0, y: 10)
+                    .frame(width: 120, height: 120)
+                    .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+                    .shadow(color: theme.accent.opacity(0.22), radius: 20, x: 0, y: 8)
 
-                Spacer().frame(height: 24)
+                Spacer().frame(height: 18)
 
                 Text(L10n.Onboarding.title)
-                    .font(theme.displayFont(size: 30, weight: .black))
+                    .font(theme.displayFont(size: 26, weight: .black))
                     .foregroundStyle(theme.textPrimary)
 
-                Spacer().frame(height: 6)
+                Spacer().frame(height: 4)
 
                 Text(L10n.Onboarding.subtitle)
-                    .font(theme.font(size: 15))
+                    .font(theme.font(size: 14))
                     .foregroundStyle(theme.textSecondary)
 
-                Spacer().frame(height: 22)
+                Spacer().frame(height: 18)
 
-                // Features
-                VStack(spacing: 10) {
+                // Features — tighter.
+                VStack(spacing: 8) {
                     FeatureRow(icon: "clock.badge.checkmark", text: L10n.Onboarding.featureTrial, theme: theme)
                     FeatureRow(icon: "lock.shield", text: L10n.Onboarding.featureNoLogs, theme: theme)
                     FeatureRow(icon: "bolt.fill", text: L10n.Onboarding.featureServers, theme: theme)
                 }
-                .padding(.horizontal, 36)
+                .padding(.horizontal, 40)
 
-                Spacer()
+                Spacer(minLength: 20)
 
-                // Primary: Apple — the only bold, opaque button. Apple HIG
-                // requires Sign in with Apple be visually at-least-equal to
-                // other sign-in methods, and we intentionally make it the
-                // clear first choice. 54pt tall, biggest weight.
-                SignInWithAppleButton(.continue) { request in
-                    request.requestedScopes = [.email]
-                } onCompletion: { result in
-                    switch result {
-                    case .success(let auth):
-                        guard let credential = auth.credential as? ASAuthorizationAppleIDCredential else { return }
-                        Task { await app.signInWithApple(credential: credential) }
-                    case .failure(let error):
-                        if (error as NSError).code != ASAuthorizationError.canceled.rawValue {
-                            app.errorMessage = String(localized: "onboarding.signin_failed")
+                // Auth buttons — all 48pt, same style. Apple visually primary
+                // via accent-tinted stroke + filled icon; Google/Email secondary
+                // with dimmer border. No more white-on-black mismatch.
+                VStack(spacing: 10) {
+                    SignInWithAppleButton(.continue) { request in
+                        request.requestedScopes = [.email]
+                    } onCompletion: { result in
+                        switch result {
+                        case .success(let auth):
+                            guard let credential = auth.credential as? ASAuthorizationAppleIDCredential else { return }
+                            Task { await app.signInWithApple(credential: credential) }
+                        case .failure(let error):
+                            if (error as NSError).code != ASAuthorizationError.canceled.rawValue {
+                                app.errorMessage = String(localized: "onboarding.signin_failed")
+                            }
                         }
                     }
-                }
-                .signInWithAppleButtonStyle(.white)
-                .frame(height: 54)
-                .cornerRadius(14)
-                .padding(.horizontal, 24)
-                .disabled(app.isLoading)
-
-                Spacer().frame(height: 12)
-
-                // Secondary: Google + Email, both transparent with subtle
-                // border. They visually read as "alternatives" — same role,
-                // subordinate to Apple.
-                HStack(spacing: 10) {
-                    Button {
-                        Task { await GoogleAuthCoordinator.signIn(into: app) }
-                    } label: {
-                        HStack(spacing: 8) {
-                            googleMarkIcon()
-                            Text(L10n.Onboarding.signInWithGoogle)
-                                .foregroundStyle(theme.textPrimary)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.8)
-                        }
-                        .font(.system(size: 15, weight: .semibold))
-                        .frame(maxWidth: .infinity, minHeight: 48)
-                        .background(Color.clear)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .strokeBorder(theme.textSecondary.opacity(0.35), lineWidth: 1)
-                        )
-                    }
-                    .buttonStyle(.plain)
+                    .signInWithAppleButtonStyle(.white)
+                    .frame(height: 48)
+                    .cornerRadius(12)
                     .disabled(app.isLoading)
 
-                    Button {
-                        showEmailSignIn = true
-                    } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: "envelope.fill")
-                                .foregroundStyle(theme.accent)
-                            Text(L10n.Onboarding.signInWithEmail)
-                                .foregroundStyle(theme.textPrimary)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.8)
-                        }
-                        .font(.system(size: 15, weight: .semibold))
-                        .frame(maxWidth: .infinity, minHeight: 48)
-                        .background(Color.clear)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .strokeBorder(theme.textSecondary.opacity(0.35), lineWidth: 1)
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(app.isLoading)
+                    authButton(
+                        icon: { GoogleGLogo() },
+                        text: L10n.Onboarding.signInWithGoogle,
+                        action: { Task { await GoogleAuthCoordinator.signIn(into: app) } }
+                    )
+
+                    authButton(
+                        icon: { Image(systemName: "envelope.fill").foregroundStyle(theme.accent) },
+                        text: L10n.Onboarding.signInWithEmail,
+                        action: { showEmailSignIn = true }
+                    )
                 }
                 .padding(.horizontal, 24)
 
-                // Tertiary: guest — pure text link, clear affordance as
-                // "skip this, just let me in". Users can upgrade later
-                // via Settings → Link account (not yet implemented).
                 Button {
                     Task { await app.signInAnonymous() }
                 } label: {
                     Text(L10n.Onboarding.continueWithoutAccount)
-                        .font(theme.font(size: 15, weight: .medium))
+                        .font(theme.font(size: 14, weight: .medium))
                         .foregroundStyle(theme.accent)
-                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .frame(maxWidth: .infinity, minHeight: 36)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .padding(.top, 8)
+                .padding(.top, 6)
                 .disabled(app.isLoading)
 
                 if app.isLoading {
                     ProgressView()
                         .tint(theme.textPrimary)
-                        .padding(.top, 8)
+                        .padding(.top, 4)
                 }
 
-                Spacer().frame(height: 8)
-
-                VStack(spacing: 6) {
-                    Text(L10n.Onboarding.terms)
-                        .font(.caption2)
-                        .foregroundStyle(theme.textSecondary.opacity(0.7))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 32)
-                    HStack(spacing: 16) {
-                        Button { showTerms = true } label: {
-                            Text(L10n.Legal.termsTitle)
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(theme.accent)
-                        }
-                        Text("·")
-                            .font(.caption2)
-                            .foregroundStyle(theme.textSecondary.opacity(0.5))
-                        Button { showPrivacy = true } label: {
-                            Text(L10n.Legal.privacyTitle)
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(theme.accent)
-                        }
+                // Legal footer — one line, smaller.
+                HStack(spacing: 10) {
+                    Button { showTerms = true } label: {
+                        Text(L10n.Legal.termsTitle)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(theme.textSecondary.opacity(0.8))
+                    }
+                    Text("·")
+                        .font(.system(size: 11))
+                        .foregroundStyle(theme.textSecondary.opacity(0.5))
+                    Button { showPrivacy = true } label: {
+                        Text(L10n.Legal.privacyTitle)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(theme.textSecondary.opacity(0.8))
                     }
                 }
-
-                Spacer().frame(height: 40)
+                .padding(.top, 14)
+                .padding(.bottom, 20)
             }
 
             // Error toast
@@ -221,7 +172,36 @@ private struct GoogleGLogo: View {
         Image("GoogleG")
             .resizable()
             .aspectRatio(contentMode: .fit)
-            .frame(width: 20, height: 20)
+            .frame(width: 18, height: 18)
+    }
+}
+
+extension OnboardingView {
+    /// Secondary auth-button style — matches the theme, consistent across
+    /// Google/Email so they read as a pair subordinate to the white Apple button.
+    @ViewBuilder
+    fileprivate func authButton<Icon: View>(
+        @ViewBuilder icon: () -> Icon,
+        text: LocalizedStringKey,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                icon()
+                    .frame(width: 20, height: 20)
+                Text(text)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(theme.textPrimary)
+            }
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .background(theme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(theme.textSecondary.opacity(0.18), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(app.isLoading)
     }
 }
 

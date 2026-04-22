@@ -170,7 +170,11 @@ class APIClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let body = ["device_id": deviceId]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        request.timeoutInterval = 15
+        // 6s per attempt. The outer dataWithFallback adds two more attempts
+        // with 7s + 10s caps, so the user waits at most ~23s before seeing
+        // an error. Was 15s which meant a bad primary (Cloudflare slow or
+        // blocked by local DPI) felt like "infinite loading" to users.
+        request.timeoutInterval = 6
 
         do {
             let (data, response) = try await dataWithFallback(for: applyTelemetry(to: request))
@@ -287,9 +291,12 @@ class APIClient {
             "identity_token": identityToken,
             "device_id": deviceId,
         ])
-        request.timeoutInterval = 20
+        // 6s per attempt + fallback chain. Previously 20s with no fallback
+        // meant users on high-latency cellular or DPI-throttled networks
+        // saw "infinite spinner" on Apple sign-in.
+        request.timeoutInterval = 6
 
-        let (data, response) = try await session.data(for: applyTelemetry(to: request))
+        let (data, response) = try await dataWithFallback(for: applyTelemetry(to: request))
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             let code = (response as? HTTPURLResponse)?.statusCode ?? 0
             throw APIError.serverError(code)
@@ -313,9 +320,9 @@ class APIClient {
             "id_token": idToken,
             "device_id": deviceId,
         ])
-        request.timeoutInterval = 20
+        request.timeoutInterval = 6
 
-        let (data, response) = try await session.data(for: applyTelemetry(to: request))
+        let (data, response) = try await dataWithFallback(for: applyTelemetry(to: request))
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             let code = (response as? HTTPURLResponse)?.statusCode ?? 0
             throw APIError.serverError(code)
@@ -337,9 +344,9 @@ class APIClient {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: ["email": email])
-        request.timeoutInterval = 15
+        request.timeoutInterval = 6
 
-        let (_, response) = try await session.data(for: applyTelemetry(to: request))
+        let (_, response) = try await dataWithFallback(for: applyTelemetry(to: request))
         guard let http = response as? HTTPURLResponse else {
             throw APIError.networkError("No response")
         }
@@ -363,9 +370,9 @@ class APIClient {
             "token": token,
             "device_id": deviceId,
         ])
-        request.timeoutInterval = 15
+        request.timeoutInterval = 6
 
-        let (data, response) = try await session.data(for: applyTelemetry(to: request))
+        let (data, response) = try await dataWithFallback(for: applyTelemetry(to: request))
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             let code = (response as? HTTPURLResponse)?.statusCode ?? 0
             throw APIError.serverError(code)

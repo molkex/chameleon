@@ -38,36 +38,33 @@ struct SettingsView: View {
 
                         sectionHeader(L10n.Settings.sectionRouting)
                         card {
-                            VStack(spacing: 0) {
+                            VStack(alignment: .leading, spacing: 14) {
                                 HStack(spacing: 14) {
                                     iconCircle("arrow.triangle.branch")
                                     Text(L10n.Settings.routingMode)
                                         .font(theme.font(size: 16, weight: .medium))
                                         .foregroundStyle(theme.textPrimary)
                                     Spacer()
-                                    Picker("", selection: Binding(
-                                        get: { app.routingMode },
-                                        set: { app.setRoutingMode($0) }
-                                    )) {
-                                        Text(L10n.Settings.routingModeSmart).tag(RoutingMode.smart)
-                                        Text(L10n.Settings.routingModeRuDirect).tag(RoutingMode.ruDirect)
-                                        Text(L10n.Settings.routingModeFullVPN).tag(RoutingMode.fullVPN)
-                                    }
-                                    .pickerStyle(.menu)
-                                    .tint(theme.accent)
                                 }
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 14)
 
-                                Divider().background(theme.textSecondary.opacity(0.15))
+                                // Segmented pill — 3 options in one row. Custom
+                                // rendering so it adopts the theme accent and
+                                // matches the rest of Settings.
+                                HStack(spacing: 0) {
+                                    routingSegment(.smart,    label: L10n.Settings.routingModeSmart)
+                                    routingSegment(.ruDirect, label: L10n.Settings.routingModeRuDirect)
+                                    routingSegment(.fullVPN,  label: L10n.Settings.routingModeFullVPN)
+                                }
+                                .padding(3)
+                                .background(theme.background.opacity(0.6),
+                                            in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
                                 Text(routingModeHint)
                                     .font(theme.font(size: 13))
                                     .foregroundStyle(theme.textSecondary)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 12)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
+                            .padding(16)
                         }
 
                         sectionHeader(L10n.Settings.sectionAccount)
@@ -202,6 +199,31 @@ struct SettingsView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
             .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func routingSegment(_ mode: RoutingMode, label: LocalizedStringKey) -> some View {
+        let isSelected = app.routingMode == mode
+        Button {
+            if !isSelected { app.setRoutingMode(mode) }
+        } label: {
+            Text(label)
+                .font(theme.font(size: 13, weight: .semibold))
+                .foregroundStyle(isSelected ? theme.background : theme.textPrimary.opacity(0.85))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity, minHeight: 36)
+                .background(
+                    Group {
+                        if isSelected {
+                            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                .fill(theme.accent)
+                        }
+                    }
+                )
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
