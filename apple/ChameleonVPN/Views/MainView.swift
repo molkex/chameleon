@@ -51,7 +51,13 @@ struct MainView: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: app.errorMessage != nil)
-        .onAppear { cachedBuildInfoLine = computeBuildInfoLine() }
+        .onAppear {
+            #if DEBUG
+            cachedBuildInfoLine = computeBuildInfoLine()
+            #else
+            cachedBuildInfoLine = ""
+            #endif
+        }
         .sheet(isPresented: $showServers) {
             ServerListView().environment(app)
                 .macSheetSize()
@@ -63,7 +69,7 @@ struct MainView: View {
                 .macCloseButton { showSettings = false }
         }
         .sheet(isPresented: $showPaywall) {
-            WebPaywallView().environment(app).environment(themeManager)
+            PaywallRouter().environment(app).environment(themeManager)
                 .macSheetSize()
                 .macCloseButton { showPaywall = false }
         }
@@ -71,6 +77,13 @@ struct MainView: View {
             ThemePickerView(isModal: true).environment(themeManager)
                 .macSheetSize()
                 .macCloseButton { showThemePicker = false }
+        }
+        .sheet(isPresented: Bindable(app).showPermissionPrimer) {
+            VPNPermissionPrimerView {
+                Task { await app.proceedAfterPrimer() }
+            }
+            .environment(themeManager)
+            .macSheetSize()
         }
     }
 
@@ -222,7 +235,7 @@ struct ServerListView: View {
                             }
                         }
                     } header: {
-                        Text("Прямые подключения")
+                        Text(L10n.Servers.sectionDirect)
                     }
                 }
 
@@ -240,9 +253,9 @@ struct ServerListView: View {
                             }
                         }
                     } header: {
-                        Text("Обход блокировок")
+                        Text(L10n.Servers.sectionBypass)
                     } footer: {
-                        Text("Подключение через российский сервер в зарубежные узлы — для обхода блокировок провайдеров.")
+                        Text(L10n.Servers.sectionBypassHint)
                     }
                 }
             }

@@ -68,7 +68,55 @@
 "onboarding.feature.no_logs"     = "Не храним логи";
 "onboarding.feature.servers"     = "Быстрые надёжные серверы";
 "onboarding.signin_failed"       = "Не удалось войти. Попробуйте ещё раз.";
+"onboarding.anon_failed"         = "Не удалось начать пробный период. Проверьте подключение и повторите.";
+"onboarding.continue_no_account" = "Продолжить без аккаунта";
 "onboarding.terms"               = "Продолжая, вы принимаете Условия использования и Политику конфиденциальности";
+
+/* ===== VPN permission primer ===== */
+"primer.title"                   = "Одно короткое разрешение";
+"primer.subtitle"                = "iOS требует вашего согласия, чтобы приложение могло создавать VPN-соединение.";
+"primer.step1"                   = "Нажмите «Продолжить» ниже.";
+"primer.step2"                   = "iOS покажет запрос на добавление VPN-конфигурации.";
+"primer.step3"                   = "Нажмите «Разрешить». Может потребоваться Face ID, Touch ID или код-пароль.";
+"primer.continue"                = "Продолжить";
+"primer.not_now"                 = "Не сейчас";
+
+/* ===== macOS menu bar ===== */
+"menubar.connect"                = "Подключить";
+"menubar.disconnect"             = "Отключить";
+"menubar.open_window"            = "Открыть окно";
+"menubar.quit"                   = "Выход";
+"menubar.status.protected"       = "Защищено";
+"menubar.status.connecting"      = "Подключение…";
+"menubar.status.disconnected"    = "Не подключено";
+"menubar.auto_fastest"           = "Авто (быстрейший)";
+
+/* ===== Web paywall (FreeKassa/SBP) ===== */
+"webpaywall.title"                 = "Подписка";
+"webpaywall.close"                 = "Закрыть";
+"webpaywall.header.title"          = "Безлимитный VPN";
+"webpaywall.header.subtitle"       = "Быстрые сервера. Оплата по СБП, картой или SberPay.";
+"webpaywall.email.label"           = "Email для чека";
+"webpaywall.email.hint"            = "Обязательно — чек по 54-ФЗ прилетит сюда после оплаты.";
+"webpaywall.email.invalid"         = "Email некорректный";
+"webpaywall.method.label"          = "Способ оплаты";
+"webpaywall.method.sbp"            = "СБП";
+"webpaywall.method.card"           = "Карта";
+"webpaywall.pay"                   = "Оплатить";
+"webpaywall.check_status"          = "Проверить статус";
+"webpaywall.enter_email"           = "Введите email";
+"webpaywall.success.title"         = "Оплата получена";
+"webpaywall.success.body"          = "Подписка активирована. Спасибо!";
+"webpaywall.success.ok"            = "OK";
+"webpaywall.legal.text"            = "Нажимая «Оплатить», вы соглашаетесь с условиями использования и политикой конфиденциальности.";
+"webpaywall.legal.terms"           = "Условия";
+"webpaywall.legal.privacy"         = "Конфиденциальность";
+"webpaywall.plan.days_one_device"  = "%d дн. · 1 устройство";
+"webpaywall.error.plans"           = "Не удалось загрузить тарифы.";
+"webpaywall.error.auth"            = "Требуется авторизация.";
+"webpaywall.error.pending"         = "Платёж ещё обрабатывается…";
+"webpaywall.error.session"         = "Сессия истекла — войдите заново.";
+"webpaywall.error.payment"         = "Не удалось создать платёж.";
 
 /* ===== Paywall ===== */
 "paywall.title"                  = "Premium";
@@ -107,6 +155,9 @@
 "servers.country.ru"             = "Россия";
 "servers.country.other"          = "Другие";
 "servers.section.countries"      = "СТРАНЫ";
+"servers.section.direct"         = "Прямые подключения";
+"servers.section.bypass"         = "Обход блокировок";
+"servers.section.bypass_hint"    = "Подключение через российский сервер в зарубежные узлы — для обхода блокировок провайдеров.";
 "servers.servers_in"             = "Серверы · %@";
 
 /* ===== Настройки ===== */
@@ -125,6 +176,9 @@
 "settings.section.diagnostics"   = "Диагностика";
 "settings.theme"                 = "Тема";
 "settings.logout"                = "Выйти";
+"settings.logout_confirm.title"  = "Выйти из аккаунта?";
+"settings.logout_confirm.body"   = "Потребуется заново войти, чтобы восстановить подписку на этом устройстве.";
+"settings.logout_confirm.ok"     = "Выйти";
 "settings.delete_account"        = "Удалить аккаунт";
 "settings.delete_confirm.title"  = "Удалить аккаунт?";
 "settings.delete_confirm.body"   = "Ваш аккаунт и подписка будут удалены безвозвратно. Это действие нельзя отменить.";

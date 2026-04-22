@@ -57,11 +57,13 @@ struct MainViewNeon: View {
                 subscriptionStrip
                     .padding(.top, 14)
 
-                Text(cachedBuildInfoLine)
-                    .font(.system(.caption2, design: .monospaced))
-                    .foregroundStyle(theme.textSecondary.opacity(0.45))
-                    .padding(.top, 14)
-                    .padding(.bottom, 4)
+                if !cachedBuildInfoLine.isEmpty {
+                    Text(cachedBuildInfoLine)
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(theme.textSecondary.opacity(0.45))
+                        .padding(.top, 14)
+                        .padding(.bottom, 4)
+                }
             }
             .padding(.horizontal, 22)
             .padding(.top, 48)
@@ -295,7 +297,7 @@ struct MainViewNeon: View {
             let phase = glowPhase(at: timeline.date)
             Button {
                 TunnelFileLogger.log("TAP: connect button (state=\(connState), isLoading=\(app.isLoading))", category: "ui")
-                Task { await app.toggleVPN() }
+                Task { await app.requestToggle() }
             } label: {
                 HStack {
                     if connState.isBusy {

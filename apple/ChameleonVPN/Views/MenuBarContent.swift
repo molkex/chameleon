@@ -58,11 +58,11 @@ struct MenuBarContent: View {
 
     private var connectButton: some View {
         Button {
-            Task { @MainActor in await app.toggleVPN() }
+            Task { @MainActor in await app.requestToggle() }
         } label: {
             HStack {
                 Image(systemName: VPNStateHelper.isConnected(app) ? "power.circle.fill" : "power.circle")
-                Text(VPNStateHelper.isConnected(app) ? "Отключить" : "Подключить")
+                Text(VPNStateHelper.isConnected(app) ? L10n.MenuBar.disconnect : L10n.MenuBar.connect)
                     .fontWeight(.medium)
                 Spacer()
             }
@@ -83,7 +83,7 @@ struct MenuBarContent: View {
             Button {
                 openMainWindow()
             } label: {
-                Label("Открыть окно", systemImage: "macwindow")
+                Label(L10n.MenuBar.openWindow, systemImage: "macwindow")
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 4)
                     .padding(.vertical, 4)
@@ -94,7 +94,7 @@ struct MenuBarContent: View {
             Button(role: .destructive) {
                 NSApp.terminate(nil)
             } label: {
-                Label("Выход", systemImage: "power")
+                Label(L10n.MenuBar.quit, systemImage: "power")
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 4)
                     .padding(.vertical, 4)
@@ -119,14 +119,14 @@ struct MenuBarContent: View {
     }
 
     private var statusText: String {
-        if VPNStateHelper.isConnected(app) { return "Защищено" }
-        if app.isLoading { return "Подключение…" }
-        return "Не подключено"
+        if VPNStateHelper.isConnected(app) { return "menubar.status.protected".localized }
+        if app.isLoading { return "menubar.status.connecting".localized }
+        return "menubar.status.disconnected".localized
     }
 
     private var selectedServerName: String? {
         guard let tag = app.configStore.selectedServerTag, !tag.isEmpty, tag != "auto" else {
-            return "Авто (быстрейший)"
+            return "menubar.auto_fastest".localized
         }
         for group in app.servers {
             if let item = group.items.first(where: { $0.tag == tag }) {

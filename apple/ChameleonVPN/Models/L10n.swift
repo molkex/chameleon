@@ -87,7 +87,61 @@ enum L10n {
         static let featureNoLogs  = LKey("onboarding.feature.no_logs")
         static let featureServers = LKey("onboarding.feature.servers")
         static let signInFailed   = LKey("onboarding.signin_failed")
+        static let anonFailed     = LKey("onboarding.anon_failed")
+        static let continueWithoutAccount = LKey("onboarding.continue_no_account")
         static let terms          = LKey("onboarding.terms")
+    }
+
+    enum Primer {
+        static let title          = LKey("primer.title")
+        static let subtitle       = LKey("primer.subtitle")
+        static let step1          = LKey("primer.step1")
+        static let step2          = LKey("primer.step2")
+        static let step3          = LKey("primer.step3")
+        static let continueButton = LKey("primer.continue")
+        static let notNow         = LKey("primer.not_now")
+    }
+
+    enum MenuBar {
+        static let connect        = LKey("menubar.connect")
+        static let disconnect     = LKey("menubar.disconnect")
+        static let openWindow     = LKey("menubar.open_window")
+        static let quit           = LKey("menubar.quit")
+        static let statusProtected = LKey("menubar.status.protected")
+        static let statusConnecting = LKey("menubar.status.connecting")
+        static let statusDisconnected = LKey("menubar.status.disconnected")
+        static let autoFastest    = LKey("menubar.auto_fastest")
+    }
+
+    enum WebPaywall {
+        static let title           = LKey("webpaywall.title")
+        static let close           = LKey("webpaywall.close")
+        static let headerTitle     = LKey("webpaywall.header.title")
+        static let headerSubtitle  = LKey("webpaywall.header.subtitle")
+        static let emailLabel      = LKey("webpaywall.email.label")
+        static let emailHint       = LKey("webpaywall.email.hint")
+        static let methodLabel     = LKey("webpaywall.method.label")
+        static let methodSBP       = LKey("webpaywall.method.sbp")
+        static let methodCard      = LKey("webpaywall.method.card")
+        static let pay             = LKey("webpaywall.pay")
+        static let checkStatus     = LKey("webpaywall.check_status")
+        static let enterEmail      = LKey("webpaywall.enter_email")
+        static let emailInvalid    = LKey("webpaywall.email.invalid")
+        static let successTitle    = LKey("webpaywall.success.title")
+        static let successBody     = LKey("webpaywall.success.body")
+        static let successOk       = LKey("webpaywall.success.ok")
+        static let legalText       = LKey("webpaywall.legal.text")
+        static let legalTerms      = LKey("webpaywall.legal.terms")
+        static let legalPrivacy    = LKey("webpaywall.legal.privacy")
+        static let errorPlans      = LKey("webpaywall.error.plans")
+        static let errorAuth       = LKey("webpaywall.error.auth")
+        static let errorPending    = LKey("webpaywall.error.pending")
+        static let errorSession    = LKey("webpaywall.error.session")
+        static let errorPayment    = LKey("webpaywall.error.payment")
+
+        static func planDaysOneDevice(_ days: Int) -> String {
+            String(format: String(localized: "webpaywall.plan.days_one_device"), days)
+        }
     }
 
     enum Paywall {
@@ -124,6 +178,9 @@ enum L10n {
         static let pingUnknown = LKey("servers.ping.unknown")
         static let refresh  = LKey("servers.refresh")
         static let sectionCountries = LKey("servers.section.countries")
+        static let sectionDirect = LKey("servers.section.direct")
+        static let sectionBypass = LKey("servers.section.bypass")
+        static let sectionBypassHint = LKey("servers.section.bypass_hint")
 
         static func pingMs(_ ms: Int) -> String {
             String(format: String(localized: "servers.ping.ms"), ms)
@@ -157,6 +214,9 @@ enum L10n {
         static let routingModeFullVPN      = LKey("settings.routing_mode.full_vpn")
         static let routingModeFullVPNHint  = LKey("settings.routing_mode.full_vpn.hint")
         static let logout          = LKey("settings.logout")
+        static let logoutTitle     = LKey("settings.logout_confirm.title")
+        static let logoutBody      = LKey("settings.logout_confirm.body")
+        static let logoutOk        = LKey("settings.logout_confirm.ok")
         static let deleteAccount   = LKey("settings.delete_account")
         static let deleteTitle     = LKey("settings.delete_confirm.title")
         static let deleteBody      = LKey("settings.delete_confirm.body")

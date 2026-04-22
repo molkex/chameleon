@@ -68,7 +68,55 @@
 "onboarding.feature.no_logs"     = "No logs policy";
 "onboarding.feature.servers"     = "Fast & reliable servers";
 "onboarding.signin_failed"       = "Sign in failed. Please try again.";
+"onboarding.anon_failed"         = "Could not start a trial. Check your connection and try again.";
+"onboarding.continue_no_account" = "Continue without an account";
 "onboarding.terms"               = "By continuing you agree to our Terms of Service and Privacy Policy";
+
+/* ===== VPN permission primer ===== */
+"primer.title"                   = "One quick approval";
+"primer.subtitle"                = "iOS needs your permission before any app can create a VPN connection.";
+"primer.step1"                   = "Tap Continue below.";
+"primer.step2"                   = "iOS will show an alert asking to add a VPN configuration.";
+"primer.step3"                   = "Tap Allow. You may need to confirm with Face ID, Touch ID or your passcode.";
+"primer.continue"                = "Continue";
+"primer.not_now"                 = "Not now";
+
+/* ===== macOS menu bar ===== */
+"menubar.connect"                = "Connect";
+"menubar.disconnect"             = "Disconnect";
+"menubar.open_window"            = "Open window";
+"menubar.quit"                   = "Quit";
+"menubar.status.protected"       = "Protected";
+"menubar.status.connecting"      = "Connecting…";
+"menubar.status.disconnected"    = "Not connected";
+"menubar.auto_fastest"           = "Auto (fastest)";
+
+/* ===== Web paywall (FreeKassa/SBP) ===== */
+"webpaywall.title"                 = "Subscription";
+"webpaywall.close"                 = "Close";
+"webpaywall.header.title"          = "Unlimited VPN";
+"webpaywall.header.subtitle"       = "Fast servers. Pay by SBP, card or SberPay.";
+"webpaywall.email.label"           = "Email for receipt";
+"webpaywall.email.hint"            = "Required — your receipt (per Russian law 54-FZ) is sent here after payment.";
+"webpaywall.email.invalid"         = "Email is invalid";
+"webpaywall.method.label"          = "Payment method";
+"webpaywall.method.sbp"            = "SBP";
+"webpaywall.method.card"           = "Card";
+"webpaywall.pay"                   = "Pay";
+"webpaywall.check_status"          = "Check status";
+"webpaywall.enter_email"           = "Enter email";
+"webpaywall.success.title"         = "Payment received";
+"webpaywall.success.body"          = "Subscription activated. Thank you!";
+"webpaywall.success.ok"            = "OK";
+"webpaywall.legal.text"            = "By tapping Pay you agree to our Terms of Service and Privacy Policy.";
+"webpaywall.legal.terms"           = "Terms";
+"webpaywall.legal.privacy"         = "Privacy";
+"webpaywall.plan.days_one_device"  = "%d days · 1 device";
+"webpaywall.error.plans"           = "Could not load plans.";
+"webpaywall.error.auth"            = "Authorization required.";
+"webpaywall.error.pending"         = "Payment is still processing…";
+"webpaywall.error.session"         = "Session expired — sign in again.";
+"webpaywall.error.payment"         = "Could not create the payment.";
 
 /* ===== Paywall ===== */
 "paywall.title"                  = "Premium";
@@ -107,6 +155,9 @@
 "servers.country.ru"             = "Russia";
 "servers.country.other"          = "Other";
 "servers.section.countries"      = "COUNTRIES";
+"servers.section.direct"         = "Direct connections";
+"servers.section.bypass"         = "Bypass regional blocks";
+"servers.section.bypass_hint"    = "Routes through a Russian exit to reach blocked destinations from ISP-filtered networks.";
 "servers.servers_in"             = "Servers in %@";
 
 /* ===== Settings ===== */
@@ -125,6 +176,9 @@
 "settings.section.diagnostics"   = "Diagnostics";
 "settings.theme"                 = "Theme";
 "settings.logout"                = "Log out";
+"settings.logout_confirm.title"  = "Log out?";
+"settings.logout_confirm.body"   = "You'll need to sign in again to restore your subscription on this device.";
+"settings.logout_confirm.ok"     = "Log out";
 "settings.delete_account"        = "Delete account";
 "settings.delete_confirm.title"  = "Delete account?";
 "settings.delete_confirm.body"   = "Your account and subscription will be permanently deleted. This cannot be undone.";

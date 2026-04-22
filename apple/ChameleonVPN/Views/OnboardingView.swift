@@ -70,6 +70,26 @@ struct OnboardingView: View {
                 .frame(height: 50)
                 .cornerRadius(12)
                 .padding(.horizontal, 24)
+                .disabled(app.isLoading)
+
+                Spacer().frame(height: 12)
+
+                // Fallback: continue without an Apple account (device-bound trial).
+                // Required so users without an Apple ID, or who decline Sign in
+                // with Apple, can still use the app — otherwise we'd be blocking
+                // a legitimate path and App Store review flags this.
+                Button {
+                    Task { await app.signInAnonymous() }
+                } label: {
+                    Text(L10n.Onboarding.continueWithoutAccount)
+                        .font(theme.font(size: 15, weight: .medium))
+                        .foregroundStyle(theme.textPrimary.opacity(0.85))
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 24)
+                .disabled(app.isLoading)
 
                 if app.isLoading {
                     ProgressView()

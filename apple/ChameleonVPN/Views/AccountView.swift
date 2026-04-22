@@ -9,6 +9,7 @@ struct AccountView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var showDeleteConfirm = false
+    @State private var showLogoutConfirm = false
 
     var body: some View {
         List {
@@ -32,10 +33,7 @@ struct AccountView: View {
 
             Section {
                 Button(role: .none) {
-                    Task {
-                        await app.logout()
-                        dismiss()
-                    }
+                    showLogoutConfirm = true
                 } label: {
                     Label {
                         Text(L10n.Settings.logout)
@@ -72,6 +70,17 @@ struct AccountView: View {
             }
         } message: {
             Text(L10n.Settings.deleteBody)
+        }
+        .alert(Text(L10n.Settings.logoutTitle), isPresented: $showLogoutConfirm) {
+            Button(L10n.Settings.deleteCancel, role: .cancel) {}
+            Button(L10n.Settings.logoutOk, role: .destructive) {
+                Task {
+                    await app.logout()
+                    dismiss()
+                }
+            }
+        } message: {
+            Text(L10n.Settings.logoutBody)
         }
     }
 

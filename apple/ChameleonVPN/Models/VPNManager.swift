@@ -22,6 +22,13 @@ class VPNManager {
     var isConnected: Bool { status == .connected }
     var isProcessing: Bool { status == .connecting || status == .disconnecting || status == .reasserting }
 
+    /// True once the user has approved the VPN profile — i.e. a
+    /// NETunnelProviderManager has been saved to their device. We use this to
+    /// show a pre-permission primer on first Connect: iOS's system alert is
+    /// jarring without context, and App Review increasingly flags apps that
+    /// trigger it cold.
+    var hasInstalledProfile: Bool { manager != nil }
+
     /// Load existing VPN config if any. Does NOT create or save — no permission prompt.
     func load() async throws {
         let managers = try await NETunnelProviderManager.loadAllFromPreferences()

@@ -31,6 +31,10 @@ class AppState {
     var subscriptionExpire: Date?
     var isAuthenticated: Bool = false
     var isInitialized: Bool = false
+    /// When true, UI should present the VPN permission primer instead of
+    /// toggling the tunnel. Set by `requestConnect()` on first connect
+    /// attempt; UI clears it via `proceedAfterPrimer()` or by dismissing.
+    var showPermissionPrimer: Bool = false
     var routingMode: RoutingMode = {
         let raw = UserDefaults(suiteName: AppConstants.appGroupID)?
             .string(forKey: AppConstants.routingModeKey) ?? ""
@@ -135,20 +139,28 @@ class AppState {
         }
     }
 
-    private func autoRegister() async {
+    /// Anonymous device registration — the "Continue without account" flow.
+    /// Backed by a device-id tied trial; no Apple/email binding. Users who
+    /// later want multi-device or restore-on-reinstall can sign in with
+    /// Apple from Settings, which links this device to an Apple identity
+    /// server-side.
+    func signInAnonymous() async {
         isLoading = true
         defer { isLoading = false }
-        AppLogger.app.info("autoRegister: starting device registration")
+        AppLogger.app.info("signInAnonymous: starting device registration")
         do {
             let result = try await apiClient.registerDevice()
-            AppLogger.app.info("autoRegister: registered as \(result.username)")
+            AppLogger.app.info("signInAnonymous: registered as \(result.username)")
             configStore.accessToken = result.accessToken
             configStore.refreshToken = result.refreshToken
             configStore.username = result.username
             try await fetchAndSaveConfig()
+            subscriptionExpire = configStore.subscriptionExpire
+            UserDefaults(suiteName: AppConstants.appGroupID)?.set(true, forKey: AppConstants.onboardingCompletedKey)
+            isAuthenticated = true
         } catch {
-            AppLogger.app.error("autoRegister: FAILED: \(error.localizedDescription)")
-            errorMessage = "Registration failed: \(error.localizedDescription)"
+            AppLogger.app.error("signInAnonymous: FAILED: \(error.localizedDescription)")
+            errorMessage = String(localized: "onboarding.anon_failed")
         }
     }
 
@@ -339,6 +351,26 @@ class AppState {
     }
 
     // MARK: - VPN
+
+    /// UI-level entry point for the Connect button. On the very first tap —
+    /// when no NETunnelProviderManager has been saved yet — we show a
+    /// pre-permission primer instead of triggering the system alert cold.
+    /// Once the user has confirmed the primer, `toggleVPN()` is called.
+    /// Subsequent taps go straight to `toggleVPN()`.
+    func requestToggle() async {
+        if !vpnManager.isConnected && !vpnManager.hasInstalledProfile {
+            showPermissionPrimer = true
+            return
+        }
+        await toggleVPN()
+    }
+
+    /// Called by the primer's Continue button to proceed with the actual
+    /// connect — which triggers the iOS permission alert.
+    func proceedAfterPrimer() async {
+        showPermissionPrimer = false
+        await toggleVPN()
+    }
 
     func toggleVPN() async {
         TunnelFileLogger.log("toggleVPN: begin, isConnected=\(vpnManager.isConnected)", category: "ui")

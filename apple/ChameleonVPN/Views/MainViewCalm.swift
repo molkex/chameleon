@@ -46,10 +46,12 @@ struct MainViewCalm: View {
                     .padding(.horizontal, 20)
                     .padding(.bottom, 10)
 
-                Text(cachedBuildInfoLine)
-                    .font(.system(.caption2, design: .monospaced))
-                    .foregroundStyle(theme.textSecondary.opacity(0.45))
-                    .padding(.bottom, 6)
+                if !cachedBuildInfoLine.isEmpty {
+                    Text(cachedBuildInfoLine)
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(theme.textSecondary.opacity(0.45))
+                        .padding(.bottom, 6)
+                }
             }
             .padding(.top, 48)
         }
@@ -133,7 +135,7 @@ struct MainViewCalm: View {
     private var heroCard: some View {
         Button {
             TunnelFileLogger.log("TAP: connect button (state=\(connState), isLoading=\(app.isLoading))", category: "ui")
-            Task { await app.toggleVPN() }
+            Task { await app.requestToggle() }
         } label: {
             ZStack {
                 RoundedRectangle(cornerRadius: 32, style: .continuous)

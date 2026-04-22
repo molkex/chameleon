@@ -109,7 +109,13 @@ final class PingService {
         let endpoint = NWEndpoint.hostPort(host: NWEndpoint.Host(host), port: nwPort)
 
         let params = NWParameters.tcp
-        params.prohibitedInterfaceTypes = [.other]
+        // Intentionally not prohibiting .other interfaces. Blocking them
+        // caused every probe to fail with "unsatisfied (Interface type
+        // 'other' is prohibited)" when the user had another VPN/utun
+        // active, producing a false "all servers unreachable" state.
+        // If the TCP SYN-ACK returns over any interface, the server is
+        // reachable enough; the tunnel watchdog catches real routing
+        // problems downstream.
 
         let connection = NWConnection(to: endpoint, using: params)
         let queue = DispatchQueue(label: "ping.probe.\(host):\(port)")

@@ -30,6 +30,7 @@
 		2038895901967E465B2724F6 /* TunnelFileLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11753AAE7E8E48B9A694425D /* TunnelFileLogger.swift */; };
 		20628C83DF384EC1D71F3583 /* TunnelFileLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11753AAE7E8E48B9A694425D /* TunnelFileLogger.swift */; };
 		22730516B923B6A25AD48411 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A50A25A4F2306519D129E3E /* SettingsView.swift */; };
+		2377EE8BA264E18992F16220 /* PaywallRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1382FBFD0AEC408A724BD830 /* PaywallRouter.swift */; };
 		24332B912C4F86F20F9FFC07 /* Products.storekit in Resources */ = {isa = PBXBuildFile; fileRef = AA64087016BE4EC7E684E51A /* Products.storekit */; };
 		2C97AEFC76B0E5C56818A19E /* NetworkExtension.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F59FAA982F3A7FFCD733CCDC /* NetworkExtension.framework */; };
 		2EF38AC970CD2EC7FE6C4F58 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7533AA628239CD95A1BB7DAB /* KeychainHelper.swift */; };
@@ -93,6 +94,7 @@
 		9CC6597D84E99998BEAF32DB /* StringUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 221A525997AC7F7CA456999C /* StringUtils.swift */; };
 		A12D976DEE5512AA1FC3AA30 /* libresolv.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = A92F8772478D003D40BB6AAB /* libresolv.tbd */; };
 		A36B2ED27AA23A18F62F2B5B /* SystemConfiguration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C7C82F2CD8F5DE3C891A0164 /* SystemConfiguration.framework */; };
+		A3D6DBDE29997FA54BBEEDA3 /* PaywallRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1382FBFD0AEC408A724BD830 /* PaywallRouter.swift */; };
 		A53B3255A6EDAAB04CDA6358 /* UniformTypeIdentifiers.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A9CC086707BD28C31BF3AA01 /* UniformTypeIdentifiers.framework */; };
 		A583FA6FABE41859948190CE /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 726FC571821F22352A852A6E /* Assets.xcassets */; };
 		A5A80AE2E32A2A93E416FA91 /* ExtensionProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B613AB9BB3D203C343056E69 /* ExtensionProvider.swift */; };
@@ -126,6 +128,7 @@
 		DA54966161D09B91C0F5F8C0 /* CoreText.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1214C06DA783159BAA0357E1 /* CoreText.framework */; };
 		DC7E375502C52F1D97FE1EAC /* ServerGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86E509671A68D78BD6908FC8 /* ServerGroup.swift */; };
 		DCB20E516F445F1A67E17242 /* ChameleonApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 420665454AF74620F74B6AAA /* ChameleonApp.swift */; };
+		DE386C299021F97921AD1314 /* VPNPermissionPrimerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E22539E638B1C6567573D8FF /* VPNPermissionPrimerView.swift */; };
 		E0938CD9841F053357114D83 /* UserNotifications.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 31CA662E88D9CC904DE604EA /* UserNotifications.framework */; };
 		E1AA8104C6CBD8CD19896AF8 /* VPNManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C57BC9A4AAADE5C91FA7C580 /* VPNManager.swift */; };
 		E348DC71F159AE899252CFEE /* CommandClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A06772CE401FD8E92E4E0600 /* CommandClient.swift */; };
@@ -143,6 +146,7 @@
 		F11CE6FCBBE50A55AD78ACED /* SystemConfiguration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C7C82F2CD8F5DE3C891A0164 /* SystemConfiguration.framework */; };
 		F274BEBE2C587AA6217FB1AE /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCED65AE5408158D08260301 /* MainView.swift */; };
 		F405018196E5487243F8C053 /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBBD6B44CB0BDD1033E4BAC3 /* ThemeManager.swift */; };
+		F486D5E9F73B5C78F1A377E4 /* VPNPermissionPrimerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E22539E638B1C6567573D8FF /* VPNPermissionPrimerView.swift */; };
 		F64220BF9B5C3084129D0D45 /* DebugLogsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E080B8299D7A6B432DBD59D5 /* DebugLogsView.swift */; };
 		FBE717F8BC2CADE8FD61100F /* PingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 171C8D69FE3BD789A21AFA55 /* PingService.swift */; };
 		FC03629398A7CB33ACC53FF9 /* NetworkExtension.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F59FAA982F3A7FFCD733CCDC /* NetworkExtension.framework */; };
@@ -211,6 +215,7 @@
 		11753AAE7E8E48B9A694425D /* TunnelFileLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunnelFileLogger.swift; sourceTree = "<group>"; };
 		1214C06DA783159BAA0357E1 /* CoreText.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreText.framework; path = System/Library/Frameworks/CoreText.framework; sourceTree = SDKROOT; };
 		13171207F9CF6D71943CEA17 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		1382FBFD0AEC408A724BD830 /* PaywallRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallRouter.swift; sourceTree = "<group>"; };
 		171C8D69FE3BD789A21AFA55 /* PingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PingService.swift; sourceTree = "<group>"; };
 		18C29A6F21415EAD6E335742 /* MenuBarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarContent.swift; sourceTree = "<group>"; };
 		1AEC6D2088A34DFF86FC1CF3 /* VPNErrorMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VPNErrorMapper.swift; sourceTree = "<group>"; };
@@ -261,6 +266,7 @@
 		D465DD76EC827BD967F80B1E /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
 		DCFB6346D7BDAAE6E04CF460 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		E080B8299D7A6B432DBD59D5 /* DebugLogsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugLogsView.swift; sourceTree = "<group>"; };
+		E22539E638B1C6567573D8FF /* VPNPermissionPrimerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VPNPermissionPrimerView.swift; sourceTree = "<group>"; };
 		E4402AF600E58A978FE510BA /* PlatformDevice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformDevice.swift; sourceTree = "<group>"; };
 		EAADCF80D8C25BF1B60CBAE1 /* PlatformViewExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformViewExtensions.swift; sourceTree = "<group>"; };
 		EDF42D7FF528B2660FEF0D94 /* PacketTunnelMac.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PacketTunnelMac.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -366,9 +372,11 @@
 				037DF0618BBBAAB963EC62E8 /* MainViewNeon.swift */,
 				18C29A6F21415EAD6E335742 /* MenuBarContent.swift */,
 				FDB36CA61FDCF04FCAF6AA68 /* OnboardingView.swift */,
+				1382FBFD0AEC408A724BD830 /* PaywallRouter.swift */,
 				4E7AB40F684540E3FACAB3EA /* PaywallView.swift */,
 				4A50A25A4F2306519D129E3E /* SettingsView.swift */,
 				FCD043B2561D33DECC01588F /* ThemePickerView.swift */,
+				E22539E638B1C6567573D8FF /* VPNPermissionPrimerView.swift */,
 				9B44609A85EAB85A9BB6E22B /* WebPaywallView.swift */,
 			);
 			path = Views;
@@ -666,6 +674,7 @@
 				4DB4FC4662359485A3E200E3 /* MainViewNeon.swift in Sources */,
 				FEEBCFE91ABB1DD642BBE1E9 /* MenuBarContent.swift in Sources */,
 				9B5DE79AE51194D9A599FE57 /* OnboardingView.swift in Sources */,
+				2377EE8BA264E18992F16220 /* PaywallRouter.swift in Sources */,
 				603E08AD0023704FAB351F40 /* PaywallView.swift in Sources */,
 				C1A4123A23281325A857AFC3 /* PingService.swift in Sources */,
 				CE56B6D2ED38F15B432B9CF4 /* PlatformDevice.swift in Sources */,
@@ -683,6 +692,7 @@
 				2038895901967E465B2724F6 /* TunnelFileLogger.swift in Sources */,
 				808D398BF959A764FB77EBC2 /* VPNErrorMapper.swift in Sources */,
 				E1AA8104C6CBD8CD19896AF8 /* VPNManager.swift in Sources */,
+				DE386C299021F97921AD1314 /* VPNPermissionPrimerView.swift in Sources */,
 				E937B8E5C0C5D27D70F1D4C1 /* WebPaywallView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -710,6 +720,7 @@
 				12FDAC6EE656EC2521C99992 /* MainViewNeon.swift in Sources */,
 				4D0382460162324965F69067 /* MenuBarContent.swift in Sources */,
 				0EF76BB6F18708E0CF845696 /* OnboardingView.swift in Sources */,
+				A3D6DBDE29997FA54BBEEDA3 /* PaywallRouter.swift in Sources */,
 				E73B38FBB3516BA865687DBC /* PaywallView.swift in Sources */,
 				FBE717F8BC2CADE8FD61100F /* PingService.swift in Sources */,
 				6BAAF05855F452DE4192E349 /* PlatformDevice.swift in Sources */,
@@ -727,6 +738,7 @@
 				20628C83DF384EC1D71F3583 /* TunnelFileLogger.swift in Sources */,
 				38C6F77D3ABB6D6B2EA539D5 /* VPNErrorMapper.swift in Sources */,
 				6ACA514C00D2E9EB79C82D57 /* VPNManager.swift in Sources */,
+				F486D5E9F73B5C78F1A377E4 /* VPNPermissionPrimerView.swift in Sources */,
 				ECF46B76138D0B84DB6894B1 /* WebPaywallView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -873,7 +885,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 17;
+				CURRENT_PROJECT_VERSION = 18;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = 99W3C374T2;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -894,7 +906,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0.14;
+				MARKETING_VERSION = 1.0.15;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -997,7 +1009,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 17;
+				CURRENT_PROJECT_VERSION = 18;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = 99W3C374T2;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -1012,7 +1024,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0.14;
+				MARKETING_VERSION = 1.0.15;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";

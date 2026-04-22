@@ -53,11 +53,11 @@ struct WebPaywallView: View {
                 .padding()
             }
             .background(theme.background.ignoresSafeArea())
-            .navigationTitle("Подписка")
+            .navigationTitle(Text(L10n.WebPaywall.title))
             .iosInlineNavTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Закрыть") { dismiss() }
+                    Button(L10n.WebPaywall.close) { dismiss() }
                 }
             }
             .task { await loadPlans() }
@@ -71,10 +71,10 @@ struct WebPaywallView: View {
                     Task { await pollStatus() }
                 }
             }
-            .alert("Оплата получена", isPresented: $showSuccess) {
-                Button("OK") { dismiss() }
+            .alert(Text(L10n.WebPaywall.successTitle), isPresented: $showSuccess) {
+                Button(L10n.WebPaywall.successOk) { dismiss() }
             } message: {
-                Text("Подписка активирована. Спасибо!")
+                Text(L10n.WebPaywall.successBody)
             }
         }
     }
@@ -84,10 +84,10 @@ struct WebPaywallView: View {
             Image(systemName: "shield.lefthalf.filled")
                 .font(.system(size: 48))
                 .foregroundStyle(theme.accent)
-            Text("Безлимитный VPN")
+            Text(L10n.WebPaywall.headerTitle)
                 .font(theme.displayFont(size: 24, weight: .bold))
                 .foregroundStyle(theme.textPrimary)
-            Text("Быстрые сервера. Оплата по СБП, картой или SberPay.")
+            Text(L10n.WebPaywall.headerSubtitle)
                 .font(theme.font(size: 14))
                 .foregroundStyle(theme.textSecondary)
                 .multilineTextAlignment(.center)
@@ -110,7 +110,7 @@ struct WebPaywallView: View {
     private var emailField: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 4) {
-                Text("Email для чека")
+                Text(L10n.WebPaywall.emailLabel)
                     .font(.footnote.weight(.medium))
                     .foregroundStyle(theme.textPrimary)
                 Text("*")
@@ -131,7 +131,7 @@ struct WebPaywallView: View {
                         .strokeBorder(emailBorderColor, lineWidth: 1)
                 )
                 .foregroundStyle(theme.textPrimary)
-            Text("Обязательно — чек по 54-ФЗ прилетит сюда после оплаты")
+            Text(L10n.WebPaywall.emailHint)
                 .font(.caption2)
                 .foregroundStyle(theme.textSecondary)
         }
@@ -144,7 +144,7 @@ struct WebPaywallView: View {
 
     private var methodPicker: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Способ оплаты")
+            Text(L10n.WebPaywall.methodLabel)
                 .font(.footnote)
                 .foregroundStyle(theme.textSecondary)
             HStack(spacing: 8) {
@@ -192,18 +192,22 @@ struct WebPaywallView: View {
     }
 
     private var payButtonTitle: String {
-        if pendingPaymentID != nil { return "Проверить статус" }
-        if email.isEmpty { return "Введите email" }
-        if !isEmailValid { return "Email некорректный" }
-        return "Оплатить"
+        if pendingPaymentID != nil { return "webpaywall.check_status".localized }
+        if email.isEmpty { return "webpaywall.enter_email".localized }
+        if !isEmailValid { return "webpaywall.email.invalid".localized }
+        return "webpaywall.pay".localized
     }
 
     private var legalFooter: some View {
         VStack(spacing: 6) {
-            Text("Нажимая «Оплатить», вы соглашаетесь с условиями использования и политикой конфиденциальности.")
+            Text(L10n.WebPaywall.legalText)
             HStack(spacing: 14) {
-                Link("Условия", destination: URL(string: "https://madfrog.online/terms")!)
-                Link("Конфиденциальность", destination: URL(string: "https://madfrog.online/privacy")!)
+                Link(destination: URL(string: "https://madfrog.online/terms")!) {
+                    Text(L10n.WebPaywall.legalTerms)
+                }
+                Link(destination: URL(string: "https://madfrog.online/privacy")!) {
+                    Text(L10n.WebPaywall.legalPrivacy)
+                }
             }
             .font(.caption2.weight(.medium))
         }
@@ -231,8 +235,8 @@ struct WebPaywallView: View {
 
     private func methodLabel(_ method: String) -> String {
         switch method {
-        case "sbp": return "СБП"
-        case "card": return "Карта"
+        case "sbp": return "webpaywall.method.sbp".localized
+        case "card": return "webpaywall.method.card".localized
         case "sberpay": return "SberPay"
         default: return method.uppercased()
         }
@@ -253,21 +257,21 @@ struct WebPaywallView: View {
                 selectedMethod = first
             }
         } catch {
-            errorMessage = "Не удалось загрузить тарифы"
+            errorMessage = "webpaywall.error.plans".localized
         }
     }
 
     @MainActor
     private func initiate() async {
         guard let token = app.configStore.accessToken else {
-            errorMessage = "Требуется авторизация"
+            errorMessage = "webpaywall.error.auth".localized
             return
         }
         // If we already have a pending payment, re-open Safari and poll.
         if let pid = pendingPaymentID {
             await pollStatus()
             if pendingPaymentID == pid {
-                errorMessage = "Платёж ещё обрабатывается…"
+                errorMessage = "webpaywall.error.pending".localized
             }
             return
         }
@@ -288,9 +292,9 @@ struct WebPaywallView: View {
                 await PlatformURLOpener.open(url)
             }
         } catch APIError.unauthorized {
-            errorMessage = "Сессия истекла, войдите заново"
+            errorMessage = "webpaywall.error.session".localized
         } catch {
-            errorMessage = "Не удалось создать платёж"
+            errorMessage = "webpaywall.error.payment".localized
         }
     }
 
@@ -333,7 +337,7 @@ private struct WebPlanCard: View {
                             .clipShape(Capsule())
                     }
                 }
-                Text("\(plan.days) дн. на 1 устройство")
+                Text(L10n.WebPaywall.planDaysOneDevice(plan.days))
                     .font(theme.font(size: 12))
                     .foregroundStyle(theme.textSecondary)
             }
