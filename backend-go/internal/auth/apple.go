@@ -41,18 +41,38 @@ type cachedJWKS struct {
 }
 
 // AppleVerifier handles Apple Sign-In identity token verification.
+//
+// Accepts multiple bundle IDs so the same backend can authenticate tokens
+// from both the iOS app and the macOS app (which have distinct bundle IDs
+// for separate App Store listings — `com.madfrog.vpn` and
+// `com.madfrog.vpn.mac`).
 type AppleVerifier struct {
-	bundleID string
-	jwks     atomic.Pointer[cachedJWKS]
-	fetchMu  sync.Mutex // serializes JWKS fetches to prevent stampede
+	bundleIDs []string
+	jwks      atomic.Pointer[cachedJWKS]
+	fetchMu   sync.Mutex // serializes JWKS fetches to prevent stampede
 }
 
-// NewAppleVerifier creates a verifier for Apple Sign-In tokens.
-// bundleID is your app's bundle identifier (e.g., "com.chameleon.vpn").
-func NewAppleVerifier(bundleID string) *AppleVerifier {
-	return &AppleVerifier{
-		bundleID: bundleID,
+// NewAppleVerifier creates a verifier that accepts any of the provided
+// bundle IDs as a valid audience. Pass the iOS and macOS bundle IDs together.
+func NewAppleVerifier(bundleIDs ...string) *AppleVerifier {
+	filtered := bundleIDs[:0]
+	for _, b := range bundleIDs {
+		if b != "" {
+			filtered = append(filtered, b)
+		}
 	}
+	return &AppleVerifier{
+		bundleIDs: filtered,
+	}
+}
+
+func (v *AppleVerifier) audienceAllowed(aud string) bool {
+	for _, b := range v.bundleIDs {
+		if aud == b {
+			return true
+		}
+	}
+	return false
 }
 
 // VerifyIdentityToken validates an Apple Sign-In identity token (JWT).
@@ -88,10 +108,11 @@ func (v *AppleVerifier) VerifyIdentityToken(ctx context.Context, tokenString str
 		return "", fmt.Errorf("auth/apple: token is not valid")
 	}
 
-	// Verify audience.
+	// Verify audience: any configured bundle ID is acceptable so the iOS
+	// and macOS builds (with distinct IDs) share one auth backend.
 	aud, _ := claims["aud"].(string)
-	if aud != v.bundleID {
-		return "", fmt.Errorf("auth/apple: audience mismatch: got %q, want %q", aud, v.bundleID)
+	if !v.audienceAllowed(aud) {
+		return "", fmt.Errorf("auth/apple: audience mismatch: got %q, want one of %v", aud, v.bundleIDs)
 	}
 
 	// Extract subject (Apple user ID).

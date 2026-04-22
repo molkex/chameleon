@@ -125,7 +125,8 @@ func run() error {
 		cfg.Auth.RefreshTTL.Duration,
 	)
 
-	appleVerifier := auth.NewAppleVerifier(cfg.Auth.AppleBundleID)
+	appleBundleIDs := append([]string{cfg.Auth.AppleBundleID}, cfg.Auth.AppleExtraBundleIDs...)
+	appleVerifier := auth.NewAppleVerifier(appleBundleIDs...)
 
 	logger.Info("auth initialized",
 		zap.Duration("access_ttl", cfg.Auth.AccessTTL.Duration),

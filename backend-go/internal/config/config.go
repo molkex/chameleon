@@ -106,7 +106,12 @@ type AuthConfig struct {
 	JWTSecret     string   `yaml:"jwt_secret"`      // required; supports ${ENV_VAR}
 	AccessTTL     Duration `yaml:"jwt_access_ttl"`  // default: 24h
 	RefreshTTL    Duration `yaml:"jwt_refresh_ttl"` // default: 720h (30 days)
-	AppleBundleID string   `yaml:"apple_bundle_id"` // default: "com.madfrog.vpn"
+	AppleBundleID string   `yaml:"apple_bundle_id"` // primary bundle id (iOS); default: "com.madfrog.vpn"
+	// AppleExtraBundleIDs are additional acceptable Apple Sign-In audiences.
+	// Lists the macOS (and any other) app bundle ids so one backend can
+	// authenticate tokens from distinct App Store listings that share a user
+	// base. Default: ["com.madfrog.vpn.mac"].
+	AppleExtraBundleIDs []string `yaml:"apple_extra_bundle_ids"`
 }
 
 // VPNConfig controls VPN protocol settings and server entries.
@@ -300,6 +305,9 @@ func (c *Config) applyDefaults() {
 	}
 	if c.Auth.AppleBundleID == "" {
 		c.Auth.AppleBundleID = "com.madfrog.vpn"
+	}
+	if len(c.Auth.AppleExtraBundleIDs) == 0 {
+		c.Auth.AppleExtraBundleIDs = []string{"com.madfrog.vpn.mac"}
 	}
 
 	if c.Payments.Apple.BundleID == "" {
