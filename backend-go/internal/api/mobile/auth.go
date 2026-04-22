@@ -284,7 +284,8 @@ func (h *Handler) AppleSignIn(c echo.Context) error {
 		// Fire-and-forget backup magic link so the user has a second way to
 		// sign in if they lose their Apple account. Only on signup.
 		if isNew {
-			go h.issueBackupMagicLink(user.ID, appleClaims.Email, "apple_backup")
+			lang := langFromAcceptLanguage(c.Request().Header.Get("Accept-Language"))
+			go h.issueBackupMagicLink(user.ID, appleClaims.Email, "apple_backup", lang)
 		}
 	}
 

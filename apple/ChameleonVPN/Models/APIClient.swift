@@ -115,6 +115,13 @@ class APIClient {
         #endif
         req.setValue(DeviceTelemetry.modelIdentifier, forHTTPHeaderField: "X-Device-Model")
         req.setValue(DeviceTelemetry.installDateISO, forHTTPHeaderField: "X-Install-Date")
+        // Explicit Accept-Language — the backend uses the first token to
+        // localize transactional emails (magic link). URLSession does set
+        // this by default but only in iOS/macOS locales; explicit keeps
+        // the signal predictable across environments.
+        if let code = Locale.current.language.languageCode?.identifier {
+            req.setValue(code, forHTTPHeaderField: "Accept-Language")
+        }
         return req
     }
 

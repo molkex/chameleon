@@ -83,7 +83,8 @@ func (h *Handler) MagicLinkRequest(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
 	}
 
-	go h.sendMagicLinkEmail(context.Background(), emailLower, raw, purpose)
+	lang := langFromAcceptLanguage(c.Request().Header.Get("Accept-Language"))
+	go h.sendMagicLinkEmail(context.Background(), emailLower, raw, purpose, lang)
 
 	return c.NoContent(http.StatusNoContent)
 }
@@ -198,7 +199,12 @@ func (h *Handler) MagicLinkVerify(c echo.Context) error {
 // sendMagicLinkEmail fires-and-forgets the link email. Called in a goroutine
 // so the HTTP response isn't blocked on SMTP. Errors are logged but don't
 // affect the user-facing flow.
-func (h *Handler) sendMagicLinkEmail(ctx context.Context, toEmail, rawToken, purpose string) {
+//
+// Locale is resolved from the "lang" parameter — handlers pass it in from
+// the user's Accept-Language header. Currently we localize to RU when the
+// first tag is "ru"; everything else falls back to EN. The two-bucket
+// model keeps templates maintainable; add more when we localize the UI.
+func (h *Handler) sendMagicLinkEmail(ctx context.Context, toEmail, rawToken, purpose, lang string) {
 	if h.Email == nil {
 		h.Logger.Warn("magic: no email sender configured, dropping link")
 		return
@@ -210,38 +216,110 @@ func (h *Handler) sendMagicLinkEmail(ctx context.Context, toEmail, rawToken, pur
 	}
 	link := fmt.Sprintf("%s/app/signin?token=%s", scheme, rawToken)
 
+	tmpl := magicEmailTemplate(lang, purpose)
+
 	// Inbox-friendly email: light HTML, no dark theme, minimal styling.
 	// Dark-themed marketing HTML was reliably classified as spam by iCloud
 	// and Gmail on a fresh domain. Plain, short, one CTA works better for
 	// deliverability and doesn't trigger image-heavy phishing filters.
-	subject := "Your MadFrog VPN sign-in link"
-	greeting := "Hi,"
-	intro := "Tap the link below to sign in on your device."
-	if purpose == "email_signup" {
-		subject = "Finish creating your MadFrog VPN account"
-		greeting = "Welcome to MadFrog VPN!"
-		intro = "Tap the link below to finish setting up your account on your device."
-	}
-
 	html := fmt.Sprintf(`<!doctype html>
-<html lang="en">
+<html lang="%s">
 <body style="font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif; font-size: 15px; line-height: 1.55; color: #222; margin: 0; padding: 24px;">
 <p>%s</p>
 <p>%s</p>
-<p><a href="%s" style="color: #1a73e8;">Sign in to MadFrog VPN</a></p>
-<p style="color: #666; font-size: 13px;">This link works once and expires in 15 minutes. If you didn't request it, you can ignore this email.</p>
+<p><a href="%s" style="color: #1a73e8;">%s</a></p>
+<p style="color: #666; font-size: 13px;">%s</p>
 <p style="color: #999; font-size: 12px; margin-top: 32px;">MadFrog VPN · info@madfrog.online</p>
 </body>
-</html>`, greeting, intro, link)
+</html>`, tmpl.htmlLang, tmpl.greeting, tmpl.intro, link, tmpl.cta, tmpl.footer)
 
-	text := fmt.Sprintf("%s\n\n%s\n\n%s\n\nThis link works once and expires in 15 minutes.\nIf you didn't request it, you can ignore this email.\n\n— MadFrog VPN\n", greeting, intro, link)
+	text := fmt.Sprintf("%s\n\n%s\n\n%s\n\n%s\n\n— MadFrog VPN\n",
+		tmpl.greeting, tmpl.intro, link, tmpl.footer)
 
 	if err := h.Email.Send(ctx, email.Message{
 		To:       toEmail,
-		Subject:  subject,
+		Subject:  tmpl.subject,
 		HTMLBody: html,
 		TextBody: text,
 	}); err != nil {
 		h.Logger.Warn("magic: email send failed", zap.Error(err), zap.String("to", toEmail))
 	}
+}
+
+// magicEmailStrings are the user-visible strings for one (lang, purpose) combo.
+type magicEmailStrings struct {
+	htmlLang string
+	subject  string
+	greeting string
+	intro    string
+	cta      string
+	footer   string
+}
+
+// magicEmailTemplate picks the best matching set for the caller's language.
+// RU if first lang tag is "ru", otherwise English.
+func magicEmailTemplate(lang, purpose string) magicEmailStrings {
+	isRu := strings.HasPrefix(strings.ToLower(strings.TrimSpace(lang)), "ru")
+	isSignup := purpose == "email_signup"
+
+	switch {
+	case isRu && isSignup:
+		return magicEmailStrings{
+			htmlLang: "ru",
+			subject:  "Подтвердите аккаунт MadFrog VPN",
+			greeting: "Добро пожаловать в MadFrog VPN!",
+			intro:    "Нажмите на ссылку ниже, чтобы завершить регистрацию на этом устройстве.",
+			cta:      "Войти в MadFrog VPN",
+			footer:   "Ссылка действует 15 минут и срабатывает один раз. Если вы не запрашивали вход — просто проигнорируйте это письмо.",
+		}
+	case isRu:
+		return magicEmailStrings{
+			htmlLang: "ru",
+			subject:  "Ссылка для входа в MadFrog VPN",
+			greeting: "Здравствуйте,",
+			intro:    "Нажмите на ссылку ниже, чтобы войти на этом устройстве.",
+			cta:      "Войти в MadFrog VPN",
+			footer:   "Ссылка действует 15 минут и срабатывает один раз. Если вы не запрашивали вход — просто проигнорируйте это письмо.",
+		}
+	case isSignup:
+		return magicEmailStrings{
+			htmlLang: "en",
+			subject:  "Finish creating your MadFrog VPN account",
+			greeting: "Welcome to MadFrog VPN!",
+			intro:    "Tap the link below to finish setting up your account on your device.",
+			cta:      "Sign in to MadFrog VPN",
+			footer:   "This link works once and expires in 15 minutes. If you didn't request it, you can ignore this email.",
+		}
+	default:
+		return magicEmailStrings{
+			htmlLang: "en",
+			subject:  "Your MadFrog VPN sign-in link",
+			greeting: "Hi,",
+			intro:    "Tap the link below to sign in on your device.",
+			cta:      "Sign in to MadFrog VPN",
+			footer:   "This link works once and expires in 15 minutes. If you didn't request it, you can ignore this email.",
+		}
+	}
+}
+
+// langFromAcceptLanguage extracts the primary language tag. Example:
+// "ru-RU,ru;q=0.9,en;q=0.8" → "ru". Returns "" on empty/malformed input,
+// which the template function treats as English.
+func langFromAcceptLanguage(header string) string {
+	header = strings.TrimSpace(header)
+	if header == "" {
+		return ""
+	}
+	// Take the part before the first comma, then before the first ";".
+	if comma := strings.IndexByte(header, ','); comma != -1 {
+		header = header[:comma]
+	}
+	if semi := strings.IndexByte(header, ';'); semi != -1 {
+		header = header[:semi]
+	}
+	header = strings.TrimSpace(header)
+	if dash := strings.IndexByte(header, '-'); dash != -1 {
+		header = header[:dash]
+	}
+	return strings.ToLower(header)
 }
