@@ -20,7 +20,7 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 		return nil, fmt.Errorf("generate client config: no servers provided")
 	}
 
-	// Build outbounds: one VLESS outbound per server.
+	// Build outbounds: VLESS Reality per server + optional Hysteria2/TUIC per server.
 	var serverOutbounds []clientOutbound
 	var serverTags []string
 
@@ -45,7 +45,6 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 		}
 
 		tag := fmt.Sprintf("VLESS %s %s", srv.Flag, srv.Name)
-
 		outbound := clientOutbound{
 			Type:       "vless",
 			Tag:        tag,
@@ -68,9 +67,46 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 			},
 			PacketEncoding: "xudp",
 		}
-
 		serverOutbounds = append(serverOutbounds, outbound)
 		serverTags = append(serverTags, tag)
+
+		// Hysteria2 outbound (UDP) — only when server advertises a Hysteria2 port.
+		if srv.Hysteria2Port > 0 {
+			h2tag := fmt.Sprintf("H2 %s %s", srv.Flag, srv.Name)
+			serverOutbounds = append(serverOutbounds, clientOutbound{
+				Type:     "hysteria2",
+				Tag:      h2tag,
+				Server:   srv.Host,
+				ServerPort: srv.Hysteria2Port,
+				Password: user.UUID,
+				TLS: &clientTLS{
+					Enabled:    true,
+					ServerName: sni,
+					Insecure:   boolPtr(true),
+				},
+			})
+			serverTags = append(serverTags, h2tag)
+		}
+
+		// TUIC v5 outbound (UDP) — only when server advertises a TUIC port.
+		if srv.TUICPort > 0 {
+			tuicTag := fmt.Sprintf("TUIC %s %s", srv.Flag, srv.Name)
+			serverOutbounds = append(serverOutbounds, clientOutbound{
+				Type:               "tuic",
+				Tag:                tuicTag,
+				Server:             srv.Host,
+				ServerPort:         srv.TUICPort,
+				UUID:               user.UUID,
+				Password:           user.UUID,
+				CongestionControl:  "bbr",
+				TLS: &clientTLS{
+					Enabled:    true,
+					ServerName: sni,
+					Insecure:   boolPtr(true),
+				},
+			})
+			serverTags = append(serverTags, tuicTag)
+		}
 	}
 
 	// urltest "Auto" — automatically selects best server.
@@ -399,10 +435,12 @@ type clientOutbound struct {
 	Server                    string           `json:"server,omitempty"`
 	ServerPort                int              `json:"server_port,omitempty"`
 	UUID                      string           `json:"uuid,omitempty"`
+	Password                  string           `json:"password,omitempty"`
 	Flow                      string           `json:"flow,omitempty"`
 	TLS                       *clientTLS       `json:"tls,omitempty"`
 	Multiplex                 *clientMultiplex `json:"multiplex,omitempty"`
 	PacketEncoding            string           `json:"packet_encoding,omitempty"`
+	CongestionControl         string           `json:"congestion_control,omitempty"`
 	Outbounds                 []string         `json:"outbounds,omitempty"`
 	URL                       string           `json:"url,omitempty"`
 	Interval                  string           `json:"interval,omitempty"`
@@ -414,6 +452,7 @@ type clientOutbound struct {
 type clientTLS struct {
 	Enabled    bool           `json:"enabled"`
 	ServerName string         `json:"server_name"`
+	Insecure   *bool          `json:"insecure,omitempty"`
 	UTLS       *clientUTLS    `json:"utls,omitempty"`
 	Reality    *clientReality `json:"reality,omitempty"`
 }

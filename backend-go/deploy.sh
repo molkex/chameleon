@@ -145,6 +145,20 @@ esac
 sed -i "s|  peers: \[\]|${PEER_BLOCK}|" config.yaml
 echo ">>> Cluster sync enabled (node=${NODE_ID}, peers configured)"
 
+# Per-node UDP protocol overrides (Hysteria2 + TUIC v5)
+case "$NODE_ID" in
+    de-1)
+        sed -i 's/hysteria2_port: 0/hysteria2_port: 443/' config.yaml
+        sed -i 's/tuic_port: 0/tuic_port: 8443/' config.yaml
+        sed -i 's|udp_cert_path: ""|udp_cert_path: "/etc/singbox/server.crt"|' config.yaml
+        sed -i 's|udp_key_path: ""|udp_key_path: "/etc/singbox/server.key"|' config.yaml
+        echo ">>> UDP protocols enabled: Hysteria2=443, TUIC=8443"
+        ;;
+    *)
+        echo ">>> UDP protocols disabled on this node"
+        ;;
+esac
+
 # .env — Reality keys are in DB now, not here
 cat > .env <<EOF
 DB_PASSWORD=${DB_PASSWORD}

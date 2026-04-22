@@ -509,32 +509,7 @@ func (e *SingboxEngine) buildServerConfig() ([]byte, error) {
 				{Tag: "dns-local", Type: "local"},
 			},
 		},
-		Inbounds: []singboxInbound{
-			{
-				Type:       "vless",
-				Tag:        InboundTagVLESS,
-				Listen:     "::",
-				ListenPort: e.cfg.ListenPort,
-				Users:      users,
-				TLS: &singboxTLS{
-					Enabled:    true,
-					ServerName: sni,
-					Reality: &singboxReality{
-						Enabled: true,
-						Handshake: singboxHandshake{
-							Server:     sni,
-							ServerPort: 443,
-						},
-						PrivateKey: e.cfg.Reality.PrivateKey,
-						ShortID:    shortIDs,
-					},
-				},
-				Multiplex: &singboxMultiplex{
-					Enabled: true,
-					Padding: true,
-				},
-			},
-		},
+		Inbounds: e.buildInboundsLocked(users, sni, shortIDs),
 		Outbounds: []singboxOutbound{
 			{
 				Type: "direct",
@@ -580,6 +555,77 @@ func (e *SingboxEngine) buildServerConfig() ([]byte, error) {
 	}
 
 	return data, nil
+}
+
+// buildInboundsLocked builds the inbound list: VLESS Reality + optional Hysteria2 + optional TUIC v5.
+func (e *SingboxEngine) buildInboundsLocked(users []singboxUser, sni string, shortIDs []string) []any {
+	inbounds := []any{
+		singboxInbound{
+			Type:       "vless",
+			Tag:        InboundTagVLESS,
+			Listen:     "::",
+			ListenPort: e.cfg.ListenPort,
+			Users:      users,
+			TLS: &singboxTLS{
+				Enabled:    true,
+				ServerName: sni,
+				Reality: &singboxReality{
+					Enabled: true,
+					Handshake: singboxHandshake{
+						Server:     sni,
+						ServerPort: 443,
+					},
+					PrivateKey: e.cfg.Reality.PrivateKey,
+					ShortID:    shortIDs,
+				},
+			},
+		},
+	}
+
+	if e.cfg.Hysteria2Port > 0 && e.cfg.UDPCertPath != "" {
+		h2users := make([]singboxHysteria2User, 0, len(users))
+		for _, u := range users {
+			h2users = append(h2users, singboxHysteria2User{Password: u.UUID})
+		}
+		inbounds = append(inbounds, singboxHysteria2Inbound{
+			Type:       "hysteria2",
+			Tag:        "hysteria2-in",
+			Listen:     "::",
+			ListenPort: e.cfg.Hysteria2Port,
+			Users:      h2users,
+			TLS: &singboxUDPTLS{
+				Enabled:         true,
+				CertificatePath: e.cfg.UDPCertPath,
+				KeyPath:         e.cfg.UDPKeyPath,
+			},
+		})
+	}
+
+	if e.cfg.TUICPort > 0 && e.cfg.UDPCertPath != "" {
+		tuicUsers := make([]singboxTUICUser, 0, len(users))
+		for _, u := range users {
+			tuicUsers = append(tuicUsers, singboxTUICUser{
+				Name:     u.Name,
+				UUID:     u.UUID,
+				Password: u.UUID,
+			})
+		}
+		inbounds = append(inbounds, singboxTUICInbound{
+			Type:              "tuic",
+			Tag:               "tuic-in",
+			Listen:            "::",
+			ListenPort:        e.cfg.TUICPort,
+			Users:             tuicUsers,
+			CongestionControl: "bbr",
+			TLS: &singboxUDPTLS{
+				Enabled:         true,
+				CertificatePath: e.cfg.UDPCertPath,
+				KeyPath:         e.cfg.UDPKeyPath,
+			},
+		})
+	}
+
+	return inbounds
 }
 
 // startProcessLocked spawns sing-box as a child process.
@@ -766,7 +812,7 @@ var _ io.Writer = (*zapWriter)(nil)
 type singboxServerConfig struct {
 	Log          singboxLog           `json:"log"`
 	DNS          singboxDNS           `json:"dns"`
-	Inbounds     []singboxInbound     `json:"inbounds"`
+	Inbounds     []any                `json:"inbounds"`
 	Outbounds    []singboxOutbound    `json:"outbounds"`
 	Route        singboxRoute         `json:"route"`
 	Services     []singboxService     `json:"services,omitempty"`
@@ -787,13 +833,47 @@ type singboxDNSServer struct {
 }
 
 type singboxInbound struct {
-	Type       string            `json:"type"`
-	Tag        string            `json:"tag"`
-	Listen     string            `json:"listen"`
-	ListenPort int               `json:"listen_port"`
-	Users      []singboxUser     `json:"users"`
-	TLS        *singboxTLS       `json:"tls,omitempty"`
-	Multiplex  *singboxMultiplex `json:"multiplex,omitempty"`
+	Type       string        `json:"type"`
+	Tag        string        `json:"tag"`
+	Listen     string        `json:"listen"`
+	ListenPort int           `json:"listen_port"`
+	Users      []singboxUser `json:"users"`
+	TLS        *singboxTLS   `json:"tls,omitempty"`
+}
+
+type singboxHysteria2Inbound struct {
+	Type       string                 `json:"type"`
+	Tag        string                 `json:"tag"`
+	Listen     string                 `json:"listen"`
+	ListenPort int                    `json:"listen_port"`
+	Users      []singboxHysteria2User `json:"users"`
+	TLS        *singboxUDPTLS         `json:"tls"`
+}
+
+type singboxHysteria2User struct {
+	Password string `json:"password"`
+}
+
+type singboxTUICInbound struct {
+	Type               string          `json:"type"`
+	Tag                string          `json:"tag"`
+	Listen             string          `json:"listen"`
+	ListenPort         int             `json:"listen_port"`
+	Users              []singboxTUICUser `json:"users"`
+	CongestionControl  string          `json:"congestion_control"`
+	TLS                *singboxUDPTLS  `json:"tls"`
+}
+
+type singboxTUICUser struct {
+	Name     string `json:"name"`
+	UUID     string `json:"uuid"`
+	Password string `json:"password"`
+}
+
+type singboxUDPTLS struct {
+	Enabled         bool   `json:"enabled"`
+	CertificatePath string `json:"certificate_path"`
+	KeyPath         string `json:"key_path"`
 }
 
 type singboxUser struct {
@@ -818,11 +898,6 @@ type singboxReality struct {
 type singboxHandshake struct {
 	Server     string `json:"server"`
 	ServerPort int    `json:"server_port"`
-}
-
-type singboxMultiplex struct {
-	Enabled bool `json:"enabled"`
-	Padding bool `json:"padding"`
 }
 
 type singboxOutbound struct {

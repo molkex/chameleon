@@ -76,6 +76,8 @@ type VPNServer struct {
 	ProviderLogin    string    `db:"provider_login"     json:"-"`
 	ProviderPassword string    `db:"provider_password"  json:"-"`
 	Notes            string    `db:"notes"              json:"notes"`
+	Hysteria2Port    *int      `db:"hysteria2_port"     json:"hysteria2_port,omitempty"`
+	TUICPort         *int      `db:"tuic_port"          json:"tuic_port,omitempty"`
 	CreatedAt        time.Time `db:"created_at"         json:"created_at"`
 	UpdatedAt        time.Time `db:"updated_at"         json:"updated_at"`
 }

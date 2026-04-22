@@ -58,6 +58,11 @@ type EngineConfig struct {
 	UserAPIPort     int    // User API port for runtime user management; default: 15380; 0 = disabled
 	UserAPISecret   string // Bearer token for User API auth
 	V2RayAPIPort    int    // v2ray_api gRPC port for per-user traffic stats; default: 8080; 0 = disabled
+	// UDP protocols (Hysteria2 and TUIC v5). Both share the same TLS cert.
+	Hysteria2Port int    // Hysteria2 UDP listen port; 0 = disabled
+	TUICPort      int    // TUIC v5 UDP listen port; 0 = disabled
+	UDPCertPath   string // path to TLS certificate PEM for Hysteria2/TUIC (inside container)
+	UDPKeyPath    string // path to TLS private key PEM for Hysteria2/TUIC (inside container)
 }
 
 // RealityConfig holds VLESS Reality TLS settings.
@@ -84,6 +89,8 @@ type ServerEntry struct {
 	Flag             string
 	SNI              string
 	RealityPublicKey string // per-server Reality public key (empty = use engine default)
+	Hysteria2Port    int    // 0 = server doesn't support Hysteria2
+	TUICPort         int    // 0 = server doesn't support TUIC v5
 }
 
 // UserTraffic contains traffic counters for a single user.

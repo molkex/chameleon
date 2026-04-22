@@ -12,6 +12,7 @@ import (
 // serverColumns lists all columns for the vpn_servers table.
 const serverColumns = `id, key, name, flag, host, port, domain, sni, reality_public_key, reality_private_key, is_active, sort_order,
 	provider_name, cost_monthly, provider_url, provider_login, provider_password, notes,
+	hysteria2_port, tuic_port,
 	created_at, updated_at`
 
 // scanServers scans multiple server rows from pgx.Rows into a slice.
@@ -24,6 +25,7 @@ func scanServers(rows pgx.Rows) ([]VPNServer, error) {
 			&s.ID, &s.Key, &s.Name, &s.Flag, &s.Host, &s.Port,
 			&s.Domain, &s.SNI, &s.RealityPublicKey, &s.RealityPrivateKey, &s.IsActive, &s.SortOrder,
 			&s.ProviderName, &s.CostMonthly, &s.ProviderURL, &s.ProviderLogin, &s.ProviderPassword, &s.Notes,
+			&s.Hysteria2Port, &s.TUICPort,
 			&s.CreatedAt, &s.UpdatedAt,
 		)
 		if err != nil {
@@ -82,6 +84,7 @@ func (db *DB) CreateServer(ctx context.Context, s *VPNServer) (*VPNServer, error
 		&created.ID, &created.Key, &created.Name, &created.Flag, &created.Host, &created.Port,
 		&created.Domain, &created.SNI, &created.RealityPublicKey, &created.RealityPrivateKey, &created.IsActive, &created.SortOrder,
 		&created.ProviderName, &created.CostMonthly, &created.ProviderURL, &created.ProviderLogin, &created.ProviderPassword, &created.Notes,
+		&created.Hysteria2Port, &created.TUICPort,
 		&created.CreatedAt, &created.UpdatedAt,
 	)
 	if err != nil {
@@ -112,6 +115,7 @@ func (db *DB) UpdateServer(ctx context.Context, id int64, s *VPNServer) (*VPNSer
 		&updated.ID, &updated.Key, &updated.Name, &updated.Flag, &updated.Host, &updated.Port,
 		&updated.Domain, &updated.SNI, &updated.RealityPublicKey, &updated.RealityPrivateKey, &updated.IsActive, &updated.SortOrder,
 		&updated.ProviderName, &updated.CostMonthly, &updated.ProviderURL, &updated.ProviderLogin, &updated.ProviderPassword, &updated.Notes,
+		&updated.Hysteria2Port, &updated.TUICPort,
 		&updated.CreatedAt, &updated.UpdatedAt,
 	)
 	if err != nil {
@@ -145,6 +149,7 @@ func (db *DB) FindServerByKey(ctx context.Context, key string) (*VPNServer, erro
 		&s.ID, &s.Key, &s.Name, &s.Flag, &s.Host, &s.Port,
 		&s.Domain, &s.SNI, &s.RealityPublicKey, &s.RealityPrivateKey, &s.IsActive, &s.SortOrder,
 		&s.ProviderName, &s.CostMonthly, &s.ProviderURL, &s.ProviderLogin, &s.ProviderPassword, &s.Notes,
+		&s.Hysteria2Port, &s.TUICPort,
 		&s.CreatedAt, &s.UpdatedAt,
 	)
 	if err != nil {
@@ -169,6 +174,7 @@ func (db *DB) FindServerByID(ctx context.Context, id int64) (*VPNServer, error) 
 		&s.ID, &s.Key, &s.Name, &s.Flag, &s.Host, &s.Port,
 		&s.Domain, &s.SNI, &s.RealityPublicKey, &s.RealityPrivateKey, &s.IsActive, &s.SortOrder,
 		&s.ProviderName, &s.CostMonthly, &s.ProviderURL, &s.ProviderLogin, &s.ProviderPassword, &s.Notes,
+		&s.Hysteria2Port, &s.TUICPort,
 		&s.CreatedAt, &s.UpdatedAt,
 	)
 	if err != nil {

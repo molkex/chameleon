@@ -218,6 +218,10 @@ func run() error {
 		UserAPIPort:     cfg.VPN.UserAPIPort,
 		UserAPISecret:   cfg.VPN.UserAPISecret,
 		V2RayAPIPort:    cfg.VPN.V2RayAPIPort,
+		Hysteria2Port:   cfg.VPN.Hysteria2Port,
+		TUICPort:        cfg.VPN.TUICPort,
+		UDPCertPath:     cfg.VPN.UDPCertPath,
+		UDPKeyPath:      cfg.VPN.UDPKeyPath,
 	}
 
 	// Load active VPN users from the database.

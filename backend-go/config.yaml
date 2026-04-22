@@ -22,13 +22,17 @@ auth:
 
 vpn:
   listen_port: 2096
-  client_mtu: 1400
+  client_mtu: 1280
   dns_remote: "https://1.1.1.1/dns-query"
   dns_direct: "https://8.8.8.8/dns-query"
   urltest_interval: "3m"
   clash_api_port: 9090
   user_api_port: 15380
   user_api_secret: "${USER_API_SECRET}"
+  hysteria2_port: 0
+  tuic_port: 0
+  udp_cert_path: ""
+  udp_key_path: ""
 
   reality:
     private_key: "${REALITY_PRIVATE_KEY}"

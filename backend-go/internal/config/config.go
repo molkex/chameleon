@@ -149,6 +149,11 @@ type VPNConfig struct {
 	UserAPIPort     int           `yaml:"user_api_port"`     // default: 15380; 0 = disabled
 	UserAPISecret   string        `yaml:"user_api_secret"`   // supports ${ENV_VAR}
 	V2RayAPIPort    int           `yaml:"v2ray_api_port"`    // default: 8080; gRPC StatsService for per-user traffic
+	// UDP protocols — Hysteria2 and TUIC v5 share a TLS cert.
+	Hysteria2Port int    `yaml:"hysteria2_port"`  // 0 = disabled
+	TUICPort      int    `yaml:"tuic_port"`       // 0 = disabled
+	UDPCertPath   string `yaml:"udp_cert_path"`   // path inside container, e.g. /etc/singbox/server.crt
+	UDPKeyPath    string `yaml:"udp_key_path"`    // path inside container, e.g. /etc/singbox/server.key
 }
 
 // RealityConfig holds VLESS Reality protocol settings.

@@ -78,6 +78,8 @@ func (h *Handler) GetConfig(c echo.Context) error {
 			Flag:             s.Flag,
 			SNI:              s.SNI,
 			RealityPublicKey: s.RealityPublicKey,
+			Hysteria2Port:    derefIntPtr(s.Hysteria2Port),
+			TUICPort:         derefIntPtr(s.TUICPort),
 		})
 	}
 
@@ -199,6 +201,8 @@ func (h *Handler) GetConfigLegacy(c echo.Context) error {
 			Key: s.Key, Name: s.Name, Host: s.Host,
 			Port: s.Port, Flag: s.Flag, SNI: s.SNI,
 			RealityPublicKey: s.RealityPublicKey,
+			Hysteria2Port:    derefIntPtr(s.Hysteria2Port),
+			TUICPort:         derefIntPtr(s.TUICPort),
 		})
 	}
 
@@ -221,4 +225,11 @@ func (h *Handler) GetConfigLegacy(c echo.Context) error {
 	}
 
 	return c.Blob(http.StatusOK, "application/json", configJSON)
+}
+
+func derefIntPtr(p *int) int {
+	if p == nil {
+		return 0
+	}
+	return *p
 }
