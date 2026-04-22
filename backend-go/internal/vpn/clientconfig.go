@@ -110,26 +110,32 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 	// In "smart" mode only RKN-blocked resources go through the tunnel —
 	// everything else stays on the native connection, minimising both the
 	// VPN-detection signal and bandwidth usage.
+	// InterruptExistConnections: true on the three mode selectors.
+	// When the user flips Smart↔RU Direct↔Full VPN, sing-box by default
+	// only routes *new* connections through the new outbound; existing
+	// sockets (e.g. a Safari keep-alive to whoer.net) stay on the old path
+	// and the user thinks the switch didn't work. Interrupting forces
+	// in-flight connections to re-establish via the new selector target.
 	ruTrafficOutbound := clientOutbound{
 		Type:                      "selector",
 		Tag:                       "RU Traffic",
 		Outbounds:                 []string{"direct", "Proxy"},
 		Default:                   "direct",
-		InterruptExistConnections: boolPtr(false),
+		InterruptExistConnections: boolPtr(true),
 	}
 	blockedTrafficOutbound := clientOutbound{
 		Type:                      "selector",
 		Tag:                       "Blocked Traffic",
 		Outbounds:                 []string{"Proxy", "direct"},
 		Default:                   "Proxy",
-		InterruptExistConnections: boolPtr(false),
+		InterruptExistConnections: boolPtr(true),
 	}
 	defaultRouteOutbound := clientOutbound{
 		Type:                      "selector",
 		Tag:                       "Default Route",
 		Outbounds:                 []string{"direct", "Proxy"},
 		Default:                   "direct",
-		InterruptExistConnections: boolPtr(false),
+		InterruptExistConnections: boolPtr(true),
 	}
 
 	// System outbounds.

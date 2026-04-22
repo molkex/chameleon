@@ -315,8 +315,18 @@ class AppState {
 
     /// Called from ChameleonApp.handleUniversalLink when a /app/signin?token=…
     /// link is opened. Redeems the token and completes auth.
+    ///
+    /// If the user is already signed in, we skip redeeming so we don't
+    /// consume a usable magic token — the link's still valid in their
+    /// inbox if they need it on another device. We surface a quick toast
+    /// instead so the tap isn't silent.
     func consumeMagicToken(_ token: String) async {
-        AppLogger.app.info("consumeMagicToken: entry, tokenLen=\(token.count, privacy: .public)")
+        let wasAuthenticated = isAuthenticated
+        AppLogger.app.info("consumeMagicToken: entry, tokenLen=\(token.count, privacy: .public), alreadyAuthenticated=\(wasAuthenticated, privacy: .public)")
+        if wasAuthenticated {
+            errorMessage = String(localized: "magic.already_signed_in")
+            return
+        }
         isLoading = true
         defer { isLoading = false }
         do {
@@ -826,7 +836,21 @@ class AppState {
 
         switch vpnManager.status {
         case .connected:
-            if vpnConnectedAt == nil { vpnConnectedAt = Date() }
+            if vpnConnectedAt == nil {
+                // Restore from UserDefaults if the app was relaunched while
+                // the tunnel was still up (On Demand / background relaunch).
+                // Otherwise stamp now and persist so the session chip survives
+                // app lifecycle transitions.
+                let key = "vpnConnectedAt"
+                if let ts = UserDefaults(suiteName: AppConstants.appGroupID)?.double(forKey: key), ts > 0 {
+                    vpnConnectedAt = Date(timeIntervalSince1970: ts)
+                } else {
+                    let now = Date()
+                    vpnConnectedAt = now
+                    UserDefaults(suiteName: AppConstants.appGroupID)?
+                        .set(now.timeIntervalSince1970, forKey: key)
+                }
+            }
             if !commandClient.isConnected { commandClient.connect() }
             // Clear the user-stopped flag on successful connection
             sharedDefaults?.removeObject(forKey: "user_stopped_vpn")
@@ -843,6 +867,7 @@ class AppState {
             }
         case .disconnected, .invalid:
             vpnConnectedAt = nil
+            UserDefaults(suiteName: AppConstants.appGroupID)?.removeObject(forKey: "vpnConnectedAt")
             if commandClient.isConnected { commandClient.disconnect() }
             // Check if the PacketTunnel extension signaled a user-initiated stop
             // (from iOS Settings toggle). If so, disable On Demand to prevent auto-reconnect.

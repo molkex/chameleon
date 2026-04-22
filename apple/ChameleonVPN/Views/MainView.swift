@@ -355,14 +355,19 @@ private struct CountryRow: View {
         return country.serverTags.contains(selectedTag)
     }
 
-    /// Best probed latency across this country's servers (0 = not yet measured).
+    /// Best probed latency across this country's servers.
+    /// Treat 0 and sub-2ms as "not measured yet" — sing-box's urltest reports
+    /// a placeholder 1ms right after a selector switch, which looked like a
+    /// bug to users ("Netherlands 1ms? impossible"). Show a skeleton until
+    /// a real probe comes in.
     private var bestProbedMs: Int {
         let probed = country.serverTags.compactMap { tag -> Int? in
             let ms = pingService.latency(for: tag)
-            return ms > 0 ? ms : nil
+            return ms >= 2 ? ms : nil
         }
         if let best = probed.min() { return best }
-        return Int(country.bestDelay)
+        let fallback = Int(country.bestDelay)
+        return fallback >= 2 ? fallback : 0
     }
 
     var body: some View {

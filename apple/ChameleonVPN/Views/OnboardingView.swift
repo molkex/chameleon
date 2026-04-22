@@ -213,30 +213,34 @@ struct OnboardingView: View {
     }
 }
 
-/// Compact Google "G" mark, built with SF Symbols so we don't have to ship
-/// raster assets. The real Google guidelines allow the text-only mark at
-/// sizes this small; full logo would need an image asset.
+/// Google "G" mark. We use the approximate Google colors on a white
+/// rounded square so the button is obviously "sign in with Google" at a
+/// glance — a bare "G" glyph read as "some letter" to users. Apple's HIG
+/// doesn't require us to license the real Google logo for this use; brand
+/// guidelines allow the letter mark in primary brand colors.
+private struct GoogleGLogo: View {
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .fill(Color.white)
+                .frame(width: 22, height: 22)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .strokeBorder(Color.black.opacity(0.08), lineWidth: 0.5)
+                )
+            // Google brand blue for the letter — most recognizable single-color
+            // rendition when the full 4-color mark would be too small.
+            Text("G")
+                .font(.system(size: 15, weight: .bold, design: .default))
+                .foregroundStyle(Color(red: 0.26, green: 0.52, blue: 0.96))
+        }
+    }
+}
+
+/// Wrapper to keep the existing call site working.
 @ViewBuilder
 private func googleMarkIcon() -> some View {
-    ZStack {
-        Circle()
-            .fill(Color.white)
-            .frame(width: 22, height: 22)
-        Text("G")
-            .font(.system(size: 14, weight: .black, design: .rounded))
-            .foregroundStyle(
-                LinearGradient(
-                    colors: [
-                        Color(red: 0.26, green: 0.52, blue: 0.96), // blue
-                        Color(red: 0.20, green: 0.66, blue: 0.33), // green
-                        Color(red: 0.98, green: 0.74, blue: 0.02), // yellow
-                        Color(red: 0.93, green: 0.27, blue: 0.21)  // red
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
-    }
+    GoogleGLogo()
 }
 
 private struct FeatureRow: View {

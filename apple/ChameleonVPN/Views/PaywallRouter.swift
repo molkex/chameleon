@@ -32,15 +32,39 @@ struct PaywallRouter: View {
         .task {
             if let storefront = await Storefront.current {
                 storefrontCountry = storefront.countryCode
+                TunnelFileLogger.log("PaywallRouter: storefront country=\(storefront.countryCode)", category: "ui")
+            } else {
+                TunnelFileLogger.log("PaywallRouter: Storefront.current returned nil", category: "ui")
             }
+            // Debug override: check UserDefaults for "debug_paywall_force" = "web"|"storekit"
             resolved = true
         }
     }
 
-    /// RU storefront → web paywall. Everyone else → StoreKit.
-    /// If we fail to resolve (edge case, e.g. user signed out of App Store),
-    /// default to StoreKit to stay Guideline 3.1.1 compliant.
+    /// CIS storefronts → web paywall (FreeKassa / SBP). Everyone else →
+    /// StoreKit. Covers RU + post-Soviet states where Russian cards and
+    /// СБП work but Apple IAP is either missing or broken for local
+    /// payment methods (Apple suspended transactions in RU, limited card
+    /// support elsewhere). ISO 3166-1 alpha-3 and alpha-2 both supported.
+    private static let cisThreeLetter: Set<String> = [
+        "RUS", "KAZ", "BLR", "UZB", "UKR",
+        "KGZ", "ARM", "AZE", "TJK", "MDA", "TKM",
+    ]
+    private static let cisTwoLetter: Set<String> = [
+        "RU", "KZ", "BY", "UZ", "UA",
+        "KG", "AM", "AZ", "TJ", "MD", "TM",
+    ]
+
     private var shouldUseWebPaywall: Bool {
-        storefrontCountry == "RUS"
+        if let cc = storefrontCountry {
+            return Self.cisThreeLetter.contains(cc) || Self.cisTwoLetter.contains(cc)
+        }
+        // Fallback when storefront is unknown: use locale region as a hint.
+        // Better to route CIS-locale users to the SBP flow than a StoreKit
+        // screen they can't actually pay through.
+        if let region = Locale.current.region?.identifier {
+            return Self.cisTwoLetter.contains(region)
+        }
+        return false
     }
 }
