@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// Top-level settings entry point reached from the main screen gear icon.
-/// Intentionally lean: Appearance, Account, Legal, Diagnostics, About.
-/// Debug logs live under Diagnostics so the prod header stays clean.
+/// Top-level settings. Themed to match the app look (not system Form). Each
+/// logical section is a single rounded card on the theme.background with
+/// divider lines inside — reads as "one thing" visually, avoids the iOS
+/// grouped-list fight with dark themes.
 struct SettingsView: View {
     @Environment(AppState.self) private var app
     @Environment(ThemeManager.self) private var themeManager
@@ -12,112 +13,108 @@ struct SettingsView: View {
     @State private var showDebugLogs = false
     @State private var preloadedTunnelLines: [String] = []
     @State private var preloadedStderrLines: [String] = []
+    @State private var showAccount = false
+    @State private var showTerms = false
+    @State private var showPrivacy = false
+
+    private var theme: Theme { themeManager.current }
 
     var body: some View {
         NavigationStack {
-            List {
-                Section(L10n.Settings.sectionAppearance) {
-                    Button {
-                        showThemePicker = true
-                    } label: {
-                        HStack {
-                            Label {
-                                Text(L10n.Settings.theme)
-                            } icon: {
-                                Image(systemName: "paintpalette.fill")
+            ZStack {
+                theme.background.ignoresSafeArea()
+
+                ScrollView {
+                    VStack(spacing: 20) {
+                        sectionHeader(L10n.Settings.sectionAppearance)
+                        card {
+                            row(icon: "paintpalette.fill", title: L10n.Settings.theme,
+                                trailing: Text(themeManager.current.displayName)
+                                    .font(theme.font(size: 15))
+                                    .foregroundStyle(theme.textSecondary),
+                                showChevron: true
+                            ) { showThemePicker = true }
+                        }
+
+                        sectionHeader(L10n.Settings.sectionRouting)
+                        card {
+                            VStack(spacing: 0) {
+                                HStack(spacing: 14) {
+                                    iconCircle("arrow.triangle.branch")
+                                    Text(L10n.Settings.routingMode)
+                                        .font(theme.font(size: 16, weight: .medium))
+                                        .foregroundStyle(theme.textPrimary)
+                                    Spacer()
+                                    Picker("", selection: Binding(
+                                        get: { app.routingMode },
+                                        set: { app.setRoutingMode($0) }
+                                    )) {
+                                        Text(L10n.Settings.routingModeSmart).tag(RoutingMode.smart)
+                                        Text(L10n.Settings.routingModeRuDirect).tag(RoutingMode.ruDirect)
+                                        Text(L10n.Settings.routingModeFullVPN).tag(RoutingMode.fullVPN)
+                                    }
+                                    .pickerStyle(.menu)
+                                    .tint(theme.accent)
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 14)
+
+                                Divider().background(theme.textSecondary.opacity(0.15))
+
+                                Text(routingModeHint)
+                                    .font(theme.font(size: 13))
+                                    .foregroundStyle(theme.textSecondary)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 12)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                            Spacer()
-                            Text(themeManager.current.displayName)
-                                .foregroundStyle(.secondary)
-                            Image(systemName: "chevron.right")
-                                .font(.caption.weight(.bold))
-                                .foregroundStyle(.tertiary)
                         }
-                    }
-                    .tint(.primary)
-                }
 
-                Section {
-                    Picker(selection: Binding(
-                        get: { app.routingMode },
-                        set: { app.setRoutingMode($0) }
-                    )) {
-                        Text(L10n.Settings.routingModeSmart).tag(RoutingMode.smart)
-                        Text(L10n.Settings.routingModeRuDirect).tag(RoutingMode.ruDirect)
-                        Text(L10n.Settings.routingModeFullVPN).tag(RoutingMode.fullVPN)
-                    } label: {
-                        Label {
-                            Text(L10n.Settings.routingMode)
-                        } icon: {
-                            Image(systemName: "arrow.triangle.branch")
+                        sectionHeader(L10n.Settings.sectionAccount)
+                        card {
+                            row(icon: "person.crop.circle", title: L10n.Account.title,
+                                showChevron: true) { showAccount = true }
                         }
-                    }
-                    .pickerStyle(.menu)
-                    Text(routingModeHint)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                } header: {
-                    Text(L10n.Settings.sectionRouting)
-                }
 
-                Section(L10n.Settings.sectionAccount) {
-                    NavigationLink {
-                        AccountView()
-                    } label: {
-                        Label {
-                            Text(L10n.Account.title)
-                        } icon: {
-                            Image(systemName: "person.crop.circle")
+                        sectionHeader(L10n.Settings.sectionAbout)
+                        card {
+                            VStack(spacing: 0) {
+                                row(icon: "doc.text", title: L10n.Paywall.terms,
+                                    showChevron: true) { showTerms = true }
+                                divider
+                                row(icon: "hand.raised", title: L10n.Paywall.privacy,
+                                    showChevron: true) { showPrivacy = true }
+                                divider
+                                HStack(spacing: 14) {
+                                    iconCircle("info.circle")
+                                    Text(L10n.Settings.version)
+                                        .font(theme.font(size: 16, weight: .medium))
+                                        .foregroundStyle(theme.textPrimary)
+                                    Spacer()
+                                    Text(versionString)
+                                        .font(.system(size: 13, design: .monospaced))
+                                        .foregroundStyle(theme.textSecondary)
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 14)
+                            }
                         }
-                    }
-                }
 
-                Section(L10n.Settings.sectionAbout) {
-                    NavigationLink {
-                        LegalView(title: L10n.Legal.termsTitle, body: L10n.Legal.termsBody)
-                    } label: {
-                        Label {
-                            Text(L10n.Paywall.terms)
-                        } icon: {
-                            Image(systemName: "doc.text")
+                        sectionHeader(L10n.Settings.sectionDiagnostics)
+                        card {
+                            row(icon: "ladybug", title: L10n.Settings.debugLogs,
+                                showChevron: true) {
+                                TunnelFileLogger.log("TAP: debug logs (from settings)", category: "ui")
+                                preloadedTunnelLines = TunnelFileLogger.readLog().components(separatedBy: "\n")
+                                preloadedStderrLines = TunnelFileLogger.readStderrLog().components(separatedBy: "\n")
+                                showDebugLogs = true
+                            }
                         }
-                    }
-                    NavigationLink {
-                        LegalView(title: L10n.Legal.privacyTitle, body: L10n.Legal.privacyBody)
-                    } label: {
-                        Label {
-                            Text(L10n.Paywall.privacy)
-                        } icon: {
-                            Image(systemName: "hand.raised")
-                        }
-                    }
-                    HStack {
-                        Label {
-                            Text(L10n.Settings.version)
-                        } icon: {
-                            Image(systemName: "info.circle")
-                        }
-                        Spacer()
-                        Text(versionString)
-                            .font(.caption.monospaced())
-                            .foregroundStyle(.secondary)
-                    }
-                }
 
-                Section(L10n.Settings.sectionDiagnostics) {
-                    Button {
-                        TunnelFileLogger.log("TAP: debug logs (from settings)", category: "ui")
-                        preloadedTunnelLines = TunnelFileLogger.readLog().components(separatedBy: "\n")
-                        preloadedStderrLines = TunnelFileLogger.readStderrLog().components(separatedBy: "\n")
-                        showDebugLogs = true
-                    } label: {
-                        Label {
-                            Text(L10n.Settings.debugLogs)
-                        } icon: {
-                            Image(systemName: "ladybug")
-                        }
+                        Spacer().frame(height: 24)
                     }
-                    .tint(.primary)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
                 }
             }
             .navigationTitle(Text(L10n.Settings.title))
@@ -125,6 +122,7 @@ struct SettingsView: View {
             .toolbar {
                 ToolbarItem(placement: PlatformToolbarPlacement.trailing.resolved) {
                     Button(L10n.Servers.done) { dismiss() }
+                        .tint(theme.accent)
                 }
             }
             .sheet(isPresented: $showThemePicker) {
@@ -138,7 +136,89 @@ struct SettingsView: View {
                 .environment(app)
                 .macSheetSize(width: 640, height: 760)
             }
+            .sheet(isPresented: $showAccount) {
+                NavigationStack { AccountView() }
+                    .environment(app)
+                    .macSheetSize()
+            }
+            .sheet(isPresented: $showTerms) {
+                NavigationStack {
+                    LegalView(title: L10n.Legal.termsTitle, body: L10n.Legal.termsBody)
+                }
+                .macSheetSize()
+            }
+            .sheet(isPresented: $showPrivacy) {
+                NavigationStack {
+                    LegalView(title: L10n.Legal.privacyTitle, body: L10n.Legal.privacyBody)
+                }
+                .macSheetSize()
+            }
         }
+    }
+
+    // MARK: - Theming helpers
+
+    @ViewBuilder
+    private func sectionHeader(_ title: LocalizedStringKey) -> some View {
+        Text(title)
+            .font(theme.font(size: 12, weight: .semibold))
+            .foregroundStyle(theme.textSecondary)
+            .textCase(.uppercase)
+            .tracking(0.5)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 4)
+            .padding(.top, 8)
+    }
+
+    @ViewBuilder
+    private func card<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        content()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(theme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    @ViewBuilder
+    private func row<Trailing: View>(
+        icon: String,
+        title: LocalizedStringKey,
+        trailing: Trailing = EmptyView(),
+        showChevron: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                iconCircle(icon)
+                Text(title)
+                    .font(theme.font(size: 16, weight: .medium))
+                    .foregroundStyle(theme.textPrimary)
+                Spacer()
+                trailing
+                if showChevron {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(theme.textSecondary.opacity(0.6))
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func iconCircle(_ systemName: String) -> some View {
+        Image(systemName: systemName)
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(theme.accent)
+            .frame(width: 32, height: 32)
+            .background(theme.accent.opacity(0.14), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+    }
+
+    private var divider: some View {
+        Divider()
+            .background(theme.textSecondary.opacity(0.15))
+            .padding(.leading, 62)
     }
 
     private var routingModeHint: LocalizedStringKey {

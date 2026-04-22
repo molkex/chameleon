@@ -41,11 +41,14 @@
     // Universal Link: on iOS, tapping a https://madfrog.online/app/signin link
     // goes straight to the app. This page is only hit as a fallback — either
     // the app isn't installed, or the user opened the email on desktop.
+    //
+    // Deliberately NOT auto-redirecting. A previous version did
+    // window.location.replace() here, which caused a double-consume: Mail's
+    // Universal Link handoff opened the app (consumes the token), AND
+    // Safari's landing redirect fired the same URL again (second hit saw
+    // the token "used" → error screen). Now the user taps once by hand.
     var href = "https://madfrog.online/app/signin?token=" + encodeURIComponent(token);
     btn.href = href;
-
-    // Auto-attempt open (only works on iOS with UL installed).
-    try { window.location.replace(href); } catch (e) {}
   })();
 </script>
 </body>

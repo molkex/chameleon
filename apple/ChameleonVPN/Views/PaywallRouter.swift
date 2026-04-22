@@ -55,15 +55,21 @@ struct PaywallRouter: View {
         "KG", "AM", "AZ", "TJ", "MD", "TM",
     ]
 
+    /// Any CIS signal wins. Storefront is the authoritative source in the
+    /// App Store build, but under TestFlight `Storefront.current` frequently
+    /// returns the developer's account country (we saw "USA" on a KZ tester)
+    /// which would strand real CIS users on a StoreKit screen they can't pay
+    /// through. Accept either storefront OR Locale.region as "this is a CIS
+    /// user" — false positives (e.g. Russian expat with a US card) are
+    /// strictly better than false negatives.
     private var shouldUseWebPaywall: Bool {
-        if let cc = storefrontCountry {
-            return Self.cisThreeLetter.contains(cc) || Self.cisTwoLetter.contains(cc)
+        if let cc = storefrontCountry,
+           Self.cisThreeLetter.contains(cc) || Self.cisTwoLetter.contains(cc) {
+            return true
         }
-        // Fallback when storefront is unknown: use locale region as a hint.
-        // Better to route CIS-locale users to the SBP flow than a StoreKit
-        // screen they can't actually pay through.
-        if let region = Locale.current.region?.identifier {
-            return Self.cisTwoLetter.contains(region)
+        if let region = Locale.current.region?.identifier,
+           Self.cisTwoLetter.contains(region) {
+            return true
         }
         return false
     }

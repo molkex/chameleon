@@ -20,7 +20,11 @@ enum RoutingMode: String, CaseIterable, Codable {
     /// Useful when travelling or on hostile public Wi-Fi.
     case fullVPN = "full-vpn"
 
-    static let `default`: RoutingMode = .smart
+    /// Full VPN is the default because most users installing a VPN want
+    /// "mask my IP everywhere". Smart mode is advanced tier — available,
+    /// but not surprising the new user with "connected but whoer shows
+    /// my real IP, what's broken?".
+    static let `default`: RoutingMode = .fullVPN
 
     /// Selector → target outbound mapping for this mode.
     /// These are the three PUT requests the extension issues to the local

@@ -213,27 +213,15 @@ struct OnboardingView: View {
     }
 }
 
-/// Google "G" mark. We use the approximate Google colors on a white
-/// rounded square so the button is obviously "sign in with Google" at a
-/// glance — a bare "G" glyph read as "some letter" to users. Apple's HIG
-/// doesn't require us to license the real Google logo for this use; brand
-/// guidelines allow the letter mark in primary brand colors.
+/// Google "G" mark — official four-color logo from Google's developer
+/// press kit (g-logo.png). Google's branding guidelines explicitly allow
+/// this asset for "Sign in with Google" buttons.
 private struct GoogleGLogo: View {
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 5, style: .continuous)
-                .fill(Color.white)
-                .frame(width: 22, height: 22)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .strokeBorder(Color.black.opacity(0.08), lineWidth: 0.5)
-                )
-            // Google brand blue for the letter — most recognizable single-color
-            // rendition when the full 4-color mark would be too small.
-            Text("G")
-                .font(.system(size: 15, weight: .bold, design: .default))
-                .foregroundStyle(Color(red: 0.26, green: 0.52, blue: 0.96))
-        }
+        Image("GoogleG")
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .frame(width: 20, height: 20)
     }
 }
 
