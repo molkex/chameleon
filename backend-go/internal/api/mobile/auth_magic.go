@@ -218,20 +218,38 @@ func (h *Handler) sendMagicLinkEmail(ctx context.Context, toEmail, rawToken, pur
 
 	tmpl := magicEmailTemplate(lang, purpose)
 
-	// Inbox-friendly email: light HTML, no dark theme, minimal styling.
-	// Dark-themed marketing HTML was reliably classified as spam by iCloud
-	// and Gmail on a fresh domain. Plain, short, one CTA works better for
-	// deliverability and doesn't trigger image-heavy phishing filters.
+	// Branded template with the green CTA. The deliverability trade-off
+	// was a wash — bare plain-HTML still landed in Junk on fresh-domain
+	// iCloud, so we keep the nicer design that users actually recognise.
+	// Domain reputation is what eventually moves the needle, not template
+	// minimalism. Shape is deliberately light: ONE link, no images, no
+	// tracking pixels, tables for client-wide compatibility (Outlook etc).
 	html := fmt.Sprintf(`<!doctype html>
 <html lang="%s">
-<body style="font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif; font-size: 15px; line-height: 1.55; color: #222; margin: 0; padding: 24px;">
-<p>%s</p>
-<p>%s</p>
-<p><a href="%s" style="color: #1a73e8;">%s</a></p>
-<p style="color: #666; font-size: 13px;">%s</p>
-<p style="color: #999; font-size: 12px; margin-top: 32px;">MadFrog VPN · info@madfrog.online</p>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Arial,sans-serif;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%%" style="background:#f4f4f5;padding:32px 16px;">
+  <tr><td align="center">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="520" style="max-width:520px;background:#ffffff;border-radius:16px;padding:40px 32px;">
+      <tr><td style="font-size:22px;font-weight:800;color:#4BAD3B;padding-bottom:20px;">MadFrog VPN</td></tr>
+      <tr><td style="font-size:18px;font-weight:600;color:#1c1c1e;padding-bottom:8px;">%s</td></tr>
+      <tr><td style="font-size:15px;line-height:1.55;color:#3a3a3c;padding-bottom:28px;">%s</td></tr>
+      <tr><td style="padding-bottom:28px;">
+        <a href="%s" style="display:inline-block;background:#4BAD3B;color:#ffffff;text-decoration:none;padding:14px 36px;border-radius:10px;font-size:16px;font-weight:700;">%s</a>
+      </td></tr>
+      <tr><td style="font-size:13px;line-height:1.55;color:#6e6e73;padding-bottom:20px;">%s</td></tr>
+      <tr><td style="font-size:12px;line-height:1.55;color:#8e8e93;padding-top:16px;border-top:1px solid #e5e5ea;">
+        %s<br>
+        <a href="%s" style="color:#6e6e73;word-break:break-all;text-decoration:none;">%s</a>
+      </td></tr>
+      <tr><td style="font-size:11px;color:#c7c7cc;padding-top:20px;">MadFrog VPN · info@madfrog.online</td></tr>
+    </table>
+  </td></tr>
+</table>
 </body>
-</html>`, tmpl.htmlLang, tmpl.greeting, tmpl.intro, link, tmpl.cta, tmpl.footer)
+</html>`,
+		tmpl.htmlLang, tmpl.greeting, tmpl.intro, link, tmpl.cta,
+		tmpl.footer, tmpl.pasteHint, link, link)
 
 	text := fmt.Sprintf("%s\n\n%s\n\n%s\n\n%s\n\n— MadFrog VPN\n",
 		tmpl.greeting, tmpl.intro, link, tmpl.footer)
@@ -248,12 +266,13 @@ func (h *Handler) sendMagicLinkEmail(ctx context.Context, toEmail, rawToken, pur
 
 // magicEmailStrings are the user-visible strings for one (lang, purpose) combo.
 type magicEmailStrings struct {
-	htmlLang string
-	subject  string
-	greeting string
-	intro    string
-	cta      string
-	footer   string
+	htmlLang  string
+	subject   string
+	greeting  string
+	intro     string
+	cta       string
+	footer    string
+	pasteHint string // shown above the raw URL fallback at the bottom
 }
 
 // magicEmailTemplate picks the best matching set for the caller's language.
@@ -265,39 +284,43 @@ func magicEmailTemplate(lang, purpose string) magicEmailStrings {
 	switch {
 	case isRu && isSignup:
 		return magicEmailStrings{
-			htmlLang: "ru",
-			subject:  "Подтвердите аккаунт MadFrog VPN",
-			greeting: "Добро пожаловать в MadFrog VPN!",
-			intro:    "Нажмите на ссылку ниже, чтобы завершить регистрацию на этом устройстве.",
-			cta:      "Войти в MadFrog VPN",
-			footer:   "Ссылка действует 15 минут и срабатывает один раз. Если вы не запрашивали вход — просто проигнорируйте это письмо.",
+			htmlLang:  "ru",
+			subject:   "Подтвердите аккаунт MadFrog VPN",
+			greeting:  "Добро пожаловать в MadFrog VPN!",
+			intro:     "Нажмите на кнопку ниже, чтобы завершить регистрацию на этом устройстве.",
+			cta:       "Войти в MadFrog VPN",
+			footer:    "Ссылка действует 15 минут и срабатывает один раз. Если вы не запрашивали вход — просто проигнорируйте это письмо.",
+			pasteHint: "Если кнопка не работает, откройте эту ссылку в браузере:",
 		}
 	case isRu:
 		return magicEmailStrings{
-			htmlLang: "ru",
-			subject:  "Ссылка для входа в MadFrog VPN",
-			greeting: "Здравствуйте,",
-			intro:    "Нажмите на ссылку ниже, чтобы войти на этом устройстве.",
-			cta:      "Войти в MadFrog VPN",
-			footer:   "Ссылка действует 15 минут и срабатывает один раз. Если вы не запрашивали вход — просто проигнорируйте это письмо.",
+			htmlLang:  "ru",
+			subject:   "Ссылка для входа в MadFrog VPN",
+			greeting:  "Здравствуйте,",
+			intro:     "Нажмите на кнопку ниже, чтобы войти на этом устройстве.",
+			cta:       "Войти в MadFrog VPN",
+			footer:    "Ссылка действует 15 минут и срабатывает один раз. Если вы не запрашивали вход — просто проигнорируйте это письмо.",
+			pasteHint: "Если кнопка не работает, откройте эту ссылку в браузере:",
 		}
 	case isSignup:
 		return magicEmailStrings{
-			htmlLang: "en",
-			subject:  "Finish creating your MadFrog VPN account",
-			greeting: "Welcome to MadFrog VPN!",
-			intro:    "Tap the link below to finish setting up your account on your device.",
-			cta:      "Sign in to MadFrog VPN",
-			footer:   "This link works once and expires in 15 minutes. If you didn't request it, you can ignore this email.",
+			htmlLang:  "en",
+			subject:   "Finish creating your MadFrog VPN account",
+			greeting:  "Welcome to MadFrog VPN!",
+			intro:     "Tap the button below to finish setting up your account on your device.",
+			cta:       "Sign in to MadFrog VPN",
+			footer:    "This link works once and expires in 15 minutes. If you didn't request it, you can ignore this email.",
+			pasteHint: "If the button doesn't work, paste this link in your browser:",
 		}
 	default:
 		return magicEmailStrings{
-			htmlLang: "en",
-			subject:  "Your MadFrog VPN sign-in link",
-			greeting: "Hi,",
-			intro:    "Tap the link below to sign in on your device.",
-			cta:      "Sign in to MadFrog VPN",
-			footer:   "This link works once and expires in 15 minutes. If you didn't request it, you can ignore this email.",
+			htmlLang:  "en",
+			subject:   "Your MadFrog VPN sign-in link",
+			greeting:  "Hi,",
+			intro:     "Tap the button below to sign in on your device.",
+			cta:       "Sign in to MadFrog VPN",
+			footer:    "This link works once and expires in 15 minutes. If you didn't request it, you can ignore this email.",
+			pasteHint: "If the button doesn't work, paste this link in your browser:",
 		}
 	}
 }
