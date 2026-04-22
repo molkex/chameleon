@@ -69,7 +69,7 @@
 "onboarding.feature.servers"     = "Быстрые надёжные серверы";
 "onboarding.signin_failed"       = "Не удалось войти. Попробуйте ещё раз.";
 "onboarding.anon_failed"         = "Не удалось начать пробный период. Проверьте подключение и повторите.";
-"onboarding.continue_no_account" = "Продолжить без аккаунта";
+"onboarding.continue_no_account" = "Попробовать без регистрации";
 "onboarding.sign_in_with_google" = "Войти через Google";
 "onboarding.sign_in_with_email"  = "Войти по email";
 

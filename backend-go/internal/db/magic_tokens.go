@@ -78,13 +78,17 @@ func (db *DB) ConsumeMagicToken(ctx context.Context, tokenHash string) (*MagicTo
 	ctx, cancel := defaultTimeout(ctx)
 	defer cancel()
 
+	// Cast INET → TEXT so pgx can scan into *string. INET binary decoder
+	// requires netip.Addr / pgtype.Inet, and adding either would pull a
+	// new dep everywhere. The text value is human-friendly and
+	// sufficient for audit use.
 	row := db.Pool.QueryRow(ctx, `
 		UPDATE magic_tokens
 		SET used_at = NOW()
 		WHERE token_hash = $1
 		  AND used_at IS NULL
 		  AND expires_at > NOW()
-		RETURNING id, token_hash, email, user_id, purpose, expires_at, used_at, created_ip, created_at`,
+		RETURNING id, token_hash, email, user_id, purpose, expires_at, used_at, host(created_ip), created_at`,
 		tokenHash)
 
 	var t MagicToken

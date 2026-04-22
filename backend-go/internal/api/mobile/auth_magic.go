@@ -144,17 +144,29 @@ func (h *Handler) MagicLinkVerify(c echo.Context) error {
 				Error: "device_id is required for first sign-in",
 			})
 		}
-		user, err = h.createUser(ctx, req.DeviceID, "", "email")
+		// Re-use an existing device row if the user was previously registered
+		// anonymously or via Apple on this device. Avoids unique(vpn_username)
+		// collisions and silently merges the device into the email identity.
+		existingByDevice, err := h.DB.FindUserByDeviceID(ctx, req.DeviceID)
 		if err != nil {
-			h.Logger.Error("magic: create user", zap.Error(err))
+			h.Logger.Error("magic: find by device_id", zap.Error(err))
 			return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
 		}
-		// Persist the email on the just-created user.
+		if existingByDevice != nil {
+			user = existingByDevice
+		} else {
+			user, err = h.createUser(ctx, req.DeviceID, "", "email")
+			if err != nil {
+				h.Logger.Error("magic: create user", zap.Error(err))
+				return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
+			}
+		}
+		// Persist the email on the user.
 		if err := h.DB.SetUserEmail(ctx, user.ID, mt.Email); err != nil {
 			h.Logger.Error("magic: set email on new user", zap.Error(err))
 		}
 		user.Email = &mt.Email
-		isNew = true
+		isNew = existingByDevice == nil
 		h.Logger.Info("magic: new email user", zap.Int64("user_id", user.ID), zap.String("email", mt.Email))
 	}
 

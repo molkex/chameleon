@@ -2,7 +2,10 @@
   "applinks": {
     "details": [
       {
-        "appIDs": ["99W3C374T2.com.madfrog.vpn"],
+        "appIDs": [
+          "99W3C374T2.com.madfrog.vpn",
+          "99W3C374T2.com.madfrog.vpn.mac"
+        ],
         "components": [
           {
             "/": "/app/payment/*",
@@ -10,7 +13,7 @@
           },
           {
             "/": "/app/*",
-            "comment": "General app deep links"
+            "comment": "General app deep links (magic link sign-in, etc)"
           }
         ]
       }

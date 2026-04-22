@@ -66,7 +66,7 @@ struct EmailSignInView: View {
 
             Spacer().frame(height: 28)
 
-            TextField(L10n.Magic.emailPlaceholder, text: $email)
+            TextField("", text: $email, prompt: Text("email").foregroundColor(theme.textSecondary.opacity(0.6)))
                 .iosEmailKeyboard()
                 .iosNoAutocapitalization()
                 .autocorrectionDisabled()

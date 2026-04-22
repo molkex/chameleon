@@ -36,6 +36,7 @@ func scanUser(row pgx.Row) (*User, error) {
 		&u.LastCountry, &u.LastCountryName, &u.LastCity,
 		&u.InitialIP, &u.InitialCountry, &u.InitialCountryName, &u.InitialCity,
 		&u.Timezone, &u.DeviceModel, &u.IOSVersion, &u.AcceptLanguage, &u.InstallDate, &u.StoreCountry,
+		&u.Email, &u.EmailVerifiedAt, &u.PasswordHash,
 		&u.CreatedAt, &u.UpdatedAt,
 	)
 	if err != nil {

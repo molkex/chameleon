@@ -17,42 +17,41 @@ struct OnboardingView: View {
             VStack(spacing: 0) {
                 Spacer()
 
-                // Logo
-                ZStack {
-                    Circle()
-                        .fill(theme.accent.opacity(0.18))
-                        .frame(width: 128, height: 128)
+                // App logo (from AppLogo imageset, sourced from AppIcon).
+                // Rounded so it matches the home-screen icon's continuous corners.
+                Image("AppLogo")
+                    .resizable()
+                    .interpolation(.high)
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 112, height: 112)
+                    .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+                    .shadow(color: theme.accent.opacity(0.25), radius: 18, x: 0, y: 8)
 
-                    Image(systemName: "shield.lefthalf.filled")
-                        .font(.system(size: 54, weight: .bold))
-                        .foregroundStyle(theme.accent)
-                }
-
-                Spacer().frame(height: 32)
+                Spacer().frame(height: 20)
 
                 Text(L10n.Onboarding.title)
-                    .font(theme.displayFont(size: 34, weight: .black))
+                    .font(theme.displayFont(size: 30, weight: .black))
                     .foregroundStyle(theme.textPrimary)
 
-                Spacer().frame(height: 8)
+                Spacer().frame(height: 6)
 
                 Text(L10n.Onboarding.subtitle)
-                    .font(theme.font(size: 18))
+                    .font(theme.font(size: 15))
                     .foregroundStyle(theme.textSecondary)
 
-                Spacer()
+                Spacer().frame(height: 22)
 
                 // Features
-                VStack(spacing: 14) {
+                VStack(spacing: 10) {
                     FeatureRow(icon: "clock.badge.checkmark", text: L10n.Onboarding.featureTrial, theme: theme)
                     FeatureRow(icon: "lock.shield", text: L10n.Onboarding.featureNoLogs, theme: theme)
                     FeatureRow(icon: "bolt.fill", text: L10n.Onboarding.featureServers, theme: theme)
                 }
-                .padding(.horizontal, 32)
+                .padding(.horizontal, 36)
 
-                Spacer().frame(height: 48)
+                Spacer()
 
-                // Sign in with Apple
+                // Primary: Apple (system button — Apple requires specific style)
                 SignInWithAppleButton(.continue) { request in
                     request.requestedScopes = [.email]
                 } onCompletion: { result in
@@ -61,33 +60,31 @@ struct OnboardingView: View {
                         guard let credential = auth.credential as? ASAuthorizationAppleIDCredential else { return }
                         Task { await app.signInWithApple(credential: credential) }
                     case .failure(let error):
-                        // User cancelled — don't show error
                         if (error as NSError).code != ASAuthorizationError.canceled.rawValue {
                             app.errorMessage = String(localized: "onboarding.signin_failed")
                         }
                     }
                 }
                 .signInWithAppleButtonStyle(.white)
-                .frame(height: 50)
-                .cornerRadius(12)
+                .frame(height: 52)
+                .cornerRadius(14)
                 .padding(.horizontal, 24)
                 .disabled(app.isLoading)
 
                 Spacer().frame(height: 10)
 
-                // Google Sign-In button
+                // Google — same visual weight as Apple (white rounded).
                 Button {
                     Task { await GoogleAuthCoordinator.signIn(into: app) }
                 } label: {
                     HStack(spacing: 10) {
-                        Image(systemName: "g.circle.fill")
-                            .foregroundStyle(Color(red: 0.26, green: 0.52, blue: 0.96))
+                        googleMarkIcon()
                         Text(L10n.Onboarding.signInWithGoogle)
-                            .foregroundStyle(Color.black)
+                            .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.13))
                     }
-                    .font(.system(size: 16, weight: .semibold))
-                    .frame(maxWidth: .infinity, minHeight: 50)
-                    .background(Color.white, in: RoundedRectangle(cornerRadius: 12))
+                    .font(.system(size: 17, weight: .semibold))
+                    .frame(maxWidth: .infinity, minHeight: 52)
+                    .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .padding(.horizontal, 24)
@@ -95,52 +92,53 @@ struct OnboardingView: View {
 
                 Spacer().frame(height: 10)
 
-                // Email magic-link
+                // Email — tertiary tint (matches the app's accent so users see
+                // this is "ours", not a third-party).
                 Button {
                     showEmailSignIn = true
                 } label: {
                     HStack(spacing: 10) {
                         Image(systemName: "envelope.fill")
+                            .foregroundStyle(theme.accent)
                         Text(L10n.Onboarding.signInWithEmail)
+                            .foregroundStyle(theme.textPrimary)
                     }
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(theme.textPrimary)
-                    .frame(maxWidth: .infinity, minHeight: 50)
-                    .background(theme.surface, in: RoundedRectangle(cornerRadius: 12))
+                    .font(.system(size: 17, weight: .semibold))
+                    .frame(maxWidth: .infinity, minHeight: 52)
+                    .background(theme.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .strokeBorder(theme.textSecondary.opacity(0.25), lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .strokeBorder(theme.accent.opacity(0.35), lineWidth: 1)
                     )
                 }
                 .buttonStyle(.plain)
                 .padding(.horizontal, 24)
                 .disabled(app.isLoading)
 
-                Spacer().frame(height: 10)
-
-                // Fallback: continue without an account (device-bound trial).
-                // Required so users without any third-party identity can
-                // still use the app — otherwise App Store review flags this.
+                // Quaternary: anonymous fallback. Kept small-caps text so
+                // App Store review can't flag Apple Sign-In as the only path,
+                // but visually subordinate — the account flows are the
+                // recommended default.
                 Button {
                     Task { await app.signInAnonymous() }
                 } label: {
                     Text(L10n.Onboarding.continueWithoutAccount)
-                        .font(theme.font(size: 15, weight: .medium))
-                        .foregroundStyle(theme.textPrimary.opacity(0.85))
-                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .font(theme.font(size: 14, weight: .medium))
+                        .foregroundStyle(theme.textSecondary)
+                        .frame(maxWidth: .infinity, minHeight: 40)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .padding(.horizontal, 24)
+                .padding(.top, 4)
                 .disabled(app.isLoading)
 
                 if app.isLoading {
                     ProgressView()
                         .tint(theme.textPrimary)
-                        .padding(.top, 16)
+                        .padding(.top, 8)
                 }
 
-                Spacer().frame(height: 16)
+                Spacer().frame(height: 8)
 
                 VStack(spacing: 6) {
                     Text(L10n.Onboarding.terms)
@@ -204,6 +202,32 @@ struct OnboardingView: View {
                 .environment(themeManager)
                 .macSheetSize()
         }
+    }
+}
+
+/// Compact Google "G" mark, built with SF Symbols so we don't have to ship
+/// raster assets. The real Google guidelines allow the text-only mark at
+/// sizes this small; full logo would need an image asset.
+@ViewBuilder
+private func googleMarkIcon() -> some View {
+    ZStack {
+        Circle()
+            .fill(Color.white)
+            .frame(width: 22, height: 22)
+        Text("G")
+            .font(.system(size: 14, weight: .black, design: .rounded))
+            .foregroundStyle(
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.26, green: 0.52, blue: 0.96), // blue
+                        Color(red: 0.20, green: 0.66, blue: 0.33), // green
+                        Color(red: 0.98, green: 0.74, blue: 0.02), // yellow
+                        Color(red: 0.93, green: 0.27, blue: 0.21)  // red
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
     }
 }
 

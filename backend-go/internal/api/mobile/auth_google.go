@@ -74,6 +74,19 @@ func (h *Handler) GoogleSignIn(c echo.Context) error {
 		user = existing
 	}
 
+	// Also check by device_id — the user may have first tapped
+	// "Continue without account" or Apple Sign-In on this device,
+	// generating a vpn_username deterministically from device_id. A fresh
+	// INSERT would then collide on unique(vpn_username). Re-use that row.
+	if user == nil {
+		existingByDevice, err := h.DB.FindUserByDeviceID(ctx, req.DeviceID)
+		if err != nil {
+			h.Logger.Error("db: find by device_id", zap.Error(err))
+			return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
+		}
+		user = existingByDevice
+	}
+
 	isNew := false
 	if user == nil {
 		isNew = true
