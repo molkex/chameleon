@@ -121,14 +121,14 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle(Text(L10n.Settings.title))
-            .navigationBarTitleDisplayMode(.inline)
+            .iosInlineNavTitle()
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: PlatformToolbarPlacement.trailing.resolved) {
                     Button(L10n.Servers.done) { dismiss() }
                 }
             }
             .sheet(isPresented: $showThemePicker) {
-                ThemePickerView(isModal: true).environment(themeManager)
+                ThemePickerView(isModal: true).environment(themeManager).macSheetSize()
             }
             .sheet(isPresented: $showDebugLogs) {
                 DebugLogsView(
@@ -136,6 +136,7 @@ struct SettingsView: View {
                     preloadedStderrLines: preloadedStderrLines
                 )
                 .environment(app)
+                .macSheetSize(width: 640, height: 760)
             }
         }
     }

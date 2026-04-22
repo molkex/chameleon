@@ -54,7 +54,7 @@ struct WebPaywallView: View {
             }
             .background(theme.background.ignoresSafeArea())
             .navigationTitle("Подписка")
-            .navigationBarTitleDisplayMode(.inline)
+            .iosInlineNavTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Закрыть") { dismiss() }
@@ -118,8 +118,8 @@ struct WebPaywallView: View {
                     .foregroundStyle(.red)
             }
             TextField("", text: $email)
-                .textInputAutocapitalization(.never)
-                .keyboardType(.emailAddress)
+                .iosNoAutocapitalization()
+                .iosEmailKeyboard()
                 .autocorrectionDisabled()
                 .padding(12)
                 .background(
@@ -284,11 +284,9 @@ struct WebPaywallView: View {
                 accessToken: token
             )
             pendingPaymentID = result.paymentId
-            #if canImport(UIKit)
             if let url = URL(string: result.paymentURL) {
-                await UIApplication.shared.open(url)
+                await PlatformURLOpener.open(url)
             }
-            #endif
         } catch APIError.unauthorized {
             errorMessage = "Сессия истекла, войдите заново"
         } catch {

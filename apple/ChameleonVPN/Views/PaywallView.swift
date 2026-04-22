@@ -68,9 +68,8 @@ struct PaywallView: View {
             .scrollContentBackground(.hidden)
             .background(theme.background.ignoresSafeArea())
             .navigationTitle(Text(L10n.Paywall.title))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(theme.background, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
+            .iosInlineNavTitle()
+            .iosToolbarBackground(theme.background)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(L10n.Paywall.close) { dismiss() }
@@ -94,11 +93,13 @@ struct PaywallView: View {
                 NavigationStack {
                     LegalView(title: L10n.Legal.termsTitle, body: L10n.Legal.termsBody)
                 }
+                .macSheetSize()
             }
             .sheet(isPresented: $showPrivacy) {
                 NavigationStack {
                     LegalView(title: L10n.Legal.privacyTitle, body: L10n.Legal.privacyBody)
                 }
+                .macSheetSize()
             }
         }
     }

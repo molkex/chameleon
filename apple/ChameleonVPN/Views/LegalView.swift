@@ -22,6 +22,6 @@ struct LegalView: View {
                 .padding(.vertical, 16)
         }
         .navigationTitle(Text(title))
-        .navigationBarTitleDisplayMode(.inline)
+        .iosInlineNavTitle()
     }
 }

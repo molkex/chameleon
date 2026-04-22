@@ -54,15 +54,23 @@ struct MainView: View {
         .onAppear { cachedBuildInfoLine = computeBuildInfoLine() }
         .sheet(isPresented: $showServers) {
             ServerListView().environment(app)
+                .macSheetSize()
+                .macCloseButton { showServers = false }
         }
         .sheet(isPresented: $showSettings) {
             SettingsView().environment(app).environment(themeManager)
+                .macSheetSize()
+                .macCloseButton { showSettings = false }
         }
         .sheet(isPresented: $showPaywall) {
             WebPaywallView().environment(app).environment(themeManager)
+                .macSheetSize()
+                .macCloseButton { showPaywall = false }
         }
         .sheet(isPresented: $showThemePicker) {
             ThemePickerView(isModal: true).environment(themeManager)
+                .macSheetSize()
+                .macCloseButton { showThemePicker = false }
         }
     }
 
@@ -238,9 +246,9 @@ struct ServerListView: View {
                     }
                 }
             }
-            .listStyle(.insetGrouped)
+            .platformInsetGroupedList()
             .navigationTitle(Text(L10n.Servers.title))
-            .navigationBarTitleDisplayMode(.inline)
+            .iosInlineNavTitle()
             .onAppear { TunnelFileLogger.log("ServerListView: appeared, groups=\(app.servers.count)", category: "ui") }
             .onDisappear { TunnelFileLogger.log("ServerListView: disappeared", category: "ui") }
             .task {
@@ -254,13 +262,13 @@ struct ServerListView: View {
                 }
             }
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: PlatformToolbarPlacement.trailing.resolved) {
                     Button(L10n.Servers.done) {
                         TunnelFileLogger.log("TAP: Done in server list", category: "ui")
                         dismiss()
                     }
                 }
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: PlatformToolbarPlacement.leading.resolved) {
                     Button {
                         TunnelFileLogger.log("TAP: refresh pings", category: "ui")
                         if let group = selectorGroup {
@@ -422,9 +430,9 @@ private struct CountryServersView: View {
                 .buttonStyle(.plain)
             }
         }
-        .listStyle(.insetGrouped)
+        .platformInsetGroupedList()
         .navigationTitle(Text(verbatim: L10n.Servers.serversIn(L10n.Servers.countryName(country.id))))
-        .navigationBarTitleDisplayMode(.inline)
+        .iosInlineNavTitle()
         .task {
             await app.pingService.probe(servers)
         }

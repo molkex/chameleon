@@ -61,7 +61,7 @@ struct AccountView: View {
             }
         }
         .navigationTitle(Text(L10n.Account.title))
-        .navigationBarTitleDisplayMode(.inline)
+        .iosInlineNavTitle()
         .alert(Text(L10n.Settings.deleteTitle), isPresented: $showDeleteConfirm) {
             Button(L10n.Settings.deleteCancel, role: .cancel) {}
             Button(L10n.Settings.deleteOk, role: .destructive) {

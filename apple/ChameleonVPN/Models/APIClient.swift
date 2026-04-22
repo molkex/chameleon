@@ -111,7 +111,7 @@ class APIClient {
         var req = request
         req.setValue(TimeZone.current.identifier, forHTTPHeaderField: "X-Timezone")
         #if canImport(UIKit)
-        req.setValue(UIDevice.current.systemVersion, forHTTPHeaderField: "X-iOS-Version")
+        req.setValue(PlatformDevice.systemVersion, forHTTPHeaderField: "X-iOS-Version")
         #endif
         req.setValue(DeviceTelemetry.modelIdentifier, forHTTPHeaderField: "X-Device-Model")
         req.setValue(DeviceTelemetry.installDateISO, forHTTPHeaderField: "X-Install-Date")
@@ -153,7 +153,7 @@ class APIClient {
 
     /// Register device for trial access.
     func registerDevice() async throws -> AuthResult {
-        let deviceId = UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
+        let deviceId = PlatformDevice.identifier
 
         guard let url = URL(string: "\(AppConstants.baseURL)/api/mobile/auth/register") else {
             throw APIError.networkError("Invalid URL")
@@ -269,7 +269,7 @@ class APIClient {
 
     /// Sign in with Apple — trial or return existing account.
     func signInWithApple(identityToken: String) async throws -> AuthResult {
-        let deviceId = UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
+        let deviceId = PlatformDevice.identifier
         guard let url = URL(string: "\(AppConstants.baseURL)/api/mobile/auth/apple") else {
             throw APIError.networkError("Invalid URL")
         }

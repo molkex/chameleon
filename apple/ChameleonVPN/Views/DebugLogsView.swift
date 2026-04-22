@@ -60,15 +60,15 @@ struct DebugLogsView: View {
             }
             .background(.black)
             .navigationTitle("Debug Logs")
-            .navigationBarTitleDisplayMode(.inline)
+            .iosInlineNavTitle()
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: PlatformToolbarPlacement.leading.resolved) {
                     Button("Done") { dismiss() }
                 }
-                ToolbarItemGroup(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: PlatformToolbarPlacement.trailing.resolved) {
                     // Copy compact report for Claude
                     Button {
-                        UIPasteboard.general.string = buildClaudeReport()
+                        PlatformPasteboard.setString(buildClaudeReport())
                         showCopiedToast = true
                         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                             showCopiedToast = false
@@ -110,9 +110,20 @@ struct DebugLogsView: View {
         }
         .animation(.easeInOut(duration: 0.3), value: showCopiedToast)
         .onAppear {
-            // Use preloaded data — instant display
+            // Show preloaded data first (instant display), then refresh from
+            // disk so logs written *after* the Settings screen opened are
+            // visible too (on macOS the extension often writes between
+            // Settings opening and Debug Logs opening).
             tunnelLines = preloadedTunnelLines
             stderrLines = preloadedStderrLines
+            Task.detached(priority: .userInitiated) {
+                let tunnel = TunnelFileLogger.readLog().components(separatedBy: "\n")
+                let stderr = TunnelFileLogger.readStderrLog().components(separatedBy: "\n")
+                await MainActor.run {
+                    tunnelLines = tunnel
+                    stderrLines = stderr
+                }
+            }
         }
     }
 

@@ -26,7 +26,7 @@ struct ChameleonApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
+        let window = WindowGroup {
             Group {
                 if !appState.isInitialized {
                     Color.black.ignoresSafeArea()
@@ -65,8 +65,34 @@ struct ChameleonApp: App {
             }
             .animation(.easeInOut(duration: 0.3), value: appState.isInitialized)
             .animation(.easeInOut(duration: 0.4), value: appState.isAuthenticated)
+            .macWindowFrame()
         }
+        #if os(macOS)
+        return Group {
+            window
+                .defaultSize(width: 480, height: 900)
+                .windowResizability(.contentMinSize)
+
+            MenuBarExtra {
+                MenuBarContent()
+                    .environment(appState)
+            } label: {
+                Image(systemName: menuBarIconName)
+            }
+            .menuBarExtraStyle(.window)
+        }
+        #else
+        return window
+        #endif
     }
+
+    #if os(macOS)
+    /// Tray icon reflects VPN status at a glance — green shield when
+    /// connected, grey slashed shield otherwise.
+    private var menuBarIconName: String {
+        VPNStateHelper.isConnected(appState) ? "checkmark.shield.fill" : "shield.slash"
+    }
+    #endif
 
     private func handleUniversalLink(_ url: URL) {
         guard url.host == "madfrog.online" else { return }
@@ -83,4 +109,22 @@ struct ChameleonApp: App {
 
 extension Notification.Name {
     static let paymentReturnFromLink = Notification.Name("madfrog.paymentReturnFromLink")
+}
+
+private extension View {
+    /// On macOS (both native target and iOS-on-Mac runtime) enforce an
+    /// iPhone-shaped minimum size so the layout never compresses below what
+    /// the iOS views were designed for. iOS targets: no-op.
+    @ViewBuilder
+    func macWindowFrame() -> some View {
+        #if os(macOS)
+        self.frame(minWidth: 440, idealWidth: 480, minHeight: 820, idealHeight: 900)
+        #else
+        if ProcessInfo.processInfo.isiOSAppOnMac {
+            self.frame(minWidth: 440, idealWidth: 480, minHeight: 820, idealHeight: 900)
+        } else {
+            self
+        }
+        #endif
+    }
 }

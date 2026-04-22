@@ -15,11 +15,20 @@
 node_modules/
 admin/dist/
 
-# iOS
+# iOS / macOS
 apple/Frameworks/Libbox.xcframework/
+apple/Frameworks/*.bak*
+apple/build/
+apple/build_*/
+apple/*.xcodeproj/xcuserdata/
+apple/*.xcodeproj/project.xcworkspace/xcuserdata/
 *.xcuserdata/
 DerivedData/
 build/
+
+# Personal / local
+requisites_*.pdf
+проблем/
 
 # OS
 .DS_Store

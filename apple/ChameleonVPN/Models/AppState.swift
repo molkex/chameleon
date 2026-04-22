@@ -256,11 +256,14 @@ class AppState {
     // MARK: - Sign In
 
     func signInWithApple(credential: ASAuthorizationAppleIDCredential) async {
+        AppLogger.app.info("signInWithApple: entry, hasToken=\(credential.identityToken != nil, privacy: .public), user=\(credential.user, privacy: .public)")
         guard let tokenData = credential.identityToken,
               let token = String(data: tokenData, encoding: .utf8) else {
+            AppLogger.app.error("signInWithApple: no identity token in credential")
             errorMessage = String(localized: "onboarding.signin_failed")
             return
         }
+        AppLogger.app.info("signInWithApple: got token, len=\(token.count, privacy: .public)")
 
         isLoading = true
         defer { isLoading = false }
@@ -276,7 +279,7 @@ class AppState {
             UserDefaults(suiteName: AppConstants.appGroupID)?.set(true, forKey: AppConstants.onboardingCompletedKey)
             isAuthenticated = true
         } catch {
-            AppLogger.app.error("signInWithApple: failed: \(error.localizedDescription)")
+            AppLogger.app.error("signInWithApple: failed: \(String(describing: error), privacy: .public)")
             errorMessage = String(localized: "onboarding.signin_failed")
         }
     }

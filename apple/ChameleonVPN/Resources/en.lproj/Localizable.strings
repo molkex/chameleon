@@ -159,5 +159,5 @@
 "error.rw_failed"                = "Could not save VPN profile. Check permissions.";
 "error.offline"                  = "No internet. Check Wi-Fi or cellular.";
 "error.server_timeout"           = "Server isn't responding. Try another server.";
-"error.all_servers_unreachable"  = "All servers are unreachable. Check your internet connection.";
+"error.all_servers_unreachable"  = "Servers unreachable. Check your internet, or disconnect any other VPN if it's active.";
 "error.selected_unreachable"     = "%@ is unreachable. Pick another server or switch to Auto.";

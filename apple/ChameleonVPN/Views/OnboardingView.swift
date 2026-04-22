@@ -127,11 +127,13 @@ struct OnboardingView: View {
             NavigationStack {
                 LegalView(title: L10n.Legal.termsTitle, body: L10n.Legal.termsBody)
             }
+            .macSheetSize()
         }
         .sheet(isPresented: $showPrivacy) {
             NavigationStack {
                 LegalView(title: L10n.Legal.privacyTitle, body: L10n.Legal.privacyBody)
             }
+            .macSheetSize()
         }
     }
 }
