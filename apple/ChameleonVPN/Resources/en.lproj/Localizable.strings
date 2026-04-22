@@ -69,7 +69,7 @@
 "onboarding.feature.servers"     = "Fast & reliable servers";
 "onboarding.signin_failed"       = "Sign in failed. Please try again.";
 "onboarding.anon_failed"         = "Could not start a trial. Check your connection and try again.";
-"onboarding.continue_no_account" = "Try without an account";
+"onboarding.continue_no_account" = "Continue as guest";
 "onboarding.sign_in_with_google" = "Sign in with Google";
 "onboarding.sign_in_with_email"  = "Sign in with email";
 

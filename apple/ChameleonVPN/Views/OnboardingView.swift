@@ -17,17 +17,16 @@ struct OnboardingView: View {
             VStack(spacing: 0) {
                 Spacer()
 
-                // App logo (from AppLogo imageset, sourced from AppIcon).
-                // Rounded so it matches the home-screen icon's continuous corners.
+                // Hero logo — larger, dominant. Rounded to match iOS home icon.
                 Image("AppLogo")
                     .resizable()
                     .interpolation(.high)
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 112, height: 112)
-                    .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
-                    .shadow(color: theme.accent.opacity(0.25), radius: 18, x: 0, y: 8)
+                    .frame(width: 140, height: 140)
+                    .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
+                    .shadow(color: theme.accent.opacity(0.28), radius: 24, x: 0, y: 10)
 
-                Spacer().frame(height: 20)
+                Spacer().frame(height: 24)
 
                 Text(L10n.Onboarding.title)
                     .font(theme.displayFont(size: 30, weight: .black))
@@ -51,7 +50,10 @@ struct OnboardingView: View {
 
                 Spacer()
 
-                // Primary: Apple (system button — Apple requires specific style)
+                // Primary: Apple — the only bold, opaque button. Apple HIG
+                // requires Sign in with Apple be visually at-least-equal to
+                // other sign-in methods, and we intentionally make it the
+                // clear first choice. 54pt tall, biggest weight.
                 SignInWithAppleButton(.continue) { request in
                     request.requestedScopes = [.email]
                 } onCompletion: { result in
@@ -66,70 +68,76 @@ struct OnboardingView: View {
                     }
                 }
                 .signInWithAppleButtonStyle(.white)
-                .frame(height: 52)
+                .frame(height: 54)
                 .cornerRadius(14)
                 .padding(.horizontal, 24)
                 .disabled(app.isLoading)
 
-                Spacer().frame(height: 10)
+                Spacer().frame(height: 12)
 
-                // Google — same visual weight as Apple (white rounded).
-                Button {
-                    Task { await GoogleAuthCoordinator.signIn(into: app) }
-                } label: {
-                    HStack(spacing: 10) {
-                        googleMarkIcon()
-                        Text(L10n.Onboarding.signInWithGoogle)
-                            .foregroundStyle(Color(red: 0.12, green: 0.12, blue: 0.13))
+                // Secondary: Google + Email, both transparent with subtle
+                // border. They visually read as "alternatives" — same role,
+                // subordinate to Apple.
+                HStack(spacing: 10) {
+                    Button {
+                        Task { await GoogleAuthCoordinator.signIn(into: app) }
+                    } label: {
+                        HStack(spacing: 8) {
+                            googleMarkIcon()
+                            Text(L10n.Onboarding.signInWithGoogle)
+                                .foregroundStyle(theme.textPrimary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                        }
+                        .font(.system(size: 15, weight: .semibold))
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                        .background(Color.clear)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(theme.textSecondary.opacity(0.35), lineWidth: 1)
+                        )
                     }
-                    .font(.system(size: 17, weight: .semibold))
-                    .frame(maxWidth: .infinity, minHeight: 52)
-                    .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 24)
-                .disabled(app.isLoading)
+                    .buttonStyle(.plain)
+                    .disabled(app.isLoading)
 
-                Spacer().frame(height: 10)
-
-                // Email — tertiary tint (matches the app's accent so users see
-                // this is "ours", not a third-party).
-                Button {
-                    showEmailSignIn = true
-                } label: {
-                    HStack(spacing: 10) {
-                        Image(systemName: "envelope.fill")
-                            .foregroundStyle(theme.accent)
-                        Text(L10n.Onboarding.signInWithEmail)
-                            .foregroundStyle(theme.textPrimary)
+                    Button {
+                        showEmailSignIn = true
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "envelope.fill")
+                                .foregroundStyle(theme.accent)
+                            Text(L10n.Onboarding.signInWithEmail)
+                                .foregroundStyle(theme.textPrimary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                        }
+                        .font(.system(size: 15, weight: .semibold))
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                        .background(Color.clear)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(theme.textSecondary.opacity(0.35), lineWidth: 1)
+                        )
                     }
-                    .font(.system(size: 17, weight: .semibold))
-                    .frame(maxWidth: .infinity, minHeight: 52)
-                    .background(theme.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .strokeBorder(theme.accent.opacity(0.35), lineWidth: 1)
-                    )
+                    .buttonStyle(.plain)
+                    .disabled(app.isLoading)
                 }
-                .buttonStyle(.plain)
                 .padding(.horizontal, 24)
-                .disabled(app.isLoading)
 
-                // Quaternary: anonymous fallback. Kept small-caps text so
-                // App Store review can't flag Apple Sign-In as the only path,
-                // but visually subordinate — the account flows are the
-                // recommended default.
+                // Tertiary: guest — pure text link, clear affordance as
+                // "skip this, just let me in". Users can upgrade later
+                // via Settings → Link account (not yet implemented).
                 Button {
                     Task { await app.signInAnonymous() }
                 } label: {
                     Text(L10n.Onboarding.continueWithoutAccount)
-                        .font(theme.font(size: 14, weight: .medium))
-                        .foregroundStyle(theme.textSecondary)
-                        .frame(maxWidth: .infinity, minHeight: 40)
+                        .font(theme.font(size: 15, weight: .medium))
+                        .foregroundStyle(theme.accent)
+                        .frame(maxWidth: .infinity, minHeight: 44)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .padding(.top, 4)
+                .padding(.top, 8)
                 .disabled(app.isLoading)
 
                 if app.isLoading {
