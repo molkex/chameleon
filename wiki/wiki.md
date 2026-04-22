@@ -14,7 +14,7 @@
 6. [Cluster Mesh Sync](#6-cluster-mesh-sync)
 7. [База данных](#7-база-данных)
 8. [Аутентификация](#8-аутентификация)
-9. [iOS приложение](#9-ios-приложение)
+9. [iOS + macOS приложения](#9-ios--macos-приложения)
 10. [Admin SPA](#10-admin-spa)
 11. [Deploy](#11-deploy)
 12. [Scripts и Cron](#12-scripts-и-cron)
@@ -52,9 +52,10 @@
 
 | Сервер | IP | Роль | Хостинг | SSH |
 |---|---|---|---|---|
-| **DE (Main)** | `162.19.242.30` | Backend API + VPN нода | OVH | `ubuntu@162.19.242.30` |
+| **DE (Main)** | `162.19.242.30` | Backend API + VPN нода | OVH Frankfurt | `ubuntu@162.19.242.30` |
 | **NL (nl2)** | `147.45.252.234` | Backend + VPN нода | Timeweb Cloud | `root@147.45.252.234` |
-| **SPB Relay** | `185.218.0.43` | TCP relay (nginx stream) | SprintHost | — |
+
+**Legacy (не используем, вскоре отключить):** `85.239.49.28` (старый RazblokiratorBot), `185.218.0.43` (SPB Relay SprintHost), `89.169.144.42` (YC Relay).
 
 ### Домены и Cloudflare (обновлено 2026-04-14)
 Все домены — через Cloudflare (proxied, SSL=flexible), DNS A-записи → DE `162.19.242.30`.
@@ -80,14 +81,6 @@ location = / {
 }
 ```
 Volume mount: `./landing:/usr/share/nginx/html/landing:ro`
-
-### SPB Relay — Port Mapping (nginx stream)
-```
-:443  → DE:2096   (VLESS Reality — основной, реже блокируется)
-:2096 → DE:2096   (VLESS Reality — legacy)
-:2098 → NL:2096   (VLESS Reality — NL через relay)
-:80   → DE:80     (HTTP API proxy)
-```
 
 ### Порты на нодах
 | Порт | Сервис |
@@ -132,10 +125,8 @@ iPhone
   │
   └── [VLESS Reality TCP + xtls-rprx-vision]
         │
-        ├── 🇩🇪 DE direct:   162.19.242.30:2096
-        ├── 🇳🇱 NL direct:   194.135.38.90:2096
-        ├── 🇷🇺 RU→DE relay: 185.218.0.43:443
-        └── 🇷🇺 RU→NL relay: 185.218.0.43:2098
+        ├── 🇩🇪 DE direct:  162.19.242.30:2096
+        └── 🇳🇱 NL direct:  147.45.252.234:2096
               │
               ▼
         sing-box-fork (сервер, v1.13.6-userapi)
@@ -813,32 +804,75 @@ Constant-time compare (защита от timing attacks).
 
 ---
 
-## 9. iOS приложение
+## 9. iOS + macOS приложения
+
+iOS и macOS живут в **одном Xcode-проекте** и делят SwiftUI/модели. На каждый платформу — отдельный App Store listing (не Universal Purchase).
+
+| Target | Type | Platform | Bundle ID | App Store ID |
+|---|---|---|---|---|
+| `Chameleon` | application | iOS 17+ | `com.madfrog.vpn` | 6761008632 |
+| `PacketTunnel` | app-extension | iOS 17+ | `com.madfrog.vpn.tunnel` | — |
+| `ChameleonMac` | application | macOS 14+ | `com.madfrog.vpn.mac` | 6762887787 |
+| `PacketTunnelMac` | app-extension | macOS 14+ | `com.madfrog.vpn.mac.tunnel` | — |
+
+App Group один на обе платформы: `group.com.madfrog.vpn`.
 
 ### Структура
 
 ```
 apple/
-├── ChameleonVPN/               — основное приложение
+├── ChameleonVPN/               — основной SwiftUI код (iOS + macOS)
 │   ├── Models/
-│   │   ├── VPNManager.swift    — управление VPN соединением (NEVPNManager)
+│   │   ├── VPNManager.swift    — NEVPNManager обёртка
 │   │   ├── AppState.swift      — глобальное состояние, retry логика
 │   │   ├── APIClient.swift     — HTTP клиент к backend API
-│   │   └── CommandClient.swift — gRPC/stats клиент
+│   │   ├── CommandClient.swift — gRPC/stats клиент
+│   │   └── PlatformMainApp.swift — PlatformPasteboard, PlatformURLOpener (main-app only)
 │   └── Views/
-│       ├── MainView.swift      — главный экран
-│       ├── DebugLogsView.swift — просмотр логов extension
+│       ├── MainView.swift      — главный экран (iOS + macOS)
+│       ├── MenuBarContent.swift — macOS tray popover
+│       ├── DebugLogsView.swift — просмотр логов
 │       └── SettingsView.swift  — настройки
-├── PacketTunnel/               — VPN Extension (отдельный процесс)
+├── ChameleonMac/               — Info.plist + entitlements для macOS main app
+├── PacketTunnel/               — iOS VPN Extension
 │   ├── ExtensionProvider.swift — NEPacketTunnelProvider, startTunnel/stopTunnel
 │   └── ExtensionPlatformInterface.swift — bridge sing-box ↔ NetworkExtension
-├── Shared/
-│   ├── ConfigSanitizer.swift   — санитизация конфига для iOS
-│   ├── Constants.swift         — AppConfig, AppConstants
-│   └── Logger.swift            — общий логгер
-└── Frameworks/
-    └── libbox.xcframework      — sing-box 1.13.5 compiled for iOS/macOS
+├── PacketTunnelMac/            — Info.plist + entitlements для macOS NE extension
+├── Shared/                     — общий код для всех targets
+│   ├── ConfigSanitizer.swift
+│   ├── Constants.swift
+│   ├── Logger.swift
+│   ├── PlatformDevice.swift    — identifier, systemVersion (extension-safe)
+│   └── PlatformViewExtensions.swift — cross-platform SwiftUI modifiers
+├── Frameworks/
+│   └── Libbox.xcframework      — sing-box 1.13.5 (ios + ios-sim + macos), git-ignored
+└── project.yml                 — XcodeGen spec для всех 4 targets
 ```
+
+### Libbox.xcframework
+Git-ignored (~494 MB). Собирается из [sing-box v1.13.5](https://github.com/SagerNet/sing-box) через `make lib_apple` с sagernet/gomobile fork. tvOS slices срезаются. Info.plist каждого slice патчится для App Store валидации. Инструкция: `wiki/` memory `reference_libbox_build.md`.
+
+### Signing (macOS App Store distribution)
+- Distribution cert: `3rd Party Mac Developer Application` (в keychain)
+- Installer cert: `3rd Party Mac Developer Installer`
+- Provisioning profiles (MAC_APP_STORE): `MadFrog Mac App Store 2`, `MadFrog Mac Tunnel App Store 2`
+- App Group `group.com.madfrog.vpn` привязывается к Bundle IDs через **Xcode Organizer Distribute UI** (ASC API этого не умеет)
+
+### Релиз Mac build в TestFlight
+Команда:
+```bash
+xcodebuild -project apple/Chameleon.xcodeproj -scheme ChameleonMac -configuration Release \
+  -destination 'generic/platform=macOS' -archivePath apple/build/ChameleonMac.xcarchive archive
+open -a Xcode apple/build/ChameleonMac.xcarchive
+# В Organizer: Distribute App → App Store Connect → Upload → Automatic signing
+```
+
+Для первого build также нужно в App Store Connect вручную:
+- Создать app listing (`macOS` platform, bundle `com.madfrog.vpn.mac`)
+- Добавить beta localization (ru) с description
+- Установить `contentRightsDeclaration = DOES_NOT_USE_THIRD_PARTY_CONTENT`
+
+Подробнее про TestFlight gating: memory `feedback_mac_testflight_gotchas.md`.
 
 ### Сценарии загрузки конфига
 
