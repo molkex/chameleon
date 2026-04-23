@@ -37,17 +37,36 @@ struct MainView: View {
 
             if let error = app.errorMessage {
                 VStack {
-                    Text(error)
-                        .font(.caption)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(.red.opacity(0.85), in: Capsule())
-                        .onTapGesture { app.errorMessage = nil }
+                    HStack(spacing: 8) {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.white)
+                            .accessibilityAddTraits(.updatesFrequently)
+                        Button {
+                            app.errorMessage = nil
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.white.opacity(0.85))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(Text("error.dismiss", comment: "VoiceOver label for the error toast close button"))
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(.red.opacity(0.85), in: Capsule())
                     Spacer()
                 }
                 .padding(.top, 60)
                 .transition(.move(edge: .top).combined(with: .opacity))
+                .task(id: error) {
+                    // Auto-dismiss after 5 seconds. Cancelled if a new error
+                    // replaces this one (the .task id changes), so the timer
+                    // restarts cleanly per message.
+                    try? await Task.sleep(for: .seconds(5))
+                    if app.errorMessage == error {
+                        app.errorMessage = nil
+                    }
+                }
             }
         }
         .animation(.easeInOut(duration: 0.3), value: app.errorMessage != nil)
@@ -251,14 +270,10 @@ struct ServerListView: View {
             .onAppear { TunnelFileLogger.log("ServerListView: appeared, groups=\(app.servers.count)", category: "ui") }
             .onDisappear { TunnelFileLogger.log("ServerListView: disappeared", category: "ui") }
             .task {
-                // Initial probe + periodic refresh while the screen is open.
-                // SwiftUI cancels this task when the view goes away.
+                // One-shot probe on appear. Manual refresh available via the
+                // ↻ toolbar button. Removing the periodic poll keeps the view
+                // cheap (was hammering all servers every 30s).
                 await app.pingService.probe(allServers)
-                while !Task.isCancelled {
-                    try? await Task.sleep(for: .seconds(30))
-                    if Task.isCancelled { break }
-                    await app.pingService.probe(allServers)
-                }
             }
             .toolbar {
                 ToolbarItem(placement: PlatformToolbarPlacement.trailing.resolved) {

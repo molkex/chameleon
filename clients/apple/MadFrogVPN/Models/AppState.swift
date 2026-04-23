@@ -130,14 +130,12 @@ class AppState {
 
         let hasSelector = outbounds.contains { ($0["type"] as? String) == "selector" }
         let hasUrltest = outbounds.contains { ($0["type"] as? String) == "urltest" }
-        // dns outbound is now expected (used for DNS interception in 1.13)
-        let hasDnsOutbound = false
 
-        // Check for deprecated inbound fields
+        // Check for deprecated inbound fields (sing-box 1.13 deprecation)
         let inbounds = (json["inbounds"] as? [[String: Any]]) ?? []
         let hasLegacyInbound = inbounds.contains { $0["sniff"] != nil || $0["sniff_override_destination"] != nil }
 
-        if !hasSelector && !hasUrltest || hasDnsOutbound || hasLegacyInbound {
+        if !hasSelector && !hasUrltest || hasLegacyInbound {
             // Config has deprecated fields — delete and re-fetch
             AppLogger.app.info("repairConfigIfNeeded: clearing outdated config")
             try? FileManager.default.removeItem(at: AppConstants.configFileURL)
