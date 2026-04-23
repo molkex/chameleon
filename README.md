@@ -42,7 +42,7 @@ Nodes sync users via cluster (Redis Pub/Sub + HTTP fallback).
 
 ```
 chameleon/
-├── backend-go/           # Go backend (primary)
+├── backend/           # Go backend (primary)
 │   ├── cmd/chameleon/    # Binary entrypoint
 │   ├── internal/         # API, VPN engine, auth, cluster
 │   ├── migrations/       # SQL schema
@@ -61,7 +61,7 @@ chameleon/
 
 ```bash
 # Deploy to a specific node
-cd backend-go
+cd backend
 ./deploy.sh de    # Germany
 ./deploy.sh nl    # Netherlands
 ```

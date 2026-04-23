@@ -7,12 +7,12 @@
 ## 1. Текущая структура — найденные проблемы
 
 ### Сюрпризы (требуют действия)
-- `backend-go/chameleon` — **скомпилированный бинарник в git, 8.7 MB**
-- `backend-go/ascinit` — **ещё один бинарник в git, 8.7 MB**
+- `backend/chameleon` — **скомпилированный бинарник в git, 8.7 MB**
+- `backend/ascinit` — **ещё один бинарник в git, 8.7 MB**
 - `apple/build/` — **build artifacts в git** (ModuleCache, Intermediates, Products — сотни файлов)
 - `проблем/` — **папка с кириллицей в имени** (содержит AI audit reports от 2026-04-11)
-- Два nginx.conf: `backend-go/nginx.conf` и `infrastructure/nginx/nginx.conf` — какой активен?
-- Три PLAN.md: `backend-go/PLAN.md`, `.claude/PLAN.md`, ROADMAP.md
+- Два nginx.conf: `backend/nginx.conf` и `infrastructure/nginx/nginx.conf` — какой активен?
+- Три PLAN.md: `backend/PLAN.md`, `.claude/PLAN.md`, ROADMAP.md
 - `apple/PacketTunnel/PacketTunnelProvider.swift` — третий файл рядом с `ExtensionProvider.swift`, не описан в CLAUDE.md
 
 ### Сироты (без модуля)
@@ -27,7 +27,7 @@ chameleon/
 ├── README.md
 ├── .github/workflows/        # CI: backend.yml, ios.yml, admin.yml
 │
-├── backend/                  # было backend-go/
+├── backend/                  # было backend/
 │   ├── cmd/{chameleon,metrics-agent,ascinit}/
 │   ├── internal/             # api, auth, cluster, config, db, vpn, payments, ...
 │   ├── migrations/
@@ -84,11 +84,11 @@ chameleon/
 
 | Текущее | Целевое | Действие |
 |---|---|---|
-| `backend-go/` | `backend/` | mv |
-| `backend-go/chameleon` (binary) | — | rm + .gitignore |
-| `backend-go/ascinit` (binary) | — | rm + .gitignore |
-| `backend-go/PLAN.md` | `docs/archive/2026-04/PLAN_BACKEND_GO.md` | mv |
-| `backend-go/nginx.conf` | — | rm (если не активен) |
+| `backend/` | `backend/` | mv |
+| `backend/chameleon` (binary) | — | rm + .gitignore |
+| `backend/ascinit` (binary) | — | rm + .gitignore |
+| `backend/PLAN.md` | `docs/archive/2026-04/PLAN_BACKEND_GO.md` | mv |
+| `backend/nginx.conf` | — | rm (если не активен) |
 | `apple/` | `clients/apple/` | mv |
 | `apple/ChameleonVPN/` | `clients/apple/MadFrogApp/` | mv (опц.) |
 | `apple/ChameleonMac/` | `clients/apple/MacSupport/` | mv |
@@ -138,20 +138,20 @@ chameleon/
 
 ## 5. Что удалить
 
-- `backend-go/chameleon` (8.7 MB бинарник)
-- `backend-go/ascinit` (8.7 MB бинарник)
+- `backend/chameleon` (8.7 MB бинарник)
+- `backend/ascinit` (8.7 MB бинарник)
 - `apple/build/` (build artifacts)
-- `backend-go/nginx.conf` ИЛИ `infrastructure/nginx/nginx.conf` (один из дублей)
+- `backend/nginx.conf` ИЛИ `infrastructure/nginx/nginx.conf` (один из дублей)
 - `проблем/` (после mv содержимого)
 - 4 файла `wiki/CODEX_AUDIT_*.md` (задачи в ROADMAP) — в архив
 - `wiki/IOS_UX_REVIEW.md` — в архив
-- `backend-go/PLAN.md`, `.claude/PLAN.md` — в архив
+- `backend/PLAN.md`, `.claude/PLAN.md` — в архив
 
 ---
 
 ## 6. Что переименовать (с риском)
 
-### `backend-go/` → `backend/` — НИЗКИЙ риск
+### `backend/` → `backend/` — НИЗКИЙ риск
 deploy.sh использует `$(cd "$(dirname "$0")" && pwd)`, не хардкодит. Нужно обновить:
 - `README.md`, `CLAUDE.md` (project + global), `wiki/wiki.md`
 - `.claude/commands/*.md` (SSH команды)
@@ -188,7 +188,7 @@ deploy.sh использует `$(cd "$(dirname "$0")" && pwd)`, не хардк
 |---|---|---|---|
 | **A** | Чистка мусора (бинарники, build/, проблем/, аудит-доки в архив) | ~2ч | нулевой |
 | **B** | Тестовая инфра (skeleton + CI .yml без integration) | ~4ч | нулевой |
-| **C** | `backend-go/` → `backend/` | ~30мин | низкий |
+| **C** | `backend/` → `backend/` | ~30мин | низкий |
 | **D** | Корневые скрипты → `infrastructure/deploy/` | ~30мин | низкий |
 | **E** | `wiki/` → `docs/` (если Q1 = да) | ~20мин | низкий |
 | **F** | `apple/` → `clients/apple/`, `admin/` → `clients/admin/` | ~1ч | средний |

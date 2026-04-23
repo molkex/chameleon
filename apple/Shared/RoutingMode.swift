@@ -4,7 +4,7 @@ import Foundation
 /// extension. Maps a user-facing mode to the three sing-box selector states.
 ///
 /// The selectors "RU Traffic", "Blocked Traffic", and "Default Route" exist in
-/// the generated client config (see backend-go/internal/vpn/clientconfig.go).
+/// the generated client config (see backend/internal/vpn/clientconfig.go).
 /// Switching mode = three Clash API PUT calls; no reconnect needed.
 enum RoutingMode: String, CaseIterable, Codable {
     /// Only RKN-blocked resources (refilter list) go through the VPN.

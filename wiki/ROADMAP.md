@@ -151,7 +151,7 @@
 - `wiki/CODEX_AUDIT_APPLE_SECURITY.md`, `_RUNTIME.md`, `_CHAIN_SECURITY.md`, `_INFRA_FINDINGS.md`
 - `wiki/wiki.md`, `infrastructure/topology.yaml` (inconsistencies + unknown_fields)
 - Memory: `project_chameleon_cleanup_needed.md`, `project_vpn_tunnel_broken.md`, `project_ios_network_race.md`, `project_ru_api_relay.md`
-- Grep TODO/FIXME в `apple/`, `backend-go/`, `admin/` — code-level чистый
+- Grep TODO/FIXME в `apple/`, `backend/`, `admin/` — code-level чистый
 
 ---
 

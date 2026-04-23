@@ -69,15 +69,21 @@ if [ "$NODE_PREBUILT" -eq 1 ]; then
     cd "$PROJECT_DIR"
 fi
 
+# ── Migrate legacy directory name (one-time) ───────────────────────────────
+# Repo renamed backend-go/ → backend/ (2026-04-23). On first deploy after this
+# change, move the existing dir on the server so rsync --delete does not nuke
+# config.yaml, .env, and other non-tracked state.
+ssh "${NODE_SSH}" "test -d ${NODE_DIR}/backend-go && test ! -d ${NODE_DIR}/backend && mv ${NODE_DIR}/backend-go ${NODE_DIR}/backend && echo 'migrated backend-go → backend' || true"
+
 # ── Sync files ─────────────────────────────────────────────────────────────
 echo ">>> Syncing files to ${NODE_SSH}:${NODE_DIR}..."
 rsync -avz --delete \
     --exclude='.git' \
-    --exclude='backend-go/chameleon' \
-    --exclude='backend-go/ascinit' \
+    --exclude='backend/chameleon' \
+    --exclude='backend/ascinit' \
     --exclude='.env' \
-    --exclude='backend-go/.env' \
-    --exclude='backend-go/config.yaml' \
+    --exclude='backend/.env' \
+    --exclude='backend/config.yaml' \
     --exclude='node_modules' \
     --exclude='target' \
     -e ssh \
@@ -129,7 +135,7 @@ FREEKASSA_SECRET2="${17}"
 RESEND_API_KEY="${18}"
 GOOGLE_IOS_CLIENT_ID="${19}"
 
-cd "${REMOTE_DIR}/backend-go"
+cd "${REMOTE_DIR}/backend"
 
 # ── Config ─────────────────────────────────────────────────────────────────
 cp config.production.yaml config.yaml
@@ -198,7 +204,7 @@ docker volume create chameleon-singbox-config 2>/dev/null || true
 # ── Build chameleon ────────────────────────────────────────────────────────
 if [ "$PREBUILT" -eq 1 ]; then
     echo ">>> Building from pre-compiled binary..."
-    docker build -f Dockerfile.prebuilt -t backend-go-chameleon . 2>&1 | tail -3
+    docker build -f Dockerfile.prebuilt -t backend-chameleon . 2>&1 | tail -3
 else
     echo ">>> Building from source..."
     docker compose build chameleon 2>&1 | tail -5
@@ -244,13 +250,13 @@ if [ "$WITH_SINGBOX" -eq 1 ]; then
 fi
 
 # ── Install watchdog cron (idempotent) ─────────────────────────────────────
-chmod +x "${REMOTE_DIR}/backend-go/scripts/"*.sh 2>/dev/null || true
+chmod +x "${REMOTE_DIR}/backend/scripts/"*.sh 2>/dev/null || true
 
 # Watchdog cron (every minute) — installed as ROOT so the script can write
 # /var/log/ and doesn't need interactive sudo for `test -f` on docker volume.
 # Previously installed under ubuntu user → log file never created and sudo calls
 # inside the script failed silently, letting singbox stay dead indefinitely.
-WATCHDOG="${REMOTE_DIR}/backend-go/scripts/singbox-watchdog.sh"
+WATCHDOG="${REMOTE_DIR}/backend/scripts/singbox-watchdog.sh"
 if [ -f "$WATCHDOG" ]; then
     CRON_LINE="* * * * * ${WATCHDOG} >> /var/log/singbox-watchdog.log 2>&1"
     sudo bash -c "(crontab -l 2>/dev/null | grep -v 'singbox-watchdog' ; echo '$CRON_LINE') | crontab -"
@@ -260,7 +266,7 @@ if [ -f "$WATCHDOG" ]; then
 fi
 
 # Health check cron (every minute) — also root for the same reason.
-HEALTHCHECK="${REMOTE_DIR}/backend-go/scripts/health-check.sh"
+HEALTHCHECK="${REMOTE_DIR}/backend/scripts/health-check.sh"
 if [ -f "$HEALTHCHECK" ]; then
     CRON_LINE="* * * * * ${HEALTHCHECK} >> /var/log/chameleon-health.log 2>&1"
     sudo bash -c "(crontab -l 2>/dev/null | grep -v 'health-check' ; echo '$CRON_LINE') | crontab -"
@@ -272,7 +278,7 @@ fi
 # to /var/backups/chameleon and /var/log/chameleon-backup.log (both root-owned).
 # Previously installed under deploy user → cron fired but script failed silently
 # on permission denied, so backups stopped without any visible error.
-BACKUP="${REMOTE_DIR}/backend-go/scripts/db-backup.sh"
+BACKUP="${REMOTE_DIR}/backend/scripts/db-backup.sh"
 if [ -f "$BACKUP" ]; then
     CRON_LINE="0 3 * * * ${BACKUP} >> /var/log/chameleon-backup.log 2>&1"
     sudo bash -c "(crontab -l 2>/dev/null | grep -v 'db-backup' ; echo '$CRON_LINE') | crontab -"

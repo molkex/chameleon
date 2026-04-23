@@ -21,7 +21,7 @@ final class SubscriptionManager {
 
     // MARK: - Product IDs
 
-    /// Keep these in sync with `backend-go/internal/api/mobile/subscription.go productDays`
+    /// Keep these in sync with `backend/internal/api/mobile/subscription.go productDays`
     /// and with the product IDs created in App Store Connect.
     static let product30  = "com.madfrog.vpn.sub.30days"
     static let product90  = "com.madfrog.vpn.sub.90days"

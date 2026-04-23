@@ -1,6 +1,6 @@
 # Chameleon VPN Infrastructure Topology
 # Last verified: 2026-04-23
-# Sources: backend-go/config.yaml, migrations/, apple/Constants.swift, clientconfig.go, DebugLogsView.swift
+# Sources: backend/config.yaml, migrations/, apple/Constants.swift, clientconfig.go, DebugLogsView.swift
 
 servers:
   de:
@@ -317,7 +317,7 @@ inconsistencies:
     fix: "Delete project_ru_api_relay.md memory OR actually wire MSK relay into APIClient.swift"
   - id: relay_servers_in_ui
     desc: "topology lists relay_de/relay_nl as ui_servers but unclear whether server-side singbox emits separate outbounds for them or iOS overrides connect address. Need to grep clientconfig.go for 'relay' / spb_relay handling."
-    fix: "Read backend-go/internal/vpn/clientconfig.go full outbound generation and confirm relay outbounds source."
+    fix: "Read backend/internal/vpn/clientconfig.go full outbound generation and confirm relay outbounds source."
 
 legacy_references:
   - ip_or_string: 194.135.38.90

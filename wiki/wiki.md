@@ -9,7 +9,7 @@
 1. [Обзор системы](#1-обзор-системы)
 2. [Серверная инфраструктура](#2-серверная-инфраструктура)
 3. [Трафик и маршрутизация](#3-трафик-и-маршрутизация)
-4. [Backend (Go)](#4-backend-go)
+4. [Backend (Go)](#4-backend)
 5. [VPN Engine (sing-box)](#5-vpn-engine-sing-box)
 6. [Cluster Mesh Sync](#6-cluster-mesh-sync)
 7. [База данных](#7-база-данных)
@@ -62,7 +62,7 @@
 
 | Домен | Роль |
 |---|---|
-| `madfrog.online` + `www` | Основной: API + маркетинговый лендинг (`backend-go/landing/`) |
+| `madfrog.online` + `www` | Основной: API + маркетинговый лендинг (`backend/landing/`) |
 | `mdfrog.site` + `www` | Тот же лендинг (второй домен на случай блокировки) |
 | `razblokirator.ru` | Legacy — админка + старые iOS-клиенты, всё ещё работает |
 
@@ -73,7 +73,7 @@
 - Лендинг: `https://madfrog.online/` (served nginx из volume `./landing`)
 - Subscription: `https://madfrog.online/sub/{token}`
 
-**Nginx serving лендинга** (`backend-go/nginx.conf`):
+**Nginx serving лендинга** (`backend/nginx.conf`):
 ```nginx
 location = / {
     root /usr/share/nginx/html/landing;
@@ -148,7 +148,7 @@ Reality — это маскировка TLS под легитимный сайт
 ### Структура директорий
 
 ```
-backend-go/
+backend/
 ├── cmd/chameleon/main.go     — entrypoint, порядок инициализации
 ├── internal/
 │   ├── api/
@@ -1032,7 +1032,7 @@ Nginx проксирует `/api/*` → `localhost:8000` (chameleon).
 ### .env на сервере
 
 ```bash
-# /home/ubuntu/chameleon/backend-go/.env  (chmod 600)
+# /home/ubuntu/chameleon/backend/.env  (chmod 600)
 DB_PASSWORD=...
 REDIS_PASSWORD=...
 JWT_SECRET=...
@@ -1208,7 +1208,7 @@ tail -f /var/log/chameleon-health.log
 ### Restart singbox (без потери других соединений)
 
 ```bash
-cd ~/chameleon/backend-go
+cd ~/chameleon/backend
 ./scripts/singbox-run.sh --force
 ```
 

@@ -117,7 +117,7 @@ Single-poll on `scenePhase == .active`:
 ## 6. Чеклист для deploy новой цены / тарифа
 
 1. Отредактировать `config.yaml → payments.plans` (локально).
-2. Скопировать на DE: `scp config.yaml ubuntu@162.19.242.30:/tmp/` → `sudo cp /tmp/config.yaml /opt/chameleon/backend-go/config.yaml` (с backup!).
+2. Скопировать на DE: `scp config.yaml ubuntu@162.19.242.30:/tmp/` → `sudo cp /tmp/config.yaml /opt/chameleon/backend/config.yaml` (с backup!).
 3. **ВАЖНО**: не перезаписывай весь config целиком — продовый файл содержит DE-specific `cluster.node_id: de-1`, `cluster.enabled: true`, `peers`, кастомный набор `short_ids`. Либо патчь только `plans:` секцию через sed, либо мёрдж вручную.
 4. `sudo docker compose up -d --no-deps chameleon` (ВСЕГДА `--no-deps`, иначе sing-box legacy контейнер получит рестарт).
 5. Проверить: `curl https://madfrog.online/api/mobile/plans` — должен вернуть новые цены.
