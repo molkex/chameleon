@@ -206,7 +206,7 @@ struct MainViewNeon: View {
     // MARK: - Server card
 
     private var selectedServer: ServerItem? {
-        guard let tag = app.configStore.selectedServerTag else { return nil }
+        guard let tag = app.selectedServerTag else { return nil }
         for group in app.servers {
             if let item = group.items.first(where: { $0.tag == tag }) { return item }
         }
@@ -272,7 +272,7 @@ struct MainViewNeon: View {
     }
 
     private var serverDisplayName: String {
-        if app.configStore.selectedServerTag == nil {
+        if app.selectedServerTag == nil {
             return String(localized: "home.server.auto_long")
         }
         if let server = selectedServer {

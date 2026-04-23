@@ -151,7 +151,7 @@ enum VPNStateHelper {
         return s == .connecting || s == .reconnecting
     }
     static func selectedServerName(_ app: AppState) -> String {
-        if let tag = app.configStore.selectedServerTag {
+        if let tag = app.selectedServerTag {
             for group in app.servers {
                 if let item = group.items.first(where: { $0.tag == tag }) {
                     return item.tag
@@ -269,9 +269,12 @@ struct ServerListView: View {
                 }
                 ToolbarItem(placement: PlatformToolbarPlacement.leading.resolved) {
                     Button {
-                        TunnelFileLogger.log("TAP: refresh pings", category: "ui")
-                        if let group = selectorGroup {
-                            app.commandClient.urlTest(groupTag: group.tag)
+                        TunnelFileLogger.log("TAP: refresh config + pings", category: "ui")
+                        Task {
+                            await app.refreshConfig(timeout: .seconds(8))
+                            if let group = selectorGroup {
+                                app.commandClient.urlTest(groupTag: group.tag)
+                            }
                         }
                     } label: {
                         Image(systemName: "arrow.clockwise")
@@ -296,14 +299,14 @@ struct ServerListView: View {
                 }
                 dismiss()
             } label: {
-                CountryRow(country: country, selectedTag: app.configStore.selectedServerTag, pingService: app.pingService)
+                CountryRow(country: country, selectedTag: app.selectedServerTag, pingService: app.pingService)
             }
             .buttonStyle(.plain)
         } else {
             NavigationLink {
                 CountryServersView(country: country, servers: serversInCountry)
             } label: {
-                CountryRow(country: country, selectedTag: app.configStore.selectedServerTag, pingService: app.pingService)
+                CountryRow(country: country, selectedTag: app.selectedServerTag, pingService: app.pingService)
             }
         }
     }
@@ -334,7 +337,7 @@ struct ServerListView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                if app.configStore.selectedServerTag == nil {
+                if app.selectedServerTag == nil {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(Color.accentColor)
                 }
@@ -451,7 +454,7 @@ private struct CountryServersView: View {
                         } else {
                             PingSkeleton()
                         }
-                        if app.configStore.selectedServerTag == server.tag {
+                        if app.selectedServerTag == server.tag {
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundStyle(Color.accentColor)
                         }

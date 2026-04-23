@@ -25,6 +25,11 @@ class AppState {
     }()
 
     var servers: [ServerGroup] = []
+    /// Currently selected server tag, mirrored into configStore (UserDefaults).
+    /// Stored here as @Observable so SwiftUI views (pill, ServerListView) react
+    /// to user selection without polling. configStore stays the persistence
+    /// layer (also read by PacketTunnel extension which has no AppState).
+    var selectedServerTag: String?
     var isLoading = false
     var errorMessage: String?
     var vpnConnectedAt: Date?
@@ -80,6 +85,7 @@ class AppState {
         }
 
         servers = configStore.parseServersFromConfig()
+        selectedServerTag = configStore.selectedServerTag
         subscriptionExpire = configStore.subscriptionExpire
         isAuthenticated = configStore.username != nil
 
@@ -182,6 +188,15 @@ class AppState {
                 AppLogger.app.info("fetchAndSaveConfig: refresh failed, re-registering device")
                 try await reRegisterDevice()
             }
+        } catch APIError.serverError(let code) where code == 404 {
+            // Backend returns 404 when JWT is valid but user_id is not in DB
+            // (DB wiped, migration, soft-delete edge case, etc). Stale creds
+            // survive iOS reinstall via Keychain — only re-registering can
+            // unstick. Symptom: "404 on fresh install" reports.
+            AppLogger.app.info("fetchAndSaveConfig: 404 user_not_found, clearing creds + re-registering")
+            configStore.clear()
+            try await reRegisterDevice()
+            try await doFetchAndSave(username: configStore.username ?? username)
         } catch let error as APIError where isNetworkError(error) {
             AppLogger.app.info("fetchAndSaveConfig: network error, retrying once")
             try await Task.sleep(for: .seconds(2))
@@ -253,7 +268,8 @@ class AppState {
     }
 
     /// Fetch fresh config with a timeout. Falls back to cached config if fetch fails or times out.
-    private func refreshConfig(timeout: Duration = .seconds(5)) async {
+    /// Public so the UI refresh button can force a re-fetch when user suspects stale config.
+    func refreshConfig(timeout: Duration = .seconds(5)) async {
         AppLogger.app.info("refreshConfig: fetching (timeout=\(timeout))")
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await self.silentConfigUpdate() }
@@ -667,7 +683,9 @@ class AppState {
     func selectServer(groupTag: String, serverTag: String) {
         let previousTag = configStore.selectedServerTag
         let isAuto = serverTag == "Auto"
-        configStore.selectedServerTag = isAuto ? nil : serverTag
+        let newTag: String? = isAuto ? nil : serverTag
+        configStore.selectedServerTag = newTag
+        selectedServerTag = newTag  // @Observable mirror for SwiftUI
         TunnelFileLogger.log("selectServer: '\(previousTag ?? "Auto")' → '\(isAuto ? "Auto" : serverTag)', connected=\(vpnManager.isConnected), cmdClientConnected=\(commandClient.isConnected)", category: "ui")
 
         // Update local servers array so UI reflects the change immediately
