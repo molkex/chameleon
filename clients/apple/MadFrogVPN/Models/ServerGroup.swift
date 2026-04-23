@@ -173,14 +173,14 @@ struct CountryGroup: Identifiable {
         switch key {
         case "nl":
             return CountryGroup(
-                id: key, name: "Нидерланды", countryCode: "NL",
+                id: key, name: "country.netherlands".localized, countryCode: "NL",
                 serverCount: items.count, serverTags: items.map(\.tag),
                 bestDelay: bestDelay, section: .direct,
                 subtitle: subtitleForDirect(count: items.count)
             )
         case "de":
             return CountryGroup(
-                id: key, name: "Германия", countryCode: "DE",
+                id: key, name: "country.germany".localized, countryCode: "DE",
                 serverCount: items.count, serverTags: items.map(\.tag),
                 bestDelay: bestDelay, section: .direct,
                 subtitle: subtitleForDirect(count: items.count)
@@ -188,14 +188,14 @@ struct CountryGroup: Identifiable {
         case "ru":
             // Russia-exit relays: each server tunnels into another country.
             return CountryGroup(
-                id: key, name: "Россия", countryCode: "RU",
+                id: key, name: "country.russia".localized, countryCode: "RU",
                 serverCount: items.count, serverTags: items.map(\.tag),
                 bestDelay: bestDelay, section: .relay,
                 subtitle: "\(items.count) \(pluralServers(items.count))"
             )
         default:
             return CountryGroup(
-                id: key, name: "Другие", countryCode: "—",
+                id: key, name: "country.other".localized, countryCode: "—",
                 serverCount: items.count, serverTags: items.map(\.tag),
                 bestDelay: bestDelay, section: .direct,
                 subtitle: ""
@@ -204,7 +204,7 @@ struct CountryGroup: Identifiable {
     }
 
     private static func subtitleForDirect(count: Int) -> String {
-        if count <= 1 { return "Прямое подключение" }
+        if count <= 1 { return "server.direct_connection".localized }
         return "\(count) \(pluralServers(count))"
     }
 

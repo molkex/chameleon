@@ -235,3 +235,23 @@
 "error.server_timeout"           = "Сервер не отвечает. Попробуйте другой сервер.";
 "error.all_servers_unreachable"  = "Серверы недоступны. Проверьте интернет или отключите другой VPN, если он активен.";
 "error.selected_unreachable"     = "%@ недоступен. Выберите другой сервер или переключитесь на Auto.";
+
+/* ===== Ошибки API (сеть/сервер) ===== */
+"api.error.invalid_code"         = "Неверный код активации";
+"api.error.network"              = "Ошибка сети: %@";
+"api.error.server"               = "Ошибка сервера: %d";
+"api.error.no_config"            = "Пустой конфиг";
+"api.error.unauthorized"         = "Требуется авторизация";
+
+/* ===== Ошибки подписки / IAP ===== */
+"subscription.error.load_failed"     = "Не удалось загрузить тарифы: %@";
+"subscription.error.ask_to_buy"      = "Покупка ожидает подтверждения (Ask to Buy / Family Sharing)";
+"subscription.error.purchase_failed" = "Ошибка покупки: %@";
+"subscription.error.restore_failed"  = "Не удалось восстановить покупки: %@";
+
+/* ===== Названия стран (список серверов) ===== */
+"country.netherlands"            = "Нидерланды";
+"country.germany"                = "Германия";
+"country.russia"                 = "Россия";
+"country.other"                  = "Другие";
+"server.direct_connection"       = "Прямое подключение";

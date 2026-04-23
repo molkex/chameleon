@@ -88,7 +88,7 @@ final class SubscriptionManager {
                 AppLogger.app.warning("SubscriptionManager: missing products \(missing.joined(separator: ", "))")
             }
         } catch {
-            purchaseError = "Не удалось загрузить тарифы: \(error.localizedDescription)"
+            purchaseError = String(format: "subscription.error.load_failed".localized, error.localizedDescription)
             AppLogger.app.error("SubscriptionManager loadProducts: \(error)")
         }
     }
@@ -120,14 +120,14 @@ final class SubscriptionManager {
                 return false
 
             case .pending:
-                purchaseError = "Покупка ожидает подтверждения (Ask to Buy / Family Sharing)"
+                purchaseError = "subscription.error.ask_to_buy".localized
                 return false
 
             @unknown default:
                 return false
             }
         } catch {
-            purchaseError = "Ошибка покупки: \(error.localizedDescription)"
+            purchaseError = String(format: "subscription.error.purchase_failed".localized, error.localizedDescription)
             AppLogger.app.error("SubscriptionManager purchase: \(error)")
             return false
         }
@@ -152,7 +152,7 @@ final class SubscriptionManager {
             await updatePremiumStatus()
             AppLogger.app.info("SubscriptionManager: restore completed, isPremium=\(self.isPremium)")
         } catch {
-            purchaseError = "Не удалось восстановить покупки: \(error.localizedDescription)"
+            purchaseError = String(format: "subscription.error.restore_failed".localized, error.localizedDescription)
             AppLogger.app.error("SubscriptionManager restorePurchases: \(error)")
         }
     }

@@ -235,3 +235,23 @@
 "error.server_timeout"           = "Server isn't responding. Try another server.";
 "error.all_servers_unreachable"  = "Servers unreachable. Check your internet, or disconnect any other VPN if it's active.";
 "error.selected_unreachable"     = "%@ is unreachable. Pick another server or switch to Auto.";
+
+/* ===== API errors (network/server) ===== */
+"api.error.invalid_code"         = "Invalid activation code";
+"api.error.network"              = "Network error: %@";
+"api.error.server"               = "Server error: %d";
+"api.error.no_config"            = "Empty config";
+"api.error.unauthorized"         = "Authentication required";
+
+/* ===== Subscription / IAP errors ===== */
+"subscription.error.load_failed"     = "Failed to load plans: %@";
+"subscription.error.ask_to_buy"      = "Purchase pending approval (Ask to Buy / Family Sharing)";
+"subscription.error.purchase_failed" = "Purchase error: %@";
+"subscription.error.restore_failed"  = "Failed to restore purchases: %@";
+
+/* ===== Country names (server list) ===== */
+"country.netherlands"            = "Netherlands";
+"country.germany"                = "Germany";
+"country.russia"                 = "Russia";
+"country.other"                  = "Other";
+"server.direct_connection"       = "Direct connection";

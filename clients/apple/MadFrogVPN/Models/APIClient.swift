@@ -46,11 +46,11 @@ enum APIError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .invalidCode: return "Неверный код активации"
-        case .networkError(let msg): return "Ошибка сети: \(msg)"
-        case .serverError(let code): return "Ошибка сервера: \(code)"
-        case .noConfig: return "Пустой конфиг"
-        case .unauthorized: return "Требуется авторизация"
+        case .invalidCode: return "api.error.invalid_code".localized
+        case .networkError(let msg): return String(format: "api.error.network".localized, msg)
+        case .serverError(let code): return String(format: "api.error.server".localized, code)
+        case .noConfig: return "api.error.no_config".localized
+        case .unauthorized: return "api.error.unauthorized".localized
         }
     }
 }
