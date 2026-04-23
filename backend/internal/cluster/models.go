@@ -38,25 +38,32 @@ type SyncUser struct {
 }
 
 // SyncServer is the wire format for server config exchanged between cluster peers.
+//
+// Reality private keys are deliberately NOT in this struct. Each node owns
+// its own private key (loaded from DB on startup, see cmd/chameleon/main.go);
+// shipping it across the cluster would let any compromised peer impersonate
+// the server in a TLS handshake. Public keys ARE shared (clients need them).
 type SyncServer struct {
-	Key               string    `json:"key"`
-	Name              string    `json:"name"`
-	Flag              string    `json:"flag"`
-	Host              string    `json:"host"`
-	Port              int       `json:"port"`
-	Domain            string    `json:"domain"`
-	SNI               string    `json:"sni"`
-	RealityPublicKey  string    `json:"reality_public_key"`
-	RealityPrivateKey string    `json:"reality_private_key"`
-	IsActive          bool      `json:"is_active"`
-	SortOrder         int       `json:"sort_order"`
-	ProviderName      string    `json:"provider_name,omitempty"`
-	CostMonthly       float64   `json:"cost_monthly,omitempty"`
-	ProviderURL       string    `json:"provider_url,omitempty"`
-	ProviderLogin     string    `json:"provider_login,omitempty"`
-	ProviderPassword  string    `json:"provider_password,omitempty"`
-	Notes             string    `json:"notes,omitempty"`
-	UpdatedAt         time.Time `json:"updated_at"`
+	Key              string    `json:"key"`
+	Name             string    `json:"name"`
+	Flag             string    `json:"flag"`
+	Host             string    `json:"host"`
+	Port             int       `json:"port"`
+	Domain           string    `json:"domain"`
+	SNI              string    `json:"sni"`
+	RealityPublicKey string    `json:"reality_public_key"`
+	IsActive         bool      `json:"is_active"`
+	SortOrder        int       `json:"sort_order"`
+	ProviderName     string    `json:"provider_name,omitempty"`
+	CostMonthly      float64   `json:"cost_monthly,omitempty"`
+	ProviderURL      string    `json:"provider_url,omitempty"`
+	ProviderLogin    string    `json:"provider_login,omitempty"`
+	// ProviderPassword is encrypted at rest (see internal/secrets) — fine to
+	// transmit between peers that trust the same KEK; nodes not sharing the
+	// KEK will simply fail to decrypt.
+	ProviderPassword string    `json:"provider_password,omitempty"`
+	Notes            string    `json:"notes,omitempty"`
+	UpdatedAt        time.Time `json:"updated_at"`
 }
 
 // PullResponse is returned by GET /api/cluster/pull.
@@ -154,54 +161,55 @@ func strPtr(s string) *string {
 }
 
 // dbServersToSyncServers converts db.VPNServer slice to wire format.
+// RealityPrivateKey is intentionally NOT copied — it stays node-local.
 func dbServersToSyncServers(servers []db.VPNServer) []SyncServer {
 	result := make([]SyncServer, 0, len(servers))
 	for _, s := range servers {
 		result = append(result, SyncServer{
-			Key:               s.Key,
-			Name:              s.Name,
-			Flag:              s.Flag,
-			Host:              s.Host,
-			Port:              s.Port,
-			Domain:            s.Domain,
-			SNI:               s.SNI,
-			RealityPublicKey:  s.RealityPublicKey,
-			RealityPrivateKey: s.RealityPrivateKey,
-			IsActive:          s.IsActive,
-			SortOrder:         s.SortOrder,
-			ProviderName:      s.ProviderName,
-			CostMonthly:       s.CostMonthly,
-			ProviderURL:       s.ProviderURL,
-			ProviderLogin:     s.ProviderLogin,
-			ProviderPassword:  s.ProviderPassword,
-			Notes:             s.Notes,
-			UpdatedAt:         s.UpdatedAt,
+			Key:              s.Key,
+			Name:             s.Name,
+			Flag:             s.Flag,
+			Host:             s.Host,
+			Port:             s.Port,
+			Domain:           s.Domain,
+			SNI:              s.SNI,
+			RealityPublicKey: s.RealityPublicKey,
+			IsActive:         s.IsActive,
+			SortOrder:        s.SortOrder,
+			ProviderName:     s.ProviderName,
+			CostMonthly:      s.CostMonthly,
+			ProviderURL:      s.ProviderURL,
+			ProviderLogin:    s.ProviderLogin,
+			ProviderPassword: s.ProviderPassword,
+			Notes:            s.Notes,
+			UpdatedAt:        s.UpdatedAt,
 		})
 	}
 	return result
 }
 
 // syncServerToDBServer converts a SyncServer to db.VPNServer.
+// RealityPrivateKey stays empty — UpsertServerByKey already preserves the
+// existing local key on empty-field via COALESCE(NULLIF(EXCLUDED, ''), local).
 func syncServerToDBServer(s SyncServer) db.VPNServer {
 	return db.VPNServer{
-		Key:               s.Key,
-		Name:              s.Name,
-		Flag:              s.Flag,
-		Host:              s.Host,
-		Port:              s.Port,
-		Domain:            s.Domain,
-		SNI:               s.SNI,
-		RealityPublicKey:  s.RealityPublicKey,
-		RealityPrivateKey: s.RealityPrivateKey,
-		IsActive:          s.IsActive,
-		SortOrder:         s.SortOrder,
-		ProviderName:      s.ProviderName,
-		CostMonthly:       s.CostMonthly,
-		ProviderURL:       s.ProviderURL,
-		ProviderLogin:     s.ProviderLogin,
-		ProviderPassword:  s.ProviderPassword,
-		Notes:             s.Notes,
-		UpdatedAt:         s.UpdatedAt,
+		Key:              s.Key,
+		Name:             s.Name,
+		Flag:             s.Flag,
+		Host:             s.Host,
+		Port:             s.Port,
+		Domain:           s.Domain,
+		SNI:              s.SNI,
+		RealityPublicKey: s.RealityPublicKey,
+		IsActive:         s.IsActive,
+		SortOrder:        s.SortOrder,
+		ProviderName:     s.ProviderName,
+		CostMonthly:      s.CostMonthly,
+		ProviderURL:      s.ProviderURL,
+		ProviderLogin:    s.ProviderLogin,
+		ProviderPassword: s.ProviderPassword,
+		Notes:            s.Notes,
+		UpdatedAt:        s.UpdatedAt,
 	}
 }
 

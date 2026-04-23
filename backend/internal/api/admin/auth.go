@@ -158,13 +158,17 @@ func (h *Handler) issueTokens(c echo.Context, userID int64, username, role strin
 	}
 
 	// Set httpOnly cookie for the SPA (credentials: "include").
+	// Behind nginx the connection to backend is plain HTTP so c.Request().TLS
+	// is nil even when the user-facing leg is HTTPS — trust X-Forwarded-Proto
+	// (set by our nginx) instead. Strict SameSite is fine because the admin
+	// SPA is same-origin with the API.
 	c.SetCookie(&http.Cookie{
 		Name:     "access_token",
 		Value:    pair.AccessToken,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   c.Request().TLS != nil,
-		SameSite: http.SameSiteLaxMode,
+		Secure:   isHTTPS(c),
+		SameSite: http.SameSiteStrictMode,
 		MaxAge:   86400, // 24h
 	})
 
@@ -184,9 +188,22 @@ func (h *Handler) Logout(c echo.Context) error {
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   isHTTPS(c),
+		SameSite: http.SameSiteStrictMode,
 		MaxAge:   -1,
 	})
 	return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// isHTTPS reports whether the original client request was over TLS, looking
+// past the nginx reverse proxy. We trust X-Forwarded-Proto because nginx is
+// the only thing that can talk to the backend port (firewalled to localhost
+// + cluster peers), so the header cannot be spoofed by an external client.
+func isHTTPS(c echo.Context) bool {
+	if c.Request().TLS != nil {
+		return true
+	}
+	return c.Request().Header.Get("X-Forwarded-Proto") == "https"
 }
 
 // rehashPassword runs in a background goroutine to upgrade a legacy password hash.

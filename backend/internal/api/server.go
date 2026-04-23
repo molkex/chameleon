@@ -232,14 +232,19 @@ func (s *Server) setupRoutes(e *echo.Echo) {
 func (s *Server) handleHealth(c echo.Context) error {
 	ctx := c.Request().Context()
 
+	// /health is reachable without auth — never leak driver error strings
+	// (they expose internal hosts/ports). Real diagnostics live in our own
+	// logs, indexed by request_id.
 	dbStatus := "ok"
 	if err := s.DB.Health(ctx); err != nil {
-		dbStatus = "error: " + err.Error()
+		s.Logger.Warn("health: db check failed", zap.Error(err))
+		dbStatus = "error"
 	}
 
 	redisStatus := "ok"
 	if err := s.Redis.Ping(ctx).Err(); err != nil {
-		redisStatus = "error: " + err.Error()
+		s.Logger.Warn("health: redis check failed", zap.Error(err))
+		redisStatus = "error"
 	}
 
 	status := "ok"

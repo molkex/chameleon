@@ -51,7 +51,7 @@ cloudflare:
 
 ios_client:
   base_url: https://madfrog.online
-  config_file: apple/Shared/Constants.swift
+  config_file: clients/apple/Shared/Constants.swift
 
 sni:
   default: ads.adfox.ru

@@ -135,7 +135,10 @@ class AppState {
         let inbounds = (json["inbounds"] as? [[String: Any]]) ?? []
         let hasLegacyInbound = inbounds.contains { $0["sniff"] != nil || $0["sniff_override_destination"] != nil }
 
-        if !hasSelector && !hasUrltest || hasLegacyInbound {
+        // Need both selector AND urltest, or it's a broken config. Parens
+        // matter — without them && would bind tighter and treat configs with
+        // only urltest as valid.
+        if (!hasSelector || !hasUrltest) || hasLegacyInbound {
             // Config has deprecated fields — delete and re-fetch
             AppLogger.app.info("repairConfigIfNeeded: clearing outdated config")
             try? FileManager.default.removeItem(at: AppConstants.configFileURL)
@@ -872,7 +875,7 @@ class AppState {
                 // the tunnel was still up (On Demand / background relaunch).
                 // Otherwise stamp now and persist so the session chip survives
                 // app lifecycle transitions.
-                let key = "vpnConnectedAt"
+                let key = AppConstants.vpnConnectedAtKey
                 if let ts = UserDefaults(suiteName: AppConstants.appGroupID)?.double(forKey: key), ts > 0 {
                     vpnConnectedAt = Date(timeIntervalSince1970: ts)
                 } else {
@@ -884,7 +887,7 @@ class AppState {
             }
             if !commandClient.isConnected { commandClient.connect() }
             // Clear the user-stopped flag on successful connection
-            sharedDefaults?.removeObject(forKey: "user_stopped_vpn")
+            sharedDefaults?.removeObject(forKey: AppConstants.userStoppedVPNKey)
             // Re-apply the user's routing mode AND server selection after a
             // (re)connect. commandClient takes a moment to bind after connect()
             // above — defer one hop so selectOutbound has a live socket to talk
@@ -898,13 +901,13 @@ class AppState {
             }
         case .disconnected, .invalid:
             vpnConnectedAt = nil
-            UserDefaults(suiteName: AppConstants.appGroupID)?.removeObject(forKey: "vpnConnectedAt")
+            UserDefaults(suiteName: AppConstants.appGroupID)?.removeObject(forKey: AppConstants.vpnConnectedAtKey)
             if commandClient.isConnected { commandClient.disconnect() }
             // Check if the PacketTunnel extension signaled a user-initiated stop
             // (from iOS Settings toggle). If so, disable On Demand to prevent auto-reconnect.
-            let userStoppedVPN = sharedDefaults?.bool(forKey: "user_stopped_vpn") ?? false
+            let userStoppedVPN = sharedDefaults?.bool(forKey: AppConstants.userStoppedVPNKey) ?? false
             if userStoppedVPN {
-                sharedDefaults?.removeObject(forKey: "user_stopped_vpn")
+                sharedDefaults?.removeObject(forKey: AppConstants.userStoppedVPNKey)
                 AppLogger.app.info("handleStatus: user stopped VPN from Settings, disabling On Demand")
                 Task { await vpnManager.disableOnDemand() }
             }

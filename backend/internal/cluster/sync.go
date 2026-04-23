@@ -210,10 +210,19 @@ func (s *Syncer) syncPeer(ctx context.Context, peer config.PeerConfig) (bool, er
 	for i := range pulled {
 		updated, err := s.db.UpsertUserByVPNUUID(ctx, &pulled[i])
 		if err != nil {
-			s.logger.Error("failed to upsert pulled user",
-				zap.String("vpn_uuid", safeDeref(pulled[i].VPNUUID)),
-				zap.Error(err),
-			)
+			// See routes.go for the full explanation: vpn_username is
+			// deterministic on device_id and collisions are expected during
+			// cluster sync. Logged at warn — sync continues.
+			if isDuplicateVPNUsername(err) {
+				s.logger.Warn("skipping pulled user due to vpn_username conflict",
+					zap.String("vpn_uuid", safeDeref(pulled[i].VPNUUID)),
+				)
+			} else {
+				s.logger.Error("failed to upsert pulled user",
+					zap.String("vpn_uuid", safeDeref(pulled[i].VPNUUID)),
+					zap.Error(err),
+				)
+			}
 			continue
 		}
 		if updated {

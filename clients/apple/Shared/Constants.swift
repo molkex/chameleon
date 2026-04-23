@@ -94,6 +94,12 @@ enum AppConstants {
     static let routingModeKey = "routingMode"
     static let clashAPIPort = 9091
 
+    // Cross-process VPN state — both main app and PacketTunnel extension
+    // read/write these via the App Group UserDefaults. Centralised here so a
+    // typo in either binary cannot silently break the stop-from-Settings flow.
+    static let vpnConnectedAtKey = "vpnConnectedAt"
+    static let userStoppedVPNKey = "user_stopped_vpn"
+
     // Mobile JWT auth tokens (stored in Keychain)
     static let accessTokenKey = "mobileAccessToken"
     static let refreshTokenKey = "mobileRefreshToken"

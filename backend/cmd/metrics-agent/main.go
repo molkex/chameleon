@@ -67,14 +67,32 @@ func main() {
 	flagEmoji := flag.String("flag", "🇷🇺", "Flag emoji")
 	ip := flag.String("ip", "", "Node public IP")
 	version := flag.String("version", "nginx relay", "Software version string")
+	bindAddr := flag.String("bind", "127.0.0.1", "Listen address; default 127.0.0.1 (loopback only). Set to 0.0.0.0 only with -auth-token.")
+	authToken := flag.String("auth-token", os.Getenv("METRICS_AGENT_TOKEN"), "Bearer token required when bind != 127.0.0.1; falls back to METRICS_AGENT_TOKEN env.")
 	flag.Parse()
 
-	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+	if *bindAddr != "127.0.0.1" && *bindAddr != "::1" && *authToken == "" {
+		log.Fatalf("metrics-agent: bind=%s requires -auth-token (or METRICS_AGENT_TOKEN env). Refusing to expose system metrics unauthenticated.", *bindAddr)
+	}
+
+	auth := func(next http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			if *authToken != "" {
+				if r.Header.Get("Authorization") != "Bearer "+*authToken {
+					http.Error(w, "unauthorized", http.StatusUnauthorized)
+					return
+				}
+			}
+			next(w, r)
+		}
+	}
+
+	http.HandleFunc("/health", auth(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
-	})
+	}))
 
-	http.HandleFunc("/api/cluster/node-status", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/cluster/node-status", auth(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
 		latency := 0
@@ -113,10 +131,10 @@ func main() {
 		resp.Containers = detectServices()
 
 		json.NewEncoder(w).Encode(resp)
-	})
+	}))
 
-	addr := fmt.Sprintf(":%d", *port)
-	log.Printf("metrics-agent starting on %s (node=%s)", addr, *nodeID)
+	addr := fmt.Sprintf("%s:%d", *bindAddr, *port)
+	log.Printf("metrics-agent starting on %s (node=%s, auth=%v)", addr, *nodeID, *authToken != "")
 	log.Fatal(http.ListenAndServe(addr, nil))
 }
 

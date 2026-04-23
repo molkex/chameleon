@@ -1,6 +1,8 @@
 package admin
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -60,6 +62,10 @@ func (h *Handler) CreateAdmin(c echo.Context) error {
 	if req.Username == "" || req.Password == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "username and password are required")
 	}
+	const minPasswordLen = 12
+	if len(req.Password) < minPasswordLen {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("password must be at least %d characters", minPasswordLen))
+	}
 
 	// Validate role.
 	validRoles := map[string]bool{"admin": true, "operator": true, "viewer": true}
@@ -99,7 +105,7 @@ func (h *Handler) DeleteAdmin(c echo.Context) error {
 
 	ctx := c.Request().Context()
 	if err := h.DB.DeleteAdmin(ctx, id); err != nil {
-		if err == db.ErrNotFound {
+		if errors.Is(err, db.ErrNotFound) {
 			return echo.NewHTTPError(http.StatusNotFound, "admin not found")
 		}
 		h.Logger.Error("admin: delete admin", zap.Error(err))

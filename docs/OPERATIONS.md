@@ -863,9 +863,9 @@ Git-ignored (~494 MB). Собирается из [sing-box v1.13.5](https://gith
 ### Релиз Mac build в TestFlight
 Команда:
 ```bash
-xcodebuild -project clients/apple/Chameleon.xcodeproj -scheme ChameleonMac -configuration Release \
-  -destination 'generic/platform=macOS' -archivePath clients/apple/build/ChameleonMac.xcarchive archive
-open -a Xcode clients/apple/build/ChameleonMac.xcarchive
+xcodebuild -project clients/apple/MadFrogVPN.xcodeproj -scheme MadFrogVPNMac -configuration Release \
+  -destination 'generic/platform=macOS' -archivePath clients/apple/build/MadFrogVPNMac.xcarchive archive
+open -a Xcode clients/apple/build/MadFrogVPNMac.xcarchive
 # В Organizer: Distribute App → App Store Connect → Upload → Automatic signing
 ```
 

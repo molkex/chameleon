@@ -12,11 +12,11 @@ issues:
     cause: "iOS sandbox blocks TCP bind inside NetworkExtension. ConfigSanitizer.swift strips experimental.clash_api before passing to sing-box."
     fix: "Use LibboxCommandClient.selectOutbound via unix socket command.sock (already used for live server switch)."
     refs:
-      - apple/Shared/ConfigSanitizer.swift
-      - apple/Shared/RoutingMode.swift
-      - apple/ChameleonVPN/Models/AppState.swift
+      - clients/apple/Shared/ConfigSanitizer.swift
+      - clients/apple/Shared/RoutingMode.swift
+      - clients/apple/MadFrogVPN/Models/AppState.swift
       - backend/internal/vpn/clientconfig.go
-      - apple/PacketTunnel/ExtensionProvider.swift
+      - clients/apple/PacketTunnel/ExtensionProvider.swift
 
   - id: ru_direct_2ip_shows_vpn
     title: "In ru-direct mode 2ip.ru still shows VPN IP"
@@ -43,7 +43,7 @@ issues:
       - "user taps DE, chip shows Germany, but whoer reveals NL2 IP"
     cause: "VPNStateHelper.selectedServerName read configStore.selectedServerTag (intent), not live state. If Proxy selector points to Auto picking NL2, chip stays on last manual choice."
     fix: "MainView.swift reads live commandClient.selectedServer first; falls back to configStore.selectedServerTag"
-    refs: [apple/ChameleonVPN/Views/MainView.swift]
+    refs: [clients/apple/MadFrogVPN/Views/MainView.swift]
 
   - id: admin_vpn_location_telemetry
     title: "Admin showed VPN exit location instead of real device location"
@@ -59,7 +59,7 @@ issues:
     pitfall: "Updating userColumns/scanUser without scanUsers (multi-row scanner) breaks ListActiveVPNUsers — update BOTH in internal/db/users.go"
     refs:
       - backend/migrations/006_user_context.sql
-      - apple/ChameleonVPN/Models/APIClient.swift
+      - clients/apple/MadFrogVPN/Models/APIClient.swift
       - backend/internal/db/users.go
 
   - id: per_user_traffic_v2ray_grpc
@@ -120,8 +120,8 @@ issues:
       - "Added LibboxSetup call in ChameleonApp.init() with same basePath/workingPath/tempPath as extension (via AppConstants)"
       - "After selectOutbound call client.closeConnections() to forcibly drop active streams"
     refs:
-      - apple/ChameleonVPN/ChameleonApp.swift
-      - apple/ChameleonVPN/Models/CommandClient.swift
+      - clients/apple/MadFrogVPN/ChameleonApp.swift
+      - clients/apple/MadFrogVPN/Models/CommandClient.swift
 
   - id: de_direct_no_pages_load
     title: "Germany (DE) direct connection — pages do not load (EOF, dropped due to flooding)"
@@ -140,8 +140,8 @@ issues:
       - "Switched docker-compose Xray to network_mode: host (removed ports/cap_drop/cap_add)"
       - "Auto now calls selectServer(groupTag: Proxy, serverTag: Auto) with full disconnect/reconnect"
     refs:
-      - apple/ChameleonVPN/Models/AppState.swift
-      - apple/ChameleonVPN/Views/MainView.swift
-      - apple/ChameleonVPN/Views/DebugLogsView.swift
+      - clients/apple/MadFrogVPN/Models/AppState.swift
+      - clients/apple/MadFrogVPN/Views/MainView.swift
+      - clients/apple/MadFrogVPN/Views/DebugLogsView.swift
 
 source: docs/TROUBLESHOOTING.md

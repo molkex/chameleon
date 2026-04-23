@@ -230,6 +230,13 @@ class APIClient {
             // HTTP port 80 legs — RU operators often don't block TCP:80 even
             // when TCP:443 is TCP-RST'd on foreign IPs. Backend nginx accepts
             // port-80 requests whose Host is the raw IP (no 301 redirect).
+            // Only used when the request has no Authorization header, so we
+            // never put a JWT in cleartext on the wire — the original request
+            // already includes the header for HTTPS legs that race in
+            // parallel above; an unauthenticated leg here just adds another
+            // chance for the response to come back fast.
+            let isAuthenticated = request.value(forHTTPHeaderField: "Authorization") != nil
+            if !isAuthenticated {
             for ip in AppConfig.directBackendIPs {
                 group.addTask { [fallbackSession] in
                     AppLogger.network.info("race.http.start ip=\(ip, privacy: .public) elapsed=\(Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000, privacy: .public)ms")
@@ -241,6 +248,7 @@ class APIClient {
                     httpReq.url = finalURL
                     httpReq.timeoutInterval = 8
                     httpReq.setValue(nil, forHTTPHeaderField: "Host")
+                    httpReq.setValue(nil, forHTTPHeaderField: "Authorization")
                     do {
                         let (data, response) = try await fallbackSession.data(for: httpReq)
                         let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
@@ -258,6 +266,7 @@ class APIClient {
                     }
                 }
             }
+            } // !isAuthenticated
 
             for try await result in group {
                 if let winner = result {

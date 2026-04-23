@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"net/http"
@@ -223,7 +224,7 @@ func (h *Handler) DeleteUser(c echo.Context) error {
 	}
 
 	if err != nil {
-		if err == db.ErrNotFound {
+		if errors.Is(err, db.ErrNotFound) {
 			return echo.NewHTTPError(http.StatusNotFound, "user not found")
 		}
 		h.Logger.Error("admin: delete user", zap.Error(err))
@@ -275,7 +276,7 @@ func (h *Handler) ExtendSubscription(c echo.Context) error {
 	if parseErr != nil {
 		u, err := h.DB.FindUserByVPNUsername(ctx, idParam)
 		if err != nil {
-			if err == db.ErrNotFound {
+			if errors.Is(err, db.ErrNotFound) {
 				return echo.NewHTTPError(http.StatusNotFound, "user not found")
 			}
 			h.Logger.Error("admin: lookup user by username", zap.Error(err))

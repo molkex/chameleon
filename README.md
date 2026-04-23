@@ -52,7 +52,7 @@ chameleon/
 │   └── deploy.sh         # Multi-node deploy script
 ├── clients/admin/                # React admin SPA
 ├── clients/apple/                # iOS + macOS apps
-│   ├── ChameleonVPN/     # Main app target
+│   ├── MadFrogVPN/     # Main app target
 │   ├── PacketTunnel/     # VPN extension
 │   └── Shared/           # Common code
 ├── infrastructure/       # Nginx, backup/restore

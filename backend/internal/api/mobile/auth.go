@@ -57,6 +57,11 @@ func (h *Handler) Register(c echo.Context) error {
 	if req.DeviceID == "" {
 		return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "device_id is required"})
 	}
+	if len(req.DeviceID) > 256 {
+		// Real iOS identifierForVendor is a 36-char UUID; anything longer
+		// is hostile input. Cap before it reaches the DB or sha256.
+		return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "device_id too long"})
+	}
 
 	ctx := c.Request().Context()
 

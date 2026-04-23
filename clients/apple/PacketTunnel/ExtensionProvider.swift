@@ -31,8 +31,8 @@ open class ExtensionProvider: NEPacketTunnelProvider {
 
         // If user just stopped VPN from iOS Settings, On Demand will try to restart immediately.
         // Refuse to start so the disconnect actually takes effect.
-        if sharedDefaults?.bool(forKey: "user_stopped_vpn") == true {
-            sharedDefaults?.removeObject(forKey: "user_stopped_vpn")
+        if sharedDefaults?.bool(forKey: AppConstants.userStoppedVPNKey) == true {
+            sharedDefaults?.removeObject(forKey: AppConstants.userStoppedVPNKey)
             TunnelFileLogger.log("Blocked On Demand restart after user-initiated stop")
             completionHandler(NSError(domain: "Chameleon", code: 2,
                                       userInfo: [NSLocalizedDescriptionKey: "User stopped VPN"]))
@@ -63,7 +63,12 @@ open class ExtensionProvider: NEPacketTunnelProvider {
 
         // MUST dispatch to background — startOrReloadService blocks the calling thread,
         // and setTunnelNetworkSettings needs the provider queue to be free.
-        DispatchQueue.global(qos: .userInitiated).async {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else {
+                completionHandler(NSError(domain: "Chameleon", code: 99,
+                    userInfo: [NSLocalizedDescriptionKey: "Tunnel provider deallocated"]))
+                return
+            }
             do {
                 try self.startSingBox(config: sanitizedConfig)
                 TunnelFileLogger.log("sing-box started successfully")
@@ -86,7 +91,7 @@ open class ExtensionProvider: NEPacketTunnelProvider {
         // Signal to main app that user explicitly stopped VPN from iOS Settings.
         // Main app reads this in handleStatus() to disable On Demand.
         if reason == .userInitiated {
-            sharedDefaults?.set(true, forKey: "user_stopped_vpn")
+            sharedDefaults?.set(true, forKey: AppConstants.userStoppedVPNKey)
             TunnelFileLogger.log("User-initiated stop — signaled to main app")
         }
 

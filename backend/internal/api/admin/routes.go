@@ -67,21 +67,24 @@ func RegisterRoutes(g *echo.Group, h *Handler, jwtManager *auth.JWTManager) {
 	// Auth check requires admin middleware (supports both header and cookie).
 	authGroup.GET("/me", h.Me, CookieOrBearerAuth(jwtManager))
 
-	// All remaining routes require admin auth.
+	// All remaining routes require admin auth (admin/operator/viewer can read).
+	// adminOnly is a stricter middleware applied on top of adminMW to
+	// destructive/privileged endpoints — see RequireAdmin below.
 	adminMW := CookieOrBearerAuth(jwtManager)
+	adminOnly := RequireAdmin()
 
-	// Users.
+	// Users. List/get are read; delete/extend are destructive → admin only.
 	users := g.Group("/users", adminMW)
 	users.GET("", h.ListUsers)
 	users.GET("/:id", h.GetUser)
-	users.DELETE("/:id", h.DeleteUser)
-	users.POST("/:id/extend", h.ExtendSubscription)
+	users.DELETE("/:id", h.DeleteUser, adminOnly)
+	users.POST("/:id/extend", h.ExtendSubscription, adminOnly)
 
-	// Nodes.
+	// Nodes. Read endpoints open to viewer/operator; sync/restart admin-only.
 	nodes := g.Group("/nodes", adminMW)
-	nodes.POST("/sync", h.SyncConfig)
-	nodes.POST("/restart-singbox", h.RestartSingbox)
-	nodes.POST("/restart-xray", h.RestartSingbox) // backward compat
+	nodes.POST("/sync", h.SyncConfig, adminOnly)
+	nodes.POST("/restart-singbox", h.RestartSingbox, adminOnly)
+	nodes.POST("/restart-xray", h.RestartSingbox, adminOnly) // backward compat
 	g.GET("/nodes", h.ListNodes, adminMW)
 
 	// Protocols / Shield.
@@ -92,18 +95,34 @@ func RegisterRoutes(g *echo.Group, h *Handler, jwtManager *auth.JWTManager) {
 	g.GET("/stats", h.GetStats, adminMW)
 	g.GET("/stats/dashboard", h.GetDashboard, adminMW)
 
-	// Servers.
+	// Servers. Read open; CRUD admin-only.
 	g.GET("/servers", h.ListServers, adminMW)
-	g.POST("/servers", h.CreateServer, adminMW)
-	g.PUT("/servers/:id", h.UpdateServer, adminMW)
-	g.DELETE("/servers/:id", h.DeleteServer, adminMW)
-	g.POST("/servers/:id/credentials", h.GetServerCredentials, adminMW)
+	g.POST("/servers", h.CreateServer, adminMW, adminOnly)
+	g.PUT("/servers/:id", h.UpdateServer, adminMW, adminOnly)
+	g.DELETE("/servers/:id", h.DeleteServer, adminMW, adminOnly)
+	g.POST("/servers/:id/credentials", h.GetServerCredentials, adminMW, adminOnly)
 
-	// Admin users management.
-	admins := g.Group("/admins", adminMW)
+	// Admin users management — entirely admin-only (privilege escalation).
+	admins := g.Group("/admins", adminMW, adminOnly)
 	admins.GET("", h.ListAdmins)
 	admins.POST("", h.CreateAdmin)
 	admins.DELETE("/:id", h.DeleteAdmin)
+}
+
+// RequireAdmin returns middleware that allows only `admin` role through.
+// Layered on top of CookieOrBearerAuth: the latter authenticates and admits
+// any of admin/operator/viewer; this one enforces the destructive-action
+// gate. Reading the claims is safe because CookieOrBearerAuth ran first.
+func RequireAdmin() echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			claims, _ := c.Get("auth_claims").(*auth.Claims)
+			if claims == nil || claims.Role != "admin" {
+				return echo.NewHTTPError(403, "admin role required")
+			}
+			return next(c)
+		}
+	}
 }
 
 // CookieOrBearerAuth returns Echo middleware that checks for admin auth
