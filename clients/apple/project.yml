@@ -1,4 +1,4 @@
-name: Chameleon
+name: MadFrogVPN
 options:
   bundleIdPrefix: com.madfrog.vpn
   deploymentTarget:
@@ -28,11 +28,11 @@ packages:
     from: "7.1.0"
 
 targets:
-  Chameleon:
+  MadFrogVPN:
     type: application
     platform: iOS
     sources:
-      - path: ChameleonVPN
+      - path: MadFrogVPN
         excludes:
           - "**/.DS_Store"
       - path: Shared
@@ -41,8 +41,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.madfrog.vpn
-        INFOPLIST_FILE: ChameleonVPN/Info.plist
-        CODE_SIGN_ENTITLEMENTS: ChameleonVPN/ChameleonVPN.entitlements
+        INFOPLIST_FILE: MadFrogVPN/Info.plist
+        CODE_SIGN_ENTITLEMENTS: MadFrogVPN/MadFrogVPN.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks"
         ENABLE_BITCODE: false
@@ -81,11 +81,11 @@ targets:
       - sdk: UIKit.framework
       - sdk: libresolv.tbd
 
-  ChameleonMac:
+  MadFrogVPNMac:
     type: application
     platform: macOS
     sources:
-      - path: ChameleonVPN
+      - path: MadFrogVPN
         excludes:
           - "**/.DS_Store"
           - "Info.plist"
@@ -96,9 +96,9 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.madfrog.vpn.mac
-        PRODUCT_NAME: MadFrog
-        INFOPLIST_FILE: ChameleonMac/Info.plist
-        CODE_SIGN_ENTITLEMENTS: ChameleonMac/ChameleonMac.entitlements
+        PRODUCT_NAME: MadFrogVPN
+        INFOPLIST_FILE: MadFrogVPNMac/Info.plist
+        CODE_SIGN_ENTITLEMENTS: MadFrogVPNMac/MadFrogVPNMac.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
         ENABLE_HARDENED_RUNTIME: YES

@@ -313,7 +313,7 @@ class AppState {
         }
     }
 
-    /// Called from ChameleonApp.handleUniversalLink when a /app/signin?token=…
+    /// Called from MadFrogVPNApp.handleUniversalLink when a /app/signin?token=…
     /// link is opened. Redeems the token and completes auth.
     ///
     /// If the user is already signed in, we skip redeeming so we don't

@@ -2,7 +2,7 @@ import SwiftUI
 import Libbox
 
 @main
-struct ChameleonApp: App {
+struct MadFrogVPNApp: App {
     @State private var appState = AppState()
     @State private var themeManager = ThemeManager()
     @Environment(\.scenePhase) private var scenePhase
@@ -19,9 +19,9 @@ struct ChameleonApp: App {
         var err: NSError?
         LibboxSetup(opts, &err)
         if let err {
-            TunnelFileLogger.log("ChameleonApp: LibboxSetup failed: \(err)", category: "ui")
+            TunnelFileLogger.log("MadFrogVPNApp: LibboxSetup failed: \(err)", category: "ui")
         } else {
-            TunnelFileLogger.log("ChameleonApp: LibboxSetup OK base=\(opts.basePath)", category: "ui")
+            TunnelFileLogger.log("MadFrogVPNApp: LibboxSetup OK base=\(opts.basePath)", category: "ui")
         }
     }
 
@@ -95,7 +95,7 @@ struct ChameleonApp: App {
     private func handleUniversalLink(_ url: URL) {
         guard url.host == "madfrog.online" else { return }
         let path = url.path
-        TunnelFileLogger.log("ChameleonApp: universal link \(path)", category: "ui")
+        TunnelFileLogger.log("MadFrogVPNApp: universal link \(path)", category: "ui")
 
         if path.hasPrefix("/app/payment/") {
             NotificationCenter.default.post(

@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Passwordless email sign-in. User enters email, we ask the backend to send
 /// a magic link. When the link is tapped on this device, the Universal Link
-/// handler in `ChameleonApp` routes the token into `AppState.consumeMagicToken`.
+/// handler in `MadFrogVPNApp` routes the token into `AppState.consumeMagicToken`.
 ///
 /// The screen is a bottom sheet presented from Onboarding. No password input,
 /// by design: we rejected classic email+password for MVP.
