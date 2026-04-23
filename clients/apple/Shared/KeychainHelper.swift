@@ -2,8 +2,10 @@ import Foundation
 import Security
 
 /// Minimal Keychain wrapper for storing credentials securely.
-/// Uses kSecAttrAccessibleAfterFirstUnlock so the tunnel extension
-/// can read values even when the device is locked.
+/// Uses kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly so the tunnel
+/// extension can read values when the device is locked, while preventing
+/// the credentials from being included in iCloud Keychain sync or
+/// encrypted iCloud backups (the *ThisDeviceOnly* tier).
 enum KeychainHelper {
     private static let service = "com.madfrog.vpn"
 
@@ -17,7 +19,7 @@ enum KeychainHelper {
         SecItemDelete(query as CFDictionary)
         var add = query
         add[kSecValueData as String] = data
-        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         let status = SecItemAdd(add as CFDictionary, nil)
         if status != errSecSuccess {
             print("[Keychain] save failed: \(status) for key: \(key)")

@@ -69,17 +69,38 @@ struct AuthResult: Codable {
     }
 }
 
-/// Delegate that trusts all certificates for direct-IP and relay fallback paths.
-/// This is intentional: when Cloudflare is blocked (e.g. in Russia), the app falls back
-/// to direct IP or SPB relay which use self-signed or IP-based certificates.
-/// Risk is mitigated by VLESS Reality encryption on the VPN tunnel itself.
-private class InsecureDelegate: NSObject, URLSessionDelegate {
+/// Delegate that trusts all certificates **only for known fallback hosts**.
+/// When Cloudflare is blocked (e.g. in Russia), the app falls back to direct
+/// IP or the SPB relay which present self-signed or IP-based certificates.
+/// Risk is bounded by:
+///   1. host whitelist below (so this delegate cannot accidentally trust
+///      arbitrary upstreams if a config bug routes a request elsewhere),
+///   2. VLESS Reality encryption on the VPN tunnel itself.
+/// TODO (ROADMAP security HIGH): replace with cert pinning once backend
+/// publishes its serving cert fingerprint via /api/v1/server/info.
+private final class InsecureDelegate: NSObject, URLSessionDelegate {
+    /// Hosts where we accept any server cert. Keep in sync with
+    /// AppConfig.directBackendIPs and AppConfig.russianRelayURL.
+    private static let trustedHosts: Set<String> = {
+        var hosts = Set(AppConfig.directBackendIPs)
+        if let relayHost = URL(string: AppConfig.russianRelayURL)?.host {
+            hosts.insert(relayHost)
+        }
+        return hosts
+    }()
+
     func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge,
                     completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
-        if challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
-           let trust = challenge.protectionSpace.serverTrust {
+        guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+              let trust = challenge.protectionSpace.serverTrust else {
+            completionHandler(.performDefaultHandling, nil)
+            return
+        }
+        let host = challenge.protectionSpace.host
+        if Self.trustedHosts.contains(host) {
             completionHandler(.useCredential, URLCredential(trust: trust))
         } else {
+            // Unknown host on the fallback session — refuse rather than blindly trust.
             completionHandler(.performDefaultHandling, nil)
         }
     }

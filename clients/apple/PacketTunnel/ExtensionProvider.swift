@@ -196,9 +196,13 @@ open class ExtensionProvider: NEPacketTunnelProvider {
             AppLogger.tunnel.warning("gRPC server failed (non-fatal): \(error.localizedDescription)")
         }
 
-        // Save sanitized config for debugging
+        // Save sanitized config for debugging — DEBUG only.
+        // The file contains the user's UUID and full server list; not safe
+        // to leave on disk in App Store builds.
+        #if DEBUG
         let debugConfigURL = AppConstants.sharedContainerURL.appendingPathComponent("sanitized-config.json")
         try? config.write(to: debugConfigURL, atomically: true, encoding: .utf8)
+        #endif
 
         TunnelFileLogger.log("Calling startOrReloadService (this blocks)...")
         try server.startOrReloadService(config, options: LibboxOverrideOptions())
