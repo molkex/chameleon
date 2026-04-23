@@ -13,15 +13,15 @@
 
 # Node
 node_modules/
-admin/dist/
+clients/admin/dist/
 
 # iOS / macOS
-apple/Frameworks/Libbox.xcframework/
-apple/Frameworks/*.bak*
-apple/build/
-apple/build_*/
-apple/*.xcodeproj/xcuserdata/
-apple/*.xcodeproj/project.xcworkspace/xcuserdata/
+clients/apple/Frameworks/Libbox.xcframework/
+clients/apple/Frameworks/*.bak*
+clients/apple/build/
+clients/apple/build_*/
+clients/apple/*.xcodeproj/xcuserdata/
+clients/apple/*.xcodeproj/project.xcworkspace/xcuserdata/
 *.xcuserdata/
 DerivedData/
 build/

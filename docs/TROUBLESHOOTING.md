@@ -10,7 +10,7 @@ routing_mode → smart: partial/failed
 ```
 
 ### Причина
-`apple/Shared/ConfigSanitizer.swift` **вырезает** `experimental.clash_api` из конфига перед передачей в sing-box:
+`clients/apple/Shared/ConfigSanitizer.swift` **вырезает** `experimental.clash_api` из конфига перед передачей в sing-box:
 > iOS sandbox blocks TCP bind inside the NetworkExtension process.
 
 Clash API на iOS физически не поднимается — любой HTTP на `127.0.0.1:9091` уходит в Connection Refused. Расширению нельзя биндить TCP-сокеты; только unix-сокеты в shared container.
@@ -19,8 +19,8 @@ Clash API на iOS физически не поднимается — любой
 Использовать `LibboxCommandClient.selectOutbound(groupTag:, outboundTag:)` через unix socket `command.sock` — та же инфраструктура что уже работает для live server switch в `AppState.selectServer`.
 
 Архитектура:
-- `apple/Shared/RoutingMode.swift` — enum с `selectorTargets: [(selector, target)]` для каждого режима
-- `apple/ChameleonVPN/Models/AppState.swift::setRoutingMode(_:)` — пишет `routingMode` в shared UserDefaults + зовёт `commandClient.selectOutbound` × 3 (по одному на каждый селектор). Если `commandClient.isConnected == false` — только персистит.
+- `clients/apple/Shared/RoutingMode.swift` — enum с `selectorTargets: [(selector, target)]` для каждого режима
+- `clients/apple/ChameleonVPN/Models/AppState.swift::setRoutingMode(_:)` — пишет `routingMode` в shared UserDefaults + зовёт `commandClient.selectOutbound` × 3 (по одному на каждый селектор). Если `commandClient.isConnected == false` — только персистит.
 - `handleStatus` при `.connected` вызывает `applyRoutingModeIfLive` через 400мс после того как command client поднимется.
 - `clientconfig.go` больше **не содержит** `experimental.clash_api` — всё равно срезается.
 - `ExtensionProvider.swift` больше не обрабатывает `routing_mode:` IPC-сообщение — вся логика в main app.
@@ -82,12 +82,12 @@ if isConnected(app), app.commandClient.isConnected,
 ## 2026-04-14: Админка показывала VPN-локацию вместо реальной + расширенная телеметрия
 
 ### Проблема
-В `/admin/app/users` поле "Location" у подключённых пользователей показывало Лимбург-на-Лане / OVH DE — это наш exit-node, а не реальная страна устройства. Геолокация бралась по `last_ip`, который при активном VPN = IP нашего сервера.
+В `/clients/admin/app/users` поле "Location" у подключённых пользователей показывало Лимбург-на-Лане / OVH DE — это наш exit-node, а не реальная страна устройства. Геолокация бралась по `last_ip`, который при активном VPN = IP нашего сервера.
 
 ### Решение
 1. **Миграция 006** (`migrations/006_user_context.sql`) — добавлены колонки: `initial_ip`, `initial_country{,_name}`, `initial_city`, `timezone`, `device_model`, `ios_version`, `accept_language`, `install_date`, `store_country`
 2. **`initial_*` снимается один раз** при `/auth/register` и `/auth/apple` (только для новых юзеров) — до того как клиент успеет подключиться к нашему VPN. GeoIP (`ip-api.com`) дёргается ТОЛЬКО в этот момент — раньше дёргался на каждый `/mobile/config`, что было проблемой для Apple privacy disclosure.
-3. **iOS шлёт заголовки на всех API вызовах**: `X-Timezone`, `X-Device-Model` (utsname, напр. `iPhone15,2`), `X-iOS-Version`, `X-Install-Date`. Стандартные HTTP headers, не сенсоры → не требуют App Tracking Transparency. См. `apple/ChameleonVPN/Models/APIClient.swift` → `DeviceTelemetry` + `applyTelemetry(to:)`.
+3. **iOS шлёт заголовки на всех API вызовах**: `X-Timezone`, `X-Device-Model` (utsname, напр. `iPhone15,2`), `X-iOS-Version`, `X-Install-Date`. Стандартные HTTP headers, не сенсоры → не требуют App Tracking Transparency. См. `clients/apple/ChameleonVPN/Models/APIClient.swift` → `DeviceTelemetry` + `applyTelemetry(to:)`.
 4. **Via-VPN detection**: админка грузит `vpn_servers.host` → сравнивает с `last_ip`; если match → `is_via_vpn: true` + `via_vpn_node: "de"`, UI показывает 🛡 badge и использует `initial_country` как реальную локацию.
 5. **Federated sync**: `users.updated_at` триггер бьётся на каждый TouchUserDevice, но `UpsertUserByVPNUUID` в reconcile не трогает device-колонки — они node-local. OK для текущего масштаба.
 
@@ -97,7 +97,7 @@ if isConnected(app), app.commandClient.isConnected,
 ## 2026-04-14: Per-user traffic accounting не работал — переход на v2ray_api gRPC
 
 ### Симптомы
-- В админке `/admin/app/users` у всех пользователей `cumulative_traffic = 0`
+- В админке `/clients/admin/app/users` у всех пользователей `cumulative_traffic = 0`
 - `traffic_snapshots` пустая, хотя iPhone активно ходил через VPN
 - `users.last_seen` тоже не обновлялся
 
@@ -219,13 +219,13 @@ docker rm -f singbox && bash scripts/singbox-run.sh
 - **Проблема:** `LibboxNewCommandClient` ищет Unix-сокет по пути `basePath/command.sock`, где `basePath` задаётся через `LibboxSetup()`. Extension (`PacketTunnel`) его вызывал, а main app — нет. Комментарий в `CommandClient.swift` утверждал обратное, но в `ChameleonApp.swift` вызова не было.
 - **Следствие:** gRPC handshake с CommandServer всегда падал → `isConnected=false` → `selectServer` уходил в fallback-ветку полного teardown туннеля (disconnect → wait → reconnect), откуда и 13 секунд фриза.
 - **Решение:** Добавлен вызов `LibboxSetup` в `ChameleonApp.init()` с теми же `basePath`/`workingPath`/`tempPath`, что использует extension (через `AppConstants`).
-- **Файл:** `apple/ChameleonVPN/ChameleonApp.swift`
+- **Файл:** `clients/apple/ChameleonVPN/ChameleonApp.swift`
 
 #### 2. `selectOutbound` не закрывал существующие соединения
 - **Проблема:** sing-box `selectOutbound` меняет указатель селектора только для **новых** TCP-стримов. Уже установленные соединения (например, keep-alive Safari-вкладки к Cloudflare) продолжали идти через старый outbound. Визуально — "сервер сменился, IP не изменился".
 - **Решение:** После успешного `selectOutbound` вызывается `client.closeConnections()` — принудительный разрыв всех активных стримов. Они реконнектятся уже через новый outbound.
 - **API:** `LibboxCommandClient.closeConnections(_:)` — доступен в libbox 1.13.5
-- **Файл:** `apple/ChameleonVPN/Models/CommandClient.swift`
+- **Файл:** `clients/apple/ChameleonVPN/Models/CommandClient.swift`
 
 ### Как диагностировали
 - Подключили iPhone 16 Pro по кабелю, `xcrun devicectl device process launch --console` + `idevicesyslog` для live-стрима

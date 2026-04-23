@@ -48,13 +48,13 @@ chameleon/
 │   ├── migrations/       # SQL schema
 │   ├── docker-compose.yml
 │   └── deploy.sh         # Multi-node deploy script
-├── admin/                # React admin SPA
-├── apple/                # iOS + macOS apps
+├── clients/admin/                # React admin SPA
+├── clients/apple/                # iOS + macOS apps
 │   ├── ChameleonVPN/     # Main app target
 │   ├── PacketTunnel/     # VPN extension
 │   └── Shared/           # Common code
 ├── infrastructure/       # Nginx, backup/restore
-└── wiki/                 # Documentation
+└── docs/                 # Documentation
 ```
 
 ## Deploy

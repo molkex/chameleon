@@ -211,7 +211,7 @@ else
 fi
 
 # ── Build nginx (always — admin SPA is baked into image) ──────────────────
-# Previously skipped if image existed, which silently ignored admin/src changes
+# Previously skipped if image existed, which silently ignored clients/admin/src changes
 # for weeks (e.g. missing X-Requested-With header → admin login broken).
 # Docker layer cache makes a no-op rebuild fast, so always rebuild.
 echo ">>> Building nginx (admin SPA)..."

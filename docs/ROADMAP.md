@@ -140,18 +140,18 @@
 - ✓ iOS preflight probe hardening (fast-fail на bad servers)
 - ✓ MSK API relay infrastructure (217.198.5.52 nginx, не подключён в iOS)
 - ✓ Cluster sync на DE+NL (Redis pub/sub + HTTP reconciliation)
-- ✓ Phase 0-2 bugfixes (security, iOS crashes, backend auth) — `wiki/archive/2026-04/bugfix-plan.md`
+- ✓ Phase 0-2 bugfixes (security, iOS crashes, backend auth) — `docs/archive/2026-04/bugfix-plan.md`
 - ✓ `infrastructure/topology.yaml` как single source of truth для инфры (2026-04-23)
-- ✓ Wiki cleanup — архив старых аналитик/UI прототипов в `wiki/archive/2026-04/` (2026-04-23)
+- ✓ Wiki cleanup — архив старых аналитик/UI прототипов в `docs/archive/2026-04/` (2026-04-23)
 
 ---
 
 ## Sources scanned
-- `wiki/bugfix-plan.md`, `wiki/CLEANUP_CANDIDATES.md`, `wiki/IOS_UX_REVIEW.md`, `wiki/TROUBLESHOOTING.md`
-- `wiki/CODEX_AUDIT_APPLE_SECURITY.md`, `_RUNTIME.md`, `_CHAIN_SECURITY.md`, `_INFRA_FINDINGS.md`
-- `wiki/wiki.md`, `infrastructure/topology.yaml` (inconsistencies + unknown_fields)
+- `docs/bugfix-plan.md`, `docs/CLEANUP_CANDIDATES.md`, `docs/IOS_UX_REVIEW.md`, `docs/TROUBLESHOOTING.md`
+- `docs/CODEX_AUDIT_APPLE_SECURITY.md`, `_RUNTIME.md`, `_CHAIN_SECURITY.md`, `_INFRA_FINDINGS.md`
+- `docs/OPERATIONS.md`, `infrastructure/topology.yaml` (inconsistencies + unknown_fields)
 - Memory: `project_chameleon_cleanup_needed.md`, `project_vpn_tunnel_broken.md`, `project_ios_network_race.md`, `project_ru_api_relay.md`
-- Grep TODO/FIXME в `apple/`, `backend/`, `admin/` — code-level чистый
+- Grep TODO/FIXME в `clients/apple/`, `backend/`, `clients/admin/` — code-level чистый
 
 ---
 

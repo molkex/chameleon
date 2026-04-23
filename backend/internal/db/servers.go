@@ -217,7 +217,7 @@ func (db *DB) ServersChangedSince(ctx context.Context, since time.Time) ([]VPNSe
 // (reality_*, provider_*) are preserved against empty overwrites. This
 // prevents a fresh node with empty/default rows from wiping real Reality
 // keys or provider credentials on peers during cluster sync — see the
-// 2026-04-14 incident in wiki/TROUBLESHOOTING.md.
+// 2026-04-14 incident in docs/TROUBLESHOOTING.md.
 //
 // Rule: if EXCLUDED.<field> is '' and vpn_servers.<field> is non-empty,
 // keep the existing value. Operators editing via admin panel always write

@@ -2,7 +2,7 @@
 .env
 *.md
 PLAN.md
-wiki/
+docs/
 .dockerignore
 docker-compose.yml
 nginx.conf

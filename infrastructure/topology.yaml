@@ -1,6 +1,6 @@
 # Chameleon VPN Infrastructure Topology
 # Last verified: 2026-04-23
-# Sources: backend/config.yaml, migrations/, apple/Constants.swift, clientconfig.go, DebugLogsView.swift
+# Sources: backend/config.yaml, migrations/, clients/apple/Constants.swift, clientconfig.go, DebugLogsView.swift
 
 servers:
   de:
@@ -60,7 +60,7 @@ servers:
     hosting: TimeWeb MSK VPS
     role: api endpoint relay (PLANNED, NOT IN USE)
     location: Moscow, Russia
-    notes: "Mentioned in memory project_ru_api_relay.md but NOT referenced anywhere in current iOS code (apple/Shared/Constants.swift, apple/ChameleonVPN/Models/APIClient.swift). api.madfrog.online resolves via Cloudflare, not this IP. Either delete server or wire it in."
+    notes: "Mentioned in memory project_ru_api_relay.md but NOT referenced anywhere in current iOS code (clients/apple/Shared/Constants.swift, clients/apple/ChameleonVPN/Models/APIClient.swift). api.madfrog.online resolves via Cloudflare, not this IP. Either delete server or wire it in."
 
 # API Communication paths (iOS → Backend)
 api_race:
@@ -71,7 +71,7 @@ api_race:
       port: 443
       sni_spoof: false
       timeout_sec: 8
-      source: apple/Shared/Constants.swift:10
+      source: clients/apple/Shared/Constants.swift:10
 
   fallback_direct_ips:
     - host: 162.19.242.30
@@ -324,31 +324,31 @@ legacy_references:
     status: "old NL IP, replaced by 147.45.252.234"
     found_in:
       - README.md
-      - wiki/NL_MIGRATION_PLAN.done.md
+      - docs/NL_MIGRATION_PLAN.done.md
     action: "scrub from README.md (not in active code paths)"
   - ip_or_string: 85.239.49.28
     status: "old RazblokiratorBot IP, no longer used"
     found_in:
       - .claude/CLAUDE.md
-      - wiki/wiki.md
-      - wiki/CODEX_AUDIT_INFRA.md
+      - docs/OPERATIONS.md
+      - docs/CODEX_AUDIT_INFRA.md
     action: "remove from CLAUDE.md once DNS subdomains migrated"
   - ip_or_string: 89.169.144.42
     status: "old YC relay, removed"
     found_in:
-      - wiki/wiki.md
+      - docs/OPERATIONS.md
     action: "wiki cleanup"
   - ip_or_string: razblokirator.ru
     status: "old domain, replaced by madfrog.online"
     found_in:
-      - wiki/wiki.md
-      - wiki/CODEX_AUDIT_INFRA.md
+      - docs/OPERATIONS.md
+      - docs/CODEX_AUDIT_INFRA.md
     action: "wiki cleanup"
   - ip_or_string: chameleonvpn.app
     status: "old bundle id, replaced by com.madfrog.vpn"
     found_in:
-      - wiki/wiki.md
-      - wiki/TROUBLESHOOTING.md
+      - docs/OPERATIONS.md
+      - docs/TROUBLESHOOTING.md
     action: "wiki cleanup"
 
 unknown_fields:

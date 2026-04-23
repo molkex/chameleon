@@ -66,10 +66,10 @@
 | `mdfrog.site` + `www` | Тот же лендинг (второй домен на случай блокировки) |
 | `razblokirator.ru` | Legacy — админка + старые iOS-клиенты, всё ещё работает |
 
-**iOS клиент**: `AppConfig.baseURL = "https://madfrog.online"` (см. `apple/Shared/Constants.swift`).
+**iOS клиент**: `AppConfig.baseURL = "https://madfrog.online"` (см. `clients/apple/Shared/Constants.swift`).
 
-- Admin UI (legacy): `https://razblokirator.ru/admin/app/`
-- Admin UI (новый): `https://madfrog.online/admin/app/`
+- Admin UI (legacy): `https://razblokirator.ru/clients/admin/app/`
+- Admin UI (новый): `https://madfrog.online/clients/admin/app/`
 - Лендинг: `https://madfrog.online/` (served nginx из volume `./landing`)
 - Subscription: `https://madfrog.online/sub/{token}`
 
@@ -154,7 +154,7 @@ backend/
 │   ├── api/
 │   │   ├── server.go         — HTTP сервер, middleware, роуты
 │   │   ├── mobile/           — Mobile API (регистрация, конфиг, Apple)
-│   │   └── admin/            — Admin API (users, nodes, servers, stats)
+│   │   └── clients/admin/            — Admin API (users, nodes, servers, stats)
 │   ├── cluster/
 │   │   ├── sync.go           — HTTP pull/push reconciliation
 │   │   ├── pubsub.go         — Redis Pub/Sub subscriber
@@ -820,7 +820,7 @@ App Group один на обе платформы: `group.com.madfrog.vpn`.
 ### Структура
 
 ```
-apple/
+clients/apple/
 ├── ChameleonVPN/               — основной SwiftUI код (iOS + macOS)
 │   ├── Models/
 │   │   ├── VPNManager.swift    — NEVPNManager обёртка
@@ -850,7 +850,7 @@ apple/
 ```
 
 ### Libbox.xcframework
-Git-ignored (~494 MB). Собирается из [sing-box v1.13.5](https://github.com/SagerNet/sing-box) через `make lib_apple` с sagernet/gomobile fork. tvOS slices срезаются. Info.plist каждого slice патчится для App Store валидации. Инструкция: `wiki/` memory `reference_libbox_build.md`.
+Git-ignored (~494 MB). Собирается из [sing-box v1.13.5](https://github.com/SagerNet/sing-box) через `make lib_apple` с sagernet/gomobile fork. tvOS slices срезаются. Info.plist каждого slice патчится для App Store валидации. Инструкция: `docs/` memory `reference_libbox_build.md`.
 
 ### Signing (macOS App Store distribution)
 - Distribution cert: `3rd Party Mac Developer Application` (в keychain)
@@ -861,9 +861,9 @@ Git-ignored (~494 MB). Собирается из [sing-box v1.13.5](https://gith
 ### Релиз Mac build в TestFlight
 Команда:
 ```bash
-xcodebuild -project apple/Chameleon.xcodeproj -scheme ChameleonMac -configuration Release \
-  -destination 'generic/platform=macOS' -archivePath apple/build/ChameleonMac.xcarchive archive
-open -a Xcode apple/build/ChameleonMac.xcarchive
+xcodebuild -project clients/apple/Chameleon.xcodeproj -scheme ChameleonMac -configuration Release \
+  -destination 'generic/platform=macOS' -archivePath clients/apple/build/ChameleonMac.xcarchive archive
+open -a Xcode clients/apple/build/ChameleonMac.xcarchive
 # В Organizer: Distribute App → App Store Connect → Upload → Automatic signing
 ```
 
@@ -954,7 +954,7 @@ Vite 7
 ### Build и деплой
 
 ```
-admin/
+clients/admin/
 ├── Dockerfile        — nginx:alpine + npm build
 ├── nginx.conf        → копируется в chameleon-nginx контейнер
 └── src/
@@ -1216,7 +1216,7 @@ cd ~/chameleon/backend
 
 ```bash
 # Через Admin API
-curl -X POST http://localhost:8000/api/v1/admin/nodes/sync \
+curl -X POST http://localhost:8000/api/v1/clients/admin/nodes/sync \
   -H "Authorization: Bearer <admin_token>"
 ```
 

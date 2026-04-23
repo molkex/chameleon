@@ -76,8 +76,8 @@ if [[ "$FORCE_BUILD" == "false" && "$(dpkg --print-architecture 2>/dev/null)" ==
 
     # Download admin dist
     if curl -sfL --connect-timeout 15 "${RELEASE_URL}/chameleon-admin-dist.tar.gz" -o /tmp/chameleon-admin.tar.gz 2>/dev/null; then
-        mkdir -p admin/dist
-        tar xzf /tmp/chameleon-admin.tar.gz -C admin/dist/
+        mkdir -p clients/admin/dist
+        tar xzf /tmp/chameleon-admin.tar.gz -C clients/admin/dist/
         rm -f /tmp/chameleon-admin.tar.gz
         log "Admin panel downloaded (skipping npm build!)"
     fi
@@ -186,7 +186,7 @@ if [[ "$PREBUILT" == "true" ]]; then
 
     # Override backend and nginx to use prebuilt Dockerfiles
     docker build -f backend/Dockerfile.prebuilt -t chameleon-backend backend/ 2>&1 | tail -3
-    docker build -f admin/Dockerfile.prebuilt -t chameleon-nginx admin/ 2>&1 | tail -3
+    docker build -f clients/admin/Dockerfile.prebuilt -t chameleon-nginx clients/admin/ 2>&1 | tail -3
 else
     log "Compiling from source (this takes ~3 minutes)..."
     docker compose build --parallel 2>&1 | tail -5
@@ -216,7 +216,7 @@ echo -e "${GREEN}  Chameleon VPN installed!${NC}"
 echo -e "${GREEN}  Time: ${ELAPSED} seconds${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
-echo -e "  Admin:    ${CYAN}http://${SERVER_IP}/admin/app/${NC}"
+echo -e "  Admin:    ${CYAN}http://${SERVER_IP}/clients/admin/app/${NC}"
 echo -e "  API:      ${CYAN}http://${SERVER_IP}/api/v1/${NC}"
 echo -e "  Login:    admin / admin123"
 echo ""

@@ -38,8 +38,8 @@ if [[ "$FORCE_BUILD" == "false" && "$(dpkg --print-architecture 2>/dev/null)" ==
         log "Backend binary downloaded"
     fi
     if curl -sfL --connect-timeout 15 "${RELEASE_URL}/chameleon-admin-dist.tar.gz" -o /tmp/chameleon-admin.tar.gz 2>/dev/null; then
-        mkdir -p admin/dist
-        tar xzf /tmp/chameleon-admin.tar.gz -C admin/dist/
+        mkdir -p clients/admin/dist
+        tar xzf /tmp/chameleon-admin.tar.gz -C clients/admin/dist/
         rm -f /tmp/chameleon-admin.tar.gz
         log "Admin panel downloaded"
     fi
@@ -49,7 +49,7 @@ fi
 if [[ "$PREBUILT" == "true" ]]; then
     log "Rebuilding with pre-built binaries..."
     docker build -f backend/Dockerfile.prebuilt -t chameleon-backend backend/ 2>&1 | tail -3
-    docker build -f admin/Dockerfile.prebuilt -t chameleon-nginx admin/ 2>&1 | tail -3
+    docker build -f clients/admin/Dockerfile.prebuilt -t chameleon-nginx clients/admin/ 2>&1 | tail -3
     docker compose up -d --remove-orphans
 else
     log "Rebuilding from source..."

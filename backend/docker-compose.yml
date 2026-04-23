@@ -104,7 +104,7 @@ services:
   # ---------- Nginx (reverse proxy + admin SPA) ----------
   nginx:
     build:
-      context: ../admin
+      context: ../clients/admin
       dockerfile: Dockerfile
     container_name: chameleon-nginx
     restart: unless-stopped

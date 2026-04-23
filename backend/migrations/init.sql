@@ -153,7 +153,7 @@ ALTER TABLE vpn_servers ADD COLUMN IF NOT EXISTS reality_private_key VARCHAR(255
 -- what would happen since those columns default to '') was unsafe: on a fresh
 -- node joining an existing cluster, the empty rows would get pushed via
 -- cluster sync and overwrite good Reality keys on peers. This happened during
--- the nl2 rebuild on 2026-04-14 — see wiki/TROUBLESHOOTING.md.
+-- the nl2 rebuild on 2026-04-14 — see docs/TROUBLESHOOTING.md.
 --
 -- Operators must insert servers via the admin panel or directly via SQL, e.g.:
 --   INSERT INTO vpn_servers (key, name, flag, host, port, sni, reality_public_key,

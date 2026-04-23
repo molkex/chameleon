@@ -9,11 +9,11 @@
 ### Сюрпризы (требуют действия)
 - `backend/chameleon` — **скомпилированный бинарник в git, 8.7 MB**
 - `backend/ascinit` — **ещё один бинарник в git, 8.7 MB**
-- `apple/build/` — **build artifacts в git** (ModuleCache, Intermediates, Products — сотни файлов)
+- `clients/apple/build/` — **build artifacts в git** (ModuleCache, Intermediates, Products — сотни файлов)
 - `проблем/` — **папка с кириллицей в имени** (содержит AI audit reports от 2026-04-11)
 - Два nginx.conf: `backend/nginx.conf` и `infrastructure/nginx/nginx.conf` — какой активен?
 - Три PLAN.md: `backend/PLAN.md`, `.claude/PLAN.md`, ROADMAP.md
-- `apple/PacketTunnel/PacketTunnelProvider.swift` — третий файл рядом с `ExtensionProvider.swift`, не описан в CLAUDE.md
+- `clients/apple/PacketTunnel/PacketTunnelProvider.swift` — третий файл рядом с `ExtensionProvider.swift`, не описан в CLAUDE.md
 
 ### Сироты (без модуля)
 - `install.sh`, `enable-ssl.sh`, `update.sh` в корне — это инфра-скрипты
@@ -42,7 +42,7 @@ chameleon/
 │   └── README.md
 │
 ├── clients/
-│   ├── apple/                # было apple/
+│   ├── clients/apple/                # было clients/apple/
 │   │   ├── MadFrogApp/       # было ChameleonVPN/  (см. Open Q3 — рискованно)
 │   │   ├── MacSupport/       # было ChameleonMac/
 │   │   ├── PacketTunnel/, PacketTunnelMac/
@@ -54,7 +54,7 @@ chameleon/
 │   │   ├── project.yml
 │   │   └── README.md
 │   │
-│   └── admin/                # было admin/  (см. Open Q4)
+│   └── clients/admin/                # было clients/admin/  (см. Open Q4)
 │       ├── src/
 │       ├── tests/{unit,e2e}/
 │       └── README.md
@@ -69,8 +69,8 @@ chameleon/
 │   ├── backup.sh, restore.sh
 │   └── README.md
 │
-└── docs/                     # было wiki/  (см. Open Q1)
-    ├── OPERATIONS.md         # было wiki.md
+└── docs/                     # было docs/  (см. Open Q1)
+    ├── OPERATIONS.md         # было OPERATIONS.md
     ├── ROADMAP.md
     ├── ARCHITECTURE.md       # этот файл после принятия
     ├── TROUBLESHOOTING.md
@@ -89,19 +89,19 @@ chameleon/
 | `backend/ascinit` (binary) | — | rm + .gitignore |
 | `backend/PLAN.md` | `docs/archive/2026-04/PLAN_BACKEND_GO.md` | mv |
 | `backend/nginx.conf` | — | rm (если не активен) |
-| `apple/` | `clients/apple/` | mv |
-| `apple/ChameleonVPN/` | `clients/apple/MadFrogApp/` | mv (опц.) |
-| `apple/ChameleonMac/` | `clients/apple/MacSupport/` | mv |
-| `apple/build/` | — | git rm --cached + .gitignore |
-| `admin/` | `clients/admin/` | mv |
+| `clients/apple/` | `clients/clients/apple/` | mv |
+| `clients/apple/ChameleonVPN/` | `clients/clients/apple/MadFrogApp/` | mv (опц.) |
+| `clients/apple/ChameleonMac/` | `clients/clients/apple/MacSupport/` | mv |
+| `clients/apple/build/` | — | git rm --cached + .gitignore |
+| `clients/admin/` | `clients/clients/admin/` | mv |
 | `install.sh` | `infrastructure/deploy/install.sh` | mv |
 | `enable-ssl.sh` | `infrastructure/deploy/enable-ssl.sh` | mv |
 | `update.sh` | `infrastructure/deploy/update.sh` | mv |
 | `проблем/` | `docs/archive/2026-04/problems/` | mv (исправить имя) |
-| `wiki/` | `docs/` | mv (опц.) |
-| `wiki/CODEX_AUDIT_*.md` | `docs/archive/2026-04/` | mv |
-| `wiki/IOS_UX_REVIEW.md` | `docs/archive/2026-04/` | mv |
-| `wiki/ARCHITECTURE_MESH.md` | `docs/ARCHITECTURE.md` | merge с этим файлом |
+| `docs/` | `docs/` | mv (опц.) |
+| `docs/CODEX_AUDIT_*.md` | `docs/archive/2026-04/` | mv |
+| `docs/IOS_UX_REVIEW.md` | `docs/archive/2026-04/` | mv |
+| `docs/ARCHITECTURE_MESH.md` | `docs/ARCHITECTURE.md` | merge с этим файлом |
 | `.claude/PLAN.md` | `docs/archive/2026-04/PLAN_INITIAL.md` | mv |
 
 ---
@@ -115,8 +115,8 @@ chameleon/
 - Фреймворки: `testing` + `testify` + `testcontainers-go`. Без mock-фреймворков.
 
 ### iOS/macOS (Swift)
-- **Unit:** `clients/apple/Tests/UnitTests/`, XCTest, моки через protocols. Цель: ConfigStore, APIClient, ConfigSanitizer, VPNErrorMapper. **60%** Models/.
-- **UI:** `clients/apple/Tests/UITests/`, XCUITest для onboarding/connect/disconnect. Не тестировать реальный tunnel.
+- **Unit:** `clients/clients/apple/Tests/UnitTests/`, XCTest, моки через protocols. Цель: ConfigStore, APIClient, ConfigSanitizer, VPNErrorMapper. **60%** Models/.
+- **UI:** `clients/clients/apple/Tests/UITests/`, XCUITest для onboarding/connect/disconnect. Не тестировать реальный tunnel.
 - **Snapshot:** не сейчас (две темы Calm/Neon → false positives, вернуться когда дизайн стабилен).
 
 ### Admin (React)
@@ -140,11 +140,11 @@ chameleon/
 
 - `backend/chameleon` (8.7 MB бинарник)
 - `backend/ascinit` (8.7 MB бинарник)
-- `apple/build/` (build artifacts)
+- `clients/apple/build/` (build artifacts)
 - `backend/nginx.conf` ИЛИ `infrastructure/nginx/nginx.conf` (один из дублей)
 - `проблем/` (после mv содержимого)
-- 4 файла `wiki/CODEX_AUDIT_*.md` (задачи в ROADMAP) — в архив
-- `wiki/IOS_UX_REVIEW.md` — в архив
+- 4 файла `docs/CODEX_AUDIT_*.md` (задачи в ROADMAP) — в архив
+- `docs/IOS_UX_REVIEW.md` — в архив
 - `backend/PLAN.md`, `.claude/PLAN.md` — в архив
 
 ---
@@ -153,16 +153,16 @@ chameleon/
 
 ### `backend/` → `backend/` — НИЗКИЙ риск
 deploy.sh использует `$(cd "$(dirname "$0")" && pwd)`, не хардкодит. Нужно обновить:
-- `README.md`, `CLAUDE.md` (project + global), `wiki/wiki.md`
+- `README.md`, `CLAUDE.md` (project + global), `docs/OPERATIONS.md`
 - `.claude/commands/*.md` (SSH команды)
 
-### `apple/` → `clients/apple/` — НИЗКИЙ риск
+### `clients/apple/` → `clients/clients/apple/` — НИЗКИЙ риск
 Только текстовые ссылки в README/CLAUDE/deploy.sh rsync excludes. Xcode workspace — относительные пути.
 
-### `apple/ChameleonVPN/` → `clients/apple/MadFrogApp/` — **ВЫСОКИЙ риск**
+### `clients/apple/ChameleonVPN/` → `clients/clients/apple/MadFrogApp/` — **ВЫСОКИЙ риск**
 Сотни FileRef в `.pbxproj`. XcodeGen пересоздаст из `project.yml`, но нужен полный iOS+macOS build для валидации. **Рекомендация: пропустить** — папка видна только разработчику, не оправдывает риск.
 
-### `wiki/` → `docs/` — НИЗКИЙ риск
+### `docs/` → `docs/` — НИЗКИЙ риск
 Массовая замена ссылок. Решение субъективное.
 
 ---
@@ -171,14 +171,14 @@ deploy.sh использует `$(cd "$(dirname "$0")" && pwd)`, не хардк
 
 | # | Вопрос | Рекомендация |
 |---|---|---|
-| Q1 | `wiki/` → `docs/`? | Да (индустриальный стандарт) |
-| Q2 | `wiki/wiki.md` → `docs/OPERATIONS.md`? | Да (текущее имя — тавтология) |
+| Q1 | `docs/` → `docs/`? | Да (индустриальный стандарт) |
+| Q2 | `docs/OPERATIONS.md` → `docs/OPERATIONS.md`? | Да (текущее имя — тавтология) |
 | Q3 | `ChameleonVPN/` → `MadFrogApp/`? | **Нет** (риск > выгода) |
-| Q4 | `admin/` → `clients/admin/` или `tools/admin/` или оставить? | `clients/admin/` |
+| Q4 | `clients/admin/` → `clients/clients/admin/` или `tools/clients/admin/` или оставить? | `clients/clients/admin/` |
 | Q5 | Какой nginx.conf активен на проде? | Проверить `docker inspect chameleon-nginx` |
 | Q6 | Что такое `PacketTunnelProvider.swift`? | Прочитать файл |
 | Q7 | `ascinit`, `metrics-agent` — отдельные `tools/`? | Оставить в `backend/cmd/` |
-| Q8 | Когда чистить `apple/build/` из git? | На Этапе A (никто не билдит) |
+| Q8 | Когда чистить `clients/apple/build/` из git? | На Этапе A (никто не билдит) |
 
 ---
 
@@ -190,8 +190,8 @@ deploy.sh использует `$(cd "$(dirname "$0")" && pwd)`, не хардк
 | **B** | Тестовая инфра (skeleton + CI .yml без integration) | ~4ч | нулевой |
 | **C** | `backend/` → `backend/` | ~30мин | низкий |
 | **D** | Корневые скрипты → `infrastructure/deploy/` | ~30мин | низкий |
-| **E** | `wiki/` → `docs/` (если Q1 = да) | ~20мин | низкий |
-| **F** | `apple/` → `clients/apple/`, `admin/` → `clients/admin/` | ~1ч | средний |
+| **E** | `docs/` → `docs/` (если Q1 = да) | ~20мин | низкий |
+| **F** | `clients/apple/` → `clients/clients/apple/`, `clients/admin/` → `clients/clients/admin/` | ~1ч | средний |
 | ~~G~~ | ~~`ChameleonVPN/` → `MadFrogApp/`~~ | ~1ч | высокий — **пропустить** |
 
 Итого: **6 этапов, ~8 часов** (без G).

@@ -1,0 +1,58 @@
+# Mirror of README.md — keep in sync. Edit either, sync the other.
+# Last sync: 2026-04-23
+
+name: chameleon
+description: Self-hosted VPN platform — Go backend + sing-box + native iOS/macOS app
+
+stack:
+  backend: [Go, Echo, PostgreSQL 16, Redis 7]
+  vpn: [VLESS Reality TCP, Hysteria2 UDP, TUIC v5 UDP, sing-box 1.13]
+  apple: [Swift 6, SwiftUI, NetworkExtension, libbox 1.13.5]
+  admin: [React 19, TailwindCSS 4, "shadcn/ui", TanStack Router, TanStack Query, Vite 7]
+  database: [PostgreSQL 16]
+  cache: [Redis 7]
+  deploy: [Docker Compose, rsync]
+
+architecture:
+  description: Each node is autonomous (own DB, Redis, sing-box). Nodes sync via Redis pub/sub + HTTP fallback.
+  layers:
+    - Apple App (sing-box / libbox)
+    - Nginx reverse proxy (/api/mobile, /api/admin, /sub)
+    - Go Backend (Echo, port 8000) — Mobile API + Admin API + Cluster Sync
+    - PostgreSQL + Redis + sing-box 1.13
+
+project_structure:
+  backend/: Go backend (primary) — cmd, internal, migrations, docker-compose.yml, deploy.sh
+  admin/: React admin SPA
+  apple/: iOS + macOS apps (ChameleonVPN, PacketTunnel, Shared)
+  infrastructure/: Nginx, backup/restore
+  docs/: Documentation
+
+quick_start:
+  install: "see docs/OPERATIONS.md section 11"
+  deploy:
+    - cd backend
+    - "./deploy.sh de    # Germany"
+    - "./deploy.sh nl    # Netherlands"
+  secrets_source: "~/.secrets.env on the deploy machine"
+
+servers:
+  - node: DE
+    ip: 162.19.242.30
+    role: Backend + VPN
+  - node: NL
+    ip: 194.135.38.90  # README states 194.x; OPERATIONS.md uses 147.45.252.234 (nl2). See docs/troubleshooting.yaml inconsistencies.
+    role: Backend + VPN
+  - node: SPB
+    ip: 185.218.0.43
+    role: TCP relay
+
+links:
+  prod_api: https://madfrog.online
+  api_relay: https://api.madfrog.online
+  admin_legacy: https://razblokirator.ru/admin/app/
+  admin_new: https://madfrog.online/admin/app/
+  landing: https://madfrog.online/
+  subscription: https://madfrog.online/sub/{token}
+
+source: README.md
