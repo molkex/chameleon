@@ -1314,3 +1314,145 @@ docker logs chameleon 2>&1 | grep -E 'reconcil|cluster|peer'
 
 - **`v0.3-stable-no-flooding`** (b385e56, 2026-04-08) — no_drop fix + system stack
 - **`v0.4-clean`** — Rust backend удалён, только Go
+
+---
+
+## Topology snapshot (2026-04-23)
+
+> **Single source of truth:** `infrastructure/topology.yaml` (структурированные данные, всегда актуальнее этого блока). При расхождении — верить YAML.
+> **Известные unknown:** реальные SNI и порт DE VLESS — только в БД. Проверка: `ssh ubuntu@162.19.242.30` → `sudo docker exec chameleon-postgres psql -U chameleon -d chameleon -c "SELECT id,name,host,port,sni FROM vpn_servers"`. См. `inconsistencies` в YAML.
+
+### Infrastructure map
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        iOS App (MadFrog)                            │
+└────────────────────────┬────────────────────────────────────────────┘
+                         │
+         ┌───────────────┴───────────────┐
+         │                               │
+    ┌────▼────────────────────┐   ┌─────▼─────────────────────┐
+    │   API Race (fastest)     │   │    VPN Tunnel             │
+    └────┬────────────────────┘   └─────┬─────────────────────┘
+         │                              │
+    ┌────┴────────────────────────┐ ┌──┴────────────────────────┐
+    │ 1. api.madfrog.online       │ │ Auto urltest selector     │
+    │    (Cloudflare DNS)         │ │ picks best available:     │
+    │    timeout: 8s              │ │                           │
+    │                             │ │ - DE direct (VLESS:2096)  │
+    │ 2. 162.19.242.30:443        │ │ - NL direct (VLESS:2096)  │
+    │    (SNI spoof + nwconnect)  │ │ - SPB relay→DE (tcp:443)  │
+    │    timeout: 6s              │ │ - SPB relay→NL (tcp:2098) │
+    │                             │ │ - H2 UDP, TUIC UDP        │
+    │ 3. 147.45.252.234:443       │ │ - or H2/TUIC variants     │
+    │    (SNI spoof + nwconnect)  │ │                           │
+    │    timeout: 6s              │ │ Routing modes via selectors:
+    │                             │ │ - RU Traffic selector     │
+    │ 4. 185.218.0.43:80          │ │ - Blocked Traffic selector
+    │    (SPB relay, HTTP)        │ │ - Default Route selector  │
+    │    timeout: 6s              │ │                           │
+    │                             │ │ DNS: Yandex direct for .ru
+    │ (cascade on 4xx/5xx)        │ │ rules, Cloudflare remote  │
+    └─────────────────────────────┘ └──────────────────────────┘
+         │                              │
+         │ HTTP + TLS SNI spoof         │ sing-box client
+         │                              │ (TUN + rules)
+    ┌────▼──────────────────────────────▼─────────────┐
+    │              Sing-box Server Node                │
+    │              (xray inbound)                      │
+    ├──────────────────────────────────────────────────┤
+    │ DE (162.19.242.30) — OVH Frankfurt              │
+    │   Inbounds:                                      │
+    │   - VLESS Reality/TCP  :443  (sni: ads.adfox)   │
+    │   - Hysteria2 UDP      :443                      │
+    │   - TUIC v5 UDP        :8443                     │
+    │   Client sees as      :2096 (VLESS)             │
+    │                       :443  (H2)                 │
+    │                       :8443 (TUIC)              │
+    │                                                  │
+    │ NL (147.45.252.234) — Timeweb                    │
+    │   Inbounds:                                      │
+    │   - VLESS Reality/TCP  :2096 (sni: ads.adfox)   │
+    │   - Hysteria2 UDP      :8443                     │
+    │   - TUIC v5 UDP        :8443                     │
+    │   Client sees as      :2096 (VLESS)             │
+    │                       :8443 (H2/TUIC)           │
+    │                                                  │
+    │ SPB Relay (185.218.0.43) — nginx TCP tunneling   │
+    │   :443   → DE:443   (VLESS Reality)              │
+    │   :2096  → DE:2096  (VLESS to DE)                │
+    │   :2098  → NL:2096  (VLESS to NL)                │
+    │   :80    → DE:80    (HTTP fallback)              │
+    │                                                  │
+    └──────────────────────────────────────────────────┘
+         │
+    ┌────▼──────────────────────────────────────────────┐
+    │        Backend + API (chameleon Go)               │
+    │        Deployed on each node:8000                │
+    │  - Config generation (POST /api/v1/mobile/config)│
+    │  - User auth (register/activate/apple-signin)    │
+    │  - Subscription mgmt                             │
+    │  - Metrics/health                                │
+    │  - Cluster sync via Redis                        │
+    └──────────────────────────────────────────────────┘
+```
+
+### VPN client outbounds (sing-box)
+
+```
+Global fallback chain (when a server fails):
+
+Proxy (selector)
+  ├─ Auto (urltest) [default]
+  │   └─ tests 6 members every 3 minutes:
+  │       ├─ VLESS 🇩🇪 Germany (2096)
+  │       ├─ VLESS 🇳🇱 Netherlands (2096)
+  │       ├─ H2 🇩🇪 Germany (443 UDP)
+  │       ├─ H2 🇳🇱 Netherlands (8443 UDP)
+  │       ├─ TUIC 🇩🇪 Germany (8443 UDP)
+  │       ├─ TUIC 🇳🇱 Netherlands (8443 UDP)
+  │       └─ picks fastest (excludes >400ms latency)
+  └─ Manual selector (user can override Auto)
+     └─ all 6 + 2 relay variants
+
+Selector chains for split tunneling:
+  RU Traffic → (smart: direct | ru-direct: direct | full-vpn: Proxy)
+  Blocked Traffic → (smart: Proxy | ru-direct: Proxy | full-vpn: Proxy)
+  Default Route → (smart: direct | ru-direct: Proxy | full-vpn: Proxy)
+
+DNS resolution:
+  .ru zones → Yandex DoH (77.88.8.8)
+  Other → Cloudflare DoH (1.1.1.1)
+  FakeIP for hijacked queries (198.18.0.0/15)
+```
+
+### API endpoint race logic
+
+```
+All iOS API calls (register, config, auth) use dataWithFallback():
+
+task_group {
+  T0: POST https://api.madfrog.online  [through Cloudflare]
+      timeout: 8s
+      
+  T1: POST https://162.19.242.30:443   [direct, SNI spoof]
+      NWConnection with custom SNI = api.madfrog.online
+      timeout: 6s
+      
+  T2: POST https://147.45.252.234:443  [direct, SNI spoof]
+      NWConnection with custom SNI = api.madfrog.online
+      timeout: 6s
+      
+  T3: POST http://185.218.0.43:80      [SPB relay HTTP]
+      standard URLSession
+      timeout: 6s
+      
+  T4: POST http://162.19.242.30:80     [DE HTTP fallback]
+      standard URLSession (insecure delegate)
+      timeout: 8s
+}
+
+Winner: first task to return 2xx (ignores 5xx/timeouts)
+           cancels all others immediately
+Success: average 300-800ms (T1-2 win in most regions)
+Failure: all 5 tasks timeout → user sees error

@@ -1,0 +1,359 @@
+# Chameleon VPN Infrastructure Topology
+# Last verified: 2026-04-23
+# Sources: backend-go/config.yaml, migrations/, apple/Constants.swift, clientconfig.go, DebugLogsView.swift
+
+servers:
+  de:
+    ip: 162.19.242.30
+    hosting: OVH Frankfurt
+    provider: OVH
+    role: primary vpn node + api backend
+    location: Frankfurt, Germany
+    sni: from-db  # vpn_servers.sni — verify on server: SELECT sni FROM vpn_servers WHERE id=3
+    sni_fallback: ads.adfox.ru  # used if DB sni empty (clientconfig.go:33)
+    inbounds:
+      # Server-side singbox config NOT in repo — actual listening ports per memory project_vpn_tunnel_broken.md (2026-04-23):
+      - protocol: vless-reality
+        port: 443
+        transport: tcp
+      - protocol: hysteria2
+        port: 443
+        transport: udp
+      - protocol: tuic-v5
+        port: 8443
+        transport: udp
+    client_outbound_ports:
+      # What iOS client connects to — comes from vpn_servers.port column
+      vless_port: from-db  # SELECT port FROM vpn_servers WHERE id=3 — likely 443 to match relay
+      hysteria2_port: 443  # migration 009_new_protocols.sql
+      tuic_port: 8443
+
+  nl:
+    ip: 147.45.252.234
+    hosting: Timeweb
+    provider: Timeweb
+    role: secondary vpn node
+    location: Netherlands
+    sni: from-db  # SELECT sni FROM vpn_servers WHERE id=<nl_id>
+    sni_fallback: ads.adfox.ru
+    inbounds:
+      - protocol: vless-reality
+        port: 2096
+        transport: tcp
+      # No Hysteria2/TUIC on NL per memory (NULL in DB)
+    client_outbound_ports:
+      vless_port: 2096
+
+  spb_relay:
+    ip: 185.218.0.43
+    hosting: unknown
+    role: tcp relay (russia-side) for users behind gfw
+    location: Saint Petersburg, Russia
+    relay_mapping:
+      tcp_443: de:443       # VLESS Reality to DE
+      tcp_2096: de:2096     # VLESS to DE
+      tcp_2098: nl:2096     # VLESS to NL (sprayed as :2098 on relay)
+      http_80: de:80        # fallback http to DE
+
+  msk_api_relay:
+    ip: 217.198.5.52
+    hosting: TimeWeb MSK VPS
+    role: api endpoint relay (PLANNED, NOT IN USE)
+    location: Moscow, Russia
+    notes: "Mentioned in memory project_ru_api_relay.md but NOT referenced anywhere in current iOS code (apple/Shared/Constants.swift, apple/ChameleonVPN/Models/APIClient.swift). api.madfrog.online resolves via Cloudflare, not this IP. Either delete server or wire it in."
+
+# API Communication paths (iOS → Backend)
+api_race:
+  primary:
+    - host: api.madfrog.online
+      via: cloudflare  # apex A-record on Cloudflare proxied → DE origin
+      scheme: https
+      port: 443
+      sni_spoof: false
+      timeout_sec: 8
+      source: apple/Shared/Constants.swift:10
+
+  fallback_direct_ips:
+    - host: 162.19.242.30
+      port: 443
+      scheme: https
+      sni_spoof: true
+      transport: nwconnection
+      timeout_sec: 6
+      priority: 1
+    - host: 147.45.252.234
+      port: 443
+      scheme: https
+      sni_spoof: true
+      transport: nwconnection
+      timeout_sec: 6
+      priority: 2
+    - host: 185.218.0.43
+      port: 80
+      scheme: http
+      sni_spoof: false
+      timeout_sec: 6
+      priority: 3
+    - host: 162.19.242.30
+      port: 80
+      scheme: http
+      sni_spoof: false
+      timeout_sec: 8
+      priority: 4
+
+  race_strategy: "fastest first, cascade if 4xx/5xx/timeout"
+  fallback_session: "InsecureDelegate (trusts all certs for direct IP)"
+
+# VPN Client config structure
+vpn_client_config:
+  inbounds:
+    - type: tun
+      tag: tun-in
+      address: [172.19.0.1/30]
+      mtu: 1280
+      stack: system
+      auto_route: true
+
+  outbounds:
+    - type: vless
+      per_server: true
+      flow: xtls-rprx-vision
+      packet_encoding: xudp
+      tls:
+        utls: chrome
+        reality: per_server_key
+    - type: hysteria2
+      per_server: true
+      tls:
+        insecure: true
+    - type: tuic
+      per_server: true
+      congestion_control: bbr
+      tls:
+        insecure: true
+    - type: selector
+      tag: Proxy
+      members: "[Auto, all_server_outbounds]"
+      default: Auto
+      interrupt_exist_connections: false
+    - type: urltest
+      tag: Auto
+      members: "[all_server_outbounds]"
+      url: "https://cp.cloudflare.com"
+      interval: 3m
+      tolerance: 100ms
+      interrupt_exist_connections: false
+    - type: selector
+      tag: "RU Traffic"
+      members: [direct, Proxy]
+      default: direct
+      interrupt_exist_connections: true
+    - type: selector
+      tag: "Blocked Traffic"
+      members: [Proxy, direct]
+      default: Proxy
+      interrupt_exist_connections: true
+    - type: selector
+      tag: "Default Route"
+      members: [direct, Proxy]
+      default: direct
+      interrupt_exist_connections: true
+    - type: direct
+      tag: direct
+    - type: block
+      tag: block
+
+  dns:
+    servers:
+      - tag: dns-remote
+        type: https
+        server: 1.1.1.1
+      - tag: dns-direct
+        type: https
+        server: 77.88.8.8
+      - tag: dns-fakeip
+        type: fakeip
+        inet4_range: 198.18.0.0/15
+    rules:
+      - domain_suffix: [.ru]
+        server: dns-direct
+      - domain_suffix: "[ru_always_direct_domains]"
+        server: dns-direct
+
+  routing:
+    rules:
+      - action: sniff
+      - protocol: dns
+        action: hijack-dns
+      - clash_mode: Direct
+        outbound: direct
+      - network: udp
+        port: 443
+        action: reject
+        no_drop: true
+      - ip_is_private: true
+        outbound: direct
+      - domain_suffix: "[ru_always_direct_domains]"
+        outbound: direct
+      - rule_set: refilter
+        outbound: "Blocked Traffic"
+      - domain_suffix: [.ru]
+        outbound: "RU Traffic"
+      - rule_set: geoip-ru
+        outbound: "RU Traffic"
+    final: "Default Route"
+    rule_sets:
+      - tag: geoip-ru
+        type: remote
+        format: binary
+        url: "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-ru.srs"
+        download_detour: direct
+        update_interval: 168h
+      - tag: refilter
+        type: remote
+        format: binary
+        url: "https://raw.githubusercontent.com/teidesu/rkn-singbox/ruleset/rkn-ruleset.srs"
+        download_detour: direct
+        update_interval: 168h
+
+# UI Server representation (iOS app)
+ui_servers:
+  - tag: de_direct
+    display: "Germany"
+    country_code: DE
+    flag: 🇩🇪
+    type: direct
+    outbound_base: "VLESS 🇩🇪 Germany"
+    note: "OVH Frankfurt, main node"
+
+  - tag: nl_direct
+    display: "Netherlands"
+    country_code: NL
+    flag: 🇳🇱
+    type: direct
+    outbound_base: "VLESS 🇳🇱 Netherlands"
+    note: "Timeweb, secondary node"
+
+  - tag: relay_de
+    display: "Germany (relay)"
+    country_code: DE
+    flag: 🇩🇪
+    type: relay
+    relay_via: spb_relay
+    relay_target: de:443
+    outbound_base: "VLESS 🇩🇪 Germany (via relay)"
+    note: "SPB(185.218.0.43):443 → DE:443, for users in gfw-restricted regions"
+
+  - tag: relay_nl
+    display: "Netherlands (relay)"
+    country_code: NL
+    flag: 🇳🇱
+    type: relay
+    relay_via: spb_relay
+    relay_target: nl:2096
+    outbound_base: "VLESS 🇳🇱 Netherlands (via relay)"
+    note: "SPB(185.218.0.43):2098 → NL:2096"
+
+  - tag: h2_de
+    display: "Germany (H2)"
+    country_code: DE
+    flag: 🇩🇪
+    type: direct
+    protocol: hysteria2
+    outbound_base: "H2 🇩🇪 Germany"
+
+  - tag: tuic_de
+    display: "Germany (TUIC)"
+    country_code: DE
+    flag: 🇩🇪
+    type: direct
+    protocol: tuic
+    outbound_base: "TUIC 🇩🇪 Germany"
+
+# Auto selector membership (urltest group)
+auto_selector:
+  tag: Auto
+  members:
+    - de_direct
+    - nl_direct
+    - relay_de
+    - relay_nl
+    - h2_de
+    - tuic_de
+  test_url: "https://cp.cloudflare.com"
+  test_interval: "3m"
+  tolerance_ms: 100
+  note: "Automatically picks fastest server, excludes servers with 4xx/5xx responses"
+
+# Routing modes (iOS app selector)
+routing_modes:
+  - id: smart
+    display_name: "Smart (Recommended)"
+    ru_traffic: direct
+    blocked_traffic: Proxy
+    default_route: direct
+    description: "Only blocked sites through VPN, Russian sites direct"
+
+  - id: ru-direct
+    display_name: "РФ напрямую"
+    ru_traffic: direct
+    blocked_traffic: Proxy
+    default_route: Proxy
+    description: "Russian traffic direct, everything else through VPN"
+
+  - id: full-vpn
+    display_name: "Full VPN"
+    ru_traffic: Proxy
+    blocked_traffic: Proxy
+    default_route: Proxy
+    description: "All traffic through VPN"
+
+inconsistencies:
+  - id: de_vless_port
+    desc: "Memory says DE VLESS listens on :443. DB schema default is :2096. Actual value of vpn_servers.port for DE row unknown without DB query."
+    fix: "ssh ubuntu@162.19.242.30 'sudo docker exec chameleon-postgres psql -U chameleon -d chameleon -c \"SELECT id,name,host,port,sni FROM vpn_servers\"'"
+  - id: msk_relay_orphan
+    desc: "Memory project_ru_api_relay.md claims api.madfrog.online → MSK 217.198.5.52 → DE. iOS code shows Cloudflare-proxied apex, no MSK reference. Memory stale OR feature never implemented."
+    fix: "Delete project_ru_api_relay.md memory OR actually wire MSK relay into APIClient.swift"
+  - id: relay_servers_in_ui
+    desc: "topology lists relay_de/relay_nl as ui_servers but unclear whether server-side singbox emits separate outbounds for them or iOS overrides connect address. Need to grep clientconfig.go for 'relay' / spb_relay handling."
+    fix: "Read backend-go/internal/vpn/clientconfig.go full outbound generation and confirm relay outbounds source."
+
+legacy_references:
+  - ip_or_string: 194.135.38.90
+    status: "old NL IP, replaced by 147.45.252.234"
+    found_in:
+      - README.md
+      - wiki/NL_MIGRATION_PLAN.done.md
+    action: "scrub from README.md (not in active code paths)"
+  - ip_or_string: 85.239.49.28
+    status: "old RazblokiratorBot IP, no longer used"
+    found_in:
+      - .claude/CLAUDE.md
+      - wiki/wiki.md
+      - wiki/CODEX_AUDIT_INFRA.md
+    action: "remove from CLAUDE.md once DNS subdomains migrated"
+  - ip_or_string: 89.169.144.42
+    status: "old YC relay, removed"
+    found_in:
+      - wiki/wiki.md
+    action: "wiki cleanup"
+  - ip_or_string: razblokirator.ru
+    status: "old domain, replaced by madfrog.online"
+    found_in:
+      - wiki/wiki.md
+      - wiki/CODEX_AUDIT_INFRA.md
+    action: "wiki cleanup"
+  - ip_or_string: chameleonvpn.app
+    status: "old bundle id, replaced by com.madfrog.vpn"
+    found_in:
+      - wiki/wiki.md
+      - wiki/TROUBLESHOOTING.md
+    action: "wiki cleanup"
+
+unknown_fields:
+  - de_vless_port: "see inconsistencies.de_vless_port"
+  - de_sni_actual: "vpn_servers.sni for DE row — query DB"
+  - nl_sni_actual: "vpn_servers.sni for NL row — query DB"
+  - nl_hysteria2_port: "DebugLogsView says 8443 but NL likely has NULL (per memory). Confirm via DB query."
+  - spb_relay_hosting: "SprintHost per memory but not verified"
