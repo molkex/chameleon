@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		00E8CC66B486F5AB297A52AE /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6378A272B7EFCCF1FBCDFBFE /* KeychainHelper.swift */; };
 		030161ACB3667CD2C0B7B723 /* PlatformViewExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11EBC90E3AED9A381EEA7F2F /* PlatformViewExtensions.swift */; };
+		036CD2D91F90C3AD5CCB20E3 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = CCCD550DC6BC4C053791BDB4 /* GoogleSignIn */; };
 		03D46FF6FD8EF369819CAAEC /* PlatformViewExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11EBC90E3AED9A381EEA7F2F /* PlatformViewExtensions.swift */; };
 		0488AB077CE7FECAF0AEE10E /* Libbox.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = C18C942EF28864C26636822B /* Libbox.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		0BC8C5012360A5EB8E0E0FEF /* SystemConfiguration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CBA31374948F1B482110AB8A /* SystemConfiguration.framework */; };
@@ -154,6 +155,7 @@
 		EEFDDC33749D552A10183539 /* ExtensionProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12590681176DC24ED028641E /* ExtensionProvider.swift */; };
 		EFA86C5445E58B8E7F2BA366 /* TunnelFileLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBF8B42392C0D194798D2667 /* TunnelFileLogger.swift */; };
 		EFCA4C93C13AB9439614EF54 /* RunBlocking.swift in Sources */ = {isa = PBXBuildFile; fileRef = 056A5CFAAD6E085B3A0ACF9A /* RunBlocking.swift */; };
+		F0679963EE18C93868E15BBA /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = A705BAE73CBAA5B993B38ADF /* GoogleSignInSwift */; };
 		F12319F885E0D6CE6F98581C /* RoutingMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7486DEC72FBB5DD5338F158 /* RoutingMode.swift */; };
 		F126F524927F734DB4534065 /* CoreWLAN.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A630BB5B9993A8152A622ED3 /* CoreWLAN.framework */; };
 		F56FFC5B7BABAD4472019C65 /* ExtensionPlatformInterface.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08E7733F68F4037C68291994 /* ExtensionPlatformInterface.swift */; };
@@ -349,6 +351,8 @@
 				24AF754CC3500A6D8402BA19 /* ApplicationServices.framework in Frameworks */,
 				A654EC7D70A4C34CC6DCE07B /* UserNotifications.framework in Frameworks */,
 				2E82DC5CF4FE6D02321F8F78 /* libbsm.tbd in Frameworks */,
+				036CD2D91F90C3AD5CCB20E3 /* GoogleSignIn in Frameworks */,
+				F0679963EE18C93868E15BBA /* GoogleSignInSwift in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -541,6 +545,8 @@
 			);
 			name = MadFrogVPNMac;
 			packageProductDependencies = (
+				CCCD550DC6BC4C053791BDB4 /* GoogleSignIn */,
+				A705BAE73CBAA5B993B38ADF /* GoogleSignInSwift */,
 			);
 			productName = MadFrogVPNMac;
 			productReference = 63D44CCDFB75CAF34F8A4F3C /* MadFrogVPNMac.app */;
@@ -1178,7 +1184,17 @@
 			package = 8E5FE957CE0A3B7E19367572 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
 			productName = GoogleSignInSwift;
 		};
+		A705BAE73CBAA5B993B38ADF /* GoogleSignInSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8E5FE957CE0A3B7E19367572 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignInSwift;
+		};
 		C95C6FD0A2B40240B868E8D1 /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8E5FE957CE0A3B7E19367572 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
+		CCCD550DC6BC4C053791BDB4 /* GoogleSignIn */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 8E5FE957CE0A3B7E19367572 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
 			productName = GoogleSignIn;

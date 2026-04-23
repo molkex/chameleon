@@ -1,10 +1,7 @@
 # Mirror of docs/ROADMAP.md — keep in sync. Edit either, sync the other.
-# Last sync: 2026-04-23
+# Last sync: 2026-04-23 (post-refactor — see ROADMAP.md Done section for full list of recent commits)
 
 now:
-  - { area: iOS, priority: P0, title: "/api/v1/mobile/config 404 on fresh build 26 install", context: "need backend logs from live device" }
-  - { area: iOS, priority: P0, title: "Pill on main does not refresh on server select", context: "configStore.selectedServerTag does not trigger @Observable AppState" }
-  - { area: iOS, priority: P0, title: "↻ button in ServerListView calls urlTest() — should call refreshConfig()", context: "user cannot force-refresh stale cache" }
   - { area: iOS, priority: P1, title: "Apple Sign-In fallback — anonymous continue button + autoRegister()", context: "endpoint exists but not wired in UI" }
   - { area: iOS, priority: P1, title: "Paywall routing — RU → WebPaywallView, else PaywallView (StoreKit 2)", context: "Required for non-RU App Store" }
   - { area: iOS, priority: P1, title: "Localization — 28 hardcoded RU strings → Localizable.strings", context: "WebPaywallView, MenuBarContent, server group labels" }
@@ -20,29 +17,19 @@ next:
     - { id: null, title: "Hardcoded build hash in MainViewCalm:49-51 — hide behind #if DEBUG or long-press in Settings" }
     - { title: "MainView 4 sheets without IDs may skip fast taps → one sheet(item:) with enum ActiveSheet" }
     - { title: "Hero card in disconnected state — too dark in Calm theme, brighter accent" }
-    - { title: "Infinite ping polling in ServerListView (MainView:256-263) — remove while !Task.isCancelled, keep one-shot + manual refresh" }
     - { title: "RoutingMode picker — replace .menu with 3 selectable cards inline" }
     - { title: "Session duration — standardize between Calm and Neon themes (TimerView only in Neon)" }
     - { title: "Settings → About — mailto:support@madfrog.online button" }
-    - { title: "Error toast — auto-dismiss 5s + explicit X (currently sticky)" }
-    - { title: "Error toast — VoiceOver label + announcement on appear" }
-    - { title: "Logout — confirmation alert (like deleteAccount)" }
     - { title: "Account username — for u_* show 'Anonymous (trial)', for Apple Sign-In show email" }
     - { title: "DebugLogsView — gate behind #if DEBUG, contains hardcoded IP + UUID" }
     - { title: "Frog emoji in UI → vector SVG logo" }
   security_ios:
-    - { priority: HIGH, title: "InsecureDelegate TLS bypass on fallback (APIClient:76-86) — pin cert or validate" }
-    - { priority: HIGH, title: "NSAllowsArbitraryLoads global (Info.plist) — replace with domain-specific exceptions" }
-    - { priority: HIGH, title: "Debug sanitized-config.json in production extension (ExtensionProvider:200) — gate #if DEBUG" }
-    - { priority: MEDIUM, title: "Keychain accessibility — kSecAttrAccessibleAfterFirstUnlock → AfterFirstUnlockThisDeviceOnly" }
     - { priority: MEDIUM, title: "libbox debug mode (ExtensionProvider:153) — disable in Release" }
     - { priority: MEDIUM, title: "Payment URL whitelist — freekassa.ru / pay.freekassa.ru before opening Safari" }
     - { priority: MEDIUM, title: "Diagnostics section — Face ID / Touch ID gate before debug logs" }
+    - { priority: MEDIUM, title: "TLS cert pinning followup — InsecureDelegate now scoped to whitelist hosts; full pinning requires backend to publish serving cert fingerprint via /api/v1/server/info" }
   backend_go:
-    - { id: BE-08, priority: MEDIUM, title: "Goroutine leak in rate limiter cleanup (ratelimit.go:33,75) — add ctx/stopCh" }
-    - { id: BE-09, priority: MEDIUM, title: "Stop() not idempotent (cluster/sync.go:130, pubsub.go:147) — sync.Once for close(stopCh)" }
-    - { id: BE-10, priority: MEDIUM, title: "Provider passwords plaintext in DB — encrypt" }
-    - { id: BE-11, priority: MEDIUM, title: "SearchUsers without length limit — cap pattern at 100 chars" }
+    - { id: BE-10, priority: MEDIUM, title: "Provider passwords plaintext in DB — encrypt-at-rest scheme (KEK env, DEK rotation)" }
     - { priority: MEDIUM, title: "migrations/init.sql seed conflicts with ALTER TABLE — remove seed or merge ALTER into init" }
     - { priority: MEDIUM, title: "UpsertServerByKey unsafe with empty fields — COALESCE(NULLIF(EXCLUDED.x, ''), vpn_servers.x)" }
     - { priority: MEDIUM, title: "Startup check — refuse start if FindLocalServer.reality_private_key empty (no silent fallback)" }
@@ -54,7 +41,6 @@ next:
     - { id: iOS-14, title: "tunnel?.reasserting read off main thread (ExtensionPlatformInterface:262) — dispatch main" }
     - { id: iOS-15, title: "Debug log file I/O on main thread (AppShellView:69-70) — async Task" }
     - { id: iOS-16, title: "API error strings hardcoded RU — Localizable.strings" }
-    - { id: iOS-17, title: "Dead code hasDnsOutbound (AppState:89,95) — delete" }
     - { id: iOS-18, title: "sharedDefaults may be nil without warning — log if App Group not configured" }
   infra_ops:
     - { id: SRV-07, title: "Docker cleanup — docker system prune -a --volumes on DE (~27GB), NL (~5GB)" }
@@ -126,6 +112,13 @@ done:
     - { title: "Phase 0-2 bugfixes (security, iOS crashes, backend auth) — docs/archive/2026-04/bugfix-plan.md" }
     - { title: "infrastructure/topology.yaml as single source of truth for infra (2026-04-23)" }
     - { title: "Wiki cleanup — archived old analysis/UI prototypes to docs/archive/2026-04/ (2026-04-23)" }
+    - { date: "2026-04-23", title: "Structural refactor: backend-go→backend, apple→clients/apple, admin→clients/admin, wiki→docs, wiki.md→OPERATIONS.md, root scripts→infrastructure/deploy/, ChameleonVPN→MadFrogVPN" }
+    - { date: "2026-04-23", title: "YAML mirrors for agents: README.yaml + docs/{operations,troubleshooting,roadmap,architecture,payments}.yaml" }
+    - { date: "2026-04-23", title: "Testing foundation: GitHub Actions backend.yml/admin.yml/ios.yml + backend/tests/{integration,e2e}/ skeleton" }
+    - { date: "2026-04-23", commit: "07a1afb", title: "iOS P0 fixes — /config 404 → re-register, pill reactive @Observable, refresh button refetches config" }
+    - { date: "2026-04-23", commit: "378f984", title: "iOS security HIGH — debug sanitized-config #if DEBUG, Keychain ThisDeviceOnly, NSAllowsArbitraryLoads → NSExceptionDomains, InsecureDelegate host-whitelist" }
+    - { date: "2026-04-23", commit: "bdf5dd4", title: "Backend MEDIUM — rate-limiter ctx-aware cleanup (BE-08), cluster Stop() idempotent (BE-09), SearchUsers maxSearchLen=100 (BE-11)" }
+    - { date: "2026-04-23", commit: "ee5dae7", title: "iOS quick wins — dead code hasDnsOutbound (iOS-17), ServerListView one-shot probe, error toast auto-dismiss + close + VoiceOver" }
 
 stats:
   total_tasks: ~85

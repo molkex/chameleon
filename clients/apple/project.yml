@@ -120,6 +120,12 @@ targets:
       - sdk: ApplicationServices.framework
       - sdk: UserNotifications.framework
       - sdk: libbsm.tbd
+      # MadFrogVPNMac shares MadFrogVPN/ sources with iOS, including
+      # GoogleAuthCoordinator.swift which imports GoogleSignIn.
+      - package: GoogleSignIn
+        product: GoogleSignIn
+      - package: GoogleSignIn
+        product: GoogleSignInSwift
 
   PacketTunnelMac:
     type: app-extension

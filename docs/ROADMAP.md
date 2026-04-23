@@ -8,17 +8,15 @@
 ## Now (в работе / блокеры)
 
 ### iOS / UX
-- **iOS P0:** `/api/v1/mobile/config` 404 на свежей установке build 26 — нужны логи backend от живого устройства
-- **iOS P0:** Pill на главной не обновляется при выборе сервера — `configStore.selectedServerTag` не триггерит `@Observable AppState`
-- **iOS P0:** Кнопка ↻ в `ServerListView` зовёт `urlTest()`, должна `refreshConfig()` — юзер не может форс-обновить старый кэш
 - **iOS P1:** Apple Sign-In fallback — кнопка «продолжить анонимно», задействовать `autoRegister()` (endpoint есть, не проводен в UI)
 - **iOS P1:** Paywall routing — `Locale.current.region == "RU"` → `WebPaywallView`, иначе `PaywallView` (StoreKit 2 обязателен для не-RU App Store)
 - **iOS P1:** Локализация — 28 хардкод-RU строк (`WebPaywallView`, `MenuBarContent`, server group labels) → `Localizable.strings`
 - **iOS P1:** VPN permission priming — экран между Sign-In и первым connect объясняющий «iOS попросит разрешение на VPN-профиль»
 
 ### Backend / API
-- **GO P0 (BE-01):** Apple StoreKit Server API v2 верификация подписок — сейчас доверяем клиентскому `transaction_id`
+- **GO P0 (BE-01):** Apple StoreKit Server API v2 верификация подписок — сейчас доверяем клиентскому `transaction_id`. Требует ASC API key + JWT signing. Отдельная сессия с креденшелс.
 - **GO P0:** MSK API relay (217.198.5.52) — задеплоен, но не подключён в `AppConfig.baseURL`. Решить: подключать или удалить (см. Decisions deferred)
+- **GO MEDIUM (BE-10):** Provider passwords plaintext в БД — нужна схема encryption-at-rest (KEK в env, политика ротации DEK). Отдельный design.
 
 ### Infrastructure / VPN
 - **Infra HIGH:** Packet loss DE→RU mobile на TCP VLESS — Hysteria2 (UDP:443) и TUIC (UDP:8443) задеплоены как обход, нужен реальный замер
@@ -33,31 +31,20 @@
 - **iOS:** Hardcoded build hash в `MainViewCalm:49-51` — спрятать за `#if DEBUG` или long-press на версии в Settings
 - **iOS:** `MainView` — 4 sheet'а без ID, могут пропускать быстрые тапы → один `sheet(item:)` с enum `ActiveSheet`
 - **iOS:** Hero card в disconnected — слишком тёмный (Calm theme), брайтер accent
-- **iOS:** Бесконечный ping polling в `ServerListView` (MainView:256-263) — убрать `while !Task.isCancelled`, оставить one-shot + manual refresh
 - **iOS:** RoutingMode picker — заменить `.menu` на 3 selectable cards inline
 - **iOS:** Session duration — стандартизировать между Calm и Neon темами (TimerView только в Neon)
 - **iOS:** Settings → About — кнопка `mailto:support@madfrog.online`
-- **iOS:** Error toast — auto-dismiss 5s + явный X (сейчас sticky)
-- **iOS:** Error toast — VoiceOver label + announcement on appear
-- **iOS:** Logout — алерт-подтверждение (как в `deleteAccount`)
 - **iOS:** Account username — для `u_*` показывать «Anonymous (trial)», для Apple Sign-In показывать email
 - **iOS:** `DebugLogsView` — `#if DEBUG`, содержит хардкод IP + UUID
 - **iOS:** Эмодзи лягушка в UI → векторный SVG логотип
 
 ### Security — iOS
-- **HIGH:** `InsecureDelegate` TLS bypass на fallback (`APIClient:76-86`) — pinned cert или валидация
-- **HIGH:** `NSAllowsArbitraryLoads` глобально (Info.plist) — заменить на domain-specific exceptions
-- **HIGH:** Debug `sanitized-config.json` в production extension (`ExtensionProvider:200`) — `#if DEBUG`
-- **MEDIUM:** Keychain accessibility — `kSecAttrAccessibleAfterFirstUnlock` → `AfterFirstUnlockThisDeviceOnly`
 - **MEDIUM:** libbox debug mode (`ExtensionProvider:153`) — выключить в Release
 - **MEDIUM:** Payment URL whitelist — `freekassa.ru` / `pay.freekassa.ru` перед открытием в Safari
 - **MEDIUM:** Diagnostics секция — Face ID / Touch ID gate перед debug logs
+- **MEDIUM (followup):** TLS cert pinning — InsecureDelegate теперь scoped к whitelist хостов, но полное pinning требует чтобы backend публиковал serving cert fingerprint (например `/api/v1/server/info`).
 
 ### Backend / Go
-- **MEDIUM (BE-08):** Goroutine leak в rate limiter cleanup (`ratelimit.go:33,75`) — добавить ctx/stopCh
-- **MEDIUM (BE-09):** `Stop()` не идемпотентен (`cluster/sync.go:130`, `pubsub.go:147`) — `sync.Once` для `close(stopCh)`
-- **MEDIUM (BE-10):** Provider passwords в plaintext в БД — шифровать
-- **MEDIUM (BE-11):** `SearchUsers` без длины — лимит 100 символов на pattern
 - **MEDIUM:** `migrations/init.sql` seed конфликтует с ALTER TABLE — либо убрать seed, либо merge ALTER в init
 - **MEDIUM:** `UpsertServerByKey` небезопасен из пустых полей — `COALESCE(NULLIF(EXCLUDED.x, ''), vpn_servers.x)`
 - **MEDIUM:** Startup check — если `FindLocalServer.reality_private_key` пустой, не стартовать вместо silent fallback
@@ -70,7 +57,6 @@
 - **iOS-14:** `tunnel?.reasserting` читается не с main thread (`ExtensionPlatformInterface:262`) — диспатч на main
 - **iOS-15:** Debug log file I/O на main thread (`AppShellView:69-70`) — async Task
 - **iOS-16:** API error strings хардкод RU — `Localizable.strings`
-- **iOS-17:** Dead code `hasDnsOutbound` (AppState:89,95) — удалить
 - **iOS-18:** `sharedDefaults` может быть nil без warning — лог если App Group не настроен
 
 ### Infrastructure / Ops
@@ -145,6 +131,13 @@
 - ✓ Phase 0-2 bugfixes (security, iOS crashes, backend auth) — `docs/archive/2026-04/bugfix-plan.md`
 - ✓ `infrastructure/topology.yaml` как single source of truth для инфры (2026-04-23)
 - ✓ Wiki cleanup — архив старых аналитик/UI прототипов в `docs/archive/2026-04/` (2026-04-23)
+- ✓ **Структурный рефакторинг (2026-04-23):** `backend-go/` → `backend/`, `apple/` → `clients/apple/`, `admin/` → `clients/admin/`, `wiki/` → `docs/`, `wiki.md` → `OPERATIONS.md`, корневые скрипты → `infrastructure/deploy/`, `ChameleonVPN/` → `MadFrogVPN/`, `ChameleonMac/` → `MadFrogVPNMac/`. Target+scheme переименованы, xcodeproj регенерирован.
+- ✓ **YAML mirrors для агентов (2026-04-23):** `README.yaml` + `docs/{operations,troubleshooting,roadmap,architecture,payments}.yaml`.
+- ✓ **Testing foundation (2026-04-23):** GitHub Actions `backend.yml` + `admin.yml` + `ios.yml`; `backend/tests/{integration,e2e}/` skeleton.
+- ✓ **iOS P0 (2026-04-23, `07a1afb`):** /config 404 → re-register, pill реактивный через @Observable, refresh button фетчит конфиг.
+- ✓ **iOS security HIGH (2026-04-23, `378f984`):** debug sanitized-config `#if DEBUG`, Keychain `ThisDeviceOnly`, `NSAllowsArbitraryLoads` → `NSExceptionDomains`, InsecureDelegate scoped к whitelist хостов.
+- ✓ **Backend MEDIUM (2026-04-23, `bdf5dd4`):** rate-limiter goroutine leak (ctx-aware cleanup), `cluster.{Syncer,Subscriber}.Stop()` идемпотентен, SearchUsers `maxSearchLen=100`.
+- ✓ **iOS quick wins (2026-04-23, `ee5dae7`):** dead code `hasDnsOutbound`, ServerListView one-shot probe, error toast auto-dismiss + close button + VoiceOver label.
 
 ---
 
