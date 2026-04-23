@@ -113,10 +113,17 @@ class APIClient {
     init() {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 8
+        // Cap total time including retries/redirects/body upload so a stuck
+        // server can't keep a request hanging forever past the per-request
+        // timeout. Higher than per-request because some endpoints
+        // (registration, restore-purchases) can legitimately take a few
+        // round-trips. ROADMAP iOS-13.
+        config.timeoutIntervalForResource = 30
         session = URLSession(configuration: config)
 
         let fallbackConfig = URLSessionConfiguration.default
         fallbackConfig.timeoutIntervalForRequest = 8
+        fallbackConfig.timeoutIntervalForResource = 30
         fallbackSession = URLSession(configuration: fallbackConfig, delegate: InsecureDelegate(), delegateQueue: nil)
     }
 

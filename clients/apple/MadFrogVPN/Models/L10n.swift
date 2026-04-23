@@ -221,6 +221,7 @@ enum L10n {
         static let sectionAccount    = LKey("settings.section.account")
         static let sectionAbout      = LKey("settings.section.about")
         static let sectionDiagnostics = LKey("settings.section.diagnostics")
+        static let contactSupport    = LKey("settings.contact_support")
         static let theme           = LKey("settings.theme")
         static let routingMode     = LKey("settings.routing_mode")
         static let routingModeSmart        = LKey("settings.routing_mode.smart")

@@ -4,7 +4,18 @@ import Libbox
 /// Manages VPN config storage in App Group shared container.
 /// Both main app and PacketTunnel extension access this.
 class ConfigStore {
-    private let sharedDefaults = UserDefaults(suiteName: AppConstants.appGroupID)
+    private let sharedDefaults: UserDefaults?
+
+    init() {
+        let suite = UserDefaults(suiteName: AppConstants.appGroupID)
+        self.sharedDefaults = suite
+        if suite == nil {
+            // App Group not configured in entitlements — every read returns
+            // nil and writes silently no-op, leading to "settings don't
+            // persist" reports that are hard to triage. ROADMAP iOS-18.
+            AppLogger.app.error("ConfigStore: UserDefaults(suiteName: \(AppConstants.appGroupID)) returned nil — App Group entitlement misconfigured")
+        }
+    }
 
     /// Proxy outbound types that represent real servers (not routing constructs).
     private static let proxyOutboundTypes: Set<String> = [

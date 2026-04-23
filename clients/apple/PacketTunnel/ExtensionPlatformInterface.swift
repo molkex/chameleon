@@ -255,12 +255,16 @@ extension ExtensionPlatformInterface: LibboxPlatformInterfaceProtocol {
 
         // Force iOS to re-evaluate tunnel on network change (WiFi↔LTE)
         // Only reassert when switching between interfaces with connectivity,
-        // not when going offline (unsatisfied) — avoids unnecessary restart
+        // not when going offline (unsatisfied) — avoids unnecessary restart.
+        // reasserting must be mutated on the main thread (Apple docs);
+        // this callback fires on NWPathMonitor's background queue. ROADMAP iOS-14.
         if networkChanged && path.status == .satisfied {
             TunnelFileLogger.log("Network switch detected, triggering reassert + DNS flush", category: "network")
             clearDNSCache()
-            tunnel?.reasserting = true
-            tunnel?.reasserting = false
+            DispatchQueue.main.async { [weak self] in
+                self?.tunnel?.reasserting = true
+                self?.tunnel?.reasserting = false
+            }
         }
     }
 }

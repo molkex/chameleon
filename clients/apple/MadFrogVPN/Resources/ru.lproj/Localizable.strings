@@ -255,3 +255,6 @@
 "country.russia"                 = "Россия";
 "country.other"                  = "Другие";
 "server.direct_connection"       = "Прямое подключение";
+
+/* ===== Настройки ===== */
+"settings.contact_support"       = "Связаться с поддержкой";

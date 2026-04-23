@@ -82,6 +82,23 @@ struct SettingsView: View {
                                 row(icon: "hand.raised", title: L10n.Paywall.privacy,
                                     showChevron: true) { showPrivacy = true }
                                 divider
+                                Link(destination: URL(string: "mailto:support@madfrog.online")!) {
+                                    HStack(spacing: 14) {
+                                        iconCircle("envelope")
+                                        Text(L10n.Settings.contactSupport)
+                                            .font(theme.font(size: 16, weight: .medium))
+                                            .foregroundStyle(theme.textPrimary)
+                                        Spacer()
+                                        Image(systemName: "chevron.right")
+                                            .font(.system(size: 12, weight: .semibold))
+                                            .foregroundStyle(theme.textSecondary.opacity(0.5))
+                                    }
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 14)
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                divider
                                 HStack(spacing: 14) {
                                     iconCircle("info.circle")
                                     Text(L10n.Settings.version)
@@ -97,16 +114,27 @@ struct SettingsView: View {
                             }
                         }
 
+                        // Diagnostics — DEBUG only. DebugLogsView surfaces server
+                        // IPs and the user's UUID; not safe to ship in App Store.
+                        #if DEBUG
                         sectionHeader(L10n.Settings.sectionDiagnostics)
                         card {
                             row(icon: "ladybug", title: L10n.Settings.debugLogs,
                                 showChevron: true) {
                                 TunnelFileLogger.log("TAP: debug logs (from settings)", category: "ui")
-                                preloadedTunnelLines = TunnelFileLogger.readLog().components(separatedBy: "\n")
-                                preloadedStderrLines = TunnelFileLogger.readStderrLog().components(separatedBy: "\n")
-                                showDebugLogs = true
+                                // File I/O off the main thread; ROADMAP iOS-15.
+                                Task {
+                                    let tunnel = await Task.detached { TunnelFileLogger.readLog().components(separatedBy: "\n") }.value
+                                    let stderr = await Task.detached { TunnelFileLogger.readStderrLog().components(separatedBy: "\n") }.value
+                                    await MainActor.run {
+                                        preloadedTunnelLines = tunnel
+                                        preloadedStderrLines = stderr
+                                        showDebugLogs = true
+                                    }
+                                }
                             }
                         }
+                        #endif
 
                         Spacer().frame(height: 24)
                     }
