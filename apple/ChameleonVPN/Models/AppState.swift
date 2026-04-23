@@ -614,6 +614,13 @@ class AppState {
     /// is unreachable (even if others are up); `.skipped` if we have no
     /// parsed servers yet (cold start / no config).
     private func preflightProbe() async -> PreflightOutcome {
+        // UDP-only outbounds (Hysteria2, TUIC) can't be validated with a TCP
+        // handshake — the server only listens on UDP, so probeTCP always
+        // times out even when the outbound is healthy. Skip them: if the
+        // user explicitly picked a UDP-only server we trust it; if Auto,
+        // they count as "alive" alongside any reachable TCP outbound.
+        let udpOnlyTypes: Set<String> = ["hysteria2", "tuic"]
+
         let items: [ServerItem] = servers
             .flatMap { $0.items }
             .filter { !$0.host.isEmpty && $0.port > 0 }
@@ -628,8 +635,16 @@ class AppState {
         }
         guard !targets.isEmpty else { return .skipped }
 
+        // User picked a UDP-only server — skip probe, trust it.
+        if selectedTag != nil, targets.allSatisfy({ udpOnlyTypes.contains($0.type) }) {
+            return .ok
+        }
+
+        let tcpTargets = targets.filter { !udpOnlyTypes.contains($0.type) }
+        let hasUDPTarget = targets.contains { udpOnlyTypes.contains($0.type) }
+
         let results: [(String, Int)] = await withTaskGroup(of: (String, Int).self) { group in
-            for target in targets {
+            for target in tcpTargets {
                 group.addTask {
                     let ms = await PingService.probeTCP(host: target.host, port: target.port, timeout: 2.0)
                     return (target.tag, ms)
@@ -640,7 +655,7 @@ class AppState {
             return out
         }
 
-        let anyAlive = results.contains { $0.1 > 0 }
+        let anyAlive = results.contains { $0.1 > 0 } || hasUDPTarget
         if anyAlive { return .ok }
 
         if selectedTag != nil, let dead = targets.first {
