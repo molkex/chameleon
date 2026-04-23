@@ -1,5 +1,7 @@
 # Chameleon VPN — Architecture Wiki
 
+> 🤖 Mirror: [agent-readable YAML](operations.yaml) — keep in sync. Edit either, sync the other.
+
 > Последнее обновление: 2026-04-10
 
 ---

@@ -1,0 +1,147 @@
+# Mirror of docs/TROUBLESHOOTING.md — keep in sync. Edit either, sync the other.
+# Last sync: 2026-04-23
+
+issues:
+  - id: routing_mode_clash_api_ios
+    title: "Routing mode on iOS — Clash API unavailable, must use libbox unix socket"
+    date: 2026-04-15
+    symptoms:
+      - "setClashSelector error: NSURLErrorDomain Code=-1004"
+      - "routing_mode → smart: partial/failed"
+      - "any HTTP to 127.0.0.1:9091 from extension → Connection Refused"
+    cause: "iOS sandbox blocks TCP bind inside NetworkExtension. ConfigSanitizer.swift strips experimental.clash_api before passing to sing-box."
+    fix: "Use LibboxCommandClient.selectOutbound via unix socket command.sock (already used for live server switch)."
+    refs:
+      - apple/Shared/ConfigSanitizer.swift
+      - apple/Shared/RoutingMode.swift
+      - apple/ChameleonVPN/Models/AppState.swift
+      - backend/internal/vpn/clientconfig.go
+      - apple/PacketTunnel/ExtensionProvider.swift
+
+  - id: ru_direct_2ip_shows_vpn
+    title: "In ru-direct mode 2ip.ru still shows VPN IP"
+    date: 2026-04-15
+    symptoms:
+      - "user expects .ru sites direct → 2ip shows DE OVH IP 162.19.242.30"
+    cause: "Route had only rule_set: geoip-ru (matches by IP). Many .ru sites behind Cloudflare anycast → IP not in geoip-ru.srs → falls through to Default Route = Proxy."
+    fix: "Added rule {DomainSuffix:[.ru], Outbound: RU Traffic} BEFORE geoip-ru in clientconfig.go"
+    refs: [backend/internal/vpn/clientconfig.go]
+
+  - id: timeweb_ip_geoip_ru
+    title: "Timeweb IP shows as Russian in GeoIP databases"
+    date: 2026-04-15
+    symptoms:
+      - "whoer.net / 2ip.ru on NL2 (147.45.252.234) shows Russia, Timeweb"
+    cause: "Timeweb LLC is Russian company; their IP ranges classified as RU in MaxMind free even when ASN is in EU."
+    fix: "User-facing diagnostic only — use ipleak.net or ifconfig.me to verify NL node properly."
+    refs: []
+
+  - id: ui_chip_outbound_mismatch
+    title: "UI chip Server differs from actually-used outbound"
+    date: 2026-04-15
+    symptoms:
+      - "user taps DE, chip shows Germany, but whoer reveals NL2 IP"
+    cause: "VPNStateHelper.selectedServerName read configStore.selectedServerTag (intent), not live state. If Proxy selector points to Auto picking NL2, chip stays on last manual choice."
+    fix: "MainView.swift reads live commandClient.selectedServer first; falls back to configStore.selectedServerTag"
+    refs: [apple/ChameleonVPN/Views/MainView.swift]
+
+  - id: admin_vpn_location_telemetry
+    title: "Admin showed VPN exit location instead of real device location"
+    date: 2026-04-14
+    symptoms:
+      - "/admin/app/users Location field shows OVH DE for connected users (their VPN exit)"
+    cause: "Geolocation derived from last_ip which equals VPN server IP when connected."
+    fix:
+      - "Migration 006 added initial_ip + initial_country/city + device_model + ios_version + accept_language + install_date + store_country"
+      - "initial_* snapshotted ONCE at /auth/register and /auth/apple (only for new users), before VPN connects"
+      - "iOS sends X-Timezone, X-Device-Model, X-iOS-Version, X-Install-Date headers (no ATT required)"
+      - "Admin compares last_ip vs vpn_servers.host → shows badge + initial_country as real location"
+    pitfall: "Updating userColumns/scanUser without scanUsers (multi-row scanner) breaks ListActiveVPNUsers — update BOTH in internal/db/users.go"
+    refs:
+      - backend/migrations/006_user_context.sql
+      - apple/ChameleonVPN/Models/APIClient.swift
+      - backend/internal/db/users.go
+
+  - id: per_user_traffic_v2ray_grpc
+    title: "Per-user traffic accounting broken — switched to v2ray_api gRPC"
+    date: 2026-04-14
+    symptoms:
+      - "all users have cumulative_traffic = 0 in admin"
+      - "traffic_snapshots empty despite active VPN"
+      - "users.last_seen never updated"
+    cause: "clash_api /connections shows ONLY active TCP connections. VLESS Reality multiplexed short-lived → between 60s ticks counters reset → delta always 0."
+    fix:
+      - "Rebuilt sing-box fork with build tag with_v2ray_api"
+      - "Added experimental.v2ray_api block with users[] + inbound vless-reality-tcp"
+      - "New stats_v2ray.go gRPC client polls QueryStats(pattern=user>>>)"
+      - "EngineConfig.V2RayAPIPort = 8080 (default)"
+    pitfalls:
+      - "Without with_v2ray_api tag sing-box panics on start — temporarily strip v2ray_api block from config + restart"
+      - "users:[] in config required — without it stats service does not register per-user counters"
+      - "Counter reset on singbox restart → delta is negative → code treats as fresh counter (returns absolute as delta)"
+      - "Adding user via user-api alone does NOT register them in stats — needs full reconfig"
+    refs:
+      - backend/internal/vpn/singbox.go
+      - backend/internal/vpn/stats_v2ray.go
+      - backend/internal/vpn/v2rayapi/command/
+
+  - id: cluster_sync_wiped_reality_keys
+    title: "Cluster sync wiped Reality keys in production DB (NL migration)"
+    date: 2026-04-14
+    severity: critical
+    symptoms:
+      - "fresh NL deploy (nl2) caused DE+NL-1 chameleon to fail with 'reality private key not found'"
+      - "iOS Germany direct + Russia→NL → 'reality verification failed'"
+    cause: "init.sql seeds vpn_servers BEFORE ALTER TABLE adds reality_*_key columns. Fresh nl2 DB had empty keys. Cluster syncer UpsertServerByKey uses 'latest updated_at wins' policy and pushed empty rows to DE/NL-1, overwriting real keys."
+    fix:
+      - "Stopped chameleon on nl2 to halt sync"
+      - "Restored vpn_servers from /var/backups/chameleon/chameleon_20260413_030001.sql.gz on NL-1"
+      - "Fixed swapped public keys (de vs relay-de, nl vs relay-nl) using docker run --rm teddysun/xray xray x25519 -i <priv>"
+    todo:
+      - "migrations/init.sql should not seed vpn_servers without reality_* fields — merge ALTER into init or remove seed"
+      - "cluster/sync.go UpsertServerByKey should COALESCE(NULLIF(EXCLUDED.x, ''), vpn_servers.x)"
+      - "chameleon startup should refuse to start if FindLocalServer.reality_private_key is empty"
+    refs:
+      - backend/migrations/init.sql
+      - backend/internal/cluster/sync.go
+
+  - id: ios_server_switch_no_traffic_change
+    title: "iOS server switch did not change traffic + 13s UI freeze"
+    date: 2026-04-12
+    commit: 90c4f34
+    symptoms:
+      - "switching NL → DE: UI shows Germany but real IP/traffic stays NL"
+      - "each switch causes 10-13s UI freeze"
+      - "debug log shows cmdClientConnected=false at selectServer time"
+    causes:
+      - "Main app never called LibboxSetup → CommandClient never connected via unix socket → selectServer fell back to full teardown (disconnect + wait + reconnect)"
+      - "selectOutbound only changes pointer for NEW streams. Established keep-alive connections continue via old outbound."
+    fix:
+      - "Added LibboxSetup call in ChameleonApp.init() with same basePath/workingPath/tempPath as extension (via AppConstants)"
+      - "After selectOutbound call client.closeConnections() to forcibly drop active streams"
+    refs:
+      - apple/ChameleonVPN/ChameleonApp.swift
+      - apple/ChameleonVPN/Models/CommandClient.swift
+
+  - id: de_direct_no_pages_load
+    title: "Germany (DE) direct connection — pages do not load (EOF, dropped due to flooding)"
+    date: 2026-04-08
+    commit: 0290013
+    symptoms:
+      - "select Germany direct → no pages load, sing-box logs EOF + dropped due to flooding"
+      - "via Russia→DE relay → works"
+      - "urltest for Germany sometimes succeeds, sometimes context deadline exceeded"
+    causes:
+      - "Xray DIRECT outbound without domainStrategy: UseIPv4 — IPv6 partially broken on OVH VPS"
+      - "Xray in docker bridge network (ports: 2096:2096) — NAT overhead + conntrack flooding"
+      - "iOS Auto button did not call selectServer() — VPN remained on Germany without reconnect"
+    fix:
+      - 'Added settings.domainStrategy: UseIPv4 to Xray DIRECT outbound (/var/lib/docker/volumes/chameleon-xray-config/_data/config.json)'
+      - "Switched docker-compose Xray to network_mode: host (removed ports/cap_drop/cap_add)"
+      - "Auto now calls selectServer(groupTag: Proxy, serverTag: Auto) with full disconnect/reconnect"
+    refs:
+      - apple/ChameleonVPN/Models/AppState.swift
+      - apple/ChameleonVPN/Views/MainView.swift
+      - apple/ChameleonVPN/Views/DebugLogsView.swift
+
+source: docs/TROUBLESHOOTING.md

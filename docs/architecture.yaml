@@ -1,0 +1,190 @@
+# Mirror of docs/ARCHITECTURE_MESH.md — keep in sync. Edit either, sync the other.
+# Last sync: 2026-04-23
+# Note: This is the IN-PROGRESS Mesh Architecture v2 design (not current production).
+# Current production architecture is documented in docs/operations.yaml.
+
+status: in_progress
+status_date: 2026-04-22
+scale_target: 20+ nodes globally
+migration_branch: mesh-v2  # TBD
+
+goals:
+  - id: 1
+    name: Decentralized by default
+    description: Any node can serve any client. No primary/replica.
+  - id: 2
+    name: Blast radius = 1 node
+    description: Compromising a single node must not leak secrets or grant write access to peer data.
+  - id: 3
+    name: Fast for client
+    description: Client connects to geo-nearest node with <100ms auth latency.
+  - id: 4
+    name: Fast for admin
+    description: Admin actions propagate to all nodes in seconds.
+  - id: 5
+    name: Scales to 20+ nodes without O(N²) complexity
+
+design_decisions:
+  - decision: Database
+    choice: CockroachDB (replaces per-node Postgres)
+    alternatives: [Postgres + CRDT layer, ScyllaDB, FoundationDB]
+    rationale: "Serializable SQL, multi-region, automatic sharding, Postgres wire-compatible"
+  - decision: Transport
+    choice: libp2p (QUIC+TLS1.3, mTLS identity)
+    alternatives: [QUIC+mTLS direct, gRPC+mTLS]
+    rationale: "NAT traversal, gossipsub, Kademlia DHT discovery"
+  - decision: Identity
+    choice: Ed25519 per-node
+    alternatives: [X.509 cert chain, shared bearer]
+    rationale: "Self-sovereign, fast, standard for libp2p"
+  - decision: Consensus
+    choice: hashicorp/raft for critical ops
+    alternatives: [CRDT-only, Paxos]
+    rationale: "UUID allocation + key rotation demand linearizability"
+  - decision: User data replication
+    choice: CockroachDB-native (not CRDT)
+    alternatives: [CRDT layer, manual sync]
+    rationale: "CRDB already solves it"
+  - decision: Server list
+    choice: CockroachDB with per-node write constraint via row-level security
+    alternatives: [Single-writer CRDT]
+    rationale: "RLS enforces node_id = current_node_id on UPDATE"
+
+nodes:
+  components_per_node:
+    - name: chameleon
+      type: existing Go backend (refactored)
+      responsibilities: [Mobile API, admin API, billing, Apple/FK integrations]
+      ports: [4001 libp2p]
+      identity_key: /etc/chameleon/node.key (Ed25519, chmod 600)
+    - name: chameleon-vpn
+      type: new binary
+      responsibilities: [wraps sing-box with User API integration]
+      data_access: "no direct DB; reads from chameleon over local Unix socket"
+    - name: CockroachDB
+      type: separate container
+      cluster_size_per_region: 3-5 nodes (replication factor 3)
+      regions_for_20node_global: [EU, US, APAC]
+
+asset_security:
+  - asset: Node Ed25519 identity key
+    stored_on_node: yes
+    on_compromise: impersonate this node to mesh peers
+  - asset: Node Reality private key
+    stored_on_node: yes
+    on_compromise: MITM traffic through THIS node only
+  - asset: CRDB read replica of user data
+    stored_on_node: yes
+    on_compromise: read-only snapshot (role-limited)
+  - asset: CRDB write to other nodes server rows
+    stored_on_node: no
+    blocked_by: RLS
+  - asset: Admin JWT signing key
+    stored_on_node: no
+    only_on: control-flagged nodes
+  - asset: Peer Reality private keys
+    stored_on_node: no
+  - asset: Peer provider credentials
+    stored_on_node: no
+
+schema:
+  new_tables:
+    - name: mesh_nodes
+      columns: [node_id UUID PK, identity_pub BYTES, role STRING, advertised_at JSONB, server_key STRING UNIQUE, revoked_at TIMESTAMPTZ, joined_at TIMESTAMPTZ, last_seen_at TIMESTAMPTZ]
+      role_values: [vpn, control, both]
+    - name: raft_log
+      columns: [index INT8 PK, term INT8, data BYTES, entry_ts TIMESTAMPTZ]
+    - name: raft_snapshots
+      columns: [id UUID PK, index INT8, term INT8, data BYTES, created_at TIMESTAMPTZ]
+  altered_tables:
+    - name: vpn_servers
+      added: [owner_node_id UUID REFERENCES mesh_nodes(node_id)]
+      policy: "server_owner_write — UPDATE only when owner_node_id = current_setting('app.current_node_id')"
+  removed:
+    - vpn_servers.reality_private_key (moves to /etc/chameleon/reality.key)
+    - vpn_servers.provider_login (moves to /etc/chameleon/provider.env)
+    - vpn_servers.provider_password (moves to /etc/chameleon/provider.env)
+    - cluster.secret in config (replaced by Ed25519 identity)
+
+protocols:
+  libp2p_streams:
+    - { name: /chameleon/mesh/1.0.0/sync, purpose: anti-entropy state reconciliation }
+    - { name: /chameleon/mesh/1.0.0/raft, purpose: Raft RPC transport }
+    - { name: /chameleon/mesh/1.0.0/gossipsub, purpose: rumors (node health, alerts) }
+    - { name: /chameleon/mesh/1.0.0/health, purpose: direct health query (admin panel) }
+  authentication:
+    layer1: libp2p peer ID = hash of Ed25519 pubkey (verified on handshake)
+    layer2: every message payload signed with sender identity key (end-to-end auth)
+
+http_endpoints:
+  client_facing:
+    - { method: GET, path: /api/mobile/nodes, purpose: discover nodes (libp2p multiaddrs + HTTPS endpoints) }
+    - { method: GET, path: /api/mobile/config, purpose: server list with live status (gossipsub health data) }
+  preflight_removal: client no longer probes; backend returns sorted server list; connect top-1 with 5s watchdog → top-2
+
+admin_changes:
+  - reads: served locally from CRDB replica
+  - writes: through CRDB leaseholder (automatic)
+  - atomic_ops: Raft proposal — committed across cluster in <500ms
+  - live_metrics: gossipsub topic 'mesh.health' for real-time per-node CPU/RAM/users
+
+migration_phases:
+  - phase: 0
+    name: Close active CRITICAL leak
+    duration: 2-3 hours
+    when: TODAY
+    actions:
+      - "Patch SyncServer wire format — remove reality_private_key, provider_login, provider_password from JSON"
+  - phase: 1
+    name: Foundation
+    duration: week 1
+    actions:
+      - CockroachDB cluster (3-node DE/NL/SPB)
+      - Postgres → CRDB migration (Postgres fallback for 1 week)
+      - Ed25519 identity infra (keygen on deploy)
+      - libp2p host scaffolding in internal/mesh/
+      - Peer discovery (static bootstrap + Kademlia DHT)
+  - phase: 2
+    name: Consensus & secrets isolation
+    duration: week 2
+    actions:
+      - hashicorp/raft integration
+      - UUID allocation moved to Raft FSM
+      - Reality keys moved to node-local storage
+      - RLS on vpn_servers
+      - Gossipsub for health/alerts
+  - phase: 3
+    name: Client smart routing
+    duration: week 3 days 1-4
+    actions:
+      - /api/mobile/nodes endpoint
+      - iOS geo-nearest selection, preflight removed
+      - Cross-node JWT verification
+  - phase: 4
+    name: Admin live view & key rotation UX
+    duration: week 3 days 5-7
+    actions:
+      - Admin SSE stream of mesh health
+      - Admin action: rotate reality key (Raft proposal, atomic switchover)
+      - Admin action: revoke node (revoked_at, peers disconnect)
+
+open_questions:
+  - id: crdb_licensing
+    question: "Open-core (CCL license) sufficient or paid version needed for CDC?"
+  - id: bootstrap
+    question: "How operator bootstraps brand new node into mesh?"
+    proposal: "chameleon node init --join=<peer-multiaddr> --invite-token=<signed-JWT>"
+  - id: backup
+    question: "CRDB BACKUP to S3/R2, encrypted via encryption_passphrase"
+  - id: cost
+    question: "CRDB footprint vs per-node Postgres"
+    notes: "3-node small cluster ~ same RAM. 20+ nodes: CRDB wins (clients connect nearest)"
+
+unchanged:
+  - VLESS Reality VPN protocol
+  - sing-box data plane
+  - iOS/macOS client core (only server selection logic changes)
+  - Admin panel UI (backend changes, UI uses same API shape)
+  - "Apple Sign-In, FreeKassa, StoreKit flows"
+
+source: docs/ARCHITECTURE_MESH.md

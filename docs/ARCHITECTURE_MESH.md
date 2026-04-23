@@ -1,5 +1,7 @@
 # Chameleon Mesh Architecture v2
 
+> 🤖 Mirror: [agent-readable YAML](architecture.yaml) — keep in sync. Edit either, sync the other.
+
 **Status:** In progress (2026-04-22)
 **Scale target:** 20+ nodes globally
 **Migration tracking branch:** `mesh-v2` (TBD)

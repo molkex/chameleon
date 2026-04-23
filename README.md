@@ -1,5 +1,7 @@
 # Chameleon VPN
 
+> 🤖 Mirror: [agent-readable YAML](README.yaml) — keep in sync. Edit either, sync the other.
+
 Self-hosted VPN platform: Go backend + sing-box + native iOS/macOS app.
 
 ## Architecture

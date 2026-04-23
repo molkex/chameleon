@@ -1,0 +1,133 @@
+# Mirror of docs/PAYMENTS.md — keep in sync. Edit either, sync the other.
+# Last sync: 2026-04-23
+
+provider:
+  name: FreeKassa
+  shop_id: 70139
+  approach: external Safari (App Store-compliant — like InConnect)
+  in_app_purchase: false  # not StoreKit
+
+flow:
+  - step: 1
+    actor: iOS WebPaywallView
+    action: "POST /api/mobile/payment/initiate {plan, method, email}"
+  - step: 2
+    actor: chameleon backend
+    action: "FK /orders/create (HMAC-SHA256) → returns {paymentId, paymentURL}"
+  - step: 3
+    actor: iOS
+    action: "UIApplication.shared.open(paymentURL) → external Safari"
+  - step: 4
+    actor: User
+    action: "Pays via SBP / Card / SberPay on FreeKassa"
+  - step: 5a
+    actor: FK webhook
+    action: "POST /api/webhooks/freekassa (MD5 sig) → payments.CreditDays(user, plan.days) → 'YES'"
+  - step: 5b
+    actor: User returns to app
+    action: "scenePhase .active → poll GET /api/mobile/payment/status/:paymentId → success alert"
+
+payment_id_format:
+  pattern: "app_{planId}_{userId}_{nonce}"
+  idempotency: "UNIQUE(source, charge_id) in payments table"
+
+plans:
+  - { id: m1,  days: 30,  price_rub: 229,  badge: null }
+  - { id: m3,  days: 90,  price_rub: 599,  badge: "Хит" }
+  - { id: m6,  days: 180, price_rub: 1099, badge: "Выгодно" }
+  - { id: m12, days: 365, price_rub: 1999, badge: "Максимум" }
+
+trial:
+  days: 3
+  granted_in: auth.Register
+  config_flag: payments.trial.enabled
+
+handlers:
+  - { endpoint: "GET /api/mobile/plans", file: "internal/api/mobile/plans.go", purpose: "list plans + payment methods" }
+  - { endpoint: "POST /api/mobile/payment/initiate", file: "internal/api/mobile/payment.go", purpose: "create order, return paymentURL" }
+  - { endpoint: "GET /api/mobile/payment/status/:paymentId", file: "internal/api/mobile/payment.go", purpose: "poll status" }
+  - { endpoint: "POST /api/webhooks/freekassa", file: "internal/api/mobile/payment_webhook.go", purpose: "FK webhook → CreditDays" }
+
+webhook_endpoints:
+  - { method: POST, path: /api/webhooks/freekassa, signature: "MD5(shopId:amount:secret2:orderId)", success_response: "YES" }
+
+freekassa_package:
+  path: internal/payments/freekassa/
+  files:
+    - { file: client.go, purpose: "HTTP client (/orders/create)" }
+    - { file: signature.go, purpose: "HMAC-SHA256 (API), MD5 (webhook)" }
+    - { file: paymentid.go, purpose: "generate/parse app_{plan}_{user}_{nonce}" }
+    - { file: types.go, purpose: "request/response structs" }
+
+env_vars:
+  required:
+    - FREEKASSA_SHOP_ID  # 70139
+    - FREEKASSA_API_KEY
+    - FREEKASSA_SECRET1  # API signature
+    - FREEKASSA_SECRET2  # webhook signature
+  must_be_in:
+    - .env on DE
+    - docker-compose.yml services.chameleon.environment
+  failure_mode: "if missing — backend starts but /initiate returns 500 'freekassa disabled'"
+
+freekassa_shop_settings:
+  shop_id: 70139
+  notification_url: https://madfrog.online/api/webhooks/freekassa
+  success_url: not used
+  fail_url: not used
+  return_method: "scenePhase trigger in app polls status"
+  payment_methods:
+    - { id: 44, name: СБП }
+    - { id: 36, name: Карта }
+    - { id: 43, name: SberPay }
+  ip_whitelist:
+    - 168.119.157.136
+    - 168.119.60.227
+    - 178.154.197.79
+    - 51.250.54.238
+  test_mode: must be DISABLED (else /orders/create returns "Payments disabled when TestMode is enabled")
+
+known_issues:
+  - id: fraud_block
+    title: "FK fraud_block on low-amount repeated attempts"
+    notes: "Use minimum 20 ₽ for tests. Repeated same-amount/email after 403 may hit temp block."
+  - id: status_403_safari
+    title: "'Проверить статус' 403 from Safari"
+    notes: "Not a bug — FK rejects empty POST without merchant_id. Expected."
+  - id: safari_pending
+    title: "Safari 'Выполняется проверка платежа...' hangs"
+    notes: "FK-side, not ours. Webhook already arrived + credits granted; user just needs to return to app."
+
+ios_implementation:
+  view: WebPaywallView.swift
+  rules:
+    - "Email REQUIRED (54-FZ check) — client validates: one @, TLD ≥ 2, no spaces, trim whitespace"
+    - "Pay button visually disabled when: plans empty || no plan selected || !isEmailValid || isLoading"
+    - "Dynamic title: 'Введите email' / 'Email некорректный' / 'Оплатить' / 'Проверить статус'"
+    - "trimmedEmail used in initiate() (not raw email)"
+    - "Apple Pay NOT added — FK numeric method id unconfirmed"
+  polling:
+    type: single-poll on scenePhase
+    code: |
+      .onChange(of: scenePhase) { _, newPhase in
+          if newPhase == .active, pendingPaymentID != nil {
+              Task { await pollStatus() }
+          }
+      }
+    rationale: "no continuous polling — webhook usually arrives first, single check on return suffices"
+
+deploy_new_price_checklist:
+  steps:
+    - "1. Edit config.yaml → payments.plans (locally)"
+    - "2. scp config.yaml ubuntu@162.19.242.30:/tmp/ → sudo cp to /opt/chameleon/backend/config.yaml (BACKUP first)"
+    - "3. CRITICAL — do not overwrite full config; production has DE-specific cluster.node_id, peers, custom short_ids. Patch only plans: section via sed OR merge manually."
+    - "4. sudo docker compose up -d --no-deps chameleon (ALWAYS --no-deps, otherwise legacy sing-box container restarts)"
+    - "5. curl https://madfrog.online/api/mobile/plans — verify new prices"
+    - "6. Healthcheck — sudo docker ps --filter name=chameleon → Up X (healthy)"
+  pitfall: |
+    If backend in Restarting (1) after deploy + logs show 'fatal: reality private key not found' —
+    config was overwritten with template version missing cluster.node_id.
+    Reality keys come from FindLocalServer(nodeID); without node_id backend cannot start.
+    Restore from config.yaml.bak-*
+
+source: docs/PAYMENTS.md

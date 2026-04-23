@@ -1,5 +1,7 @@
 # Chameleon VPN — Troubleshooting
 
+> 🤖 Mirror: [agent-readable YAML](troubleshooting.yaml) — keep in sync. Edit either, sync the other.
+
 ## 2026-04-15: Routing mode на iOS — Clash API не работает, только libbox unix socket
 
 ### Проблема

@@ -1,0 +1,147 @@
+# Mirror of docs/ROADMAP.md — keep in sync. Edit either, sync the other.
+# Last sync: 2026-04-23
+
+now:
+  - { area: iOS, priority: P0, title: "/api/v1/mobile/config 404 on fresh build 26 install", context: "need backend logs from live device" }
+  - { area: iOS, priority: P0, title: "Pill on main does not refresh on server select", context: "configStore.selectedServerTag does not trigger @Observable AppState" }
+  - { area: iOS, priority: P0, title: "↻ button in ServerListView calls urlTest() — should call refreshConfig()", context: "user cannot force-refresh stale cache" }
+  - { area: iOS, priority: P1, title: "Apple Sign-In fallback — anonymous continue button + autoRegister()", context: "endpoint exists but not wired in UI" }
+  - { area: iOS, priority: P1, title: "Paywall routing — RU → WebPaywallView, else PaywallView (StoreKit 2)", context: "Required for non-RU App Store" }
+  - { area: iOS, priority: P1, title: "Localization — 28 hardcoded RU strings → Localizable.strings", context: "WebPaywallView, MenuBarContent, server group labels" }
+  - { area: iOS, priority: P1, title: "VPN permission priming screen between Sign-In and first connect", context: "explain iOS will ask permission" }
+  - { area: Backend, priority: P0, title: "BE-01 Apple StoreKit Server API v2 verification", context: "currently trust client transaction_id" }
+  - { area: Backend, priority: P0, title: "MSK API relay (217.198.5.52) — deployed but not wired in AppConfig.baseURL", context: "decide: connect or remove (see deferred)" }
+  - { area: Infra, priority: HIGH, title: "Packet loss DE→RU mobile on TCP VLESS — measure Hysteria2/TUIC fallback", context: "H2 UDP:443 + TUIC UDP:8443 deployed, need real measurement" }
+  - { area: Infra, priority: HIGH, title: "SPB Relay (185.218.0.43) lacks :80 HTTP fallback mapping" }
+  - { area: Infra, priority: HIGH, title: "Log rotation on DE+NL — /var/log/chameleon-*.log grows unbounded" }
+
+next:
+  ios_bugs_p1:
+    - { id: null, title: "Hardcoded build hash in MainViewCalm:49-51 — hide behind #if DEBUG or long-press in Settings" }
+    - { title: "MainView 4 sheets without IDs may skip fast taps → one sheet(item:) with enum ActiveSheet" }
+    - { title: "Hero card in disconnected state — too dark in Calm theme, brighter accent" }
+    - { title: "Infinite ping polling in ServerListView (MainView:256-263) — remove while !Task.isCancelled, keep one-shot + manual refresh" }
+    - { title: "RoutingMode picker — replace .menu with 3 selectable cards inline" }
+    - { title: "Session duration — standardize between Calm and Neon themes (TimerView only in Neon)" }
+    - { title: "Settings → About — mailto:support@madfrog.online button" }
+    - { title: "Error toast — auto-dismiss 5s + explicit X (currently sticky)" }
+    - { title: "Error toast — VoiceOver label + announcement on appear" }
+    - { title: "Logout — confirmation alert (like deleteAccount)" }
+    - { title: "Account username — for u_* show 'Anonymous (trial)', for Apple Sign-In show email" }
+    - { title: "DebugLogsView — gate behind #if DEBUG, contains hardcoded IP + UUID" }
+    - { title: "Frog emoji in UI → vector SVG logo" }
+  security_ios:
+    - { priority: HIGH, title: "InsecureDelegate TLS bypass on fallback (APIClient:76-86) — pin cert or validate" }
+    - { priority: HIGH, title: "NSAllowsArbitraryLoads global (Info.plist) — replace with domain-specific exceptions" }
+    - { priority: HIGH, title: "Debug sanitized-config.json in production extension (ExtensionProvider:200) — gate #if DEBUG" }
+    - { priority: MEDIUM, title: "Keychain accessibility — kSecAttrAccessibleAfterFirstUnlock → AfterFirstUnlockThisDeviceOnly" }
+    - { priority: MEDIUM, title: "libbox debug mode (ExtensionProvider:153) — disable in Release" }
+    - { priority: MEDIUM, title: "Payment URL whitelist — freekassa.ru / pay.freekassa.ru before opening Safari" }
+    - { priority: MEDIUM, title: "Diagnostics section — Face ID / Touch ID gate before debug logs" }
+  backend_go:
+    - { id: BE-08, priority: MEDIUM, title: "Goroutine leak in rate limiter cleanup (ratelimit.go:33,75) — add ctx/stopCh" }
+    - { id: BE-09, priority: MEDIUM, title: "Stop() not idempotent (cluster/sync.go:130, pubsub.go:147) — sync.Once for close(stopCh)" }
+    - { id: BE-10, priority: MEDIUM, title: "Provider passwords plaintext in DB — encrypt" }
+    - { id: BE-11, priority: MEDIUM, title: "SearchUsers without length limit — cap pattern at 100 chars" }
+    - { priority: MEDIUM, title: "migrations/init.sql seed conflicts with ALTER TABLE — remove seed or merge ALTER into init" }
+    - { priority: MEDIUM, title: "UpsertServerByKey unsafe with empty fields — COALESCE(NULLIF(EXCLUDED.x, ''), vpn_servers.x)" }
+    - { priority: MEDIUM, title: "Startup check — refuse start if FindLocalServer.reality_private_key empty (no silent fallback)" }
+    - { priority: MEDIUM, title: "v2ray_api stats per-user — auto-register new users in experimental.v2ray_api.stats.users (currently full reconfig only)" }
+  ios_bugs_medium:
+    - { id: iOS-11, title: "Race in ConfigStore migration (Keychain write during read) — actor/lock" }
+    - { id: iOS-12, title: "Errors silently ignored (try?) in VPNManager / ExtensionPlatformInterface — log via os.log" }
+    - { id: iOS-13, title: "No timeoutIntervalForResource in URLSession — cap total response time" }
+    - { id: iOS-14, title: "tunnel?.reasserting read off main thread (ExtensionPlatformInterface:262) — dispatch main" }
+    - { id: iOS-15, title: "Debug log file I/O on main thread (AppShellView:69-70) — async Task" }
+    - { id: iOS-16, title: "API error strings hardcoded RU — Localizable.strings" }
+    - { id: iOS-17, title: "Dead code hasDnsOutbound (AppState:89,95) — delete" }
+    - { id: iOS-18, title: "sharedDefaults may be nil without warning — log if App Group not configured" }
+  infra_ops:
+    - { id: SRV-07, title: "Docker cleanup — docker system prune -a --volumes on DE (~27GB), NL (~5GB)" }
+    - { id: SRV-09, title: "SSL cert DE expires 2026-05-21 — Cloudflare auto-renewal or Let's Encrypt on origin" }
+    - { id: SRV-10, title: "SPB Relay — rate-limit broken REALITY handshakes (60s connects), recheck :2098 relay config" }
+    - { id: SRV-11, title: "NL RAM — 1.9GB, 34% used, swap 57MB — monitor, upgrade if swap >100MB" }
+    - { id: SRV-12, title: "File descriptor limit 1024 on NL — /etc/security/limits.conf + docker daemon" }
+    - { id: SRV-13, title: "SSL Cloudflare ↔ DE — verify mode = Full not Flexible" }
+  admin_spa:
+    - { id: ADM-05, title: "Cookie missing SameSite=Strict" }
+    - { id: ADM-06, title: "Form validation missing (JSON, URL, numeric)" }
+
+later:
+  features_vpn_industry:
+    - { title: Kill switch UI toggle, priority: medium, note: "NEOnDemandRule already exists, expose in Settings" }
+    - { title: Auto-connect on untrusted WiFi, priority: medium, note: "detect SSID, toast suggestion" }
+    - { title: Auto-connect on launch, priority: low, note: "UserDefault flag + toggleVPN() in init" }
+    - { title: Custom DNS per-app, priority: medium, note: "sing-box rules already support" }
+    - { title: Live traffic stats in main UI, priority: medium, note: "Clash API already tracks" }
+    - { title: Tunnel drop notifications, priority: medium, note: UNUserNotificationCenter }
+    - { title: Lock Screen widget, priority: medium-high, note: "WidgetKit + App Group shared state, iOS 17+" }
+    - { title: Live Activity / Dynamic Island, priority: medium-high, note: ActivityKit }
+    - { title: Shortcuts / Siri AppIntents, priority: low, note: Connect/Disconnect/Switch Server }
+    - { title: iCloud sync settings, priority: low-medium, note: "NSUbiquitousKeyValueStore for theme/server/routing" }
+    - { title: Family Sharing unlock, priority: low, note: "product.isFamilyShareable = true (StoreKit only)" }
+    - { title: Multi-hop visibility, priority: low, note: "UI shows Russia → DE relay" }
+  refactoring:
+    - { area: iOS, priority: medium, title: "MainViewCalm + MainViewNeon 90% duplication — extract shared ViewModel + theme renderers" }
+    - { area: iOS, priority: low, title: "Dynamic Type — font(.system(size:)) → semantic .title3, .headline" }
+    - { area: iOS, priority: low-medium, title: "Light mode — Calm/Neon variants OR explicit .preferredColorScheme(.dark)" }
+    - { area: iOS, priority: medium, title: "iPad Pro layout — ViewThatFits or split-view, hero card stretches to 1000pt" }
+    - { area: iOS, priority: low-medium, title: "Accessibility — VoiceOver test, labels on all interactive (ongoing)" }
+    - { area: GO, title: "Server error responses → generic messages in admin UI (no stack traces in user toasts)" }
+    - { area: GO, title: "Pagination/sorting on /users endpoint" }
+    - { area: GO, title: "Per-server status endpoint (cpu/ram/users/traffic)" }
+  documentation:
+    - "Wiki: README.md — remove legacy IPs (85.239.49.28, 194.135.38.90, 89.169.144.42), update infra"
+    - "Wiki: TROUBLESHOOTING — section what-to-do if VLESS DE fails (Hysteria2/TUIC fallback)"
+
+deferred:
+  - id: arch_simplification
+    title: "Drop relays entirely?"
+    context: "Currently relay-de + relay-nl = 2 of 6 in Auto urltest. Decision depends on user profile (RU-blocked vs others)"
+  - id: msk_relay_wiring
+    title: "MSK relay actual wiring"
+    context: "AppConfig.baseURL → api.madfrog.online (217.198.5.52) or Cloudflare + direct IP fallbacks? Depends on RU-mobile measurement"
+  - id: nl_primary_relay
+    title: "NL as primary relay target?"
+    context: "relay-nl currently SPB:2098 → NL:2096. Should NL be the primary relay-target?"
+  - id: quic_443_udp
+    title: "QUIC :443 UDP conflict with HTTPS"
+    context: "Move H2 to :8443, TUIC elsewhere? Currently works, revisit on complaints"
+  - id: per_server_reality_flow
+    title: "Per-server Reality flow field"
+    context: "Plan to test flow: '8443 no-flow' for TUIC, but H2/TUIC already UDP — likely not needed"
+
+done:
+  "2026-04":
+    - { title: "SPB relay mapping fixed (de+nl targets updated)" }
+    - { title: "Hysteria2 UDP:443 deployed on DE" }
+    - { title: "TUIC v5 UDP:8443 deployed on DE" }
+    - { title: "MTU 1400 → 1280 for iOS" }
+    - { title: "Mux removed from VLESS Reality (incompatible with vision flow)" }
+    - { title: "libbox/sing-box debug-mode in ExtensionProvider" }
+    - { title: "v2ray_api gRPC stats on DE+NL (per-user traffic persistence)" }
+    - { title: "iOS preflight probe hardening (fast-fail on bad servers)" }
+    - { title: "MSK API relay infrastructure (217.198.5.52 nginx, not wired in iOS)" }
+    - { title: "Cluster sync on DE+NL (Redis pub/sub + HTTP reconciliation)" }
+    - { title: "Phase 0-2 bugfixes (security, iOS crashes, backend auth) — docs/archive/2026-04/bugfix-plan.md" }
+    - { title: "infrastructure/topology.yaml as single source of truth for infra (2026-04-23)" }
+    - { title: "Wiki cleanup — archived old analysis/UI prototypes to docs/archive/2026-04/ (2026-04-23)" }
+
+stats:
+  total_tasks: ~85
+  buckets: { now: 7, next: 40, later: 30, deferred: 5, done: 13 }
+  top_categories: ["iOS UX/Localization (15)", "Security (9)", "Backend/GO (9)", "Infra/Ops (8)", "Features (12)"]
+
+app_store_blockers:
+  - "Apple Sign-In fallback (P0 onboarding)"
+  - "Paywall routing (non-RU = StoreKit, not WebPaywall)"
+  - "Hard-coded RU in UI + DebugLogsView in production"
+  - "Apple subscription verification (BE-01)"
+
+security_must_do_before_launch:
+  - "TLS validation (InsecureDelegate)"
+  - "Debug config files out of production"
+  - "Keychain accessibility downgrade"
+  - "Diagnostics auth-gating"
+
+source: docs/ROADMAP.md

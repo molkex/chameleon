@@ -1,5 +1,7 @@
 # ROADMAP — MadFrog VPN / Chameleon Core
 
+> 🤖 Mirror: [agent-readable YAML](roadmap.yaml) — keep in sync. Edit either, sync the other.
+
 > Единый источник правды для планов. Все новые задачи — сюда. Не плодим `*_plan.md` по углам.
 > Обновлено: 2026-04-23
 

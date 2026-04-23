@@ -1,5 +1,7 @@
 # Chameleon VPN — Payments (FreeKassa)
 
+> 🤖 Mirror: [agent-readable YAML](payments.yaml) — keep in sync. Edit either, sync the other.
+
 > Последнее обновление: 2026-04-15
 
 Интеграция приёма оплат для iOS-приложения через FreeKassa (SBP / карта / SberPay). App Store-compliant: оплата идёт в **внешнем Safari**, а не in-app — т.е. трактуется Apple как обычный визит на сторонний сайт (аналог InConnect).

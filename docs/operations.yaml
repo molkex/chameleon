@@ -1,0 +1,349 @@
+# Mirror of docs/OPERATIONS.md — keep in sync. Edit either, sync the other.
+# Last sync: 2026-04-23
+# Note: This is a structured extract. Long prose explanations stay in OPERATIONS.md.
+# Single source of truth for live infra: infrastructure/topology.yaml.
+
+servers:
+  - name: DE (Main)
+    ip: 162.19.242.30
+    role: Backend API + VPN node
+    hosting: OVH Frankfurt
+    ssh: ubuntu@162.19.242.30
+    node_id: de-1
+    from: docs/OPERATIONS.md:55
+  - name: NL (nl2)
+    ip: 147.45.252.234
+    role: Backend + VPN node
+    hosting: Timeweb Cloud
+    ssh: root@147.45.252.234
+    node_id: nl-1
+    from: docs/OPERATIONS.md:56
+
+legacy_ips:
+  - { ip: 85.239.49.28, role: old RazblokiratorBot, status: legacy }
+  - { ip: 185.218.0.43, role: SPB Relay (SprintHost), status: active_relay }
+  - { ip: 89.169.144.42, role: YC Relay, status: legacy }
+  - { ip: 194.135.38.90, role: NL legacy IP referenced in README/old configs, status: stale_in_docs }
+
+ports:
+  vpn_vless: { port: 2096, service: VPN VLESS Reality (sing-box), public: true }
+  hysteria2: { port: 443, service: Hysteria2 UDP (DE), public: true, transport: udp }
+  tuic_v5: { port: 8443, service: TUIC v5 UDP, public: true, transport: udp }
+  backend_api: { port: 8000, service: chameleon Go backend, public: true }
+  clash_api: { port: 9090, service: sing-box Clash API, public: false, bind: 127.0.0.1 }
+  user_api: { port: 15380, service: sing-box fork User API, public: false, bind: 127.0.0.1 }
+  v2ray_stats: { port: 8080, service: sing-box gRPC v2ray stats, public: false, bind: 127.0.0.1 }
+  postgres: { port: 5432, service: PostgreSQL, public: false }
+  redis: { port: 6379, service: Redis, public: false }
+  nginx: { ports: [80, 443], service: Nginx (admin SPA + reverse proxy) }
+
+domains:
+  - { name: madfrog.online, role: primary API + landing, dns_target: DE, proxied: true }
+  - { name: www.madfrog.online, role: alias of primary, dns_target: DE, proxied: true }
+  - { name: mdfrog.site, role: backup landing domain, dns_target: DE, proxied: true }
+  - { name: razblokirator.ru, role: legacy admin + old iOS clients (still working), dns_target: DE, proxied: true }
+  - { name: api.madfrog.online, role: MSK relay for RU bypass, dns_target: TimeWeb MSK }
+
+cloudflare:
+  ssl_mode: flexible
+  proxied: true
+  notes: All domains on Cloudflare with DNS A → DE 162.19.242.30
+
+ios_client:
+  base_url: https://madfrog.online
+  config_file: apple/Shared/Constants.swift
+
+sni:
+  default: ads.adfox.ru
+  notes: Verified, not blocked by RKN. NEVER use google.com / cloudflare.com.
+
+reality:
+  short_id: ""  # empty always valid; random short_ids cause "reality verification failed"
+  key_storage: database (vpn_servers table) — single source of truth, NO .env files
+
+vpn_protocols:
+  - { name: VLESS Reality TCP, port: 2096, primary: true }
+  - { name: Hysteria2, port: 443, transport: UDP, fallback: true }
+  - { name: TUIC v5, port: 8443, transport: UDP, fallback: true }
+
+deploy:
+  command: "./deploy.sh <node>"
+  cwd: backend/
+  variants:
+    - "./deploy.sh de"
+    - "./deploy.sh nl"
+    - "./deploy.sh all"
+    - "./deploy.sh de --with-singbox"  # restarts standalone singbox (brief VPN drop)
+  steps:
+    - cross-compile binary for NL (CGO_ENABLED=0 GOOS=linux GOARCH=amd64)
+    - rsync project to server (excludes .git, .env, config.yaml, target/)
+    - generate config.yaml from config.production.yaml (substitute node_id, SNI, peers)
+    - write .env (DATABASE_URL, REDIS_URL, JWT_SECRET, USER_API_SECRET, CLUSTER_SECRET)
+    - write /etc/chameleon-alerts.env (Telegram bot token + chat IDs, chmod 644)
+    - apply DB migrations (002_*.sql)
+    - docker volume create (idempotent)
+    - "DE: docker compose build chameleon (from source); NL: docker build -f Dockerfile.prebuilt"
+    - "docker compose up -d --no-deps chameleon  # CRITICAL: --no-deps to not kill singbox"
+    - wait for /health (up to 90s)
+    - create admin user (idempotent)
+    - if --with-singbox - run scripts/singbox-run.sh --force
+    - install cron (singbox-watchdog, health-check, db-backup)
+    - run post-deploy verification
+  env_file: backend/.env (chmod 600)
+
+scripts:
+  - { path: backend/scripts/singbox-run.sh, purpose: launch sing-box as standalone container (network host, NET_ADMIN cap) }
+  - { path: backend/scripts/singbox-watchdog.sh, purpose: cron every 1m — restart singbox if down, Telegram alert }
+  - { path: backend/scripts/health-check.sh, purpose: cron every 1m — check /health, alert if down (rate-limited 5min) }
+  - { path: backend/scripts/db-backup.sh, purpose: cron daily 3am — pg_dump + 7-day retention }
+  - { path: backend/scripts/telegram-alert.sh, purpose: send Telegram message via /etc/chameleon-alerts.env }
+
+cron:
+  - { schedule: "* * * * *", script: singbox-watchdog.sh, log: /var/log/singbox-watchdog.log }
+  - { schedule: "* * * * *", script: health-check.sh, log: /var/log/chameleon-health.log }
+  - { schedule: "0 3 * * *", script: db-backup.sh, log: /var/log/chameleon-backup.log }
+
+singbox:
+  image: "sing-box-fork:v1.13.6-userapi"
+  fork_repo: "custom fork with User API (REST :15380)"
+  base_version: 1.13.6
+  run_mode: standalone (NOT in docker-compose)
+  run_command: |
+    docker run -d --name singbox --restart unless-stopped --network host \
+      --cap-add NET_ADMIN --cap-add NET_BIND_SERVICE \
+      -v chameleon-singbox-config:/etc/singbox:ro \
+      sing-box-fork:v1.13.6-userapi run -c /etc/singbox/singbox-config.json
+  build_tags: [with_v2ray_api, with_user_api]
+
+user_api:
+  base_url: http://127.0.0.1:15380
+  auth: "Authorization: Bearer ${USER_API_SECRET}"
+  endpoints:
+    - { method: GET, path: /api/v1/inbounds }
+    - { method: GET, path: "/api/v1/inbounds/{tag}/users" }
+    - { method: POST, path: "/api/v1/inbounds/{tag}/users" }
+    - { method: PUT, path: "/api/v1/inbounds/{tag}/users", purpose: replace all users }
+    - { method: DELETE, path: "/api/v1/inbounds/{tag}/users/{name}" }
+  fallback: SIGHUP if API unreachable
+
+http_api:
+  mobile:
+    prefix: ["/api/mobile", "/api/v1/mobile"]
+    routes:
+      - { method: POST, path: /auth/register, auth: none, purpose: register by device_id }
+      - { method: POST, path: /auth/apple, auth: none, purpose: Apple Sign-In }
+      - { method: POST, path: /auth/refresh, auth: none, purpose: rotate JWT (single-use refresh) }
+      - { method: POST, path: /auth/logout, auth: none }
+      - { method: POST, path: /subscription/verify, auth: JWT, purpose: verify App Store purchase }
+      - { method: GET, path: /config, auth: "?username=", purpose: download sing-box config for iOS }
+      - { method: GET, path: /plans, purpose: list pricing plans }
+      - { method: POST, path: /payment/initiate, purpose: create FreeKassa order }
+      - { method: GET, path: "/payment/status/:paymentId", purpose: poll payment status }
+  subscription_link:
+    - { method: GET, path: "/sub/:token/:mode", auth: token }
+  admin:
+    prefix: ["/api/v1/admin", "/api/admin"]
+    routes:
+      - { method: POST, path: /auth/login, purpose: login (JWT + httpOnly cookie) }
+      - { method: POST, path: /auth/refresh }
+      - { method: POST, path: /auth/logout }
+      - { method: GET, path: /auth/me }
+      - { method: GET, path: /users }
+      - { method: GET, path: "/users/:id" }
+      - { method: DELETE, path: "/users/:id", purpose: soft delete }
+      - { method: POST, path: "/users/:id/extend", purpose: extend subscription }
+      - { method: POST, path: /nodes/sync, purpose: reload VPN config }
+      - { method: POST, path: /nodes/restart-singbox, purpose: SIGHUP singbox }
+      - { method: GET, path: /nodes }
+      - { method: GET, path: /stats }
+      - { method: GET, path: /stats/dashboard }
+      - { method: GET, path: /servers }
+      - { method: POST, path: /servers }
+      - { method: PUT, path: "/servers/:id" }
+      - { method: DELETE, path: "/servers/:id" }
+      - { method: GET, path: /admins }
+      - { method: POST, path: /admins }
+      - { method: DELETE, path: "/admins/:id" }
+  cluster:
+    prefix: /api/cluster
+    auth: "Bearer <CLUSTER_SECRET>"
+    routes:
+      - { method: GET, path: "/pull?since=<RFC3339>" }
+      - { method: POST, path: /push }
+  webhooks:
+    - { method: POST, path: /api/webhooks/freekassa, auth: MD5 signature }
+  system:
+    - { method: GET, path: /health, response: {"status":"ok","version":"dev"} }
+
+webhooks:
+  freekassa:
+    url: https://madfrog.online/api/webhooks/freekassa
+    signature: "MD5(shopId:amount:secret2:orderId)"
+    response: "YES"
+
+middleware_stack:
+  - Recovery (panic recovery + stack trace logging)
+  - Request ID (X-Request-Id)
+  - Structured Logger (zap)
+  - Security Headers (HSTS, CSP, X-Frame-Options)
+  - CORS (configurable cors_origins)
+  - Timeout (30s)
+  - Rate Limiting (60/min mobile, 120/min admin)
+
+config_yaml:
+  file: backend/config.yaml
+  template: backend/config.production.yaml
+  generated_by: deploy.sh
+  in_gitignore: true
+  key_sections: [server, database, redis, auth, vpn, cluster, rate_limit, payments]
+
+database:
+  type: PostgreSQL 16
+  pool: { min_conns: 5, max_conns: 25, max_conn_lifetime: 1h }
+  tables:
+    - users
+    - vpn_servers
+    - admin_users
+    - traffic_snapshots
+    - node_metrics_history
+    - app_settings
+    - cluster_peers
+    - admin_audit_log
+  migrations:
+    - { file: migrations/init.sql, purpose: all tables (idempotent CREATE IF NOT EXISTS) }
+    - { file: migrations/002_reality_private_key.sql, purpose: ALTER TABLE vpn_servers ADD reality keys }
+    - { file: migrations/006_user_context.sql, purpose: initial_ip + device telemetry columns }
+
+vpn_user_credentials:
+  vpn_username: "device_ + hex(sha256(device_id))[:8]"
+  vpn_uuid: UUID v4 (random)
+  vpn_short_id: ""
+
+cluster:
+  enabled: true
+  pubsub_channel: "chameleon:sync"
+  sync_interval: 30s
+  reconcile_interval: 5m
+  conflict_resolution: latest updated_at wins
+  auth: "Authorization: Bearer <CLUSTER_SECRET>"
+  failure_modes:
+    - missing_secret: "401 missing authorization"
+    - wrong_secret: "403 invalid cluster secret"
+
+auth:
+  mobile:
+    type: JWT
+    access_ttl: 24h
+    refresh_ttl: 30d
+    refresh: single-use (Redis blacklist after use)
+    signature: HMAC-SHA256
+    secret_min_length: 32
+  admin:
+    type: JWT + httpOnly cookie
+    middleware: CookieOrBearerAuth (supports both)
+    password_hash: Argon2id (legacy bcrypt, SHA256 supported)
+  cluster:
+    type: shared bearer secret
+    compare: constant-time
+
+ios_app:
+  config_sources_priority:
+    - tunnel options (explicit connect)
+    - UserDefaults (on-demand)
+    - file fallback
+  vpn_connect_timeout: 30s
+  refresh_config_timeout: 5s
+  refresh_triggers:
+    - app launch (silent)
+    - foreground (scenePhase .active)
+    - Connect tap (race fetch vs timeout, fall back to cache)
+    - disconnect (background refresh for next connect)
+
+ios_targets:
+  - { name: Chameleon, type: app, platform: iOS 17+, bundle: com.madfrog.vpn, app_store_id: 6761008632 }
+  - { name: PacketTunnel, type: app-extension, platform: iOS 17+, bundle: com.madfrog.vpn.tunnel }
+  - { name: ChameleonMac, type: app, platform: macOS 14+, bundle: com.madfrog.vpn.mac, app_store_id: 6762887787 }
+  - { name: PacketTunnelMac, type: app-extension, platform: macOS 14+, bundle: com.madfrog.vpn.mac.tunnel }
+app_group: group.com.madfrog.vpn
+
+mac_signing:
+  distribution_cert: 3rd Party Mac Developer Application
+  installer_cert: 3rd Party Mac Developer Installer
+  provisioning_profiles: [MadFrog Mac App Store 2, MadFrog Mac Tunnel App Store 2]
+  app_group_binding_method: Xcode Organizer Distribute UI (ASC API does not support)
+
+libbox:
+  source: sing-box v1.13.5
+  build: make lib_apple (sagernet/gomobile fork)
+  size_mb: ~494
+  git_ignored: true
+  slices: [ios-arm64, ios-arm64_x86_64-simulator, macos-arm64_x86_64]
+  patches: tvOS slices removed; Info.plist patched per slice for App Store validation
+
+critical_rules:
+  - rule: "SNI must be ads.adfox.ru only"
+    why: "Verified not RKN-blocked. google.com/cloudflare.com get blocked"
+  - rule: "short_id must be empty string"
+    why: "Random short_ids cause reality verification failed"
+  - rule: "Route rules order — sniff FIRST, then hijack-dns"
+    why: "Otherwise protocol detection fails → DNS loop"
+  - rule: "DNS detour NOT needed in sing-box 1.13"
+    why: "Servers go directly by default in 1.13"
+  - rule: "ALWAYS sing-box check -c config.json before deploy"
+    why: "Avoid one cycle of deploy → error → fix"
+  - rule: "NEVER docker compose down --remove-orphans"
+    why: "Will kill standalone singbox container"
+  - rule: "ALWAYS --no-deps when restarting chameleon"
+    why: "Otherwise compose recreates network and kills singbox"
+  - rule: "Reality keys live in DB (vpn_servers), not .env"
+    why: "Single source of truth, no file desync"
+  - rule: "NL deploy uses cross-compiled binary (Dockerfile.prebuilt)"
+    why: "NL VPS only has 2GB RAM — Go build OOMs"
+  - rule: "CLUSTER_SECRET must be in .env AND docker-compose.yml env AND identical across nodes"
+    why: "Mismatched secrets break cluster sync silently"
+
+incompatibilities:
+  - { combination: "Xray v26 + sing-box 1.13 client", problem: protocol mismatch, fix: use Xray 25.12.8 }
+  - { combination: "sing-box mux (h2mux) + Xray server", problem: mux protocol mismatch, fix: disable mux }
+  - { combination: "stack: mixed on iOS", problem: traffic stops, fix: use stack system }
+  - { combination: "UDP 443 without reject", problem: iOS hangs on QUIC, fix: route rule reject + no_drop:true }
+  - { combination: "random client short_id", problem: reality verification failed, fix: use empty short_id }
+
+diagnostics:
+  - { command: "ssh ubuntu@162.19.242.30", purpose: SSH DE }
+  - { command: "ssh root@147.45.252.234", purpose: SSH NL }
+  - { command: "curl http://localhost:8000/health", expected: '{"status":"ok"}' }
+  - { command: "docker ps | grep singbox", expected: container running }
+  - { command: "docker logs singbox --tail 20", purpose: singbox logs }
+  - { command: "ss -tlnp | grep 2096", purpose: VPN port listening }
+  - { command: 'curl -s -H "Authorization: Bearer $USER_API_SECRET" http://127.0.0.1:15380/api/v1/inbounds', purpose: User API check }
+  - { command: "curl -s http://127.0.0.1:9090/connections", purpose: Clash API connections }
+  - { command: "curl -s http://127.0.0.1:9090/traffic", purpose: Clash API traffic }
+  - { command: "docker logs chameleon 2>&1 | grep cluster | tail -20", purpose: cluster sync logs }
+  - { command: "tail -f /var/log/singbox-watchdog.log", purpose: watchdog log }
+  - { command: "tail -f /var/log/chameleon-health.log", purpose: health log }
+  - { command: "sing-box check -c /etc/singbox/singbox-config.json", purpose: validate config before deploy }
+  - { command: "./scripts/singbox-run.sh --force", purpose: restart singbox manually }
+  - { command: 'curl -X POST http://localhost:8000/api/v1/admin/nodes/sync -H "Authorization: Bearer <token>"', purpose: reload users without restart }
+
+docker_volumes:
+  - { name: chameleon-singbox-config, mount: /etc/singbox, owner: root, ubuntu_can_read: false (needs sudo) }
+  - { name: chameleon-postgres-data, mount: /var/lib/postgresql/data }
+  - { name: chameleon-redis-data, mount: /data }
+
+nginx:
+  serves:
+    - { path: /, root: /usr/share/nginx/html/landing, fallback: /index.html }
+    - { path: /api/*, upstream: "localhost:8000", purpose: chameleon backend }
+    - { path: /admin/app/*, upstream: chameleon-nginx (admin SPA Docker image) }
+    - { path: /sub/*, upstream: "localhost:8000" }
+    - { path: /api/webhooks/*, upstream: "localhost:8000" }
+  volume_mount: "./landing:/usr/share/nginx/html/landing:ro"
+
+stable_tags:
+  - { tag: v0.3-stable-no-flooding, commit: b385e56, date: 2026-04-08, what: no_drop fix + system stack }
+  - { tag: v0.4-clean, what: Rust backend removed }
+
+source: docs/OPERATIONS.md
+sources_of_truth:
+  infra: infrastructure/topology.yaml
