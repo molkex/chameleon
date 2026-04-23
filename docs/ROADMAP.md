@@ -8,10 +8,7 @@
 ## Now (в работе / блокеры)
 
 ### iOS / UX
-- **iOS P1:** Apple Sign-In fallback — кнопка «продолжить анонимно», задействовать `autoRegister()` (endpoint есть, не проводен в UI)
-- **iOS P1:** Paywall routing — `Locale.current.region == "RU"` → `WebPaywallView`, иначе `PaywallView` (StoreKit 2 обязателен для не-RU App Store)
-- **iOS P1:** Локализация — 28 хардкод-RU строк (`WebPaywallView`, `MenuBarContent`, server group labels) → `Localizable.strings`
-- **iOS P1:** VPN permission priming — экран между Sign-In и первым connect объясняющий «iOS попросит разрешение на VPN-профиль»
+- **iOS P1 (followup):** Локализация — 14 строк сделано (api/subscription errors + country names). Остаются: `StringUtils.pluralDays/Servers` (нужен Stringsdict с CLDR plurals для en/ru parity); ServerGroup ILIKE matchers НЕ user-facing, оставить.
 
 ### Backend / API
 - **GO P0 (BE-01):** Apple StoreKit Server API v2 верификация подписок — сейчас доверяем клиентскому `transaction_id`. Требует ASC API key + JWT signing. Отдельная сессия с креденшелс.
@@ -45,10 +42,7 @@
 - **MEDIUM (followup):** TLS cert pinning — InsecureDelegate теперь scoped к whitelist хостов, но полное pinning требует чтобы backend публиковал serving cert fingerprint (например `/api/v1/server/info`).
 
 ### Backend / Go
-- **MEDIUM:** `migrations/init.sql` seed конфликтует с ALTER TABLE — либо убрать seed, либо merge ALTER в init
-- **MEDIUM:** `UpsertServerByKey` небезопасен из пустых полей — `COALESCE(NULLIF(EXCLUDED.x, ''), vpn_servers.x)`
-- **MEDIUM:** Startup check — если `FindLocalServer.reality_private_key` пустой, не стартовать вместо silent fallback
-- **MEDIUM:** v2ray_api stats per-user — авто-регистрация новых users в `experimental.v2ray_api.stats.users` (сейчас только при full reconfig)
+- **MEDIUM:** v2ray_api stats per-user — новые users (добавленные через user-api без full reconfig) не появляются в `experimental.v2ray_api.stats.users`, их трафик не считается. Требует периодического check-and-reconfig от traffic collector ИЛИ изменений в sing-box чтобы поддерживать динамические stats users. Не quick-fix.
 
 ### iOS — bugs (medium)
 - **iOS-11:** Race в `ConfigStore` миграции (Keychain write во время read) — actor/lock
@@ -138,6 +132,9 @@
 - ✓ **iOS security HIGH (2026-04-23, `378f984`):** debug sanitized-config `#if DEBUG`, Keychain `ThisDeviceOnly`, `NSAllowsArbitraryLoads` → `NSExceptionDomains`, InsecureDelegate scoped к whitelist хостов.
 - ✓ **Backend MEDIUM (2026-04-23, `bdf5dd4`):** rate-limiter goroutine leak (ctx-aware cleanup), `cluster.{Syncer,Subscriber}.Stop()` идемпотентен, SearchUsers `maxSearchLen=100`.
 - ✓ **iOS quick wins (2026-04-23, `ee5dae7`):** dead code `hasDnsOutbound`, ServerListView one-shot probe, error toast auto-dismiss + close button + VoiceOver label.
+- ✓ **iOS i18n pass 1 (2026-04-23, `4d7f3e1`):** 14 хардкод-RU вынесены в Localizable.strings (en+ru) — APIClient errors (5), SubscriptionManager IAP errors (4), ServerGroup country names (5).
+- ✓ **Backend MEDIUM verification (2026-04-23):** обнаружено что `init.sql` seed (зафиксировано раньше), `UpsertServerByKey` COALESCE-NULLIF (зафиксировано раньше), `FindLocalServer` startup check (`main.go:201-203` возвращает error если `realityPrivateKey == ""`) — все три уже сделаны, ROADMAP устаревал.
+- ✓ **iOS P1 verification (2026-04-23):** Apple Sign-In fallback (`OnboardingView.swift:274-287` `guestButton` → `signInAnonymous()`), Paywall routing (`PaywallRouter.swift` использует Storefront + Locale.region для CIS), VPN permission primer (`MainView.swift:100-106` sheet) — все три уже сделаны.
 
 ---
 
