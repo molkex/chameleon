@@ -42,7 +42,12 @@
 - **MEDIUM (followup):** TLS cert pinning — InsecureDelegate теперь scoped к whitelist хостов, но полное pinning требует чтобы backend публиковал serving cert fingerprint (например `/api/v1/server/info`).
 
 ### Backend / Go
-- **MEDIUM:** v2ray_api stats per-user — новые users (добавленные через user-api без full reconfig) не появляются в `experimental.v2ray_api.stats.users`, их трафик не считается. Требует периодического check-and-reconfig от traffic collector ИЛИ изменений в sing-box чтобы поддерживать динамические stats users. Не quick-fix.
+- **MEDIUM (нужно design-решение):** v2ray_api stats per-user — новые users (добавленные через user-api без full reconfig) не появляются в `experimental.v2ray_api.stats.users`, их трафик не считается. Trade-offs:
+  - **Path A:** Периодический check-and-reload (раз в N часов). Минус: reload ломает активные VPN-сессии.
+  - **Path B:** Reload после batch создания N юзеров. Минус: то же самое + сложнее логика.
+  - **Path C:** Patch sing-box чтобы поддерживать динамические `stats.users` через User API. Большой scope, upstream PR.
+  - **Path D (workaround):** Считать трафик через clash_api `/connections` per-IP вместо v2ray_api per-user. Требует переписать stats.go.
+  - Рекомендуется: D как краткосрочное, C как долгосрочное.
 
 ### iOS — bugs (medium)
 - **iOS-11:** Race в `ConfigStore` миграции (Keychain write во время read) — actor/lock
