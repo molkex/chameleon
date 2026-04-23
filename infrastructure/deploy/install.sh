@@ -4,14 +4,14 @@
 #
 #  First node (seed):
 #    git clone https://github.com/molkex/chameleon.git
-#    cd chameleon && sudo ./install.sh
+#    cd chameleon && sudo ./infrastructure/deploy/install.sh
 #
 #  Additional node (joins cluster):
 #    git clone https://github.com/molkex/chameleon.git
-#    cd chameleon && sudo ./install.sh --join https://first-node.com --secret CLUSTER_SECRET
+#    cd chameleon && sudo ./infrastructure/deploy/install.sh --join https://first-node.com --secret CLUSTER_SECRET
 #
 #  Force compile from source:
-#    sudo ./install.sh --build
+#    sudo ./infrastructure/deploy/install.sh --build
 # ============================================================
 set -euo pipefail
 
@@ -38,7 +38,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # ── Preflight ──
-[[ $EUID -eq 0 ]] || err "Run as root: sudo ./install.sh"
+[[ $EUID -eq 0 ]] || err "Run as root: sudo ./infrastructure/deploy/install.sh"
 [[ -f docker-compose.yml ]] || err "Run from chameleon project root"
 
 START_TIME=$(date +%s)
@@ -220,7 +220,7 @@ echo -e "  Admin:    ${CYAN}http://${SERVER_IP}/admin/app/${NC}"
 echo -e "  API:      ${CYAN}http://${SERVER_IP}/api/v1/${NC}"
 echo -e "  Login:    admin / admin123"
 echo ""
-echo -e "  Update:   ${CYAN}sudo ./update.sh${NC}"
+echo -e "  Update:   ${CYAN}sudo ./infrastructure/deploy/update.sh${NC}"
 echo -e "  Logs:     ${CYAN}docker compose logs -f${NC}"
 echo -e "  Status:   ${CYAN}docker compose ps${NC}"
 echo ""

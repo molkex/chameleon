@@ -126,7 +126,7 @@ function ProtocolBadge({
 
 function AddNodeDialog() {
   const host = window.location.host;
-  const command = `git clone https://github.com/molkex/chameleon.git\ncd chameleon\nsudo ./install.sh --join https://${host} --secret <CLUSTER_SECRET>`;
+  const command = `git clone https://github.com/molkex/chameleon.git\ncd chameleon\nsudo ./infrastructure/deploy/install.sh --join https://${host} --secret <CLUSTER_SECRET>`;
 
   const copyCommand = () => {
     navigator.clipboard.writeText(command);
