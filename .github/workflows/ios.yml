@@ -1,0 +1,69 @@
+name: ios
+
+on:
+  pull_request:
+    paths:
+      - 'clients/apple/**'
+      - '.github/workflows/ios.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'clients/apple/**'
+      - '.github/workflows/ios.yml'
+
+jobs:
+  build:
+    name: build (no signing)
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: clients/apple
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install xcodegen
+        run: brew install xcodegen
+
+      - name: Fetch Libbox.xcframework
+        run: |
+          if [ -x scripts/fetch-libbox.sh ]; then
+            ./scripts/fetch-libbox.sh
+          else
+            echo "::warning::scripts/fetch-libbox.sh missing — iOS build will fail without Libbox.xcframework"
+            exit 78
+          fi
+
+      - name: Generate xcodeproj
+        run: xcodegen generate
+
+      - name: Build iOS (simulator, no signing)
+        run: |
+          xcodebuild build \
+            -project MadFrogVPN.xcodeproj \
+            -scheme MadFrogVPN \
+            -destination 'generic/platform=iOS Simulator' \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            -quiet
+
+      - name: Build macOS (no signing)
+        run: |
+          xcodebuild build \
+            -project MadFrogVPN.xcodeproj \
+            -scheme MadFrogVPNMac \
+            -destination 'generic/platform=macOS' \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            -quiet
+
+      - name: Run unit tests
+        run: |
+          if xcodebuild -list -project MadFrogVPN.xcodeproj | grep -q MadFrogVPNTests; then
+            xcodebuild test \
+              -project MadFrogVPN.xcodeproj \
+              -scheme MadFrogVPNTests \
+              -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
+              CODE_SIGNING_ALLOWED=NO
+          else
+            echo "MadFrogVPNTests target not configured yet — skipping"
+          fi
