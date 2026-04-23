@@ -268,6 +268,7 @@ func run() error {
 	defer syncer.Stop()
 
 	srv := &api.Server{
+		Ctx:     ctx, // cancelled on shutdown — stops rate-limiter cleanup goroutine
 		Config:  cfg,
 		DB:      database,
 		Redis:   rdb,

@@ -52,8 +52,9 @@ type Syncer struct {
 	mu       sync.Mutex
 	lastSync map[string]time.Time
 
-	stopCh chan struct{}
-	wg     sync.WaitGroup
+	stopCh   chan struct{}
+	stopOnce sync.Once // Stop() is idempotent — safe to call multiple times.
+	wg       sync.WaitGroup
 }
 
 // NewSyncer creates a cluster syncer. If cluster is disabled in config,
@@ -127,13 +128,16 @@ func (s *Syncer) Start(ctx context.Context) {
 }
 
 // Stop gracefully stops the sync loop and waits for it to finish.
+// Idempotent: calling Stop more than once is a no-op (was a panic before).
 func (s *Syncer) Stop() {
-	close(s.stopCh)
-	if s.subscriber != nil {
-		s.subscriber.Stop()
-	}
-	s.wg.Wait()
-	s.logger.Info("cluster sync stopped")
+	s.stopOnce.Do(func() {
+		close(s.stopCh)
+		if s.subscriber != nil {
+			s.subscriber.Stop()
+		}
+		s.wg.Wait()
+		s.logger.Info("cluster sync stopped")
+	})
 }
 
 // reconcileLoop runs the periodic HTTP sync cycle (full reconciliation).

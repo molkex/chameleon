@@ -399,8 +399,13 @@ func (db *DB) UpdateTraffic(ctx context.Context, vpnUsername string, upload, dow
 	return tx.Commit(ctx)
 }
 
+// maxSearchLen caps the search term length so that an attacker cannot pass
+// a megabyte string and force expensive ILIKE scans.
+const maxSearchLen = 100
+
 // SearchUsers returns a paginated list of users matching the search term (by vpn_username or device_id)
 // and the total count. page is 1-based. pageSize is clamped to [1, 500].
+// search is truncated to maxSearchLen characters.
 func (db *DB) SearchUsers(ctx context.Context, search string, page, pageSize int) ([]User, int64, error) {
 	ctx, cancel := defaultTimeout(ctx)
 	defer cancel()
@@ -413,6 +418,9 @@ func (db *DB) SearchUsers(ctx context.Context, search string, page, pageSize int
 	}
 	if pageSize > 500 {
 		pageSize = 500
+	}
+	if len(search) > maxSearchLen {
+		search = search[:maxSearchLen]
 	}
 	offset := (page - 1) * pageSize
 

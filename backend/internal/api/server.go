@@ -3,6 +3,7 @@
 package api
 
 import (
+	"context"
 	"net/http"
 	"time"
 
@@ -30,6 +31,10 @@ import (
 // Every handler receives its dependencies through this struct
 // rather than globals or closures.
 type Server struct {
+	// Ctx is the lifetime context — cancellation signals background goroutines
+	// (rate-limiter cleanup, cluster sync) to exit cleanly. Set by main.go
+	// before calling NewServer.
+	Ctx    context.Context
 	Config *config.Config
 	DB     *db.DB
 	Redis  *redis.Client
@@ -169,11 +174,11 @@ func (s *Server) setupRoutes(e *echo.Echo) {
 
 	// Mobile API: /api/mobile/* and /api/v1/mobile/* (iOS app uses v1 prefix)
 	mobileGroup := e.Group("/api/mobile")
-	mobileGroup.Use(mw.RateLimit(s.Config.RateLimit.MobilePerMinute))
+	mobileGroup.Use(mw.RateLimit(s.Ctx, s.Config.RateLimit.MobilePerMinute))
 	mobile.RegisterRoutes(mobileGroup, mobileHandler)
 
 	mobileV1 := e.Group("/api/v1/mobile")
-	mobileV1.Use(mw.RateLimit(s.Config.RateLimit.MobilePerMinute))
+	mobileV1.Use(mw.RateLimit(s.Ctx, s.Config.RateLimit.MobilePerMinute))
 	mobile.RegisterRoutes(mobileV1, mobileHandler)
 
 	// FreeKassa server-to-server webhook. Public, unauthenticated — trust
@@ -184,7 +189,7 @@ func (s *Server) setupRoutes(e *echo.Echo) {
 	webhooks.POST("/freekassa", mobileHandler.FreeKassaWebhook)
 
 	// Subscription link: /sub/:token/:mode (legacy config download)
-	subRL := mw.RateLimit(s.Config.RateLimit.MobilePerMinute)
+	subRL := mw.RateLimit(s.Ctx, s.Config.RateLimit.MobilePerMinute)
 	e.GET("/sub/:token/:mode", mobileHandler.GetConfigLegacy, subRL)
 	e.GET("/sub/:token", mobileHandler.GetConfigLegacy, subRL)
 
@@ -202,13 +207,13 @@ func (s *Server) setupRoutes(e *echo.Echo) {
 
 	// Primary admin routes: /api/v1/admin/* (matches React SPA base path)
 	adminV1 := e.Group("/api/v1/admin")
-	adminV1.Use(mw.RateLimit(s.Config.RateLimit.AdminPerMinute))
+	adminV1.Use(mw.RateLimit(s.Ctx, s.Config.RateLimit.AdminPerMinute))
 	adminV1.Use(mw.CSRFProtect())
 	adminAPI.RegisterRoutes(adminV1, adminHandler, s.JWT)
 
 	// Backward-compatible routes: /api/admin/*
 	adminLegacy := e.Group("/api/admin")
-	adminLegacy.Use(mw.RateLimit(s.Config.RateLimit.AdminPerMinute))
+	adminLegacy.Use(mw.RateLimit(s.Ctx, s.Config.RateLimit.AdminPerMinute))
 	adminLegacy.Use(mw.CSRFProtect())
 	adminAPI.RegisterRoutes(adminLegacy, adminHandler, s.JWT)
 

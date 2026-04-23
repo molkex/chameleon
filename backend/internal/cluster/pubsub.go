@@ -12,6 +12,7 @@ package cluster
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -85,13 +86,14 @@ func (p *Publisher) Publish(ctx context.Context, event SyncEvent) error {
 
 // Subscriber listens for sync events from other nodes via Redis pub/sub.
 type Subscriber struct {
-	redis   *redis.Client
-	nodeID  string
-	channel string
-	db      *db.DB
-	vpn     vpn.Engine
-	logger  *zap.Logger
-	stopCh  chan struct{}
+	redis    *redis.Client
+	nodeID   string
+	channel  string
+	db       *db.DB
+	vpn      vpn.Engine
+	logger   *zap.Logger
+	stopCh   chan struct{}
+	stopOnce sync.Once // Stop() is idempotent.
 }
 
 // NewSubscriber creates a Subscriber that listens on the given Redis channel.
@@ -143,9 +145,11 @@ func (s *Subscriber) Start(ctx context.Context) {
 	}
 }
 
-// Stop signals the subscriber to stop listening.
+// Stop signals the subscriber to stop listening. Idempotent.
 func (s *Subscriber) Stop() {
-	close(s.stopCh)
+	s.stopOnce.Do(func() {
+		close(s.stopCh)
+	})
 }
 
 // handleMessage parses and processes a single pub/sub message.

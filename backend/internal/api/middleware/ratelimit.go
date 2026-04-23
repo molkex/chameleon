@@ -2,6 +2,7 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 	"sync"
 	"time"
@@ -22,15 +23,17 @@ type rateLimiter struct {
 	window  time.Duration
 }
 
-// newRateLimiter creates a rate limiter and starts a background goroutine
-// that removes expired entries every minute.
-func newRateLimiter(requestsPerMinute int) *rateLimiter {
+// newRateLimiter creates a rate limiter and starts a background cleanup
+// goroutine that removes expired entries every minute. The goroutine exits
+// when ctx is cancelled, so passing the server's lifetime context here
+// prevents the leak that prior versions had (cleanup never stopped).
+func newRateLimiter(ctx context.Context, requestsPerMinute int) *rateLimiter {
 	rl := &rateLimiter{
 		limit:  requestsPerMinute,
 		window: time.Minute,
 	}
 
-	go rl.cleanup()
+	go rl.cleanup(ctx)
 
 	return rl
 }
@@ -71,12 +74,18 @@ func (rl *rateLimiter) allow(ip string) bool {
 }
 
 // cleanup periodically removes IP entries that have no recent requests.
-// Runs every 60 seconds in a background goroutine.
-func (rl *rateLimiter) cleanup() {
+// Exits when ctx is cancelled (prevents goroutine leak on shutdown).
+func (rl *rateLimiter) cleanup(ctx context.Context) {
 	ticker := time.NewTicker(60 * time.Second)
 	defer ticker.Stop()
 
-	for range ticker.C {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+
 		windowStart := time.Now().UnixMilli() - rl.window.Milliseconds()
 
 		rl.entries.Range(func(key, value interface{}) bool {
@@ -101,12 +110,13 @@ func (rl *rateLimiter) cleanup() {
 }
 
 // RateLimit returns Echo middleware that limits requests per IP address
-// using a sliding window algorithm.
+// using a sliding window algorithm. Pass a context whose cancellation
+// signals the cleanup goroutine to exit (typically the server lifetime).
 //
 // When the limit is exceeded, it returns HTTP 429 Too Many Requests
 // with a JSON error body and a Retry-After header.
-func RateLimit(requestsPerMinute int) echo.MiddlewareFunc {
-	rl := newRateLimiter(requestsPerMinute)
+func RateLimit(ctx context.Context, requestsPerMinute int) echo.MiddlewareFunc {
+	rl := newRateLimiter(ctx, requestsPerMinute)
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
