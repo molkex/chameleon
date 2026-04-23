@@ -39,6 +39,7 @@ import (
 	"github.com/chameleonvpn/chameleon/internal/config"
 	"github.com/chameleonvpn/chameleon/internal/db"
 	"github.com/chameleonvpn/chameleon/internal/email"
+	"github.com/chameleonvpn/chameleon/internal/secrets"
 	"github.com/chameleonvpn/chameleon/internal/vpn"
 )
 
@@ -93,6 +94,20 @@ func run() error {
 		return fmt.Errorf("connect to database: %w", err)
 	}
 	defer database.Close()
+
+	// Wire encryption-at-rest for sensitive DB columns. nil cipher (no key)
+	// means values pass through as plaintext — existing rows keep working,
+	// new writes stay plaintext. ROADMAP BE-10.
+	cipher, err := secrets.New(cfg.Secrets.EncryptionKey)
+	if err != nil {
+		return fmt.Errorf("init secrets cipher: %w", err)
+	}
+	if cipher == nil {
+		logger.Warn("secrets.encryption_key not set — provider passwords stored as plaintext")
+	} else {
+		logger.Info("secrets cipher enabled — provider passwords encrypted at rest")
+	}
+	database.Cipher = cipher
 
 	logger.Info("database connected",
 		zap.Int("max_conns", cfg.Database.MaxConns),

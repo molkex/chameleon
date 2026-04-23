@@ -7,14 +7,19 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/chameleonvpn/chameleon/internal/secrets"
 )
 
 // ErrNotFound is returned when an update or delete targets a row that does not exist.
 var ErrNotFound = errors.New("db: record not found")
 
 // DB wraps pgxpool.Pool with helper methods for database access.
+// Cipher (optional, may be nil) wraps sensitive fields stored as TEXT
+// (provider passwords, etc.) with AES-256-GCM. nil = encryption disabled.
 type DB struct {
-	Pool *pgxpool.Pool
+	Pool   *pgxpool.Pool
+	Cipher *secrets.Cipher
 }
 
 // New creates a new DB connection pool from the given configuration.

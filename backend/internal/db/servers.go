@@ -15,8 +15,38 @@ const serverColumns = `id, key, name, flag, host, port, domain, sni, reality_pub
 	hysteria2_port, tuic_port,
 	created_at, updated_at`
 
+// decryptProviderPassword unwraps a stored provider_password through the
+// configured Cipher. Plaintext rows pass through unchanged (lazy migration).
+// On decrypt failure (corrupt blob, wrong KEK) the value is returned empty
+// rather than crashing the read path — the admin UI just shows blank.
+func (db *DB) decryptProviderPassword(stored string) string {
+	if db.Cipher == nil || stored == "" {
+		return stored
+	}
+	plain, err := db.Cipher.Decrypt(stored)
+	if err != nil {
+		return ""
+	}
+	return plain
+}
+
+// encryptProviderPassword wraps a plaintext provider_password for storage.
+// Returns the input unchanged when no Cipher is configured (encryption
+// disabled). Empty input stays empty so DB upserts that COALESCE on empty
+// keep their "preserve existing" semantics.
+func (db *DB) encryptProviderPassword(plain string) string {
+	if db.Cipher == nil || plain == "" {
+		return plain
+	}
+	ct, err := db.Cipher.Encrypt(plain)
+	if err != nil {
+		return plain
+	}
+	return ct
+}
+
 // scanServers scans multiple server rows from pgx.Rows into a slice.
-func scanServers(rows pgx.Rows) ([]VPNServer, error) {
+func (db *DB) scanServers(rows pgx.Rows) ([]VPNServer, error) {
 	defer rows.Close()
 	var servers []VPNServer
 	for rows.Next() {
@@ -31,6 +61,7 @@ func scanServers(rows pgx.Rows) ([]VPNServer, error) {
 		if err != nil {
 			return nil, err
 		}
+		s.ProviderPassword = db.decryptProviderPassword(s.ProviderPassword)
 		servers = append(servers, s)
 	}
 	return servers, rows.Err()
@@ -49,7 +80,7 @@ func (db *DB) ListActiveServers(ctx context.Context) ([]VPNServer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return scanServers(rows)
+	return db.scanServers(rows)
 }
 
 // ListAllServers returns all VPN servers (active and inactive), ordered by sort_order.
@@ -64,7 +95,7 @@ func (db *DB) ListAllServers(ctx context.Context) ([]VPNServer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return scanServers(rows)
+	return db.scanServers(rows)
 }
 
 // CreateServer inserts a new VPN server and returns it with generated fields.
@@ -79,7 +110,7 @@ func (db *DB) CreateServer(ctx context.Context, s *VPNServer) (*VPNServer, error
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
 		RETURNING `+serverColumns,
 		s.Key, s.Name, s.Flag, s.Host, s.Port, s.Domain, s.SNI, s.RealityPublicKey, s.RealityPrivateKey, s.IsActive, s.SortOrder,
-		s.ProviderName, s.CostMonthly, s.ProviderURL, s.ProviderLogin, s.ProviderPassword, s.Notes,
+		s.ProviderName, s.CostMonthly, s.ProviderURL, s.ProviderLogin, db.encryptProviderPassword(s.ProviderPassword), s.Notes,
 	).Scan(
 		&created.ID, &created.Key, &created.Name, &created.Flag, &created.Host, &created.Port,
 		&created.Domain, &created.SNI, &created.RealityPublicKey, &created.RealityPrivateKey, &created.IsActive, &created.SortOrder,
@@ -90,6 +121,7 @@ func (db *DB) CreateServer(ctx context.Context, s *VPNServer) (*VPNServer, error
 	if err != nil {
 		return nil, err
 	}
+	created.ProviderPassword = db.decryptProviderPassword(created.ProviderPassword)
 	return &created, nil
 }
 
@@ -110,7 +142,7 @@ func (db *DB) UpdateServer(ctx context.Context, id int64, s *VPNServer) (*VPNSer
 		WHERE id = $1
 		RETURNING `+serverColumns,
 		id, s.Key, s.Name, s.Flag, s.Host, s.Port, s.Domain, s.SNI, s.RealityPublicKey, s.RealityPrivateKey, s.IsActive, s.SortOrder,
-		s.ProviderName, s.CostMonthly, s.ProviderURL, s.ProviderLogin, s.ProviderPassword, s.Notes,
+		s.ProviderName, s.CostMonthly, s.ProviderURL, s.ProviderLogin, db.encryptProviderPassword(s.ProviderPassword), s.Notes,
 	).Scan(
 		&updated.ID, &updated.Key, &updated.Name, &updated.Flag, &updated.Host, &updated.Port,
 		&updated.Domain, &updated.SNI, &updated.RealityPublicKey, &updated.RealityPrivateKey, &updated.IsActive, &updated.SortOrder,
@@ -121,6 +153,7 @@ func (db *DB) UpdateServer(ctx context.Context, id int64, s *VPNServer) (*VPNSer
 	if err != nil {
 		return nil, err
 	}
+	updated.ProviderPassword = db.decryptProviderPassword(updated.ProviderPassword)
 	return &updated, nil
 }
 
@@ -158,6 +191,7 @@ func (db *DB) FindServerByKey(ctx context.Context, key string) (*VPNServer, erro
 		}
 		return nil, err
 	}
+	s.ProviderPassword = db.decryptProviderPassword(s.ProviderPassword)
 	return &s, nil
 }
 
@@ -183,6 +217,7 @@ func (db *DB) FindServerByID(ctx context.Context, id int64) (*VPNServer, error) 
 		}
 		return nil, err
 	}
+	s.ProviderPassword = db.decryptProviderPassword(s.ProviderPassword)
 	return &s, nil
 }
 
@@ -209,7 +244,7 @@ func (db *DB) ServersChangedSince(ctx context.Context, since time.Time) ([]VPNSe
 	if err != nil {
 		return nil, err
 	}
-	return scanServers(rows)
+	return db.scanServers(rows)
 }
 
 // UpsertServerByKey inserts or updates a server by key.
@@ -250,7 +285,7 @@ func (db *DB) UpsertServerByKey(ctx context.Context, s *VPNServer) (bool, error)
 		WHERE vpn_servers.updated_at < EXCLUDED.updated_at`,
 		s.Key, s.Name, s.Flag, s.Host, s.Port, s.Domain, s.SNI,
 		s.RealityPublicKey, s.RealityPrivateKey, s.IsActive, s.SortOrder,
-		s.ProviderName, s.CostMonthly, s.ProviderURL, s.ProviderLogin, s.ProviderPassword, s.Notes,
+		s.ProviderName, s.CostMonthly, s.ProviderURL, s.ProviderLogin, db.encryptProviderPassword(s.ProviderPassword), s.Notes,
 		s.UpdatedAt,
 	)
 	if err != nil {

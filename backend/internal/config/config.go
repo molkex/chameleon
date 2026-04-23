@@ -31,6 +31,16 @@ type Config struct {
 	Payments  PaymentsConfig  `yaml:"payments"`
 	Email     EmailConfig     `yaml:"email"`
 	Google    GoogleOAuthConfig `yaml:"google"`
+	Secrets   SecretsConfig   `yaml:"secrets"`
+}
+
+// SecretsConfig holds keys used to encrypt sensitive DB columns at rest.
+// EncryptionKey is the KEK (32 raw bytes; pass as 64 hex chars or
+// base64-std). Empty disables encryption — existing plaintext rows keep
+// working, new writes stay plaintext, and the admin panel will warn at
+// startup. Rotate by encrypting under a new key and re-saving each row.
+type SecretsConfig struct {
+	EncryptionKey string `yaml:"encryption_key"`
 }
 
 // EmailConfig is the transactional email provider. Resend (resend.com) is
