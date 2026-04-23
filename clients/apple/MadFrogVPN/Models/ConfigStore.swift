@@ -137,11 +137,12 @@ class ConfigStore {
 
     func clear() {
         try? FileManager.default.removeItem(at: AppConstants.configFileURL)
+        // Setting these to nil already removes the underlying Keychain
+        // items (see each property's setter). Don't double-delete username.
         username = nil
         subscriptionExpire = nil
         accessToken = nil
         refreshToken = nil
-        KeychainHelper.delete(key: "username")
         sharedDefaults?.removeObject(forKey: AppConstants.activationKey)
         sharedDefaults?.removeObject(forKey: AppConstants.lastUpdateKey)
         sharedDefaults?.removeObject(forKey: AppConstants.startOptionsKey)

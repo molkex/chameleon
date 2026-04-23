@@ -140,6 +140,28 @@
 - ✓ **iOS i18n pass 1 (2026-04-23, `4d7f3e1`):** 14 хардкод-RU вынесены в Localizable.strings (en+ru) — APIClient errors (5), SubscriptionManager IAP errors (4), ServerGroup country names (5).
 - ✓ **Backend MEDIUM verification (2026-04-23):** обнаружено что `init.sql` seed (зафиксировано раньше), `UpsertServerByKey` COALESCE-NULLIF (зафиксировано раньше), `FindLocalServer` startup check (`main.go:201-203` возвращает error если `realityPrivateKey == ""`) — все три уже сделаны, ROADMAP устаревал.
 - ✓ **iOS P1 verification (2026-04-23):** Apple Sign-In fallback (`OnboardingView.swift:274-287` `guestButton` → `signInAnonymous()`), Paywall routing (`PaywallRouter.swift` использует Storefront + Locale.region для CIS), VPN permission primer (`MainView.swift:100-106` sheet) — все три уже сделаны.
+- ✓ **iOS Settings UX + iOS-13/14/15/18 (2026-04-23, `95eb017`):** Contact support mailto, DebugLogsView `#if DEBUG`, `timeoutIntervalForResource=30`, `tunnel.reasserting` на main thread, file I/O off main, `sharedDefaults` nil warning.
+- ✓ **BE-10 provider passwords AES-256-GCM (2026-04-23, `7101527`):** новый пакет `internal/secrets`, opt-in via `CHAMELEON_PROVIDERS_ENCRYPTION_KEY`, lazy migration, 6 unit tests.
+
+### 2026-04-24 (overnight pass)
+- ✓ **Cluster sync noise reduction (`e8449af`):** `idx_users_vpn_username` 23505 errors на DE+NL — добавлен `cluster/errors.go isDuplicateVPNUsername`, demote error→warn (vpn_username deterministic on device_id, collision after re-register expected). Real failures сохраняют error level.
+- ✓ **Security CRITICAL (`e8449af`):**
+  - Admin cookie `Secure=isHTTPS(c)` через `X-Forwarded-Proto`, SameSite Lax → Strict.
+  - `cmd/metrics-agent`: новые флаги `-bind` (default 127.0.0.1) + `-auth-token` (env `METRICS_AGENT_TOKEN`); fail to start если public bind без token.
+  - `admin/routes.go`: новый `RequireAdmin()` middleware на destructive endpoints (CRUD admins/servers/users, sync/restart). operator/viewer теперь только read.
+- ✓ **Security HIGH (`e8449af`):**
+  - `cluster/models.go SyncServer`: убран `RealityPrivateKey` (не передаётся peer'ам).
+  - `mobile/auth.go Register`: `device_id` cap = 256 chars.
+  - iOS `APIClient.dataWithFallback`: HTTP/80 legs пропускаются если есть `Authorization` header (no JWT in cleartext); + defensive nil header per leg.
+- ✓ **Security MEDIUM (`e8449af`):** cluster push 10k users / 1k servers cap; admin password min 12 chars; `/health` не leak driver errors; KeychainHelper print() под `#if DEBUG`; nginx `Strict-Transport-Security` header.
+- ✓ **iOS bugs HIGH (`e8449af`):**
+  - `AppState.swift:138` operator-precedence bug в `repairConfigIfNeeded` исправлен (parens добавлены).
+  - `KeychainHelper.save`: SecItemUpdate-then-Add вместо delete-then-add (atomic, без read window).
+  - `ExtensionProvider.startTunnel`: `[weak self]` capture, guard на dealloc.
+  - hardcoded "vpnConnectedAt" / "user_stopped_vpn" → `AppConstants.vpnConnectedAtKey` / `userStoppedVPNKey`.
+- ✓ **Go review fixes (`e8449af`):** `err == db.ErrNotFound` → `errors.Is(err, db.ErrNotFound)` в `admin/users.go` (×2) + `admin/admins.go`.
+- ✓ **Docs cleanup (`e8449af`):** README, OPERATIONS.md, troubleshooting.yaml, operations.yaml — оставшиеся `apple/` / `ChameleonVPN/` / `Chameleon.xcodeproj` ссылки заменены на новые имена.
+- ✓ **Cosmetic:** `ConfigStore.clear()` убран двойной `KeychainHelper.delete("username")`; nginx `Strict-Transport-Security`.
 
 ---
 
