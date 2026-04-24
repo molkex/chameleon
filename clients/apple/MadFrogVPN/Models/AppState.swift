@@ -695,7 +695,13 @@ class AppState {
         let newTag: String? = isAuto ? nil : serverTag
         configStore.selectedServerTag = newTag
         selectedServerTag = newTag  // @Observable mirror for SwiftUI
-        TunnelFileLogger.log("selectServer: '\(previousTag ?? "Auto")' → '\(isAuto ? "Auto" : serverTag)', connected=\(vpnManager.isConnected), cmdClientConnected=\(commandClient.isConnected)", category: "ui")
+        TunnelFileLogger.log("selectServer ENTER: groupTag='\(groupTag)' serverTag='\(serverTag)' prev='\(previousTag ?? "Auto")' connected=\(vpnManager.isConnected) cmdClientConnected=\(commandClient.isConnected)", category: "ui")
+        // Dump current servers tree so we can verify the tag we got from
+        // the UI is one sing-box actually knows about.
+        for g in servers {
+            let items = g.items.map { $0.tag }.joined(separator: ", ")
+            TunnelFileLogger.log("  group tag='\(g.tag)' type=\(g.type) selectable=\(g.selectable) items=[\(items)]", category: "ui")
+        }
 
         // Update local servers array so UI reflects the change immediately
         for i in servers.indices {

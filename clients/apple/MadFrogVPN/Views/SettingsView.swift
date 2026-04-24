@@ -16,8 +16,22 @@ struct SettingsView: View {
     @State private var showAccount = false
     @State private var showTerms = false
     @State private var showPrivacy = false
+    /// Hidden Diagnostics unlock — 5 taps on the version row reveals
+    /// DebugLogs in Release builds (it is always visible in DEBUG).
+    /// Production testers can dump logs without us shipping the section
+    /// to every end user.
+    @State private var versionTapCount = 0
+    @State private var diagnosticsUnlocked = false
 
     private var theme: Theme { themeManager.current }
+
+    private var diagnosticsVisible: Bool {
+        #if DEBUG
+        return true
+        #else
+        return diagnosticsUnlocked
+        #endif
+    }
 
     var body: some View {
         NavigationStack {
@@ -111,12 +125,24 @@ struct SettingsView: View {
                                 }
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 14)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    // Hidden Diagnostics unlock — 5 taps on version
+                                    // reveals DebugLogs section in Release builds.
+                                    versionTapCount += 1
+                                    if versionTapCount >= 5 {
+                                        diagnosticsUnlocked = true
+                                        Haptics.notify(.success)
+                                    }
+                                }
                             }
                         }
 
-                        // Diagnostics — DEBUG only. DebugLogsView surfaces server
-                        // IPs and the user's UUID; not safe to ship in App Store.
-                        #if DEBUG
+                        // Diagnostics — always visible in DEBUG, hidden behind
+                        // 5-tap unlock in Release. Even when shown, the view
+                        // contains server IPs + the user's UUID — fine for
+                        // testers, not for the general App Store audience.
+                        if diagnosticsVisible {
                         sectionHeader(L10n.Settings.sectionDiagnostics)
                         card {
                             row(icon: "ladybug", title: L10n.Settings.debugLogs,
@@ -134,7 +160,7 @@ struct SettingsView: View {
                                 }
                             }
                         }
-                        #endif
+                        }
 
                         Spacer().frame(height: 24)
                     }
