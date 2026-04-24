@@ -67,9 +67,15 @@ func (h *Handler) GetConfig(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
 	}
 
-	// Convert db.VPNServer to vpn.ServerEntry.
+	// Convert db.VPNServer to vpn.ServerEntry (includes role + country_code
+	// for the per-country urltest builder in clientconfig.go).
 	serverEntries := make([]vpn.ServerEntry, 0, len(servers))
+	serverByKey := make(map[string]db.VPNServer, len(servers))
 	for _, s := range servers {
+		cc := ""
+		if s.CountryCode != nil {
+			cc = *s.CountryCode
+		}
 		serverEntries = append(serverEntries, vpn.ServerEntry{
 			Key:              s.Key,
 			Name:             s.Name,
@@ -80,7 +86,43 @@ func (h *Handler) GetConfig(c echo.Context) error {
 			RealityPublicKey: s.RealityPublicKey,
 			Hysteria2Port:    derefIntPtr(s.Hysteria2Port),
 			TUICPort:         derefIntPtr(s.TUICPort),
+			Role:             s.Role,
+			CountryCode:      cc,
+			Category:         s.Category,
 		})
+		serverByKey[s.Key] = s
+	}
+
+	// Load relay→exit WG peers and project into ChainedEntry records.
+	// Skipped silently on error — a missing chain table just means no relay
+	// legs land in the client config (direct-only topology still works).
+	var chainEntries []vpn.ChainedEntry
+	peers, err := h.DB.ListActiveRelayExitPeers(ctx)
+	if err != nil {
+		h.Logger.Warn("db: list relay exit peers", zap.Error(err))
+	} else {
+		for _, p := range peers {
+			relay, okR := serverByKey[p.RelayServerKey]
+			exit, okE := serverByKey[p.ExitServerKey]
+			if !okR || !okE || !relay.IsActive || !exit.IsActive {
+				continue
+			}
+			exitCC := ""
+			if exit.CountryCode != nil {
+				exitCC = *exit.CountryCode
+			}
+			chainEntries = append(chainEntries, vpn.ChainedEntry{
+				RelayKey:        relay.Key,
+				RelayHost:       relay.Host,
+				RelayListenPort: p.RelayListenPort,
+				RelayRealityPub: relay.RealityPublicKey,
+				RelaySNI:        relay.SNI,
+				ExitKey:         exit.Key,
+				ExitName:        exit.Name,
+				ExitFlag:        exit.Flag,
+				ExitCountryCode: exitCC,
+			})
+		}
 	}
 
 	shortID := ""
@@ -94,7 +136,7 @@ func (h *Handler) GetConfig(c echo.Context) error {
 		ShortID:  shortID,
 	}
 
-	configJSON, err := h.VPN.GenerateClientConfig(vpnUser, serverEntries)
+	configJSON, err := h.VPN.GenerateClientConfig(vpnUser, serverEntries, chainEntries)
 	if err != nil {
 		h.Logger.Error("vpn: generate client config", zap.Error(err), zap.Int64("user_id", user.ID))
 		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
@@ -196,14 +238,49 @@ func (h *Handler) GetConfigLegacy(c echo.Context) error {
 	}
 
 	serverEntries := make([]vpn.ServerEntry, 0, len(servers))
+	serverByKey := make(map[string]db.VPNServer, len(servers))
 	for _, s := range servers {
+		cc := ""
+		if s.CountryCode != nil {
+			cc = *s.CountryCode
+		}
 		serverEntries = append(serverEntries, vpn.ServerEntry{
 			Key: s.Key, Name: s.Name, Host: s.Host,
 			Port: s.Port, Flag: s.Flag, SNI: s.SNI,
 			RealityPublicKey: s.RealityPublicKey,
 			Hysteria2Port:    derefIntPtr(s.Hysteria2Port),
 			TUICPort:         derefIntPtr(s.TUICPort),
+			Role:             s.Role,
+			CountryCode:      cc,
+			Category:         s.Category,
 		})
+		serverByKey[s.Key] = s
+	}
+
+	var chainEntries []vpn.ChainedEntry
+	if peers, err := h.DB.ListActiveRelayExitPeers(ctx); err == nil {
+		for _, p := range peers {
+			relay, okR := serverByKey[p.RelayServerKey]
+			exit, okE := serverByKey[p.ExitServerKey]
+			if !okR || !okE || !relay.IsActive || !exit.IsActive {
+				continue
+			}
+			exitCC := ""
+			if exit.CountryCode != nil {
+				exitCC = *exit.CountryCode
+			}
+			chainEntries = append(chainEntries, vpn.ChainedEntry{
+				RelayKey:        relay.Key,
+				RelayHost:       relay.Host,
+				RelayListenPort: p.RelayListenPort,
+				RelayRealityPub: relay.RealityPublicKey,
+				RelaySNI:        relay.SNI,
+				ExitKey:         exit.Key,
+				ExitName:        exit.Name,
+				ExitFlag:        exit.Flag,
+				ExitCountryCode: exitCC,
+			})
+		}
 	}
 
 	shortID := ""
@@ -215,7 +292,7 @@ func (h *Handler) GetConfigLegacy(c echo.Context) error {
 		Username: *user.VPNUsername,
 		UUID:     *user.VPNUUID,
 		ShortID:  shortID,
-	}, serverEntries)
+	}, serverEntries, chainEntries)
 	if err != nil {
 		return c.String(http.StatusInternalServerError, "config generation failed")
 	}

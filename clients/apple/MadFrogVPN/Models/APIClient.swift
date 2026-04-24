@@ -202,7 +202,24 @@ class APIClient {
             }
 
             let sni = AppConfig.baseURLHost
-            for ip in AppConfig.directBackendIPs {
+            // RU mobile carriers block OVH Frankfurt (162.19.242.30) at the
+            // ASN level — every DE direct leg sits there for the full 6s
+            // timeout and delays the race by ~6s even when NL wins. For RU
+            // users skip the DE legs entirely. Primary Cloudflare leg + NL +
+            // SPB relay still race so a working path keeps working.
+            let isRURegion: Bool = {
+                if #available(iOS 16, macOS 13, *) {
+                    return Locale.current.region?.identifier == "RU"
+                }
+                return Locale.current.regionCode == "RU"
+            }()
+            let raceIPs = isRURegion
+                ? AppConfig.directBackendIPs.filter { $0 != "162.19.242.30" }
+                : AppConfig.directBackendIPs
+            if isRURegion {
+                AppLogger.network.info("race.region ru=true skipped=DE")
+            }
+            for ip in raceIPs {
                 group.addTask {
                     AppLogger.network.info("race.direct.start ip=\(ip, privacy: .public) elapsed=\(Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000, privacy: .public)ms")
                     do {
@@ -243,7 +260,7 @@ class APIClient {
             // chance for the response to come back fast.
             let isAuthenticated = request.value(forHTTPHeaderField: "Authorization") != nil
             if !isAuthenticated {
-            for ip in AppConfig.directBackendIPs {
+            for ip in raceIPs {
                 group.addTask { [fallbackSession] in
                     AppLogger.network.info("race.http.start ip=\(ip, privacy: .public) elapsed=\(Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000, privacy: .public)ms")
                     guard var httpURL = URLComponents(string: "http://\(ip)") else { return nil }

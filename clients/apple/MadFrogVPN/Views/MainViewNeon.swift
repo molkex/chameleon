@@ -275,6 +275,13 @@ struct MainViewNeon: View {
         if app.selectedServerTag == nil {
             return String(localized: "home.server.auto_long")
         }
+        // If the selected tag is itself a country urltest (user picked the
+        // whole country, not a specific leaf), show the country label as-is.
+        if let tag = app.selectedServerTag,
+           let group = app.servers.first(where: { $0.type == "selector" && $0.selectable }),
+           let country = group.countries.first(where: { $0.tag == tag }) {
+            return "\(country.flagEmoji) \(country.name)".trimmingCharacters(in: .whitespaces)
+        }
         if let server = selectedServer {
             return "\(L10n.Servers.countryName(server.countryKey)) · \(server.displayLabel)"
         }

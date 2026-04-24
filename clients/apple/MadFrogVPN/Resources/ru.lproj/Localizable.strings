@@ -255,6 +255,9 @@
 "country.russia"                 = "Россия";
 "country.other"                  = "Другие";
 "server.direct_connection"       = "Прямое подключение";
+"server.whitelist_bypass_subtitle" = "Обход белых списков РФ";
+"server.leaf.direct"             = "Напрямую";
+"server.leaf.via_fmt"            = "Через %@";
 
 /* ===== Настройки ===== */
 "settings.contact_support"       = "Связаться с поддержкой";

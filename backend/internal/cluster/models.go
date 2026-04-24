@@ -63,6 +63,10 @@ type SyncServer struct {
 	// KEK will simply fail to decrypt.
 	ProviderPassword string    `json:"provider_password,omitempty"`
 	Notes            string    `json:"notes,omitempty"`
+	Role             string    `json:"role,omitempty"`
+	CountryCode      *string   `json:"country_code,omitempty"`
+	UserAPIURL       *string   `json:"user_api_url,omitempty"`
+	Category         string    `json:"category,omitempty"`
 	UpdatedAt        time.Time `json:"updated_at"`
 }
 
@@ -182,6 +186,10 @@ func dbServersToSyncServers(servers []db.VPNServer) []SyncServer {
 			ProviderLogin:    s.ProviderLogin,
 			ProviderPassword: s.ProviderPassword,
 			Notes:            s.Notes,
+			Role:             s.Role,
+			CountryCode:      s.CountryCode,
+			UserAPIURL:       s.UserAPIURL,
+			Category:         s.Category,
 			UpdatedAt:        s.UpdatedAt,
 		})
 	}
@@ -209,6 +217,10 @@ func syncServerToDBServer(s SyncServer) db.VPNServer {
 		ProviderLogin:    s.ProviderLogin,
 		ProviderPassword: s.ProviderPassword,
 		Notes:            s.Notes,
+		Role:             s.Role,
+		CountryCode:      s.CountryCode,
+		UserAPIURL:       s.UserAPIURL,
+		Category:         s.Category,
 		UpdatedAt:        s.UpdatedAt,
 	}
 }
@@ -235,7 +247,12 @@ func DBUsersToVPNUsers(users []db.User) []vpn.VPNUser {
 
 // ReloadVPNEngine refreshes the VPN engine with the current active user list from the DB.
 // Shared by Syncer (HTTP reconciliation) and Subscriber (Redis pub/sub).
-func ReloadVPNEngine(ctx context.Context, database *db.DB, engine vpn.Engine, logger *zap.Logger) error {
+//
+// When `relaySyncer` is non-nil, an event-driven push to all remote relays
+// is issued after the local engine reload. Relay push failures are logged
+// but never propagated — a single unreachable relay must not break local
+// sing-box reload or cluster sync.
+func ReloadVPNEngine(ctx context.Context, database *db.DB, engine vpn.Engine, relaySyncer *RelayUserSyncer, logger *zap.Logger) error {
 	if engine == nil {
 		return nil
 	}
@@ -253,5 +270,14 @@ func ReloadVPNEngine(ctx context.Context, database *db.DB, engine vpn.Engine, lo
 	}
 
 	logger.Info("VPN users reloaded", zap.Int("active_users", count))
+
+	// Event-driven relay push. Non-fatal: the periodic loop in Start() is
+	// the safety net for transient failures here.
+	if relaySyncer != nil {
+		if err := relaySyncer.PushAll(ctx); err != nil {
+			logger.Warn("relay push after engine reload failed", zap.Error(err))
+		}
+	}
+
 	return nil
 }

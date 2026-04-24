@@ -43,7 +43,7 @@ type Engine interface {
 	UptimeHours() float64
 
 	// GenerateClientConfig creates a sing-box client config JSON for iOS/macOS.
-	GenerateClientConfig(user VPNUser, servers []ServerEntry) ([]byte, error)
+	GenerateClientConfig(user VPNUser, servers []ServerEntry, chains []ChainedEntry) ([]byte, error)
 }
 
 // EngineConfig holds VPN server configuration.
@@ -91,6 +91,40 @@ type ServerEntry struct {
 	RealityPublicKey string // per-server Reality public key (empty = use engine default)
 	Hysteria2Port    int    // 0 = server doesn't support Hysteria2
 	TUICPort         int    // 0 = server doesn't support TUIC v5
+	// Role distinguishes egress nodes ('exit', default) from RU-whitelisted
+	// entry nodes that chain via WireGuard ('relay'). Relays are not rendered
+	// as direct outbounds — they are only consumed as `server` hosts for
+	// chain outbounds generated from ChainedEntry records.
+	Role string
+	// ISO country code — source of truth for grouping exits into
+	// per-country urltest bags in the generated client config.
+	CountryCode string
+	// Category: 'standard' (default) or 'whitelist_bypass'.
+	// Whitelist-bypass servers live in a dedicated group in the client
+	// picker, separate from country-exit groups, and are excluded from
+	// the global Auto urltest.
+	Category string
+}
+
+// ChainedEntry represents one relay→exit WG tunnel projected into a client
+// outbound. Each ChainedEntry produces a single VLESS outbound aimed at
+// `RelayHost:RelayListenPort` using the relay's Reality keys; sing-box on
+// the relay decrypts, then tunnels through WG to the exit which egresses
+// to the internet as its country.
+//
+// The generator consumes ChainedEntry records alongside exit ServerEntry
+// records to build a full urltest-per-country topology.
+type ChainedEntry struct {
+	RelayKey         string
+	RelayHost        string
+	RelayListenPort  int
+	RelayRealityPub  string
+	RelaySNI         string
+	RelayShortID     string // optional override; falls back to engine ShortIDs[0]
+	ExitKey          string
+	ExitName         string
+	ExitFlag         string
+	ExitCountryCode  string
 }
 
 // UserTraffic contains traffic counters for a single user.

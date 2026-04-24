@@ -2,6 +2,53 @@
 
 > 🤖 Mirror: [agent-readable YAML](troubleshooting.yaml) — keep in sync. Edit either, sync the other.
 
+## 2026-04-24: DE (OVH Frankfurt) заблокирован на RU LTE — все протоколы мёртвые
+
+### Проблема
+На RU мобильных операторах (MTS / Beeline / MegaFon / T2) при выборе DE в клиенте
+страницы не грузятся ни через VLESS (TCP:443), ни через H2 (UDP:443), ни через
+TUIC (UDP:8443). При этом NL (Timeweb, `147.45.252.234`) грузит чисто.
+На WiFi DE работает.
+
+### Причина
+RU мобильные carrier-level блокируют OVH AS16276 ranges — TCP SYN к
+`162.19.242.30` дропается или RST на ASN-уровне. UDP аналогично. NL Timeweb AS9123
+пока не в блок-листах.
+
+Ложный диагноз «DE выбран, exit IP NL» был побочкой OOM-reset libbox
+debug (`48a93b9`, build 30): после OOM Auto urltest переоценивал и падал на NL,
+whoer.net видел NL exit. Поправлено на клиенте, ошибка селектора
+не воспроизводится.
+
+### Решение (применено 2026-04-24)
+Смягчения в коде — полный фикс требует новой ноды off-OVH (см. ROADMAP → Now → Infra P0):
+
+1. **`backend/internal/vpn/clientconfig.go`** — `isNLServer()` + `sort.SliceStable`
+   ставит NL-outbound'ы первыми в `Auto` urltest. sing-box пингует первый в
+   списке чаще, плюс при ties выбирает первый. Non-RU пользователи не
+   регрессируют: urltest всё равно выбирает лучший leg по latency.
+2. **`clients/apple/MadFrogVPN/Models/APIClient.swift`** — `isRURegion`
+   (`Locale.current.region?.identifier == "RU"`) фильтрует `162.19.242.30` из
+   direct-IP race-legs. На RU Apple Sign-In / magic link / config fetch
+   перестаёт ждать 6s DE-timeout'а, race сходится на NL/SPB/primary.
+3. **ROADMAP Infra P0** — кандидаты Hetzner Helsinki / Falkenstein, DO / Vultr,
+   acceptance criteria, миграционный план.
+
+### Грабли
+- Не диагностируйте это повторно как баг селектора или cluster sync — логика
+  `selectServer` и `selectOutbound` корректна.
+- `api.madfrog.online` идёт на MSK relay (217.198.5.52) через DNS A-record
+  напрямую, без Cloudflare proxy. CF не при чём.
+- libbox `debug=true` OOM уже пофикшен (`48a93b9`, build 30).
+- vpn_username cluster sync conflict демотирован до warn — шум, а не баг.
+
+### Проверка
+- Build ≥ 31 с фиксом 1+2: на RU-LTE первое подключение через Auto выбирает NL в
+  <5s. Apple Sign-In укладывается в <8s вместо ~25s.
+- WiFi-поведение не меняется: urltest выбирает DE если ping меньше.
+
+---
+
 ## 2026-04-15: Routing mode на iOS — Clash API не работает, только libbox unix socket
 
 ### Проблема

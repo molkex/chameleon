@@ -255,17 +255,22 @@ class AppState {
         do {
             try await fetchAndSaveConfig()
             if let config = configStore.loadConfig() {
-                let configForUD: String
-                if let tag = configStore.selectedServerTag {
-                    configForUD = buildConfigWithSelector(tag)?.config ?? config
-                } else {
-                    configForUD = config
-                }
-                UserDefaults(suiteName: AppConstants.appGroupID)?.set(configForUD, forKey: AppConstants.startOptionsKey)
+                UserDefaults(suiteName: AppConstants.appGroupID)?.set(
+                    configForStartup() ?? config,
+                    forKey: AppConstants.startOptionsKey
+                )
             }
         } catch {
             AppLogger.app.error("Config update failed (using cached): \(error.localizedDescription)")
         }
+    }
+
+    /// Build the startup JSON for the cached config with the user's current
+    /// selection baked in. Returns nil only if the on-disk config can't be
+    /// parsed — callers fall back to the raw config in that case.
+    private func configForStartup() -> String? {
+        let target = configStore.selectedServerTag ?? "Auto"
+        return buildConfigWithSelections(chain: resolveSelectionChain(target: target))
     }
 
     /// Fetch fresh config with a timeout. Falls back to cached config if fetch fails or times out.
@@ -484,12 +489,7 @@ class AppState {
         // no cache at all (first launch, offline).
         if configStore.hasConfig() {
             TunnelFileLogger.log("toggleVPN: have cached config, building...", category: "ui")
-            let config: String?
-            if let tag = configStore.selectedServerTag {
-                config = buildConfigWithSelector(tag)?.config ?? configStore.loadConfig()
-            } else {
-                config = configStore.loadConfig()
-            }
+            let config: String? = configForStartup() ?? configStore.loadConfig()
             TunnelFileLogger.log("toggleVPN: config built, running preflight probe", category: "ui")
 
             // Fail-fast preflight: probe each outbound's TCP endpoint before
@@ -577,12 +577,7 @@ class AppState {
             return
         }
 
-        let config: String?
-        if let tag = configStore.selectedServerTag {
-            config = buildConfigWithSelector(tag)?.config ?? configStore.loadConfig()
-        } else {
-            config = configStore.loadConfig()
-        }
+        let config: String? = configForStartup() ?? configStore.loadConfig()
 
         // Same fail-fast preflight as the cached-config path above.
         switch await preflightProbe() {
@@ -695,6 +690,16 @@ class AppState {
         let newTag: String? = isAuto ? nil : serverTag
         configStore.selectedServerTag = newTag
         selectedServerTag = newTag  // @Observable mirror for SwiftUI
+
+        // Persist the full multi-step selection into the cached startOptions
+        // immediately, regardless of whether the tunnel is currently up. This
+        // ensures a cold-start connect reads the right selector defaults
+        // rather than falling back to "Auto"/"direct" and routing through
+        // the wrong country.
+        let persistTarget = isAuto ? "Auto" : serverTag
+        if let persisted = buildConfigWithSelections(chain: resolveSelectionChain(target: persistTarget)) {
+            UserDefaults(suiteName: AppConstants.appGroupID)?.set(persisted, forKey: AppConstants.startOptionsKey)
+        }
         TunnelFileLogger.log("selectServer ENTER: groupTag='\(groupTag)' serverTag='\(serverTag)' prev='\(previousTag ?? "Auto")' connected=\(vpnManager.isConnected) cmdClientConnected=\(commandClient.isConnected)", category: "ui")
         // Dump current servers tree so we can verify the tag we got from
         // the UI is one sing-box actually knows about.
@@ -708,7 +713,8 @@ class AppState {
             if servers[i].items.contains(where: { $0.tag == serverTag }) {
                 servers[i] = ServerGroup(
                     id: servers[i].id, tag: servers[i].tag, type: servers[i].type,
-                    selected: serverTag, items: servers[i].items, selectable: servers[i].selectable
+                    selected: serverTag, items: servers[i].items, selectable: servers[i].selectable,
+                    hasAuto: servers[i].hasAuto, countries: servers[i].countries
                 )
             }
         }
@@ -720,37 +726,46 @@ class AppState {
             return
         }
 
-        // Build config with selector default changed (for next cold start)
+        // Resolve the full selection chain needed to route Proxy → user's
+        // choice. In the 2026-04-24+ config layout, the Proxy selector only
+        // references country urltests ("🇳🇱 Нидерланды", …) and "Auto" —
+        // never leaf outbounds directly. A leaf tag like "nl-direct-nl2"
+        // therefore needs TWO Clash API calls:
+        //   1) selectOutbound(<country urltest>, leafTag)   // force urltest pick
+        //   2) selectOutbound("Proxy", <country urltest>)   // route Proxy here
+        //
+        // A country urltest tag (e.g. "🇳🇱 Нидерланды") needs only step 2.
+        // "Auto" needs only step 2 with target="Auto".
         let selectorTarget = isAuto ? "Auto" : serverTag
-        let built = buildConfigWithSelector(selectorTarget)
-        guard let updatedConfig = built?.config, let selectorTag = built?.selectorTag else {
-            AppLogger.app.error("selectServer: buildConfigWithSelector returned nil for '\(serverTag)'")
+        let chain = resolveSelectionChain(target: selectorTarget)
+        guard !chain.isEmpty else {
+            AppLogger.app.error("selectServer: could not resolve selection chain for '\(serverTag)'")
             return
         }
 
-        AppLogger.app.info("selectServer: selector='\(selectorTag)' target='\(selectorTarget)' tagChanged=\(tagChanged)")
+        // Rebuild config JSON with every Clash-API-equivalent change applied
+        // inline, so a cold-start tunnel reads the right defaults without
+        // depending on the selector API being hit post-boot.
+        let updatedConfig = buildConfigWithSelections(chain: chain) ?? configStore.loadConfig()
+        AppLogger.app.info("selectServer: chain=\(chain.map { "\($0.group)→\($0.target)" }.joined(separator: " / "))")
 
-        // Persist updated startOptions only when the tag actually changed.
-        if tagChanged {
+        if tagChanged, let updatedConfig {
             UserDefaults(suiteName: AppConstants.appGroupID)?.set(updatedConfig, forKey: AppConstants.startOptionsKey)
         }
 
-        // Fast path: if the command client is live, always fire selectOutbound
-        // — even on a "same tag" tap. sing-box may have resolved Proxy to a
-        // different outbound than configStore thinks (e.g., on cold start the
-        // selector's default wasn't yet pinned to the persisted tag), so the
-        // only reliable way to make the UI and the live tunnel agree is to
-        // assert the selection every time the user taps.
+        // Fast path: live tunnel — apply every step in order via Clash API.
         if commandClient.isConnected {
-            TunnelFileLogger.log("selectServer: LIVE switch via selectOutbound selector='\(selectorTag)' → '\(selectorTarget)'", category: "ui")
-            commandClient.selectOutbound(groupTag: selectorTag, outboundTag: selectorTarget)
+            for step in chain {
+                TunnelFileLogger.log("selectServer: LIVE selectOutbound '\(step.group)' → '\(step.target)'", category: "ui")
+                commandClient.selectOutbound(groupTag: step.group, outboundTag: step.target)
+            }
             return
         }
 
-        // Fallback: tunnel up but command client not yet connected. Only do a
-        // full reconnect when the tag actually changed — no point tearing the
-        // tunnel down to apply the same selection.
-        guard tagChanged else { return }
+        // Fallback: tunnel up but command client not ready. Only reconnect
+        // when the tag actually changed — a same-tag tap with a dead client
+        // is nothing to do.
+        guard tagChanged, let updatedConfig else { return }
         TunnelFileLogger.log("selectServer: FALLBACK reconnect (commandClient not ready)", category: "ui")
         reconnectTask?.cancel()
         reconnectTask = Task {
@@ -762,6 +777,126 @@ class AppState {
         }
     }
 
+    /// A single (group, target) step to apply via Clash API selectOutbound.
+    private struct SelectionStep {
+        let group: String
+        let target: String
+    }
+
+    /// Walk the current config's outbound graph and produce the ordered list
+    /// of selectOutbound calls needed to route Proxy → `target`.
+    ///
+    /// For each call site, ordering matters: urltest-level calls come first
+    /// so Proxy's final hop lands on a pinned leaf rather than the urltest's
+    /// pre-pin pick.
+    private func resolveSelectionChain(target: String) -> [SelectionStep] {
+        guard let config = configStore.loadConfig(),
+              let data = config.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let outbounds = json["outbounds"] as? [[String: Any]]
+        else { return [] }
+
+        // Index (type, members) by tag.
+        var typeByTag: [String: String] = [:]
+        var membersByTag: [String: [String]] = [:]
+        for ob in outbounds {
+            guard let tag = ob["tag"] as? String,
+                  let type = ob["type"] as? String else { continue }
+            typeByTag[tag] = type
+            if let members = ob["outbounds"] as? [String] {
+                membersByTag[tag] = members
+            }
+        }
+
+        guard membersByTag["Proxy"]?.contains(target) == true ||
+              isReachableFromProxy(target: target, membersByTag: membersByTag)
+        else {
+            // Target isn't anywhere under Proxy — caller passed a stale tag.
+            return []
+        }
+
+        // Case 1: target is a direct member of Proxy (Auto, country urltest).
+        if membersByTag["Proxy"]?.contains(target) == true {
+            return [SelectionStep(group: "Proxy", target: target)]
+        }
+
+        // Case 2: target is a leaf nested inside a urltest OR selector that
+        // IS a direct member of Proxy. Prefer a specific country group over
+        // the meta-"Auto" urltest — Auto contains every leaf, so it would
+        // match first alphabetically and steal the routing from the user's
+        // deliberate country pick. Both urltest and selector parents are
+        // accepted (whitelist-bypass is a selector, country groups are
+        // urltests).
+        for member in membersByTag["Proxy"] ?? [] {
+            guard member != "Auto" else { continue }
+            let memberType = typeByTag[member] ?? ""
+            guard (memberType == "urltest" || memberType == "selector"),
+                  membersByTag[member]?.contains(target) == true
+            else { continue }
+            return [
+                SelectionStep(group: member, target: target),
+                SelectionStep(group: "Proxy", target: member),
+            ]
+        }
+
+        // No country group claims this leaf. Last resort: fall back to Auto
+        // (only if Auto happens to contain it). Still better than returning
+        // an empty chain and leaving Proxy pinned to whatever it was.
+        if typeByTag["Auto"] == "urltest",
+           membersByTag["Auto"]?.contains(target) == true {
+            return [
+                SelectionStep(group: "Auto", target: target),
+                SelectionStep(group: "Proxy", target: "Auto"),
+            ]
+        }
+
+        return []
+    }
+
+    /// True iff `target` appears as a member of any urltest/selector that is
+    /// itself a Proxy member, ignoring the meta-"Auto" group. One-level
+    /// search — matches the topology the backend actually emits.
+    private func isReachableFromProxy(target: String, membersByTag: [String: [String]]) -> Bool {
+        for member in membersByTag["Proxy"] ?? [] where member != "Auto" {
+            if membersByTag[member]?.contains(target) == true { return true }
+        }
+        return false
+    }
+
+    /// Apply every step from `chain` to the on-disk config's `default`
+    /// fields and return the serialized JSON. Falls back to returning nil on
+    /// parse error so callers keep using the unchanged config from disk.
+    ///
+    /// Note: sing-box `urltest` outbounds don't honour a `default` field —
+    /// only live selectOutbound pins them. Config persistence is therefore
+    /// for selector defaults only; urltest state is reapplied every reload
+    /// by `applyServerSelectionIfLive`.
+    private func buildConfigWithSelections(chain: [SelectionStep]) -> String? {
+        guard let config = configStore.loadConfig(),
+              let data = config.data(using: .utf8),
+              var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              var outbounds = json["outbounds"] as? [[String: Any]]
+        else { return nil }
+
+        // Apply default-field updates only for `selector` types. urltest has
+        // no `default` field in the sing-box schema — persisted pick won't
+        // survive a restart; that's what applyServerSelectionIfLive is for.
+        for step in chain {
+            for i in outbounds.indices {
+                guard outbounds[i]["tag"] as? String == step.group,
+                      outbounds[i]["type"] as? String == "selector"
+                else { continue }
+                outbounds[i]["default"] = step.target
+            }
+        }
+
+        json["outbounds"] = outbounds
+        guard let out = try? JSONSerialization.data(withJSONObject: json),
+              let str = String(data: out, encoding: .utf8)
+        else { return nil }
+        return str
+    }
+
     /// Re-applies the persisted server selection to the live tunnel. Called from
     /// handleStatus(.connected) so that a cold-start tunnel whose sing-box Proxy
     /// selector booted on a stale default gets forced onto the user's real pick.
@@ -769,17 +904,20 @@ class AppState {
         guard commandClient.isConnected else { return }
         let serverTag = configStore.selectedServerTag
         let selectorTarget = serverTag ?? "Auto"
-        guard let built = buildConfigWithSelector(selectorTarget) else {
-            AppLogger.app.error("applyServerSelectionIfLive: buildConfigWithSelector nil for '\(selectorTarget)'")
+        let chain = resolveSelectionChain(target: selectorTarget)
+        guard !chain.isEmpty else {
+            AppLogger.app.error("applyServerSelectionIfLive: chain empty for '\(selectorTarget)'")
             return
         }
-        TunnelFileLogger.log("applyServerSelectionIfLive: selector='\(built.selectorTag)' → '\(selectorTarget)'", category: "ui")
-        commandClient.selectOutbound(groupTag: built.selectorTag, outboundTag: selectorTarget)
+        for step in chain {
+            TunnelFileLogger.log("applyServerSelectionIfLive: '\(step.group)' → '\(step.target)'", category: "ui")
+            commandClient.selectOutbound(groupTag: step.group, outboundTag: step.target)
+        }
     }
 
-    /// Build config with selector default set to the given server tag.
-    /// Returns the updated config string and the selector tag that was modified.
-    /// Does NOT modify the config file — caller persists via UserDefaults.
+    /// Legacy single-selector lookup. Still used by cold-start paths
+    /// (`vpnManager.connect` load from disk) where we only need the Proxy
+    /// selector's default updated, not the full multi-step chain.
     private func buildConfigWithSelector(_ serverTag: String) -> (config: String, selectorTag: String)? {
         guard let config = configStore.loadConfig(),
               let data = config.data(using: .utf8),

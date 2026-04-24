@@ -78,8 +78,49 @@ type VPNServer struct {
 	Notes            string    `db:"notes"              json:"notes"`
 	Hysteria2Port    *int      `db:"hysteria2_port"     json:"hysteria2_port,omitempty"`
 	TUICPort         *int      `db:"tuic_port"          json:"tuic_port,omitempty"`
-	CreatedAt        time.Time `db:"created_at"         json:"created_at"`
-	UpdatedAt        time.Time `db:"updated_at"         json:"updated_at"`
+	// Role distinguishes exit nodes (foreign, direct egress — existing
+	// behaviour) from relay nodes (RU-whitelisted entry points that chain
+	// via WireGuard to exits). See migration 010 and
+	// memory/project_relay_architecture_poc.md for context.
+	Role         string    `db:"role"         json:"role"`
+	CountryCode  *string   `db:"country_code" json:"country_code,omitempty"`
+	// UserAPIURL is the sing-box User API base URL for pushing users to this
+	// server. Populated only for role='relay' nodes where the chameleon
+	// backend runs off-box. NULL for role='exit' nodes (backend talks to
+	// local sing-box via 127.0.0.1 from EngineConfig).
+	UserAPIURL   *string   `db:"user_api_url" json:"user_api_url,omitempty"`
+	// Category splits the UX: 'standard' rows flow into country-exit groups
+	// and the global Auto urltest; 'whitelist_bypass' rows (legacy SPB
+	// relays for RU whitelist scenarios) are rendered as a dedicated
+	// isolated group, excluded from Auto.
+	Category     string    `db:"category"     json:"category"`
+	CreatedAt    time.Time `db:"created_at"   json:"created_at"`
+	UpdatedAt    time.Time `db:"updated_at"   json:"updated_at"`
+}
+
+// RelayExitPeer describes one WireGuard tunnel from a relay to an exit.
+// Clients using the relay get a VLESS inbound on relay.host:RelayListenPort;
+// sing-box on the relay routes that inbound into this WG tunnel, terminating
+// at the exit server where traffic egresses to the internet. Table maps 1:1
+// to `relay_exit_peers` (migration 010).
+type RelayExitPeer struct {
+	ID                 int64     `db:"id"                     json:"id"`
+	RelayServerKey     string    `db:"relay_server_key"       json:"relay_server_key"`
+	ExitServerKey      string    `db:"exit_server_key"        json:"exit_server_key"`
+	RelayListenPort    int       `db:"relay_listen_port"      json:"relay_listen_port"`
+	// RelayInboundTag is the sing-box inbound tag on the relay side (e.g.
+	// "vless-de", "vless-nl"). RelayUserSyncer targets per-inbound User API
+	// endpoints by this tag.
+	RelayInboundTag    string    `db:"relay_inbound_tag"      json:"relay_inbound_tag"`
+	WGExitEndpointPort int       `db:"wg_exit_endpoint_port"  json:"wg_exit_endpoint_port"`
+	WGExitPub          string    `db:"wg_exit_pub"            json:"wg_exit_pub"`
+	WGRelayPeerPriv    string    `db:"wg_relay_peer_priv"     json:"-"`
+	WGRelayPeerPub     string    `db:"wg_relay_peer_pub"      json:"wg_relay_peer_pub"`
+	WGSubnetCIDR       string    `db:"wg_subnet_cidr"         json:"wg_subnet_cidr"`
+	WGRelayAddress     string    `db:"wg_relay_address"       json:"wg_relay_address"`
+	IsActive           bool      `db:"is_active"              json:"is_active"`
+	CreatedAt          time.Time `db:"created_at"             json:"created_at"`
+	UpdatedAt          time.Time `db:"updated_at"             json:"updated_at"`
 }
 
 // AdminUser represents an admin panel user (maps to "admin_users" table).

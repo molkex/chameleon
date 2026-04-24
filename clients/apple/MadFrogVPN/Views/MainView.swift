@@ -225,7 +225,7 @@ struct ServerListView: View {
     }
 
     private var relayGroups: [CountryGroup] {
-        countryGroups.filter { $0.section == .relay }
+        countryGroups.filter { $0.section == .whitelistBypass }
     }
 
     private var allServers: [ServerItem] {
@@ -305,8 +305,12 @@ struct ServerListView: View {
     /// away, just hide it when there's nothing to pick between.
     @ViewBuilder
     private func countryRowOrLink(for country: CountryGroup) -> some View {
-        let serversInCountry = allServers.filter { $0.countryKey == country.id }
-        if serversInCountry.count <= 1, let only = serversInCountry.first {
+        let serversInCountry = allServers.filter { country.serverTags.contains($0.tag) }
+        // Multi-server countries drill into a picker; single-server countries
+        // collapse to one tap. Whitelist-bypass groups always drill in so the
+        // user can see the individual SPB endpoints before picking.
+        let alwaysDrillIn = country.section == .whitelistBypass
+        if !alwaysDrillIn, serversInCountry.count <= 1, let only = serversInCountry.first {
             Button {
                 TunnelFileLogger.log("TAP: country row (flat) '\(country.id)' → '\(only.tag)'", category: "ui")
                 if let group = selectorGroup {
@@ -395,7 +399,7 @@ private struct CountryRow: View {
                 .frame(width: 40, height: 40)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(L10n.Servers.countryName(country.id))
+                Text(country.name)
                     .font(.body.weight(.semibold))
                     .foregroundStyle(.primary)
                 Text(country.subtitle)
@@ -480,7 +484,7 @@ private struct CountryServersView: View {
             }
         }
         .platformInsetGroupedList()
-        .navigationTitle(Text(verbatim: L10n.Servers.serversIn(L10n.Servers.countryName(country.id))))
+        .navigationTitle(Text(verbatim: L10n.Servers.serversIn(country.name)))
         .iosInlineNavTitle()
         .task {
             await app.pingService.probe(servers)

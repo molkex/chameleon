@@ -255,6 +255,9 @@
 "country.russia"                 = "Russia";
 "country.other"                  = "Other";
 "server.direct_connection"       = "Direct connection";
+"server.whitelist_bypass_subtitle" = "RU whitelist bypass";
+"server.leaf.direct"             = "Direct";
+"server.leaf.via_fmt"            = "Via %@";
 
 /* ===== Settings ===== */
 "settings.contact_support"       = "Contact support";

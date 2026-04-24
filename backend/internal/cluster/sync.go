@@ -38,11 +38,12 @@ const maxPushBatchSize = 500
 // Syncer performs real-time (Redis Pub/Sub) and periodic (HTTP) user synchronization
 // with cluster peers. It is safe for concurrent use.
 type Syncer struct {
-	db     *db.DB
-	config config.ClusterConfig
-	vpn    vpn.Engine
-	logger *zap.Logger
-	client *http.Client
+	db          *db.DB
+	config      config.ClusterConfig
+	vpn         vpn.Engine
+	relaySyncer *RelayUserSyncer
+	logger      *zap.Logger
+	client      *http.Client
 
 	// Redis Pub/Sub components.
 	publisher  *Publisher
@@ -62,12 +63,17 @@ type Syncer struct {
 //
 // The rdb parameter is used for Redis Pub/Sub. Pass nil to disable pub/sub
 // (HTTP-only fallback mode).
-func NewSyncer(database *db.DB, cfg config.ClusterConfig, engine vpn.Engine, rdb *redis.Client, logger *zap.Logger) *Syncer {
+//
+// relaySyncer may be nil when no relay nodes are configured. When non-nil,
+// it is invoked after every engine reload (event-driven push) in addition
+// to its own periodic reconciliation loop.
+func NewSyncer(database *db.DB, cfg config.ClusterConfig, engine vpn.Engine, relaySyncer *RelayUserSyncer, rdb *redis.Client, logger *zap.Logger) *Syncer {
 	s := &Syncer{
-		db:     database,
-		config: cfg,
-		vpn:    engine,
-		logger: logger.Named("cluster"),
+		db:          database,
+		config:      cfg,
+		vpn:         engine,
+		relaySyncer: relaySyncer,
+		logger:      logger.Named("cluster"),
 		client: &http.Client{
 			Timeout: 30 * time.Second,
 			Transport: &http.Transport{
@@ -84,7 +90,7 @@ func NewSyncer(database *db.DB, cfg config.ClusterConfig, engine vpn.Engine, rdb
 	if rdb != nil && cfg.Enabled {
 		channel := cfg.PubSubChannel
 		s.publisher = NewPublisher(rdb, cfg.NodeID, channel, logger)
-		s.subscriber = NewSubscriber(rdb, cfg.NodeID, channel, database, engine, logger)
+		s.subscriber = NewSubscriber(rdb, cfg.NodeID, channel, database, engine, relaySyncer, logger)
 	}
 
 	return s
@@ -371,7 +377,7 @@ func (s *Syncer) pushToPeer(ctx context.Context, peer config.PeerConfig, users [
 
 // reloadVPN refreshes the VPN engine with the current active user list.
 func (s *Syncer) reloadVPN(ctx context.Context) {
-	if err := ReloadVPNEngine(ctx, s.db, s.vpn, s.logger); err != nil {
+	if err := ReloadVPNEngine(ctx, s.db, s.vpn, s.relaySyncer, s.logger); err != nil {
 		s.logger.Error("failed to reload VPN after sync", zap.Error(err))
 	}
 }

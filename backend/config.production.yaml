@@ -82,6 +82,14 @@ cluster:
   pubsub_channel: "chameleon:sync"
   peers: []
 
+# Relay user-api secrets. Each map key matches vpn_servers.key for a
+# role='relay' row. URLs come from DB (vpn_servers.user_api_url);
+# secrets stay in env vars, never in DB and never in git.
+relay:
+  sync_interval: "30s"
+  secrets:
+    msk: "${CHAMELEON_MSK_USER_API_SECRET}"
+
 rate_limit:
   mobile_per_minute: 60
   admin_per_minute: 120

@@ -86,26 +86,28 @@ func (p *Publisher) Publish(ctx context.Context, event SyncEvent) error {
 
 // Subscriber listens for sync events from other nodes via Redis pub/sub.
 type Subscriber struct {
-	redis    *redis.Client
-	nodeID   string
-	channel  string
-	db       *db.DB
-	vpn      vpn.Engine
-	logger   *zap.Logger
-	stopCh   chan struct{}
-	stopOnce sync.Once // Stop() is idempotent.
+	redis       *redis.Client
+	nodeID      string
+	channel     string
+	db          *db.DB
+	vpn         vpn.Engine
+	relaySyncer *RelayUserSyncer
+	logger      *zap.Logger
+	stopCh      chan struct{}
+	stopOnce    sync.Once // Stop() is idempotent.
 }
 
 // NewSubscriber creates a Subscriber that listens on the given Redis channel.
-func NewSubscriber(rdb *redis.Client, nodeID, channel string, database *db.DB, engine vpn.Engine, logger *zap.Logger) *Subscriber {
+func NewSubscriber(rdb *redis.Client, nodeID, channel string, database *db.DB, engine vpn.Engine, relaySyncer *RelayUserSyncer, logger *zap.Logger) *Subscriber {
 	return &Subscriber{
-		redis:   rdb,
-		nodeID:  nodeID,
-		channel: channel,
-		db:      database,
-		vpn:     engine,
-		logger:  logger.Named("cluster.subscriber"),
-		stopCh:  make(chan struct{}),
+		redis:       rdb,
+		nodeID:      nodeID,
+		channel:     channel,
+		db:          database,
+		vpn:         engine,
+		relaySyncer: relaySyncer,
+		logger:      logger.Named("cluster.subscriber"),
+		stopCh:      make(chan struct{}),
 	}
 }
 
@@ -252,7 +254,7 @@ func (s *Subscriber) handleEvent(ctx context.Context, event SyncEvent) {
 
 // reloadVPN refreshes the VPN engine with the current active user list.
 func (s *Subscriber) reloadVPN(ctx context.Context) {
-	if err := ReloadVPNEngine(ctx, s.db, s.vpn, s.logger); err != nil {
+	if err := ReloadVPNEngine(ctx, s.db, s.vpn, s.relaySyncer, s.logger); err != nil {
 		s.logger.Error("failed to reload VPN after pub/sub event", zap.Error(err))
 	}
 }

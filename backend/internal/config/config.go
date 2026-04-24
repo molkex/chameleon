@@ -27,6 +27,7 @@ type Config struct {
 	Auth      AuthConfig      `yaml:"auth"`
 	VPN       VPNConfig       `yaml:"vpn"`
 	Cluster   ClusterConfig   `yaml:"cluster"`
+	Relay     RelayConfig     `yaml:"relay"`
 	RateLimit RateLimitConfig `yaml:"rate_limit"`
 	Payments  PaymentsConfig  `yaml:"payments"`
 	Email     EmailConfig     `yaml:"email"`
@@ -195,6 +196,25 @@ type ClusterConfig struct {
 	Peers                []PeerConfig `yaml:"peers"`
 }
 
+// RelayConfig holds RelayUserSyncer parameters. The `secrets` field maps
+// each relay server key (as stored in vpn_servers.key) to its sing-box
+// User API Bearer token. URLs come from the DB (vpn_servers.user_api_url)
+// — secrets live in YAML/ENV to keep them off the DB.
+//
+// YAML example (each secret can be inlined or pulled from env):
+//
+//	relay:
+//	  sync_interval: 30s
+//	  secrets:
+//	    msk: ${CHAMELEON_MSK_USER_API_SECRET}
+//
+// If `secrets` is empty, RelayUserSyncer becomes a no-op. Relays missing
+// a secret are logged at warn and skipped — the rest still sync.
+type RelayConfig struct {
+	SyncInterval Duration          `yaml:"sync_interval"` // default: 30s; 0 disables periodic loop
+	Secrets      map[string]string `yaml:"secrets"`
+}
+
 // RateLimitConfig controls per-endpoint rate limiting.
 type RateLimitConfig struct {
 	MobilePerMinute int `yaml:"mobile_per_minute"` // default: 60
@@ -296,6 +316,11 @@ func (c *Config) resolveAllEnvVars() {
 
 	// Cluster
 	c.Cluster.Secret = resolveEnvVars(c.Cluster.Secret)
+
+	// Relay secrets — each map value may be a ${ENV_VAR} reference.
+	for k, v := range c.Relay.Secrets {
+		c.Relay.Secrets[k] = resolveEnvVars(v)
+	}
 
 	// Payments — FreeKassa
 	c.Payments.FreeKassa.ShopID = resolveEnvVars(c.Payments.FreeKassa.ShopID)
@@ -404,6 +429,11 @@ func (c *Config) applyDefaults() {
 	}
 	if c.Cluster.PubSubChannel == "" {
 		c.Cluster.PubSubChannel = "chameleon:sync"
+	}
+
+	// Relay defaults
+	if c.Relay.SyncInterval.Duration == 0 {
+		c.Relay.SyncInterval.Duration = 30 * time.Second
 	}
 
 	// Rate limit defaults

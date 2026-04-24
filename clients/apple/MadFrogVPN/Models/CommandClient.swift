@@ -282,7 +282,9 @@ private final class ClientHandler: NSObject, LibboxCommandClientHandlerProtocol,
                 type: group.type,
                 selected: group.selected,
                 items: items,
-                selectable: group.selectable
+                selectable: group.selectable,
+                hasAuto: false,
+                countries: []
             ))
         }
         DispatchQueue.main.async { [weak self] in

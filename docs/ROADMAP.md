@@ -7,6 +7,36 @@
 
 ## Now (в работе / блокеры)
 
+### 🚀 Launch Checklist v1.0 (2026-04-24)
+
+> Competitive gap-анализ vs Karing / Happ Plus (оба sing-box-based). Наш engine не уступает — пробелы в iOS-специфичных фичах и полировке. Детали анализа — внизу ROADMAP секция "Launch analysis".
+
+#### P0 — блокеры App Review / retention (нельзя релизиться)
+- **LAUNCH-01:** `PrivacyInfo.xcprivacy` — обязательно Apple с мая 2024. Декларировать UserDefaults usage, DeviceName usage, SystemBootTime usage. Без файла — авто-reject.
+- **LAUNCH-02:** Family Sharing для subscription — ASC флаг. Без него App Review задаёт вопросы по 3.1.2.
+- **LAUNCH-03:** Crash reporting (`TelemetryDeck` privacy-friendly или Sentry). Без него слепая зона на 5%+ крашей в проде.
+- **LAUNCH-04:** Widget (Home / Lock Screen) — минимум 1 штука: "connect toggle". iOS 16+ юзеры ожидают кнопку VPN на главном экране.
+- **LAUNCH-05:** Control Center Widget (iOS 18 `ControlWidget`) — кнопка управления VPN в Control Center / Action Button / Lock Screen. Happ Plus умеет. Без этого приложение выглядит устаревшим.
+- **LAUNCH-06:** Shortcuts App integration — минимум 3 actions: connect, disconnect, switch server. Через `AppIntent` (iOS 16+). Юзеры делают автоматизации ("подключиться при открытии Instagram" и т.п.).
+- **LAUNCH-07:** Auto-connect on untrusted WiFi — `NEOnDemandRule` с `SSIDMatch` / `InterfaceTypeMatch: .cellular`. Стандарт индустрии. Без этого юзер платит но включает руками каждый раз.
+- **LAUNCH-08:** Disconnect notification (`UNUserNotificationCenter` + `NEVPNStatus`-observer). Чтобы юзер узнавал когда разорвался тоннель, а не думал "работает".
+
+#### P1 — сильно повысит качество восприятия
+- **LAUNCH-09:** Live traffic sparkline на главном экране — up/down за последние 5 минут. Не сложно, большая UX-разница.
+- **LAUNCH-10:** Live Activity / Dynamic Island (iOS 16.1+) — пока VPN подключён, DI показывает up/down speed. Wow-фактор, Happ Plus имеет.
+- **LAUNCH-11:** Ручной ping per-server в picker'е серверов. Сейчас auto-urltest работает скрыто — юзер не понимает почему выбран Auto = ??. Кнопка "Обновить пинги" + indicator рядом с каждым флагом.
+- **LAUNCH-12:** uTLS fingerprint rotation — сейчас `chrome` статично в `clientconfig.go:60`. Варьировать между `chrome`/`firefox`/`safari`/`random` по серверам или per-user. Защита от DPI fingerprinting.
+- **LAUNCH-13:** DoQ (DNS-over-QUIC) вместо DoH — sing-box 1.13 поддерживает, просто смена `type` в `clientDNSServer`. Быстрее, меньше DPI-сигнатура.
+- **LAUNCH-14:** Accessibility pass — VoiceOver labels на всех интерактивных элементах. App Review может спросить.
+
+#### P2 — можно после запуска
+- Кастомный DNS в настройках (override `dns-remote` / `dns-direct`)
+- Кастомные rule-set URL
+- Apple Watch companion app
+- Больше локализаций (ES/TR/AR — крупные VPN рынки)
+- Export нашего конфига как sing-box URL (для паверюзеров)
+- Win-back offer для churned subscription
+
 ### iOS / UX
 - **iOS P1 (followup):** Локализация — 14 строк сделано (api/subscription errors + country names). Остаются: `StringUtils.pluralDays/Servers` (нужен Stringsdict с CLDR plurals для en/ru parity); ServerGroup ILIKE matchers НЕ user-facing, оставить.
 
@@ -19,6 +49,56 @@
 - **Infra HIGH:** Packet loss DE→RU mobile на TCP VLESS — Hysteria2 (UDP:443) и TUIC (UDP:8443) задеплоены как обход, нужен реальный замер
 - **Infra HIGH:** SPB Relay (185.218.0.43) — нет :80 HTTP-fallback маппинга
 - **Infra HIGH:** Log rotation на DE+NL — `/var/log/chameleon-*.log` без ротации, растут безгранично
+- **Infra P0 (2026-04-24):** Новая VPN-нода off-OVH — DE (OVH Frankfurt, `162.19.242.30`) заблокирован на уровне ASN у RU мобильных операторов (MTS/Beeline/MegaFon/T2). VLESS/H2/TUIC все падают на RU LTE, работают только на WiFi. Замена/дополнение к DE-exit. Детали ниже.
+
+#### P0: новая нода off-OVH (замена DE-exit)
+
+**Проблема.** OVH AS16276 range (включая `162.19.242.30`) сбрасывается RU мобильными
+операторами на TCP/UDP:443 → VLESS/Hysteria2/TUIC все мертвы на LTE. NL Timeweb
+(`147.45.252.234`, AS9123) пока не в блок-листе. Build 30 уже имеет промежуточные
+смягчения: NL primary в urltest (клиент 2026-04-24) + RU-aware race (клиент
+2026-04-24, пропускает DE leg для `Locale.current.region == RU`).
+
+**Кандидаты хостинга (не OVH, не Cloudflare-origin).**
+1. **Hetzner Falkenstein (AS24940)** — дёшево (€4.5/мес CX22), AS не в публичных
+   RU-блок-листах на 2026-04. Риск: Hetzner активно борется с abuse, потребуется
+   whitelist VPN use-case. Проверка: `tcptraceroute 94.130.X.X 443` с MTS/Beeline.
+2. **Hetzner Helsinki (AS24940, Finland)** — тот же AS, но гео ближе к RU,
+   латенси с СЗФО ниже чем с Falkenstein.
+3. **DigitalOcean Frankfurt (AS14061)** — дороже ($6), но другая AS. Исторически
+   DO IP'шники попадают в блок-листы быстрее (много abuse).
+4. **Vultr Frankfurt (AS20473)** — €6/мес, AS известна, но пока не в массовых
+   RU-блок-листах.
+5. **Contabo Nuremberg (AS51167)** — €5/мес, большой объём IP, но репутация у
+   ряда RU-DPI низкая.
+
+**Acceptance criteria (прежде чем ставить нод в prod selector).**
+- [ ] `tcptraceroute <IP> 443` с RU-LTE (MTS / Beeline / MegaFon / T2) — SYN-ACK
+  доходит, не DROP/RST на approach hop.
+- [ ] `tcptraceroute <IP> 8443` (TUIC) — то же.
+- [ ] VLESS Reality handshake с RU-LTE — успех в <2s на 5/5 попыток.
+- [ ] sing-box client config: NL primary → новая нода secondary → DE last;
+  отдельный тест `urltest` на LTE выбирает одну из работающих нод.
+- [ ] backend `/health` с нового сервера отвечает <200ms от CF-MSK edge.
+- [ ] cluster sync (vpn_users) стабилен 24h без `vpn_username conflict`-спама.
+
+**План миграции.**
+1. Поднять кандидата (Hetzner Helsinki как default) через
+   `infrastructure/deploy/install.sh`.
+2. Добавить в `vpn_servers` через admin API с `is_active=false, sort_order=50`.
+3. Протестировать с 3 реальных RU-LTE-сим локально (не только speedtest).
+4. Если ✅ по acceptance — `is_active=true, sort_order=15` (между NL=10 и DE=20).
+5. Понаблюдать 48h. Если DE-exit стабильно проигрывает urltest — перевести
+   DE на `sort_order=90` (оставить как резерв) или `is_active=false`.
+6. Долгосрочно: retire DE-exit, оставить только backend-role (админка / API
+   origin), но trafic-exit увести на Hetzner + SPB relay.
+
+**Связанные фиксы (уже в коде, 2026-04-24).**
+- `backend/internal/vpn/clientconfig.go:isNLServer` — stable-sort NL первым в
+  Auto urltest outbounds.
+- `clients/apple/MadFrogVPN/Models/APIClient.swift:dataWithFallback` — `isRURegion`
+  фильтрует `162.19.242.30` из race-legs, экономит ~6s на RU-логине.
+- Оба фикса landing-safe для не-RU: non-RU сохраняют прежнее поведение.
 
 ---
 
@@ -162,6 +242,64 @@
 - ✓ **Go review fixes (`e8449af`):** `err == db.ErrNotFound` → `errors.Is(err, db.ErrNotFound)` в `admin/users.go` (×2) + `admin/admins.go`.
 - ✓ **Docs cleanup (`e8449af`):** README, OPERATIONS.md, troubleshooting.yaml, operations.yaml — оставшиеся `apple/` / `ChameleonVPN/` / `Chameleon.xcodeproj` ссылки заменены на новые имена.
 - ✓ **Cosmetic:** `ConfigStore.clear()` убран двойной `KeychainHelper.delete("username")`; nginx `Strict-Transport-Security`.
+
+---
+
+## Launch analysis (2026-04-24)
+
+Competitive comparison сделан в chat-сессии 2026-04-24. Источники: распарсенные
+subscriptions конкурентов.
+
+### Конкуренты проанализированы
+- **MaxVPN** (`95.163.183.11/happ/...`) — VK Cloud MSK entry, exit на
+  Hostinger/BuyVM/ICC/BlueVPS/CGI, VLESS Reality `:8443`, SNI=`www.apple.com`.
+  Ни одной OVH-ноды.
+- **Kosmos TunnelGuard** (`kosmos.tunnelguard.ru`) — Miran SPB entry (AS41722),
+  proprietary `kosmos://` URL scheme, closed API с auth.
+- **StrelkaVPN / net4.su** (`net4.su/keys/...`) — 54 конфига, все помечены
+  🟢LTE. DDoS-Guard fronting, exit nodes **50% на Yandex Cloud**
+  (AS200350, `84.201.*`, `51.250.*`) и VK Cloud (`95.163.183.*`) — RU-клауды с
+  флагами "DE"/"NL"/"FI" = **relay architecture** (entry на whitelist ASN,
+  внутренний chain к реальному заграничному exit). VLESS Reality `:443`,
+  SNI=rotating RU-domains (`music.yandex.ru`, `eh.vk.ru`, `ads.adfox.ru`,
+  `megafon.ru`, etc).
+
+### Ключевые выводы
+1. **OVH-гипотеза подтверждается 3:3** — все 3 проанализированных VPN избегают
+   OVH. Ни одного контр-примера "OVH и работает на LTE".
+2. **Порт `:443` не проблема** — StrelkaVPN работает на `:443`.
+3. **SNI `ads.adfox.ru` валиден** — StrelkaVPN использует идентичный паттерн
+   (`.ru`-домены), менять не надо.
+4. **Relay-архитектура** (RU-entry → chain → foreign exit) — индустриальный
+   стандарт для RU-targeted VPN. Даёт ASN-иммунитет: клиент видит RU-IP, DPI
+   не может блокировать без collateral damage.
+5. **Karing/Happ Plus technologically = наше приложение** (все на sing-box
+   1.13+). Наши реальные пробелы — не в протоколах, а в iOS-платформенных
+   фичах (widgets, shortcuts, live activity, on-demand). См. "Launch Checklist
+   v1.0" в секции Now.
+
+### Кандидаты хостинга (сводно)
+**Для direct-exit** (простейший путь, без relay):
+- Hetzner Helsinki/Falkenstein (AS24940) — €4.5/мес
+- WAIcore Ltd (AS213887, DE) — мелкий VPN-френдли ASN
+- Hostinger Lithuania (AS47583) — как MaxVPN
+- BuyVM/FranTech DE (AS53667) — как MaxVPN
+
+**Для RU-entry relay** (долгосрочное решение):
+- Наш MSK relay `217.198.5.52` (Tatarstan-On-Line) — уже есть, бесплатно,
+  но LTE-whitelist статус ASN **не проверен**
+- Selectel MSK (AS49505) — крупный RU-хостер, €3/мес
+- Timeweb MSK (AS9123) — как NL-нода, уже работаем с ним
+- Yandex Cloud / VK Cloud — maximum-reliable ASN, **но VPN запрещён TOS**
+  (StrelkaVPN нарушает, риск бана аккаунта)
+
+### Проверенные факты (не забыть при следующем возврате к теме)
+- `api.madfrog.online` → DNS A → `217.198.5.52` (MSK) **напрямую**, CF не в пути.
+- DE/NL direct-IP `:443` HTTPS не даёт доступа к API — там sing-box Reality
+  steal на `ads.adfox.ru`, Host=api.madfrog.online вернёт Яндекс-400.
+  Единственный рабочий API-endpoint = MSK.
+- DE/NL `:80` backend работает (HTTP 200 /health), но на RU LTE к OVH SYN
+  блочится и на :80 тоже (ASN-level drop для всех портов).
 
 ---
 

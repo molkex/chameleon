@@ -277,8 +277,17 @@ func run() error {
 	// Start background traffic collector (every 60 seconds).
 	go runTrafficCollector(ctx, logger, database, engine, 60*time.Second)
 
+	// Initialize relay user syncer — pushes active VPN users to remote
+	// sing-box-fork User API endpoints for role='relay' servers (e.g. MSK).
+	// Nil-safe: if no relay secrets are configured, syncer becomes a no-op.
+	relaySyncer := cluster.NewRelayUserSyncer(database, cfg.Relay.Secrets, logger)
+	relaySyncer.Start(ctx, cfg.Relay.SyncInterval.Duration)
+	defer relaySyncer.Stop()
+
 	// Initialize cluster syncer (peer-to-peer user replication).
-	syncer := cluster.NewSyncer(database, cfg.Cluster, engine, rdb, logger)
+	// Relay syncer is passed in so every engine reload (local or from peer)
+	// triggers an event-driven relay push on top of the periodic loop above.
+	syncer := cluster.NewSyncer(database, cfg.Cluster, engine, relaySyncer, rdb, logger)
 	syncer.Start(ctx)
 	defer syncer.Stop()
 

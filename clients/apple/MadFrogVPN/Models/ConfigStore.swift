@@ -151,9 +151,27 @@ class ConfigStore {
 
     // MARK: - Parse Servers from Config
 
-    /// Parse the saved sing-box config JSON to extract server groups and items.
-    /// Returns groups structured the same way as gRPC CommandClient provides them,
-    /// but without ping data (delay = 0 for all items).
+    /// Parse the saved sing-box config JSON into the UI's server list model.
+    ///
+    /// Architecture (matches backend `clientconfig.go` 2026-04-24+):
+    ///   - `Proxy` selector is the top-level picker. Its `outbounds` list
+    ///     contains: "Auto" (urltest), one urltest per country (e.g.
+    ///     "🇳🇱 Нидерланды"), and optionally one whitelist-bypass urltest
+    ///     ("🇷🇺 Россия (обход белых списков)").
+    ///   - Each country urltest's `outbounds` lists leaf outbound tags
+    ///     (type=vless/hysteria2/tuic) that actually carry traffic.
+    ///   - Leaf tags are opaque short IDs ("de-direct-de", "nl-via-msk");
+    ///     display name + flag live on the urltest tag itself.
+    ///
+    /// Returned shape:
+    ///   A single `ServerGroup` with tag="Proxy", `items` = every leaf
+    ///   server flattened across all child urltests. Each child urltest
+    ///   becomes a `CountryGroup` inside the group. The "Auto" meta-urltest
+    ///   is surfaced through `ServerGroup.hasAuto` rather than as a country.
+    ///
+    /// Fallback: if a usable "Proxy" selector isn't found (older configs,
+    /// direct-only configs), fall back to scanning standalone leaf
+    /// outbounds and wrapping them in a single synthetic group.
     func parseServersFromConfig() -> [ServerGroup] {
         guard let jsonString = loadConfig(),
               let data = jsonString.data(using: .utf8),
@@ -163,113 +181,124 @@ class ConfigStore {
             return []
         }
 
-        // Index all outbounds by tag
-        var outboundsByTag: [String: [String: Any]] = [:]
+        var byTag: [String: [String: Any]] = [:]
         for ob in outbounds {
-            if let tag = ob["tag"] as? String {
-                outboundsByTag[tag] = ob
-            }
+            if let tag = ob["tag"] as? String { byTag[tag] = ob }
         }
 
-        var groups: [ServerGroup] = []
-
-        // Build urltest group (main server list)
-        for ob in outbounds {
-            guard let type = ob["type"] as? String,
-                  let tag = ob["tag"] as? String
-            else { continue }
-
-            if type == "urltest" {
-                let memberTags = ob["outbounds"] as? [String] ?? []
-                let items = memberTags.compactMap { memberTag -> ServerItem? in
-                    guard let member = outboundsByTag[memberTag],
-                          let memberType = member["type"] as? String,
-                          Self.proxyOutboundTypes.contains(memberType)
-                    else { return nil }
-                    let host = (member["server"] as? String) ?? ""
-                    let port = (member["server_port"] as? Int) ?? 0
-                    return ServerItem(
-                        id: memberTag,
-                        tag: memberTag,
-                        type: memberType,
-                        delay: 0,
-                        delayTime: 0,
-                        host: host,
-                        port: port
-                    )
-                }
-                if !items.isEmpty {
-                    // Use saved selection or first item as "selected"
-                    let savedTag = selectedServerTag
-                    let selected = items.first(where: { $0.tag == savedTag })?.tag ?? items.first?.tag ?? ""
-                    groups.append(ServerGroup(
-                        id: tag,
-                        tag: tag,
-                        type: type,
-                        selected: selected,
-                        items: items,
-                        selectable: true
-                    ))
-                }
-            } else if type == "selector" {
-                let memberTags = ob["outbounds"] as? [String] ?? []
-                // Exclude nested urltest/selector tags (e.g. "Auto") — those are
-                // control outbounds, not real servers, and would otherwise show
-                // up as an unrecognized entry in the UI.
-                let items = memberTags.compactMap { memberTag -> ServerItem? in
-                    guard let member = outboundsByTag[memberTag] else { return nil }
-                    let memberType = (member["type"] as? String) ?? "unknown"
-                    guard Self.proxyOutboundTypes.contains(memberType) else { return nil }
-                    let host = (member["server"] as? String) ?? ""
-                    let port = (member["server_port"] as? Int) ?? 0
-                    return ServerItem(
-                        id: memberTag,
-                        tag: memberTag,
-                        type: memberType,
-                        delay: 0,
-                        delayTime: 0,
-                        host: host,
-                        port: port
-                    )
-                }
-                let defaultSelected = ob["default"] as? String ?? items.first?.tag ?? ""
-                groups.append(ServerGroup(
-                    id: tag,
-                    tag: tag,
-                    type: type,
-                    selected: defaultSelected,
-                    items: items,
-                    selectable: true
-                ))
-            }
+        // Locate the Proxy selector.
+        guard let proxy = outbounds.first(where: {
+            ($0["type"] as? String) == "selector" && ($0["tag"] as? String) == "Proxy"
+        }) else {
+            return fallbackGroup(from: outbounds)
         }
+        let proxyMembers = proxy["outbounds"] as? [String] ?? []
 
-        // Fallback for minimal configs (no urltest/selector groups):
-        // Create a synthetic group from standalone proxy outbounds
-        if groups.isEmpty {
-            let standaloneProxies = outbounds.compactMap { ob -> ServerItem? in
-                guard let type = ob["type"] as? String,
-                      let tag = ob["tag"] as? String,
-                      Self.proxyOutboundTypes.contains(type)
-                else { return nil }
+        // Resolve each leaf outbound tag reachable from a given tag. Walks
+        // through urltest/selector members recursively; stops at anything
+        // in `proxyOutboundTypes`. Cycles are guarded by `visited`.
+        func resolveLeaves(from tag: String, visited: inout Set<String>) -> [ServerItem] {
+            if visited.contains(tag) { return [] }
+            visited.insert(tag)
+            guard let ob = byTag[tag], let type = ob["type"] as? String else { return [] }
+            if Self.proxyOutboundTypes.contains(type) {
                 let host = (ob["server"] as? String) ?? ""
                 let port = (ob["server_port"] as? Int) ?? 0
-                return ServerItem(id: tag, tag: tag, type: type, delay: 0, delayTime: 0, host: host, port: port)
+                return [ServerItem(id: tag, tag: tag, type: type, delay: 0, delayTime: 0, host: host, port: port)]
             }
-            if !standaloneProxies.isEmpty {
-                let savedTag = selectedServerTag
-                let selected = standaloneProxies.first(where: { $0.tag == savedTag })?.tag ?? standaloneProxies.first?.tag ?? ""
-                groups.append(ServerGroup(
-                    id: "Proxy",
-                    tag: "Proxy",
-                    type: "selector",
-                    selected: selected,
-                    items: standaloneProxies,
-                    selectable: true
-                ))
+            if type == "urltest" || type == "selector" {
+                let members = ob["outbounds"] as? [String] ?? []
+                var out: [ServerItem] = []
+                for m in members {
+                    out.append(contentsOf: resolveLeaves(from: m, visited: &visited))
+                }
+                return out
             }
+            return []
         }
 
-        return groups
+        // Build one CountryGroup per urltest member of Proxy.
+        // "Auto" is special — tracked via hasAuto flag, not as a country.
+        var countryGroups: [CountryGroup] = []
+        var allLeaves: [ServerItem] = []
+        var leafSeen = Set<String>()
+        var hasAuto = false
+
+        for memberTag in proxyMembers {
+            guard let member = byTag[memberTag],
+                  let memberType = member["type"] as? String
+            else { continue }
+
+            if memberTag == "Auto" {
+                hasAuto = true
+                continue
+            }
+
+            // Accept urltest OR selector — both can group leaves.
+            guard memberType == "urltest" || memberType == "selector" else { continue }
+
+            var visited = Set<String>()
+            let leaves = resolveLeaves(from: memberTag, visited: &visited)
+            if leaves.isEmpty { continue }
+
+            // Dedup across groups — a leaf could theoretically appear in
+            // both a country urltest and a whitelist group; the picker
+            // renders it once, under its first group.
+            for leaf in leaves where !leafSeen.contains(leaf.tag) {
+                leafSeen.insert(leaf.tag)
+                allLeaves.append(leaf)
+            }
+
+            countryGroups.append(CountryGroup.from(urltestTag: memberTag, items: leaves))
+        }
+
+        if allLeaves.isEmpty && !hasAuto {
+            return fallbackGroup(from: outbounds)
+        }
+
+        let savedTag = selectedServerTag
+        let selected: String = {
+            if let s = savedTag, byTag[s] != nil { return s }
+            if hasAuto { return "Auto" }
+            return allLeaves.first?.tag ?? ""
+        }()
+
+        return [ServerGroup(
+            id: "Proxy",
+            tag: "Proxy",
+            type: "selector",
+            selected: selected,
+            items: allLeaves,
+            selectable: true,
+            hasAuto: hasAuto,
+            countries: countryGroups
+        )]
+    }
+
+    /// Fallback for configs that don't follow the Proxy/urltest layout.
+    /// Wraps every leaf outbound into a single synthetic group.
+    private func fallbackGroup(from outbounds: [[String: Any]]) -> [ServerGroup] {
+        let leaves: [ServerItem] = outbounds.compactMap { ob in
+            guard let type = ob["type"] as? String,
+                  let tag = ob["tag"] as? String,
+                  Self.proxyOutboundTypes.contains(type)
+            else { return nil }
+            let host = (ob["server"] as? String) ?? ""
+            let port = (ob["server_port"] as? Int) ?? 0
+            return ServerItem(id: tag, tag: tag, type: type, delay: 0, delayTime: 0, host: host, port: port)
+        }
+        guard !leaves.isEmpty else { return [] }
+        let savedTag = selectedServerTag
+        let selected = leaves.first(where: { $0.tag == savedTag })?.tag ?? leaves.first?.tag ?? ""
+        return [ServerGroup(
+            id: "Proxy",
+            tag: "Proxy",
+            type: "selector",
+            selected: selected,
+            items: leaves,
+            selectable: true,
+            hasAuto: false,
+            countries: []
+        )]
     }
 }

@@ -13,6 +13,7 @@ import (
 const serverColumns = `id, key, name, flag, host, port, domain, sni, reality_public_key, reality_private_key, is_active, sort_order,
 	provider_name, cost_monthly, provider_url, provider_login, provider_password, notes,
 	hysteria2_port, tuic_port,
+	role, country_code, user_api_url, category,
 	created_at, updated_at`
 
 // decryptProviderPassword unwraps a stored provider_password through the
@@ -56,6 +57,7 @@ func (db *DB) scanServers(rows pgx.Rows) ([]VPNServer, error) {
 			&s.Domain, &s.SNI, &s.RealityPublicKey, &s.RealityPrivateKey, &s.IsActive, &s.SortOrder,
 			&s.ProviderName, &s.CostMonthly, &s.ProviderURL, &s.ProviderLogin, &s.ProviderPassword, &s.Notes,
 			&s.Hysteria2Port, &s.TUICPort,
+			&s.Role, &s.CountryCode, &s.UserAPIURL, &s.Category,
 			&s.CreatedAt, &s.UpdatedAt,
 		)
 		if err != nil {
@@ -65,6 +67,61 @@ func (db *DB) scanServers(rows pgx.Rows) ([]VPNServer, error) {
 		servers = append(servers, s)
 	}
 	return servers, rows.Err()
+}
+
+// ListActiveRelayExitPeers returns all active relay→exit WG peer entries.
+// A single row represents one WG tunnel that routes one VLESS inbound port
+// on a relay to one exit node.
+func (db *DB) ListActiveRelayExitPeers(ctx context.Context) ([]RelayExitPeer, error) {
+	ctx, cancel := defaultTimeout(ctx)
+	defer cancel()
+
+	rows, err := db.Pool.Query(ctx, `
+		SELECT id, relay_server_key, exit_server_key, relay_listen_port, relay_inbound_tag,
+		       wg_exit_endpoint_port, wg_exit_pub, wg_relay_peer_priv, wg_relay_peer_pub,
+		       wg_subnet_cidr, wg_relay_address,
+		       is_active, created_at, updated_at
+		FROM relay_exit_peers
+		WHERE is_active = true
+		ORDER BY relay_server_key, exit_server_key`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var peers []RelayExitPeer
+	for rows.Next() {
+		var p RelayExitPeer
+		if err := rows.Scan(
+			&p.ID, &p.RelayServerKey, &p.ExitServerKey, &p.RelayListenPort, &p.RelayInboundTag,
+			&p.WGExitEndpointPort, &p.WGExitPub, &p.WGRelayPeerPriv, &p.WGRelayPeerPub,
+			&p.WGSubnetCIDR, &p.WGRelayAddress,
+			&p.IsActive, &p.CreatedAt, &p.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		peers = append(peers, p)
+	}
+	return peers, rows.Err()
+}
+
+// ListActiveRelayServers returns all active VPN servers with role='relay'.
+// Used by RelayUserSyncer to know which remote sing-box instances to push
+// users to. Only servers with a non-empty user_api_url are considered
+// sync-targetable.
+func (db *DB) ListActiveRelayServers(ctx context.Context) ([]VPNServer, error) {
+	ctx, cancel := defaultTimeout(ctx)
+	defer cancel()
+
+	rows, err := db.Pool.Query(ctx, `
+		SELECT `+serverColumns+`
+		FROM vpn_servers
+		WHERE role = 'relay' AND is_active = true AND user_api_url IS NOT NULL
+		ORDER BY sort_order, id`)
+	if err != nil {
+		return nil, err
+	}
+	return db.scanServers(rows)
 }
 
 // ListActiveServers returns all active VPN servers, ordered by sort_order.
@@ -106,16 +163,20 @@ func (db *DB) CreateServer(ctx context.Context, s *VPNServer) (*VPNServer, error
 	var created VPNServer
 	err := db.Pool.QueryRow(ctx, `
 		INSERT INTO vpn_servers (key, name, flag, host, port, domain, sni, reality_public_key, reality_private_key, is_active, sort_order,
-			provider_name, cost_monthly, provider_url, provider_login, provider_password, notes)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+			provider_name, cost_monthly, provider_url, provider_login, provider_password, notes,
+			role, country_code, user_api_url, category)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17,
+			COALESCE(NULLIF($18, ''), 'exit'), $19, $20, COALESCE(NULLIF($21, ''), 'standard'))
 		RETURNING `+serverColumns,
 		s.Key, s.Name, s.Flag, s.Host, s.Port, s.Domain, s.SNI, s.RealityPublicKey, s.RealityPrivateKey, s.IsActive, s.SortOrder,
 		s.ProviderName, s.CostMonthly, s.ProviderURL, s.ProviderLogin, db.encryptProviderPassword(s.ProviderPassword), s.Notes,
+		s.Role, s.CountryCode, s.UserAPIURL, s.Category,
 	).Scan(
 		&created.ID, &created.Key, &created.Name, &created.Flag, &created.Host, &created.Port,
 		&created.Domain, &created.SNI, &created.RealityPublicKey, &created.RealityPrivateKey, &created.IsActive, &created.SortOrder,
 		&created.ProviderName, &created.CostMonthly, &created.ProviderURL, &created.ProviderLogin, &created.ProviderPassword, &created.Notes,
 		&created.Hysteria2Port, &created.TUICPort,
+		&created.Role, &created.CountryCode, &created.UserAPIURL, &created.Category,
 		&created.CreatedAt, &created.UpdatedAt,
 	)
 	if err != nil {
@@ -138,16 +199,22 @@ func (db *DB) UpdateServer(ctx context.Context, id int64, s *VPNServer) (*VPNSer
 		    is_active = $11, sort_order = $12,
 		    provider_name = $13, cost_monthly = $14, provider_url = $15,
 		    provider_login = $16, provider_password = $17, notes = $18,
+		    role = COALESCE(NULLIF($19, ''), role),
+		    country_code = $20,
+		    user_api_url = $21,
+		    category = COALESCE(NULLIF($22, ''), category),
 		    updated_at = NOW()
 		WHERE id = $1
 		RETURNING `+serverColumns,
 		id, s.Key, s.Name, s.Flag, s.Host, s.Port, s.Domain, s.SNI, s.RealityPublicKey, s.RealityPrivateKey, s.IsActive, s.SortOrder,
 		s.ProviderName, s.CostMonthly, s.ProviderURL, s.ProviderLogin, db.encryptProviderPassword(s.ProviderPassword), s.Notes,
+		s.Role, s.CountryCode, s.UserAPIURL, s.Category,
 	).Scan(
 		&updated.ID, &updated.Key, &updated.Name, &updated.Flag, &updated.Host, &updated.Port,
 		&updated.Domain, &updated.SNI, &updated.RealityPublicKey, &updated.RealityPrivateKey, &updated.IsActive, &updated.SortOrder,
 		&updated.ProviderName, &updated.CostMonthly, &updated.ProviderURL, &updated.ProviderLogin, &updated.ProviderPassword, &updated.Notes,
 		&updated.Hysteria2Port, &updated.TUICPort,
+		&updated.Role, &updated.CountryCode, &updated.UserAPIURL, &updated.Category,
 		&updated.CreatedAt, &updated.UpdatedAt,
 	)
 	if err != nil {
@@ -183,6 +250,7 @@ func (db *DB) FindServerByKey(ctx context.Context, key string) (*VPNServer, erro
 		&s.Domain, &s.SNI, &s.RealityPublicKey, &s.RealityPrivateKey, &s.IsActive, &s.SortOrder,
 		&s.ProviderName, &s.CostMonthly, &s.ProviderURL, &s.ProviderLogin, &s.ProviderPassword, &s.Notes,
 		&s.Hysteria2Port, &s.TUICPort,
+		&s.Role, &s.CountryCode, &s.UserAPIURL, &s.Category,
 		&s.CreatedAt, &s.UpdatedAt,
 	)
 	if err != nil {
@@ -209,6 +277,7 @@ func (db *DB) FindServerByID(ctx context.Context, id int64) (*VPNServer, error) 
 		&s.Domain, &s.SNI, &s.RealityPublicKey, &s.RealityPrivateKey, &s.IsActive, &s.SortOrder,
 		&s.ProviderName, &s.CostMonthly, &s.ProviderURL, &s.ProviderLogin, &s.ProviderPassword, &s.Notes,
 		&s.Hysteria2Port, &s.TUICPort,
+		&s.Role, &s.CountryCode, &s.UserAPIURL, &s.Category,
 		&s.CreatedAt, &s.UpdatedAt,
 	)
 	if err != nil {
@@ -263,12 +332,18 @@ func (db *DB) UpsertServerByKey(ctx context.Context, s *VPNServer) (bool, error)
 	ctx, cancel := defaultTimeout(ctx)
 	defer cancel()
 
+	// Role is persisted via COALESCE(NULLIF(..., ''), ...) so a cluster peer
+	// pre-dating the relay architecture can't wipe the role back to default
+	// (old peers don't serialize Role in SyncServer, so it arrives '').
 	tag, err := db.Pool.Exec(ctx, `
 		INSERT INTO vpn_servers (key, name, flag, host, port, domain, sni,
 			reality_public_key, reality_private_key, is_active, sort_order,
 			provider_name, cost_monthly, provider_url, provider_login, provider_password, notes,
+			role, country_code, user_api_url, category,
 			updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17,
+			COALESCE(NULLIF($18, ''), 'exit'), $19, $20, COALESCE(NULLIF($21, ''), 'standard'),
+			$22)
 		ON CONFLICT (key) DO UPDATE SET
 			name = EXCLUDED.name, flag = EXCLUDED.flag, host = EXCLUDED.host, port = EXCLUDED.port,
 			domain = EXCLUDED.domain, sni = EXCLUDED.sni,
@@ -281,11 +356,16 @@ func (db *DB) UpsertServerByKey(ctx context.Context, s *VPNServer) (bool, error)
 			provider_login = COALESCE(NULLIF(EXCLUDED.provider_login, ''), vpn_servers.provider_login),
 			provider_password = COALESCE(NULLIF(EXCLUDED.provider_password, ''), vpn_servers.provider_password),
 			notes = COALESCE(NULLIF(EXCLUDED.notes, ''), vpn_servers.notes),
+			role = COALESCE(NULLIF(EXCLUDED.role, ''), vpn_servers.role),
+			country_code = COALESCE(EXCLUDED.country_code, vpn_servers.country_code),
+			user_api_url = COALESCE(EXCLUDED.user_api_url, vpn_servers.user_api_url),
+			category = COALESCE(NULLIF(EXCLUDED.category, ''), vpn_servers.category),
 			updated_at = EXCLUDED.updated_at
 		WHERE vpn_servers.updated_at < EXCLUDED.updated_at`,
 		s.Key, s.Name, s.Flag, s.Host, s.Port, s.Domain, s.SNI,
 		s.RealityPublicKey, s.RealityPrivateKey, s.IsActive, s.SortOrder,
 		s.ProviderName, s.CostMonthly, s.ProviderURL, s.ProviderLogin, db.encryptProviderPassword(s.ProviderPassword), s.Notes,
+		s.Role, s.CountryCode, s.UserAPIURL, s.Category,
 		s.UpdatedAt,
 	)
 	if err != nil {

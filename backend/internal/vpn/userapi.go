@@ -27,10 +27,21 @@ type UserAPIClient struct {
 	client     *http.Client
 }
 
-// NewUserAPIClient creates a client for the sing-box User API.
+// NewUserAPIClient creates a client for a local sing-box User API instance
+// listening on 127.0.0.1:<port>. Used by SingboxEngine to manage users on
+// the co-located sing-box process.
 func NewUserAPIClient(port int, secret, inboundTag string) *UserAPIClient {
+	return NewUserAPIClientFromURL(fmt.Sprintf("http://127.0.0.1:%d", port), secret, inboundTag)
+}
+
+// NewUserAPIClientFromURL creates a client for a sing-box User API at an
+// arbitrary base URL. Used by RelayUserSyncer to push users to remote relay
+// nodes where the chameleon backend isn't co-located.
+//
+// baseURL must not have a trailing slash.
+func NewUserAPIClientFromURL(baseURL, secret, inboundTag string) *UserAPIClient {
 	return &UserAPIClient{
-		baseURL:    fmt.Sprintf("http://127.0.0.1:%d", port),
+		baseURL:    baseURL,
 		secret:     secret,
 		inboundTag: inboundTag,
 		client: &http.Client{

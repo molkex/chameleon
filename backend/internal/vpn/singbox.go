@@ -446,8 +446,8 @@ func (e *SingboxEngine) UptimeHours() float64 {
 }
 
 // GenerateClientConfig creates a sing-box client config JSON for iOS/macOS.
-func (e *SingboxEngine) GenerateClientConfig(user VPNUser, servers []ServerEntry) ([]byte, error) {
-	return generateClientConfig(e.cfg, user, servers)
+func (e *SingboxEngine) GenerateClientConfig(user VPNUser, servers []ServerEntry, chains []ChainedEntry) ([]byte, error) {
+	return generateClientConfig(e.cfg, user, servers, chains)
 }
 
 // ---------------------------------------------------------------------------
