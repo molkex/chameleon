@@ -324,3 +324,131 @@ sudo docker logs xray --since 2m 2>&1 | grep -v api | tail -20
 - `AppState.swift` — `buildConfigWithSelector()`: проверка members selector'а, logging
 - `MainView.swift` — Auto button вызывает `selectServer()` вместо прямого сброса тега
 - `DebugLogsView.swift` — lazy rendering, Claude report builder, ANSI stripping
+
+---
+
+## 2026-04-24: Cluster sync захламил логи `duplicate key` 23505 на vpn_username
+
+### Симптом
+DE+NL `chameleon` контейнеры спамили `error` каждые 5 секунд:
+```
+ERROR cluster.api  failed to upsert pushed user
+  vpn_uuid=245aeec7-…  error=ERROR: duplicate key value violates unique constraint "idx_users_vpn_username" (SQLSTATE 23505)
+```
+
+### Root cause
+`generateVPNUsername(deviceID)` возвращал `"device_" + sha256(device_id)[:8]` — **детерминированно от device_id**. Значит:
+1. Юзер регистрируется на DE → `vpn_uuid=A, vpn_username="device_xyz"`
+2. Юзер делает `deleteAccount` → row остаётся (soft-delete)
+3. Юзер регистрируется снова → новый `vpn_uuid=B`, тот же `vpn_username="device_xyz"` → unique-index violation
+4. Cluster sync пытается распространить новую row на peer, peer тоже падает на индексе
+
+### Fix (commits `e8449af` + `e6db13d`)
+1. **Не маскировать ошибку** в логах — добавить `cluster/errors.go isDuplicateVPNUsername`, понизить только этот specific 23505 с `error` → `warn`. Real failures (DB connection lost, schema drift) сохраняют error level.
+2. **Фикс root cause**: `generateVPNUsernameFromUUID(uuid)` — хеширует уже-сгенеренный `vpn_uuid` (crypto-random 128 bits → unique). Старая `generateVPNUsername(string)` удалена.
+3. UpsertUserByVPNUUID `ON CONFLICT (vpn_uuid)` оставлен как было — теперь конфликта по username не будет.
+
+### Урок
+> Любое значение которое попадает в **unique** DB index не должно быть детерминированным от чего-то что юзер контролирует или может повторно ввести. Username = derive from per-row crypto-random, не от device_id / IP / любого external input.
+
+---
+
+## 2026-04-24: sing-box double `Wait()` — потенциальный deadlock + zombie процесс
+
+### Симптом
+Не наблюдался в проде (ловит go-reviewer agent статически). Но при scenario `Stop()` во время `reload` обе горутины делали `cmd.Wait()` на одном `os.Process` — UB по Go runtime, в худшем случае deadlock на `e.mu`.
+
+### Root cause
+`startProcessLocked()` запускал goroutine с `e.cmd.Wait()`. `stopProcessLocked()` запускал ВТОРУЮ goroutine с `e.cmd.Process.Wait()`. Process.Wait() можно вызвать только один раз — кто выиграл, оставляет другой блокированным или возвращает мусор. Плюс monitor goroutine пытался брать `e.mu.Lock()` для чтения `e.running`, пока `Stop()` уже держал `e.mu` — lock-channel deadlock.
+
+### Fix (commit `e6db13d`)
+- `SingboxEngine` получил поле `procDone chan struct{}`.
+- `startProcessLocked` создаёт `procDone` ДО запуска monitor.
+- Monitor: `cmd.Wait()` → `close(procDone)` → читает `e.running` под `RLock` (не `Lock`).
+- `stopProcessLocked`: `<-procDone` (не вызывает `Process.Wait()` сам).
+
+### Урок
+> `os/exec.Cmd.Process.Wait()` — **once-and-only-once**. Используй один waiter goroutine + done channel, не два разных Wait() на разных стороны кода.
+
+---
+
+## 2026-04-24: Keychain delete-then-add race в PacketTunnel extension
+
+### Симптом
+Не наблюдался у юзеров, но gap между `SecItemDelete` и `SecItemAdd` мог обнулить credential на момент чтения из extension (тoкен выглядит «отсутствующим» 1-50ms, потом возвращается).
+
+### Fix (commit `e8449af`)
+`KeychainHelper.save()` теперь **`SecItemUpdate` сначала, fallback на `SecItemAdd`** если `errSecItemNotFound`. Atomic на уровне Security framework — нет окна когда ключ не существует.
+
+### Урок
+> При rotation секретов в shared store (Keychain, UserDefaults App Group, файлы), всегда update-or-insert, не delete-then-add.
+
+---
+
+## 2026-04-24: ExtensionPlatformInterface FileHandle race на `singbox.log`
+
+### Симптом
+Когда libbox активно логирует (debug mode), записи в `singbox.log` могли interleave и corrupt файл. iOS extension memory pressure плюс невалидные записи в логе осложняли диагностику других проблем.
+
+### Root cause
+`writeDebugMessage(_:)` вызывается libbox с произвольных background threads. Открывал `FileHandle`, делал `seekToEndOfFile`, `write`, `closeFile` — без всякой синхронизации. Concurrent emissions писали друг через друга.
+
+### Fix (commit `e6db13d`)
+Serial `DispatchQueue(label: "vpn.madfrog.singbox-log", qos: .utility)` сериализует все записи. Современный API: `try? handle.seekToEnd()`, `try? handle.write(contentsOf:)`.
+
+### Урок
+> `FileHandle` НЕ thread-safe. Любая обёртка над файлом из background callbacks должна иметь собственный serial queue.
+
+---
+
+## 2026-04-24: Apple StoreKit verification была flagged как «отсутствует» — на самом деле есть
+
+### Что произошло
+Security audit агент в первом проходе сказал: «backend doesn't verify Apple transactions». Я уже собирался имплементить. Прочитал `backend/internal/payments/apple/verify.go` — там полная JWS verification через `awa/go-iap` (signature chain leaf → Apple root, bundle id check, environment check, expiry, productId).
+
+### Урок
+> При запуске нескольких reviewer-агентов **не доверять однозначно** их findings, а проверять цитатами в коде. Особенно claims вида «X не реализовано» — может быть ложное срабатывание из-за частичного покрытия агентом большого пакета.
+
+---
+
+## 2026-04-24: nginx HTTP→HTTPS редирект и Cloudflare flexible mode
+
+### Гocha
+Прямолинейный `if ($scheme = http) { return 301 https://...; }` за Cloudflare с `SSL=flexible` ловит **redirect loop**: CF принимает HTTPS, к origin идёт HTTP, origin шлёт 301 на HTTPS, CF получает редирект и кидает обратно к origin.
+
+### Fix (commit `fdef123`)
+- Edge proxies (CF) шлют `X-Forwarded-Proto: https` когда сами терминируют TLS.
+- Использовать **этот header**, не `$scheme`:
+```nginx
+set $is_secure 1;
+if ($http_x_forwarded_proto != "https") { set $is_secure 0; }
+if ($remote_addr ~ "^127\.|^10\.|^172\.16\.|^192\.168\.") { set $is_secure 1; }
+
+location /admin/app/ {
+    if ($is_secure = 0) { return 301 https://$host$request_uri; }
+    ...
+}
+```
+- Применять только к admin path (не глобально), чтобы Apple Universal Links AASA file (`/.well-known/apple-app-site-association`) и landing page не страдали — Apple валидатор не follow redirects.
+
+---
+
+## 2026-04-24: Build 27 уехал в App Store через ASC API без UI
+
+### Что работает
+ASC API key + `xcodebuild -allowProvisioningUpdates -authenticationKeyID/IssuerID/Path` достаточно чтобы автономно:
+1. `xcodegen generate` → пересобрать xcodeproj из `project.yml`
+2. `xcodebuild archive -scheme MadFrogVPN -destination 'generic/platform=iOS' -allowProvisioningUpdates ...` — Xcode сам запросит/создаст Distribution cert + provisioning profile
+3. `xcodebuild -exportArchive -exportOptionsPlist ExportOptions.plist` (с `method=app-store-connect`, `destination=upload`) — подпишет, упакует, загрузит в один шаг
+
+ExportOptions.plist в репо. ASC ключ в `~/.secrets.env`.
+
+### Что НЕ автономно
+- **Submit for review** — клик в ASC web UI (можно через ASC API `POST /v1/preReleaseVersions`, но требует дополнительной настройки полей метаданных).
+- **Distribution cert в Keychain** — нет в локальном Keychain не нужен, Xcode получает временный cert через Connect API.
+
+### Beta groups
+Build 27 прикреплён к двум группам через ASC API:
+- `Internal Testers` (id `19b338f9-…`) — internal=True, доступен сразу.
+- `Public Beta` (id `02d701b4-…`) — internal=False, требует Beta App Review (~24h).
+Скрипт прикрепления: см. эту сессию (Python + PyJWT + ES256 → POST `/v1/betaGroups/{id}/relationships/builds`).
