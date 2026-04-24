@@ -901,12 +901,38 @@ class AppState {
     /// handleStatus(.connected) so that a cold-start tunnel whose sing-box Proxy
     /// selector booted on a stale default gets forced onto the user's real pick.
     private func applyServerSelectionIfLive() {
-        guard commandClient.isConnected else { return }
         let serverTag = configStore.selectedServerTag
         let selectorTarget = serverTag ?? "Auto"
         let chain = resolveSelectionChain(target: selectorTarget)
         guard !chain.isEmpty else {
             AppLogger.app.error("applyServerSelectionIfLive: chain empty for '\(selectorTarget)'")
+            return
+        }
+
+        // Retry with backoff — same pattern as applyRoutingModeIfLive.
+        // commandClient binds to the extension's unix socket after the tunnel
+        // is up, and that race used to drop the server-selection pin here
+        // (routing mode's retry ran on its own Task; this function returned
+        // early and the Proxy selector kept its fresh-config default "Auto",
+        // so Auto urltest picked the lowest-RTT leaf regardless of the
+        // user's country pick). Retry every 500ms for 5s.
+        guard commandClient.isConnected else {
+            TunnelFileLogger.log("applyServerSelectionIfLive: cmdClient not connected, scheduling retry for '\(selectorTarget)'", category: "ui")
+            Task { [weak self] in
+                for attempt in 1...10 {
+                    try? await Task.sleep(for: .milliseconds(500))
+                    guard let self else { return }
+                    if self.commandClient.isConnected {
+                        TunnelFileLogger.log("applyServerSelectionIfLive: cmdClient ready after \(attempt * 500)ms, applying '\(selectorTarget)'", category: "ui")
+                        for step in chain {
+                            TunnelFileLogger.log("applyServerSelectionIfLive: '\(step.group)' → '\(step.target)'", category: "ui")
+                            self.commandClient.selectOutbound(groupTag: step.group, outboundTag: step.target)
+                        }
+                        return
+                    }
+                }
+                TunnelFileLogger.log("applyServerSelectionIfLive: cmdClient still not connected after 5s, giving up", category: "ui")
+            }
             return
         }
         for step in chain {
