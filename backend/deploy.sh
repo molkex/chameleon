@@ -222,8 +222,11 @@ docker compose build nginx 2>&1 | tail -5
 
 # ── Restart chameleon ONLY (singbox is standalone, compose can't touch it) ─
 echo ">>> Starting chameleon + nginx..."
-docker compose up -d --no-deps chameleon
-docker compose up -d nginx
+# Project name comes from the directory; after the backend-go → backend
+# rename the new compose project tries to claim the same container names
+# the previous project still owns. Force-recreate releases them cleanly.
+docker compose up -d --no-deps --force-recreate chameleon
+docker compose up -d --force-recreate nginx
 
 # ── Wait for health ────────────────────────────────────────────────────────
 echo ">>> Waiting for backend health..."
