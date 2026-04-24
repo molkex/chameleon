@@ -529,6 +529,14 @@ class AppState {
             switch outcome {
             case .connected:
                 Haptics.notify(.success)
+                // Belt-and-braces: NEVPNStatusDidChange notifications can arrive
+                // while AppState's MainActor task is busy (toggleVPN is itself
+                // running on @MainActor), so the observer-driven handleStatus
+                // call may have hit .connecting and missed the .connected
+                // transition. Force-stamp here so the timer always starts on
+                // first connect (without this, the chip stayed blank until the
+                // user backgrounded + foregrounded the app).
+                handleStatus()
                 break
             case .failed:
                 TunnelFileLogger.log("toggleVPN: watchdog — extension rejected connection", category: "ui")

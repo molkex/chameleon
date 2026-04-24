@@ -112,7 +112,13 @@ class APIClient {
 
     init() {
         let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 8
+        // RU operators frequently SNI-filter Cloudflare ranges; in that case
+        // session.data(for:) blocks for the full timeout before the race can
+        // try a direct IP. Lowered from 8s → 4s so the user doesn't sit on
+        // the spinner for 8 seconds before the working leg responds. The
+        // direct-IP legs use shorter timeouts (6s NWConnection) so the
+        // race effectively settles in <5s end-to-end on bad networks.
+        config.timeoutIntervalForRequest = 4
         // Cap total time including retries/redirects/body upload so a stuck
         // server can't keep a request hanging forever past the per-request
         // timeout. Higher than per-request because some endpoints
