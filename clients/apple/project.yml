@@ -177,6 +177,12 @@ targets:
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/MadFrogVPN.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MadFrogVPN"
         BUNDLE_LOADER: "$(TEST_HOST)"
         TARGETED_DEVICE_FAMILY: "1"
+        # Auto-generate Info.plist for the test bundle. Without this,
+        # `xcodebuild test` fails with "Cannot code sign because the target
+        # does not have an Info.plist file" when running on a simulator
+        # that requires signing (iOS 17+ simulators all do).
+        GENERATE_INFOPLIST_FILE: "YES"
+        PRODUCT_BUNDLE_IDENTIFIER: "com.madfrog.vpn.tests"
     scheme:
       testTargets:
         - MadFrogVPNTests

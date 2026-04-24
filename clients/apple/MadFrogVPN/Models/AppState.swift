@@ -778,24 +778,37 @@ class AppState {
     }
 
     /// A single (group, target) step to apply via Clash API selectOutbound.
-    private struct SelectionStep {
+    /// Internal (not private) so `ProxyChainResolverTests` can construct
+    /// expected chains without pulling in a full AppState fixture.
+    struct SelectionStep: Equatable {
         let group: String
         let target: String
     }
 
     /// Walk the current config's outbound graph and produce the ordered list
     /// of selectOutbound calls needed to route Proxy → `target`.
-    ///
-    /// For each call site, ordering matters: urltest-level calls come first
-    /// so Proxy's final hop lands on a pinned leaf rather than the urltest's
-    /// pre-pin pick.
     private func resolveSelectionChain(target: String) -> [SelectionStep] {
         guard let config = configStore.loadConfig(),
               let data = config.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let outbounds = json["outbounds"] as? [[String: Any]]
         else { return [] }
+        return Self.resolveChain(target: target, outbounds: outbounds)
+    }
 
+    /// Pure-function core of selection resolution — exposed `internal`
+    /// for unit tests. Takes a parsed sing-box outbounds array (straight
+    /// from `JSONSerialization`) and returns the ordered selectOutbound
+    /// steps. No I/O, no actor isolation, deterministic.
+    ///
+    /// Call ordering inside the returned chain matters: urltest/selector
+    /// leaf pin comes first so Proxy's final hop lands on a pinned leaf
+    /// rather than the urltest's pre-pin RTT pick.
+    ///
+    /// `nonisolated` because AppState is `@Observable` + @MainActor
+    /// (implicit from actor-isolated init) — without the override, test
+    /// code from background queues / XCTest sync contexts can't call it.
+    nonisolated static func resolveChain(target: String, outbounds: [[String: Any]]) -> [SelectionStep] {
         // Index (type, members) by tag.
         var typeByTag: [String: String] = [:]
         var membersByTag: [String: [String]] = [:]
@@ -808,14 +821,28 @@ class AppState {
             }
         }
 
+        // Helper: is `target` reachable via any Proxy member? Include Auto
+        // here — Case 3 below legitimately wants to use Auto as a fallback
+        // when a leaf exists only there. Excluding Auto from reachability
+        // caused valid leaves-only-in-Auto to return an empty chain before
+        // Case 3 even ran.
+        func isReachableFromProxy() -> Bool {
+            for member in membersByTag["Proxy"] ?? [] {
+                if membersByTag[member]?.contains(target) == true { return true }
+            }
+            return false
+        }
+
         guard membersByTag["Proxy"]?.contains(target) == true ||
-              isReachableFromProxy(target: target, membersByTag: membersByTag)
+              isReachableFromProxy()
         else {
             // Target isn't anywhere under Proxy — caller passed a stale tag.
             return []
         }
 
-        // Case 1: target is a direct member of Proxy (Auto, country urltest).
+        // Case 1: target is a direct member of Proxy (Auto, country urltest,
+        // or — post-2026-04-25 — an individual leaf added as Proxy child so
+        // manual leaf overrides can be pinned by the Clash API).
         if membersByTag["Proxy"]?.contains(target) == true {
             return [SelectionStep(group: "Proxy", target: target)]
         }
@@ -851,16 +878,6 @@ class AppState {
         }
 
         return []
-    }
-
-    /// True iff `target` appears as a member of any urltest/selector that is
-    /// itself a Proxy member, ignoring the meta-"Auto" group. One-level
-    /// search — matches the topology the backend actually emits.
-    private func isReachableFromProxy(target: String, membersByTag: [String: [String]]) -> Bool {
-        for member in membersByTag["Proxy"] ?? [] where member != "Auto" {
-            if membersByTag[member]?.contains(target) == true { return true }
-        }
-        return false
     }
 
     /// Apply every step from `chain` to the on-disk config's `default`

@@ -86,6 +86,7 @@
 		7E28503788E8E5595446762E /* RunBlocking.swift in Sources */ = {isa = PBXBuildFile; fileRef = 056A5CFAAD6E085B3A0ACF9A /* RunBlocking.swift */; };
 		810BCB5D9294C89E73DD3930 /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4EBA8BF2FC663C0650E1255 /* AccountView.swift */; };
 		8172F3C87D8F283C5BE0FD57 /* MadFrogVPNApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2782F0253DCD456F2722BCC /* MadFrogVPNApp.swift */; };
+		818BF0849C7EDBF7651897E8 /* ProxyChainResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D718F38ECFF87F89796E9233 /* ProxyChainResolverTests.swift */; };
 		824854237AB1EDCDFA58B97E /* GoogleAuthCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85938B035247DB5D54633361 /* GoogleAuthCoordinator.swift */; };
 		8333F0BE2A23FE058C73B841 /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCCF7452218980C7681CEDA6 /* Haptics.swift */; };
 		83A8F949616EDA373081F7BC /* RoutingMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7486DEC72FBB5DD5338F158 /* RoutingMode.swift */; };
@@ -99,6 +100,7 @@
 		8B0B22B50382DB9506F96734 /* Libbox.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C18C942EF28864C26636822B /* Libbox.xcframework */; };
 		8D0556BA2F8691356C8F0E04 /* RunBlocking.swift in Sources */ = {isa = PBXBuildFile; fileRef = 056A5CFAAD6E085B3A0ACF9A /* RunBlocking.swift */; };
 		8FBB24D22BEABD59685F7B82 /* MenuBarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8EF3541F56531E6A2C1EA76 /* MenuBarContent.swift */; };
+		905E0BB257310FDDB4781269 /* PingServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B114B8A077748A71A618058A /* PingServiceTests.swift */; };
 		942A96B073B8A5480C18FD7B /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C0143BDF66872F26920B09B /* Theme.swift */; };
 		96DEF159E7D3E0FE7B610E47 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31BA223EF19A5BDE5145B520 /* Logger.swift */; };
 		9795D390116C1BCDC7DABE82 /* UniformTypeIdentifiers.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9E3E0B15FC93A31007046BA1 /* UniformTypeIdentifiers.framework */; };
@@ -278,6 +280,7 @@
 		A630BB5B9993A8152A622ED3 /* CoreWLAN.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreWLAN.framework; path = System/Library/Frameworks/CoreWLAN.framework; sourceTree = SDKROOT; };
 		AAFB204D1606673779D65246 /* PaywallRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallRouter.swift; sourceTree = "<group>"; };
 		AE8C33AF6B8E237DD5BC9D5B /* ThemePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemePickerView.swift; sourceTree = "<group>"; };
+		B114B8A077748A71A618058A /* PingServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PingServiceTests.swift; sourceTree = "<group>"; };
 		BD660F09A2FD36D53775C288 /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = System/Library/Frameworks/AppKit.framework; sourceTree = SDKROOT; };
 		C18C942EF28864C26636822B /* Libbox.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Libbox.xcframework; path = Frameworks/Libbox.xcframework; sourceTree = "<group>"; };
 		C254991A86781B863F8BA92C /* SubscriptionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManager.swift; sourceTree = "<group>"; };
@@ -288,6 +291,7 @@
 		D1256FD7DB2FC529473E9686 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		D231623164FE9FECAD770789 /* StringUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StringUtils.swift; sourceTree = "<group>"; };
 		D289D2F79D83BFBA207A4C15 /* DirectConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectConnection.swift; sourceTree = "<group>"; };
+		D718F38ECFF87F89796E9233 /* ProxyChainResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyChainResolverTests.swift; sourceTree = "<group>"; };
 		DBF8B42392C0D194798D2667 /* TunnelFileLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunnelFileLogger.swift; sourceTree = "<group>"; };
 		DE3FC4D9A2F0228684038B28 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		DF2F273346C080E186A4A490 /* ServerGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerGroup.swift; sourceTree = "<group>"; };
@@ -388,6 +392,8 @@
 			children = (
 				828C4AEC2AEC8A2EEB92717E /* ConfigSanitizerTests.swift */,
 				FF66055FD7D08B8EB5770BAF /* KeychainHelperTests.swift */,
+				B114B8A077748A71A618058A /* PingServiceTests.swift */,
+				D718F38ECFF87F89796E9233 /* ProxyChainResolverTests.swift */,
 				911405BB4A76493BB81F7FD7 /* RoutingModeTests.swift */,
 				9B07C7F761E8467D5C74E4CD /* StringUtilsTests.swift */,
 			);
@@ -852,6 +858,8 @@
 			files = (
 				9AB874F30E33334B32A64AA5 /* ConfigSanitizerTests.swift in Sources */,
 				C9076459425BD8F9966B4CEE /* KeychainHelperTests.swift in Sources */,
+				905E0BB257310FDDB4781269 /* PingServiceTests.swift in Sources */,
+				818BF0849C7EDBF7651897E8 /* ProxyChainResolverTests.swift in Sources */,
 				71544D80CE087259EC1D47FC /* RoutingModeTests.swift in Sources */,
 				88554DBB410CBE11723FF7F3 /* StringUtilsTests.swift in Sources */,
 			);
@@ -994,12 +1002,13 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.madfrog.vpn.MadFrogVPNTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.madfrog.vpn.tests;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = 1;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MadFrogVPN.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MadFrogVPN";
@@ -1068,12 +1077,13 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.madfrog.vpn.MadFrogVPNTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.madfrog.vpn.tests;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = 1;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MadFrogVPN.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MadFrogVPN";

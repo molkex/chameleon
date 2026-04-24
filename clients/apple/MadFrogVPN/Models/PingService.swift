@@ -98,9 +98,12 @@ final class PingService {
     /// (hysteria2, tuic) must be probed with a QUIC Initial; TCP handshake
     /// to their UDP port yields false-positive low values (RST from the
     /// closed TCP port arrives in <10ms regardless of real network RTT).
-    private enum Transport { case tcp, quic }
+    ///
+    /// Exposed `internal` (not private) so unit tests can assert the
+    /// classification without network I/O.
+    enum Transport { case tcp, quic }
 
-    private static func transportFor(type: String) -> Transport {
+    nonisolated static func transportFor(type: String) -> Transport {
         switch type.lowercased() {
         case "hysteria2", "tuic":
             return .quic
