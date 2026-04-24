@@ -217,6 +217,42 @@ func run() error {
 		return fmt.Errorf("reality private key not found — set it in vpn_servers DB table or REALITY_PRIVATE_KEY env var")
 	}
 
+	// Validate THIS node's Reality keypair (priv ↔ pub via x25519). A
+	// mismatch means clients fetching configs from this node get a
+	// public_key that can't handshake against the local sing-box —
+	// silent auth failure at the TLS layer that shows up to the user
+	// as "processed invalid connection" flood in sing-box logs.
+	// Log but don't fatal: PublicKey may be intentionally unset in
+	// dev (engine falls back to deriving it), in which case the
+	// check is a no-op.
+	if realityPublicKey != "" {
+		if err := vpn.ValidateRealityKeyPair(realityPrivateKey, realityPublicKey); err != nil {
+			logger.Error("reality key pair validation failed for local node — clients will fail TLS handshake",
+				zap.Error(err))
+		} else {
+			logger.Info("reality key pair validated for local node")
+		}
+	}
+
+	// Also validate EVERY server row emitted in client configs. If any
+	// peer's pub doesn't match its priv (most common cause: hand-edit
+	// drift, partial key rotation, stale cluster-sync state), clients
+	// picking that server fail silently the same way. This catches
+	// drift at startup, before users report "can't connect".
+	if allSrv, err := database.ListAllServers(ctx); err == nil {
+		for _, s := range allSrv {
+			if s.RealityPrivateKey == "" || s.RealityPublicKey == "" {
+				continue // row not using per-server keys — engine fallback applies
+			}
+			if err := vpn.ValidateRealityKeyPair(s.RealityPrivateKey, s.RealityPublicKey); err != nil {
+				logger.Error("reality key pair mismatch in DB — clients routed to this server will fail",
+					zap.String("server_key", s.Key),
+					zap.String("host", s.Host),
+					zap.Error(err))
+			}
+		}
+	}
+
 	engineCfg := vpn.EngineConfig{
 		ListenPort: cfg.VPN.ListenPort,
 		Reality: vpn.RealityConfig{
