@@ -246,16 +246,16 @@ func TestToAdminResponse(t *testing.T) {
 	now := time.Date(2026, 1, 15, 9, 30, 0, 0, time.UTC)
 	last := time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC)
 
-	// Build an AdminUser via JSON to avoid coupling to the (private)
-	// db.AdminUser zero-init order.
-	u, err := decodeAdminUser([]byte(`{"id":42,"username":"alice","role":"admin","is_active":true}`))
-	if err != nil {
-		t.Fatalf("decode: %v", err)
+	u := db.AdminUser{
+		ID:        42,
+		Username:  "alice",
+		Role:      "admin",
+		IsActive:  true,
+		CreatedAt: now,
+		LastLogin: &last,
 	}
-	u.CreatedAt = now
-	u.LastLogin = &last
 
-	r := toAdminResponse(*u)
+	r := toAdminResponse(u)
 	if r.ID != 42 || r.Username != "alice" || r.Role != "admin" || !r.IsActive {
 		t.Errorf("basic fields wrong: %+v", r)
 	}
@@ -265,27 +265,14 @@ func TestToAdminResponse(t *testing.T) {
 	if r.LastLogin == nil || *r.LastLogin != "2026-04-01 12:00" {
 		t.Errorf("LastLogin: want 2026-04-01 12:00, got %v", r.LastLogin)
 	}
-}
 
-// decodeAdminUser is a thin helper to avoid importing db internals.
-func decodeAdminUser(body []byte) (*adminUserShim, error) {
-	var u adminUserShim
-	if err := json.Unmarshal(body, &u); err != nil {
-		return nil, err
+	// Zero CreatedAt → response omits it (current behavior).
+	u2 := db.AdminUser{ID: 1, Username: "bob", Role: "viewer", IsActive: false}
+	r2 := toAdminResponse(u2)
+	if r2.CreatedAt != nil {
+		t.Errorf("CreatedAt should be nil for zero time, got %v", *r2.CreatedAt)
 	}
-	return &u, nil
-}
-
-// adminUserShim mirrors db.AdminUser fields used by toAdminResponse so the
-// test can construct one without depending on the db package's internals.
-// We assert the production code still works by funneling this through
-// (*db.AdminUser conversion is not needed because the function is value-typed).
-type adminUserShim = struct {
-	ID           int64      `json:"id"`
-	Username     string     `json:"username"`
-	PasswordHash string     `json:"-"`
-	Role         string     `json:"role"`
-	IsActive     bool       `json:"is_active"`
-	LastLogin    *time.Time `json:"last_login,omitempty"`
-	CreatedAt    time.Time  `json:"created_at"`
+	if r2.LastLogin != nil {
+		t.Errorf("LastLogin should be nil for nil pointer, got %v", *r2.LastLogin)
+	}
 }
