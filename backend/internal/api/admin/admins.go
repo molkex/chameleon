@@ -96,11 +96,17 @@ func (h *Handler) CreateAdmin(c echo.Context) error {
 
 // DeleteAdmin handles DELETE /api/admin/admins/:id
 //
-// Soft-deletes an admin user.
+// Soft-deletes an admin user. Refuses to delete the caller's own row to
+// avoid the lock-out scenario where an admin removes the last active
+// account (including their own).
 func (h *Handler) DeleteAdmin(c echo.Context) error {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid admin id")
+	}
+
+	if claims, ok := c.Get("auth_claims").(*auth.Claims); ok && claims != nil && claims.UserID == id {
+		return echo.NewHTTPError(http.StatusBadRequest, "cannot delete your own admin account")
 	}
 
 	ctx := c.Request().Context()

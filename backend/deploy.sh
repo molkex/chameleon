@@ -226,7 +226,7 @@ echo ">>> Starting chameleon + nginx..."
 # rename the new compose project tries to claim the same container names
 # the previous project still owns. Force-recreate releases them cleanly.
 docker compose up -d --no-deps --force-recreate chameleon
-docker compose up -d --force-recreate nginx
+docker compose up -d --no-deps --force-recreate nginx
 
 # ── Wait for health ────────────────────────────────────────────────────────
 echo ">>> Waiting for backend health..."
