@@ -1458,3 +1458,90 @@ Winner: first task to return 2xx (ignores 5xx/timeouts)
            cancels all others immediately
 Success: average 300-800ms (T1-2 win in most regions)
 Failure: all 5 tasks timeout → user sees error
+
+---
+
+## Enable Hysteria2 + TUIC on a new exit server
+
+Applied 2026-04-25 to NL (147.45.252.234). Template for adding these
+protocols to any new VPN exit.
+
+### 1. Generate self-signed UDP cert on the target server
+
+Both Hysteria2 and TUIC use QUIC+TLS with `insecure:true` on the
+client side, so any CN works. Cert lives in the sing-box config volume
+(mounted read-only into the singbox container, so write from host).
+
+```bash
+ssh root@<SERVER_IP>
+cd /tmp
+openssl req -x509 -newkey rsa:2048 \
+  -keyout server.key -out server.crt -days 3650 -nodes \
+  -subj '/CN=madfrog.online/O=MadFrog/C=<CC>'
+sudo cp server.{crt,key} /var/lib/docker/volumes/chameleon-singbox-config/_data/
+# Also copy into the running container so current process sees it on reload
+sudo docker cp /tmp/server.crt singbox:/etc/singbox/server.crt
+sudo docker cp /tmp/server.key singbox:/etc/singbox/server.key
+```
+
+### 2. Patch chameleon engine config
+
+```bash
+sudo sed -i '
+  s/hysteria2_port: 0/hysteria2_port: 443/;
+  s/tuic_port: 0/tuic_port: 8443/;
+  s|udp_cert_path: ""|udp_cert_path: "/etc/singbox/server.crt"|;
+  s|udp_key_path: ""|udp_key_path: "/etc/singbox/server.key"|;
+' /opt/chameleon/backend/config.yaml
+```
+
+### 3. Open firewall
+
+```bash
+sudo ufw allow 443/udp comment 'Hysteria2'
+sudo ufw allow 8443/udp comment 'TUIC v5'
+```
+
+### 4. Update DB row so clients see the new ports
+
+```bash
+sudo docker exec chameleon-postgres psql -U chameleon -d chameleon -c \
+  "UPDATE vpn_servers SET hysteria2_port=443, tuic_port=8443 WHERE key='<SERVER_KEY>';"
+```
+
+⚠️ Run this same UPDATE on EVERY node that serves mobile configs
+(currently DE + NL). Cluster sync does not propagate `vpn_servers`
+changes. Without the update on DE, iOS clients fetching config from
+`api.madfrog.online` (which proxies to DE) still get the old leg list.
+
+### 5. Restart chameleon (NOT sing-box)
+
+```bash
+cd /opt/chameleon/backend
+sudo docker compose up -d --no-deps chameleon
+# verify listeners
+sudo ss -ulnp | grep -E ':(443|8443)'
+# expect two UNCONN lines, both "sing-box"
+```
+
+`--no-deps` keeps singbox container untouched; chameleon's engine-start
+logic reloads singbox's config in-place via the User API / SIGHUP.
+
+### 6. Verify from a mobile client
+
+Fetch a config via `/api/v1/mobile/config` and grep for new leaf tags:
+
+```
+nl-h2-nl2    (hysteria2, server_port 443)
+nl-tuic-nl2  (tuic,      server_port 8443)
+```
+
+Pick the leaf in the picker → check exit IP.
+
+### Gotchas observed on NL 2026-04-25
+- `docker cp` into read-only volume FAILS silently on non-root files.
+  Use `sudo cp` to the host-side volume path instead.
+- TUIC v5 silently drops QUIC Initials without valid auth token
+  (not just ALPN mismatch). The iOS PingService's QUIC prober times
+  out on TUIC — this is expected, the fallback to TCP :443 gives the
+  same host-RTT result.
