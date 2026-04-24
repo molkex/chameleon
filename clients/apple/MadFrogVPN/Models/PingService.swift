@@ -21,7 +21,10 @@ final class PingService {
     var isProbing = false
 
     private let timeout: TimeInterval = 2.0
-    private let cacheKey = "PingService.cache.v1"
+    // Bump key when measurement semantics change so cached numbers from old
+    // builds (which sometimes got stuck at sub-10ms localhost-relayed values)
+    // are dropped and the UI shows real RTT after the next probe.
+    private let cacheKey = "PingService.cache.v2"
     // 24h: latency to a given server barely changes day-to-day, and showing
     // a slightly stale value is way better UX than showing "— ms" while a
     // fresh probe is in flight. Fresh probes run in the background on every
