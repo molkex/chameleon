@@ -51,6 +51,10 @@ type SingboxEngine struct {
 	// Process management (ModeEmbedded only).
 	cmd        *exec.Cmd
 	cancelFunc context.CancelFunc
+	// procDone is closed by the monitor goroutine after cmd.Wait() returns.
+	// stopProcessLocked waits on this instead of calling Process.Wait() a
+	// second time — Process.Wait can only be called once safely.
+	procDone chan struct{}
 
 	// Docker container name (ModeDocker only).
 	containerName string
@@ -647,19 +651,26 @@ func (e *SingboxEngine) startProcessLocked(ctx context.Context) error {
 		zap.String("config", e.configPath),
 	)
 
+	// Allocate the done channel BEFORE spawning the monitor so stopProcessLocked
+	// always has something to wait on. Closed by the monitor when Wait returns.
+	e.procDone = make(chan struct{})
+
 	// Monitor the process in the background.
-	go func() {
+	go func(done chan struct{}) {
 		err := e.cmd.Wait()
-		e.mu.Lock()
+		close(done)
+		// Read e.running under RLock to avoid the lock-channel deadlock that
+		// existed when Stop held e.mu (Lock) and waited on the second Wait.
+		e.mu.RLock()
 		wasRunning := e.running
-		e.mu.Unlock()
+		e.mu.RUnlock()
 
 		if wasRunning {
 			e.logger.Error("sing-box process exited unexpectedly", zap.Error(err))
 		} else {
 			e.logger.Info("sing-box process exited", zap.Error(err))
 		}
-	}()
+	}(e.procDone)
 
 	return nil
 }
@@ -682,12 +693,14 @@ func (e *SingboxEngine) stopProcessLocked() error {
 		return nil
 	}
 
-	// Wait for the process to exit with a timeout.
-	done := make(chan error, 1)
-	go func() {
-		_, err := e.cmd.Process.Wait()
-		done <- err
-	}()
+	// Wait for the monitor goroutine (which already owns the cmd.Wait call)
+	// to close procDone — never call Process.Wait twice on the same process.
+	done := e.procDone
+	if done == nil {
+		// Defensive: nothing was started, nothing to wait on.
+		e.cmd = nil
+		return nil
+	}
 
 	select {
 	case <-done:
@@ -697,9 +710,16 @@ func (e *SingboxEngine) stopProcessLocked() error {
 		if err := e.cmd.Process.Kill(); err != nil {
 			return fmt.Errorf("kill sing-box process: %w", err)
 		}
+		// Give the monitor a moment to observe the kill and close procDone.
+		select {
+		case <-done:
+		case <-time.After(2 * time.Second):
+			e.logger.Warn("sing-box monitor did not finish after SIGKILL")
+		}
 	}
 
 	e.cmd = nil
+	e.procDone = nil
 	return nil
 }
 

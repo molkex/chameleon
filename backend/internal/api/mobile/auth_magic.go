@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/mail"
 	"strings"
+	"time"
 
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
@@ -84,7 +85,12 @@ func (h *Handler) MagicLinkRequest(c echo.Context) error {
 	}
 
 	lang := langFromAcceptLanguage(c.Request().Header.Get("Accept-Language"))
-	go h.sendMagicLinkEmail(context.Background(), emailLower, raw, purpose, lang)
+	go func(email, token, purp, lang string) {
+		// Bound the SMTP send so a hung mail provider can't leak goroutines.
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		h.sendMagicLinkEmail(ctx, email, token, purp, lang)
+	}(emailLower, raw, purpose, lang)
 
 	return c.NoContent(http.StatusNoContent)
 }

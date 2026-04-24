@@ -75,5 +75,5 @@ Secrets are loaded from `~/.secrets.env` on the deploy machine.
 | Node | IP | Role |
 |---|---|---|
 | DE | 162.19.242.30 | Backend + VPN |
-| NL | 194.135.38.90 | Backend + VPN |
+| NL | 147.45.252.234 | Backend + VPN |
 | SPB | 185.218.0.43 | TCP relay |

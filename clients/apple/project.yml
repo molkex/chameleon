@@ -164,3 +164,22 @@ targets:
       - sdk: ApplicationServices.framework
       - sdk: UserNotifications.framework
       - sdk: libbsm.tbd
+
+  MadFrogVPNTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests/UnitTests
+    dependencies:
+      - target: MadFrogVPN
+    settings:
+      base:
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/MadFrogVPN.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MadFrogVPN"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        TARGETED_DEVICE_FAMILY: "1"
+    scheme:
+      testTargets:
+        - MadFrogVPNTests
+      gatherCoverageData: true
+      coverageTargets:
+        - MadFrogVPN

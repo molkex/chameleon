@@ -73,6 +73,7 @@
 		6F371943E737DF862A79FEF7 /* DebugLogsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C86B933890A16DB4069C1A5 /* DebugLogsView.swift */; };
 		6F53AEF81D6D7333CF80F056 /* EmailSignInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2BA26B8B7F99DE0D1317CFA /* EmailSignInView.swift */; };
 		706F72657CDA27B5340D9C68 /* DebugLogsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C86B933890A16DB4069C1A5 /* DebugLogsView.swift */; };
+		71544D80CE087259EC1D47FC /* RoutingModeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 911405BB4A76493BB81F7FD7 /* RoutingModeTests.swift */; };
 		7357B9F5EF2917364CD9F875 /* PaywallRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFB204D1606673779D65246 /* PaywallRouter.swift */; };
 		737444102A7A75DB8692E648 /* RoutingMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7486DEC72FBB5DD5338F158 /* RoutingMode.swift */; };
 		74B8FB1F0BBCA68D8ECE3F26 /* PacketTunnelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C3AA0F75FD43492C173B8C4 /* PacketTunnelProvider.swift */; };
@@ -94,6 +95,7 @@
 		863EF301D0218146226F269C /* libbsm.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 432EBE9FD5522D30F574115F /* libbsm.tbd */; };
 		87FFB27A4907D550DB3E9FE7 /* CoreWLAN.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A630BB5B9993A8152A622ED3 /* CoreWLAN.framework */; };
 		882104E7A1040997AE2683E8 /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FF7E993E8B445FBA2EBEC98C /* IOKit.framework */; };
+		88554DBB410CBE11723FF7F3 /* StringUtilsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B07C7F761E8467D5C74E4CD /* StringUtilsTests.swift */; };
 		8B0B22B50382DB9506F96734 /* Libbox.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C18C942EF28864C26636822B /* Libbox.xcframework */; };
 		8D0556BA2F8691356C8F0E04 /* RunBlocking.swift in Sources */ = {isa = PBXBuildFile; fileRef = 056A5CFAAD6E085B3A0ACF9A /* RunBlocking.swift */; };
 		8FBB24D22BEABD59685F7B82 /* MenuBarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8EF3541F56531E6A2C1EA76 /* MenuBarContent.swift */; };
@@ -101,6 +103,7 @@
 		96DEF159E7D3E0FE7B610E47 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31BA223EF19A5BDE5145B520 /* Logger.swift */; };
 		9795D390116C1BCDC7DABE82 /* UniformTypeIdentifiers.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9E3E0B15FC93A31007046BA1 /* UniformTypeIdentifiers.framework */; };
 		988C3827DE54CCD7D736BEA4 /* DirectConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = D289D2F79D83BFBA207A4C15 /* DirectConnection.swift */; };
+		9AB874F30E33334B32A64AA5 /* ConfigSanitizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 828C4AEC2AEC8A2EEB92717E /* ConfigSanitizerTests.swift */; };
 		9B6D01AD9F7B235A613C075B /* ConfigSanitizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E043C787773D9E89FA561E25 /* ConfigSanitizer.swift */; };
 		A3569FD0132F54EF06B9C506 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = C95C6FD0A2B40240B868E8D1 /* GoogleSignIn */; };
 		A58383CFF190561236D7F7B7 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EA1C04CBF00045661691673 /* AppState.swift */; };
@@ -127,6 +130,7 @@
 		C6A4EEA1E20EC436598B19AA /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 137C78C1838DB59BBA29DB42 /* Assets.xcassets */; };
 		C6AF80BEEEDDF6223C295DD5 /* TunnelFileLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBF8B42392C0D194798D2667 /* TunnelFileLogger.swift */; };
 		C7E3D59FFCDB47DD245F2449 /* PingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 233EE0ACC559229ABE75CF28 /* PingService.swift */; };
+		C9076459425BD8F9966B4CEE /* KeychainHelperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF66055FD7D08B8EB5770BAF /* KeychainHelperTests.swift */; };
 		CAE69A9A9192883A23FEE391 /* RunBlocking.swift in Sources */ = {isa = PBXBuildFile; fileRef = 056A5CFAAD6E085B3A0ACF9A /* RunBlocking.swift */; };
 		CBB2232BC6F0A99DF2328F4E /* TunnelFileLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBF8B42392C0D194798D2667 /* TunnelFileLogger.swift */; };
 		CBBF990EDECD98AB6A1F8CAF /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCCF7452218980C7681CEDA6 /* Haptics.swift */; };
@@ -172,6 +176,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = 8A43A48C1193979495716D91;
 			remoteInfo = PacketTunnel;
+		};
+		B3D5637EA6929EF2629BF4A1 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A54AFD899CCE4FDE1BDF788C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6FCCEB0AB839A6167F139502;
+			remoteInfo = MadFrogVPN;
 		};
 		CEE680FC22614F4C6A80A211 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -251,14 +262,18 @@
 		6EB6E5AC5778ED82A0132FCD /* MadFrogVPN.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MadFrogVPN.entitlements; sourceTree = "<group>"; };
 		6FB31924F9877EB257134990 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		7195CF498E5531209F7FAD2C /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		76804A237D70124AC33CC216 /* MadFrogVPNTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = MadFrogVPNTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		7C61B1AA0AC6A405D189C34B /* PlatformDevice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformDevice.swift; sourceTree = "<group>"; };
+		828C4AEC2AEC8A2EEB92717E /* ConfigSanitizerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigSanitizerTests.swift; sourceTree = "<group>"; };
 		84CA81E1B48C9260C55A6012 /* ApplicationServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ApplicationServices.framework; path = System/Library/Frameworks/ApplicationServices.framework; sourceTree = SDKROOT; };
 		85938B035247DB5D54633361 /* GoogleAuthCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleAuthCoordinator.swift; sourceTree = "<group>"; };
 		872DE7900BBC5982BA0688E8 /* CoreLocation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreLocation.framework; path = System/Library/Frameworks/CoreLocation.framework; sourceTree = SDKROOT; };
 		8C0143BDF66872F26920B09B /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		8F6C0D910C8814F24440E9B4 /* WebPaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebPaywallView.swift; sourceTree = "<group>"; };
+		911405BB4A76493BB81F7FD7 /* RoutingModeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutingModeTests.swift; sourceTree = "<group>"; };
 		9165FAC1D21DF4F01B68654F /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
 		98143383638BB4DB362C29BE /* CoreText.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreText.framework; path = System/Library/Frameworks/CoreText.framework; sourceTree = SDKROOT; };
+		9B07C7F761E8467D5C74E4CD /* StringUtilsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StringUtilsTests.swift; sourceTree = "<group>"; };
 		9E3E0B15FC93A31007046BA1 /* UniformTypeIdentifiers.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UniformTypeIdentifiers.framework; path = System/Library/Frameworks/UniformTypeIdentifiers.framework; sourceTree = SDKROOT; };
 		A630BB5B9993A8152A622ED3 /* CoreWLAN.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreWLAN.framework; path = System/Library/Frameworks/CoreWLAN.framework; sourceTree = SDKROOT; };
 		AAFB204D1606673779D65246 /* PaywallRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallRouter.swift; sourceTree = "<group>"; };
@@ -289,6 +304,7 @@
 		FBE7C9320BF719748D0BBC0A /* MadFrogVPN.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = MadFrogVPN.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FCCF7452218980C7681CEDA6 /* Haptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
 		FEBE74F9DD0282A5EA7B00DE /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		FF66055FD7D08B8EB5770BAF /* KeychainHelperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelperTests.swift; sourceTree = "<group>"; };
 		FF7E993E8B445FBA2EBEC98C /* IOKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOKit.framework; path = System/Library/Frameworks/IOKit.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -359,6 +375,25 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		063C16F7E5ED9F4E36CEAB43 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				0BA838F6BE69322440DCDB5D /* UnitTests */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+		0BA838F6BE69322440DCDB5D /* UnitTests */ = {
+			isa = PBXGroup;
+			children = (
+				828C4AEC2AEC8A2EEB92717E /* ConfigSanitizerTests.swift */,
+				FF66055FD7D08B8EB5770BAF /* KeychainHelperTests.swift */,
+				911405BB4A76493BB81F7FD7 /* RoutingModeTests.swift */,
+				9B07C7F761E8467D5C74E4CD /* StringUtilsTests.swift */,
+			);
+			path = UnitTests;
+			sourceTree = "<group>";
+		};
 		1380AF2310B9C4208838F5D1 /* Views */ = {
 			isa = PBXGroup;
 			children = (
@@ -476,6 +511,7 @@
 				FC8377BC9C71183C1DE16DAF /* MadFrogVPN */,
 				149097BB0659E889881AA558 /* PacketTunnel */,
 				2DB36AB4D9154C979E88EEE8 /* Shared */,
+				063C16F7E5ED9F4E36CEAB43 /* Tests */,
 				6EEC108E284B59CB79FB98A0 /* Frameworks */,
 				EC3A3EDD394553EF29F1AA2D /* Products */,
 			);
@@ -486,6 +522,7 @@
 			children = (
 				FBE7C9320BF719748D0BBC0A /* MadFrogVPN.app */,
 				63D44CCDFB75CAF34F8A4F3C /* MadFrogVPNMac.app */,
+				76804A237D70124AC33CC216 /* MadFrogVPNTests.xctest */,
 				4334355585E46811414C5916 /* PacketTunnel.appex */,
 				5B0DF204F6C9DA8DCF48C6FE /* PacketTunnelMac.appex */,
 			);
@@ -593,6 +630,24 @@
 			productReference = 4334355585E46811414C5916 /* PacketTunnel.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		CD0316386156123D1B9934B4 /* MadFrogVPNTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 91B51FB7E1CC29AFFC6FD988 /* Build configuration list for PBXNativeTarget "MadFrogVPNTests" */;
+			buildPhases = (
+				C8B747C8F6A2D6EF3121D2D6 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				9154461BC065B4FAC76F4CE7 /* PBXTargetDependency */,
+			);
+			name = MadFrogVPNTests;
+			packageProductDependencies = (
+			);
+			productName = MadFrogVPNTests;
+			productReference = 76804A237D70124AC33CC216 /* MadFrogVPNTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -614,6 +669,9 @@
 						DevelopmentTeam = 99W3C374T2;
 					};
 					8A43A48C1193979495716D91 = {
+						DevelopmentTeam = 99W3C374T2;
+					};
+					CD0316386156123D1B9934B4 = {
 						DevelopmentTeam = 99W3C374T2;
 					};
 				};
@@ -638,6 +696,7 @@
 			targets = (
 				6FCCEB0AB839A6167F139502 /* MadFrogVPN */,
 				1E94DCCE5A2DDD82C75ADFC9 /* MadFrogVPNMac */,
+				CD0316386156123D1B9934B4 /* MadFrogVPNTests */,
 				8A43A48C1193979495716D91 /* PacketTunnel */,
 				033FB93F47EDF667341E1516 /* PacketTunnelMac */,
 			);
@@ -787,6 +846,17 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C8B747C8F6A2D6EF3121D2D6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9AB874F30E33334B32A64AA5 /* ConfigSanitizerTests.swift in Sources */,
+				C9076459425BD8F9966B4CEE /* KeychainHelperTests.swift in Sources */,
+				71544D80CE087259EC1D47FC /* RoutingModeTests.swift in Sources */,
+				88554DBB410CBE11723FF7F3 /* StringUtilsTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		DA8265BEC7EEC4101AA21181 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -815,6 +885,11 @@
 			isa = PBXTargetDependency;
 			target = 8A43A48C1193979495716D91 /* PacketTunnel */;
 			targetProxy = 4E6EB141DD1A14B54A292105 /* PBXContainerItemProxy */;
+		};
+		9154461BC065B4FAC76F4CE7 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 6FCCEB0AB839A6167F139502 /* MadFrogVPN */;
+			targetProxy = B3D5637EA6929EF2629BF4A1 /* PBXContainerItemProxy */;
 		};
 		FED6EC19D4D6087EB342FE9D /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -915,6 +990,22 @@
 			};
 			name = Debug;
 		};
+		5DBDBF585966A5C3C70F9DDE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.madfrog.vpn.MadFrogVPNTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MadFrogVPN.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MadFrogVPN";
+			};
+			name = Release;
+		};
 		773DE896758922CC678D3700 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -972,6 +1063,22 @@
 				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
+		};
+		A9DBCC88A14B7CD5C761F214 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.madfrog.vpn.MadFrogVPNTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MadFrogVPN.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MadFrogVPN";
+			};
+			name = Debug;
 		};
 		DD0CC297C842403382B07974 /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -1143,6 +1250,15 @@
 			buildConfigurations = (
 				1DD9952CE378D9F0EF3C354B /* Debug */,
 				0E70A85420BE2709B8B348E9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		91B51FB7E1CC29AFFC6FD988 /* Build configuration list for PBXNativeTarget "MadFrogVPNTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A9DBCC88A14B7CD5C761F214 /* Debug */,
+				5DBDBF585966A5C3C70F9DDE /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

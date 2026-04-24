@@ -335,17 +335,24 @@ extension ExtensionPlatformInterface: LibboxCommandServerHandlerProtocol {
 
     func writeDebugMessage(_ message: String?) {
         guard let message else { return }
-        // Forward sing-box debug messages to our file logger too
+        // Forward sing-box debug messages to our file logger too. libbox calls
+        // this from arbitrary background threads — funnel writes through a
+        // serial queue so concurrent emissions don't interleave (which used
+        // to corrupt singbox.log because FileHandle has no internal locking).
         TunnelFileLogger.log(message, category: "singbox")
-        // Also write to singbox.log
-        let logURL = AppConstants.sharedContainerURL.appendingPathComponent("singbox.log")
-        let line = "\(message)\n"
-        if let handle = try? FileHandle(forWritingTo: logURL) {
-            handle.seekToEndOfFile()
-            handle.write(line.data(using: .utf8) ?? Data())
-            handle.closeFile()
-        } else {
-            try? line.write(to: logURL, atomically: true, encoding: .utf8)
+        Self.singboxLogQueue.async {
+            let logURL = AppConstants.sharedContainerURL.appendingPathComponent("singbox.log")
+            let line = "\(message)\n"
+            guard let data = line.data(using: .utf8) else { return }
+            if let handle = try? FileHandle(forWritingTo: logURL) {
+                defer { try? handle.close() }
+                _ = try? handle.seekToEnd()
+                try? handle.write(contentsOf: data)
+            } else {
+                try? data.write(to: logURL)
+            }
         }
     }
+
+    private static let singboxLogQueue = DispatchQueue(label: "vpn.madfrog.singbox-log", qos: .utility)
 }

@@ -230,12 +230,12 @@ func (h *Handler) AppleSignIn(c echo.Context) error {
 		// Regenerate so they can connect again — subscription stays wiped
 		// until they Restore Purchases.
 		if user.VPNUsername == nil || user.VPNUUID == nil {
-			vpnUsername := generateVPNUsername(req.DeviceID)
 			vpnUUID, err := generateUUID()
 			if err != nil {
 				h.Logger.Error("regen vpn uuid", zap.Error(err))
 				return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
 			}
+			vpnUsername := generateVPNUsernameFromUUID(vpnUUID)
 			vpnShortID := ""
 			user.VPNUsername = &vpnUsername
 			user.VPNUUID = &vpnUUID
@@ -370,11 +370,11 @@ func (h *Handler) RefreshToken(c echo.Context) error {
 // createUser creates a new user with VPN credentials and a 30-day trial subscription.
 // deviceID is always required; appleID and authProvider vary by sign-in method.
 func (h *Handler) createUser(ctx context.Context, deviceID, appleID, authProvider string) (*db.User, error) {
-	vpnUsername := generateVPNUsername(deviceID)
 	vpnUUID, err := generateUUID()
 	if err != nil {
 		return nil, fmt.Errorf("generate uuid: %w", err)
 	}
+	vpnUsername := generateVPNUsernameFromUUID(vpnUUID)
 	// Use empty short_id — it is always valid in sing-box Reality config.
 	// Random short_ids caused "reality verification failed" because they
 	// weren't in the server's allowed short_id list.
@@ -428,12 +428,16 @@ func (h *Handler) addUserToVPN(ctx context.Context, user *db.User) error {
 	})
 }
 
-// generateVPNUsername creates a VPN username from a device_id.
-// Format: "device_" + first 8 chars of sha256(device_id).
-func generateVPNUsername(deviceID string) string {
-	hash := sha256.Sum256([]byte(deviceID))
-	hexHash := hex.EncodeToString(hash[:])
-	return "device_" + hexHash[:8]
+// generateVPNUsername creates a VPN username derived from the user's
+// per-registration vpn_uuid (NOT device_id). Using device_id meant that two
+// users sharing a device — re-register after delete, or two installs of the
+// app on the same hardware — produced the same username, which collides
+// with the unique idx_users_vpn_username DB index and rejects cluster sync
+// upserts. Hashing the uuid keeps usernames stable per registration and
+// guarantees uniqueness because uuids are crypto-random 128 bits.
+func generateVPNUsernameFromUUID(uuid string) string {
+	hash := sha256.Sum256([]byte(uuid))
+	return "device_" + hex.EncodeToString(hash[:])[:8]
 }
 
 // generateUUID generates a random UUID v4 using crypto/rand.
