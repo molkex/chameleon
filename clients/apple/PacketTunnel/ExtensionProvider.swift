@@ -155,7 +155,18 @@ open class ExtensionProvider: NEPacketTunnelProvider {
         setupOptions.basePath = AppConstants.sharedContainerURL.path
         setupOptions.workingPath = AppConstants.workingDirectory.path
         setupOptions.tempPath = AppConstants.tempDirectory.path
+        // libbox debug=true emits per-packet TRACE lines (XtlsPadding/Unpadding/
+        // XtlsRead, ~50 per second). The strings are buffered in memory before
+        // hitting writeDebugMessage. Combined with the singbox config log
+        // level, this pushed the PacketTunnel extension over the iOS ~50MB
+        // budget and triggered oom-killer service to reset the network every
+        // few hundred ms — manifested as "Germany selected, NL exit IP" and
+        // "pages don't load on LTE". Production builds stay at INFO.
+        #if DEBUG
         setupOptions.debug = true
+        #else
+        setupOptions.debug = false
+        #endif
         setupOptions.logMaxLines = 500
         TunnelFileLogger.log("Paths — base: \(setupOptions.basePath), work: \(setupOptions.workingPath)")
 
