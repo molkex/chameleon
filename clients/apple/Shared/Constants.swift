@@ -63,9 +63,17 @@ enum AppConstants {
     static let startOptionsKey = "startOptions"
 
     static var sharedContainerURL: URL {
-        FileManager.default.containerURL(
+        // App Group container is the ONLY path the extension and main app share.
+        // Fallback to .documentDirectory used to silently split the two processes
+        // into separate sandboxes — extension logs became invisible to the UI
+        // reader, and config reads/writes silently desynced. If the entitlement
+        // is misconfigured we must fail loud, not pretend.
+        guard let url = FileManager.default.containerURL(
             forSecurityApplicationGroupIdentifier: appGroupID
-        ) ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        ) else {
+            fatalError("App Group container for '\(appGroupID)' is unavailable. Check entitlements on main app AND extension targets.")
+        }
+        return url
     }
 
     static var configFileURL: URL {

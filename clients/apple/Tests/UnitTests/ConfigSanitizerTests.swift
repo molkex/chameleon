@@ -18,10 +18,14 @@ final class ConfigSanitizerTests: XCTestCase {
         XCTAssertEqual(result, garbage)
     }
 
-    func testEmptyJSONObjectStaysEmpty() throws {
+    func testEmptyJSONObjectGetsLogSectionAdded() throws {
+        // Even an empty config now acquires a `log` section because we force
+        // the level to keep libbox's internal log buffering bounded.
         let result = ConfigSanitizer.sanitizeForIOS("{}")
         let dict = try parseJSON(result)
-        XCTAssertTrue(dict.isEmpty)
+        XCTAssertNotNil(dict["log"], "log section should be populated")
+        let log = dict["log"] as? [String: Any]
+        XCTAssertNotNil(log?["level"])
     }
 
     // MARK: - Stripping deprecated fields
@@ -98,25 +102,99 @@ final class ConfigSanitizerTests: XCTestCase {
         XCTAssertNotNil(route?["rules"], "route.rules should remain")
     }
 
-    func testValidConfigPassesThroughIntact() throws {
-        // A minimal but realistic 1.13 config — none of the deprecated fields
-        // are present, so the structural content must round-trip unchanged.
+    // MARK: - Memory hardening (iOS 50MB jetsam cap)
+
+    func testDNSCacheIsCapped() throws {
+        // Backend could ship unbounded cache_capacity. We force 512.
         let input = """
         {
-          "log": {"level": "info"},
-          "dns": {"servers": [{"tag": "dns-direct", "address": "1.1.1.1"}]},
-          "inbounds": [{"type": "tun", "tag": "tun-in", "address": ["172.19.0.1/30"]}],
-          "outbounds": [{"type": "direct", "tag": "direct"}],
-          "route": {"rules": [{"action": "sniff"}, {"protocol": "dns", "action": "hijack-dns"}]}
+          "dns": {
+            "cache_capacity": 99999,
+            "independent_cache": true,
+            "servers": [{"tag": "dns-direct", "address": "1.1.1.1"}]
+          }
         }
         """
         let result = ConfigSanitizer.sanitizeForIOS(input)
-        let actual = try parseJSON(result)
-        let expected = try parseJSON(input)
+        let dict = try parseJSON(result)
+        let dns = dict["dns"] as? [String: Any]
+        XCTAssertEqual(dns?["cache_capacity"] as? Int, 512)
+        XCTAssertEqual(dns?["independent_cache"] as? Bool, false)
+    }
 
-        // Compare as serialized canonical strings (sorted keys) so dictionary
-        // ordering doesn't trip the assertion.
-        XCTAssertEqual(canonicalJSON(actual), canonicalJSON(expected))
+    func testDNSHardeningAppliedEvenWhenDNSSectionMissing() throws {
+        // If backend forgot to ship a `dns` section, we leave it missing —
+        // no point in fabricating one; sing-box will use its own default.
+        let input = #"{"outbounds": [{"type":"direct","tag":"direct"}]}"#
+        let result = ConfigSanitizer.sanitizeForIOS(input)
+        let dict = try parseJSON(result)
+        XCTAssertNil(dict["dns"])
+    }
+
+    func testCacheFileStrippedFromExperimental() throws {
+        // cache_file geolocates every outbound and keeps per-node state on disk.
+        // Neither needed nor cheap inside the 50 MB extension.
+        let input = """
+        {
+          "experimental": {
+            "cache_file": {"enabled": true, "path": "cache.db"}
+          }
+        }
+        """
+        let result = ConfigSanitizer.sanitizeForIOS(input)
+        let dict = try parseJSON(result)
+        XCTAssertNil(dict["experimental"],
+                     "experimental should be dropped when only cache_file present")
+    }
+
+    func testLogOutputRemoved() throws {
+        // Backend may set log.output to a path. Inside the NE sandbox, that
+        // path usually isn't writable. Drop it so libbox falls back to stderr
+        // which we redirect to the App Group container ourselves.
+        let input = """
+        {
+          "log": {
+            "level": "trace",
+            "output": "/var/log/singbox.log",
+            "timestamp": true
+          }
+        }
+        """
+        let result = ConfigSanitizer.sanitizeForIOS(input)
+        let dict = try parseJSON(result)
+        let log = dict["log"] as? [String: Any]
+        XCTAssertNil(log?["output"])
+        XCTAssertNil(log?["timestamp"])
+        // In Release builds, level is forced to "error"; in DEBUG the backend's
+        // value is preserved. We can only assert it exists.
+        XCTAssertNotNil(log?["level"])
+    }
+
+    #if !DEBUG
+    func testLogLevelForcedToErrorInRelease() throws {
+        let input = #"{"log": {"level": "trace"}}"#
+        let result = ConfigSanitizer.sanitizeForIOS(input)
+        let dict = try parseJSON(result)
+        let log = dict["log"] as? [String: Any]
+        XCTAssertEqual(log?["level"] as? String, "error")
+    }
+    #endif
+
+    func testExperimentalPreservedWhenNonStrippedFieldsPresent() throws {
+        let input = """
+        {
+          "experimental": {
+            "clash_api": {"external_controller": "127.0.0.1:9090"},
+            "v2ray_api": {"listen": "127.0.0.1:8080"}
+          }
+        }
+        """
+        let result = ConfigSanitizer.sanitizeForIOS(input)
+        let dict = try parseJSON(result)
+        let experimental = dict["experimental"] as? [String: Any]
+        XCTAssertNotNil(experimental, "v2ray_api should keep experimental alive")
+        XCTAssertNil(experimental?["clash_api"])
+        XCTAssertNotNil(experimental?["v2ray_api"])
     }
 
     // MARK: - Helpers

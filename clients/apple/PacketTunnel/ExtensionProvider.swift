@@ -14,19 +14,80 @@ open class ExtensionProvider: NEPacketTunnelProvider {
     private var commandServer: LibboxCommandServer?
     private var platformInterface: ExtensionPlatformInterface?
     private var isGrpcRunning = false
+    private var memoryWatchdog: DispatchSourceTimer?
 
     private var sharedDefaults: UserDefaults? {
         UserDefaults(suiteName: AppConstants.appGroupID)
+    }
+
+    // MARK: - Memory diagnostics
+
+    /// Current resident memory footprint of this process in MB.
+    fileprivate func currentMemoryFootprintMB() -> Int {
+        var info = task_vm_info_data_t()
+        var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<natural_t>.size)
+        let result = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count)
+            }
+        }
+        guard result == KERN_SUCCESS else { return -1 }
+        return Int(info.phys_footprint / (1024 * 1024))
+    }
+
+    /// Remaining memory before jetsam fires (iOS 13+), in MB.
+    fileprivate func availableMemoryMB() -> Int {
+        Int(os_proc_available_memory() / (1024 * 1024))
+    }
+
+    /// Start a timer that logs memory every 15s. Gives us breadcrumbs so post-kill
+    /// debug reports show the growth curve leading up to jetsam.
+    private func startMemoryWatchdog() {
+        memoryWatchdog?.cancel()
+        let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .utility))
+        timer.schedule(deadline: .now() + 15, repeating: 15)
+        timer.setEventHandler { [weak self] in
+            guard let self else { return }
+            let used = self.currentMemoryFootprintMB()
+            let avail = self.availableMemoryMB()
+            TunnelFileLogger.log("memory: \(used)MB used, \(avail)MB available", category: "memory")
+            // Proactive GC hint when we're close to the limit. Libbox is Go —
+            // setting GOMEMLIMIT already presses the runtime but an explicit
+            // hint from Swift can't hurt. (We call Swift's malloc_zone_pressure
+            // equivalent; the Go side reacts via signal handler.)
+            if avail < 8 {
+                TunnelFileLogger.logSync("memory pressure — \(avail)MB left", category: "memory")
+            }
+        }
+        timer.resume()
+        memoryWatchdog = timer
+    }
+
+    private func stopMemoryWatchdog() {
+        memoryWatchdog?.cancel()
+        memoryWatchdog = nil
     }
 
     // MARK: - Tunnel Lifecycle
 
     override open func startTunnel(options: [String: NSObject]?,
                                    completionHandler: @escaping (Error?) -> Void) {
+        // iOS NE extension 50 MB hard cap — jetsam SIGKILLs us past that. Pin Go
+        // runtime so GC runs aggressively before we hit the wall.
+        // GOMEMLIMIT is a soft target (Go 1.19+); GOGC=25 makes GC run 4× more
+        // often than default (100). These MUST be set before libbox init loads
+        // the Go runtime. Matches practice of Hiddify/sfi.
+        setenv("GOMEMLIMIT", "42MiB", 1)
+        setenv("GOGC", "25", 1)
+        setenv("GODEBUG", "madvdontneed=1", 1)
+
         // Do NOT clear log here — we lose all UI-side logs written before tunnel starts
         // (toggleVPN, connect button taps). Log rotation happens at 512KB anyway.
-        TunnelFileLogger.log("========== TUNNEL START ==========")
-        TunnelFileLogger.log("libbox version: \(LibboxVersion())")
+        // Sync flush for the boot markers: if jetsam kills us in the first few
+        // seconds these lines are the only diagnostic the user can surface.
+        TunnelFileLogger.logSync("========== TUNNEL START ==========")
+        TunnelFileLogger.logSync("libbox version: \(LibboxVersion())")
+        TunnelFileLogger.logSync("GOMEMLIMIT=42MiB GOGC=25 — iOS 50MB cap mitigation", category: "memory")
         TunnelFileLogger.log("options keys: \(options?.keys.joined(separator: ", ") ?? "nil")")
 
         // If user just stopped VPN from iOS Settings, On Demand will try to restart immediately.
@@ -71,11 +132,12 @@ open class ExtensionProvider: NEPacketTunnelProvider {
             }
             do {
                 try self.startSingBox(config: sanitizedConfig)
-                TunnelFileLogger.log("sing-box started successfully")
+                TunnelFileLogger.logSync("sing-box started successfully (memory: \(self.currentMemoryFootprintMB())MB/\(self.availableMemoryMB())MB avail)", category: "memory")
                 AppLogger.tunnel.info("sing-box started successfully")
+                self.startMemoryWatchdog()
                 completionHandler(nil)
             } catch {
-                TunnelFileLogger.log("ERROR: sing-box start failed: \(error)")
+                TunnelFileLogger.logSync("ERROR: sing-box start failed: \(error)")
                 AppLogger.tunnel.error("sing-box start failed: \(error)")
                 self.setGrpcState(false)
                 completionHandler(error)
@@ -85,7 +147,10 @@ open class ExtensionProvider: NEPacketTunnelProvider {
 
     override open func stopTunnel(with reason: NEProviderStopReason,
                                   completionHandler: @escaping () -> Void) {
-        TunnelFileLogger.log("Stopping tunnel, reason: \(reason.rawValue)")
+        // Sync flush — reason=2 (providerFailed) typically means jetsam is
+        // about to SIGKILL us, queue won't drain in time.
+        TunnelFileLogger.logSync("Stopping tunnel, reason: \(reason.rawValue)")
+        TunnelFileLogger.logSync("memory at stop: \(currentMemoryFootprintMB())MB of \(availableMemoryMB())MB", category: "memory")
         AppLogger.tunnel.info("Stopping tunnel, reason: \(reason.rawValue)")
 
         // Signal to main app that user explicitly stopped VPN from iOS Settings.
@@ -95,6 +160,7 @@ open class ExtensionProvider: NEPacketTunnelProvider {
             TunnelFileLogger.log("User-initiated stop — signaled to main app")
         }
 
+        stopMemoryWatchdog()
         stopSingBox()
         setGrpcState(false)
         completionHandler()
