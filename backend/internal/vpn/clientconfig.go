@@ -329,11 +329,24 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 	}
 
 	// --- "Proxy" selector — top-level user choice ---
-	// Auto → country groups (ordered) → whitelist-bypass group (if present).
-	// Whitelist is last so it doesn't distract from primary options.
+	// Auto → country groups (ordered) → whitelist-bypass group → individual
+	// leaves. Leaves are appended as direct children so the iOS app can pin
+	// a specific protocol/leg via Clash API (`selectOutbound("Proxy", leaf)`).
+	// Country groups remain urltest for Auto-like failover; the leaves here
+	// are just selectable shortcuts that bypass the RTT picker when the user
+	// has a deliberate preference (e.g. "force TUIC" when Reality is blocked
+	// on their network, or "force via-MSK" on RU LTE). Without this, the
+	// urltest inside a country group can't be pinned via Clash API
+	// ("outbound is not a selector" error) and the user's leaf pick is lost.
 	proxyMembers := append([]string{"Auto"}, countryTags...)
 	if whitelistGroupTag != "" {
 		proxyMembers = append(proxyMembers, whitelistGroupTag)
+	}
+	for _, leaf := range autoLegs {
+		proxyMembers = append(proxyMembers, leaf)
+	}
+	for _, leaf := range whitelistLegs {
+		proxyMembers = append(proxyMembers, leaf)
 	}
 	proxyOutbound := clientOutbound{
 		Type:                      "selector",
