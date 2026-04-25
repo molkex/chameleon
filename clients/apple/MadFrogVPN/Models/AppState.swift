@@ -899,22 +899,17 @@ class AppState {
                 TunnelFileLogger.log("selectServer: LIVE selectOutbound '\(step.group)' → '\(step.target)'", category: "ui")
                 commandClient.selectOutbound(groupTag: step.group, outboundTag: step.target)
             }
-            // Build-33 fix: force a fresh urltest probe on every group we
-            // just touched. Without this, sing-box's urltest waits up to
-            // its `interval` (default 3min) before re-electing — and on a
-            // network change (WiFi→LTE) the cached pick can be a leg that
-            // is reachable on WiFi but blocked on the user's carrier ASN.
-            // Forcing the probe now means within ~3s the urltest will
-            // pick whichever leaf actually works under current conditions.
-            for step in chain where step.group != "Proxy" {
-                // Only re-probe urltest groups (not the Proxy selector itself,
-                // which is type=selector and doesn't accept urlTest).
-                TunnelFileLogger.log("selectServer: force urlTest('\(step.group)')", category: "ui")
-                commandClient.urlTest(groupTag: step.group)
-            }
-            // Also kick "Auto" urltest — it shares leaves and benefits from
-            // fresh data so a future fallback to Auto inherits good signal.
-            commandClient.urlTest(groupTag: "Auto")
+            // Build-34 fix: force urlTest on every urltest group, not just
+            // the ones in `chain`. The chain for a country pin is just
+            // `[Proxy → "🇩🇪 Германия"]`, single step with group=Proxy
+            // (a selector, can't urlTest). The country urltest itself
+            // sits in step.target. Build-33 filtered by step.group and
+            // therefore never re-probed the urltest the user just pinned —
+            // which is exactly the leg that needs a fresh look under the
+            // current network. Brute-force fix: re-probe Auto + every
+            // known country urltest. Cheap (sing-box probes in parallel)
+            // and idempotent.
+            forceUrlTestEverywhere()
             return
         }
 
@@ -1101,15 +1096,11 @@ class AppState {
                             TunnelFileLogger.log("applyServerSelectionIfLive: '\(step.group)' → '\(step.target)'", category: "ui")
                             self.commandClient.selectOutbound(groupTag: step.group, outboundTag: step.target)
                         }
-                        // Build-33 fix (cold start path): force a fresh
-                        // urltest probe under whatever network the tunnel
-                        // is now running on. Without this, urltest may pick
-                        // a stale leg cached from the previous network's
-                        // probes (e.g. WiFi pick that's blocked on LTE).
-                        for step in chain where step.group != "Proxy" {
-                            self.commandClient.urlTest(groupTag: step.group)
-                        }
-                        self.commandClient.urlTest(groupTag: "Auto")
+                        // Build-34 fix (cold start path): re-probe every
+                        // urltest group, not just the ones in chain.
+                        // See selectServer's force-urlTest comment for
+                        // the rationale.
+                        self.forceUrlTestEverywhere()
                         return
                     }
                 }
@@ -1121,10 +1112,30 @@ class AppState {
             TunnelFileLogger.log("applyServerSelectionIfLive: '\(step.group)' → '\(step.target)'", category: "ui")
             commandClient.selectOutbound(groupTag: step.group, outboundTag: step.target)
         }
-        for step in chain where step.group != "Proxy" {
-            commandClient.urlTest(groupTag: step.group)
-        }
+        forceUrlTestEverywhere()
+    }
+
+    /// Force `urlTest` on every urltest group sing-box knows about: Auto,
+    /// every country urltest in the user's selector. The default sing-box
+    /// urltest interval is 3 min, which is too slow when a network change
+    /// (WiFi↔LTE) puts a previously-good leg behind a regional ASN block.
+    /// Probing all urltests in parallel is cheap and idempotent — sing-box
+    /// already debounces its own internal probe queue.
+    ///
+    /// Called immediately after any selectOutbound: ensures by the time the
+    /// next user request leaves the tunnel, the freshly-picked leg has been
+    /// re-validated under current conditions instead of inheriting a stale
+    /// urltest result from a previous network.
+    private func forceUrlTestEverywhere() {
+        // The country urltests live inside the Proxy selector group's
+        // countries collection, parsed from the saved sing-box config.
+        let countryTags = (servers.first(where: { $0.type == "selector" && $0.selectable })?.countries ?? [])
+            .map(\.tag)
+        TunnelFileLogger.log("force urlTest: Auto + \(countryTags.count) countries", category: "ui")
         commandClient.urlTest(groupTag: "Auto")
+        for tag in countryTags {
+            commandClient.urlTest(groupTag: tag)
+        }
     }
 
     /// Legacy single-selector lookup. Still used by cold-start paths
