@@ -46,6 +46,38 @@ class AppState {
         return RoutingMode(rawValue: raw) ?? .default
     }()
 
+    /// "Power-user" mode: when ON, the server picker exposes per-protocol
+    /// leaves (Hysteria2/TUIC/Direct/via-MSK) and the home pill shows a
+    /// subtitle with the active leg. Unlocked via 5-tap on the picker
+    /// nav title; sticky for the session, not persisted — a kill+relaunch
+    /// returns to the simplified UX.
+    var powerModeUnlocked: Bool = false
+
+    /// Last fallback notification message (Russian/English depending on
+    /// system locale). Surfaced as a toast over the home view; nil hides it.
+    /// Auto-clears after 5s like errorMessage. Set by TrafficHealthMonitor
+    /// when it switches the user off a dead leg.
+    var fallbackToastMessage: String?
+
+    /// True when the host SwiftUI scene is active (foreground+visible).
+    /// Set by MadFrogVPNApp's `.onChange(of: scenePhase)`. The traffic
+    /// health monitor reads this so it doesn't probe in the background.
+    var isAppActive: Bool = true
+
+    /// Built lazily on first foreground after a connect. Owned here so the
+    /// extension's libbox doesn't have to know about it (extension memory
+    /// is tight; this lives in main app process).
+    @ObservationIgnored
+    private var trafficHealthMonitor: TrafficHealthMonitor?
+
+    /// Per-country failed-leaf attempts inside a single fallback cascade.
+    /// Cleared whenever the user manually selects a server or the cascade
+    /// settles back to a working state. Prevents the monitor from cycling
+    /// through the same dead leaves forever — once a leaf has failed in
+    /// the current sequence we skip it and escalate.
+    @ObservationIgnored
+    private var deadLeavesInCurrentCascade: Set<String> = []
+
     nonisolated(unsafe) private var statusObserver: Any?
     /// Background config refresh task (handleForeground, toggleVPN).
     nonisolated(unsafe) private var refreshTask: Task<Void, Never>?
@@ -89,6 +121,19 @@ class AppState {
         subscriptionExpire = configStore.subscriptionExpire
         isAuthenticated = configStore.username != nil
 
+        // Build-32 migration: legacy installs may have a leaf tag pinned
+        // (e.g. "de-h2-de") because the previous picker wrote leaves
+        // directly. The new default UX pins country urltests instead, and
+        // a stale leaf pin can leave the user on a dead protocol with no
+        // way to recover via the simplified UI. Promote leaf → country
+        // exactly once. Power-mode users who deliberately pick a leaf
+        // after this migration runs are unaffected.
+        AppState.migrateLeafToCountryIfNeeded(
+            configStore: configStore,
+            servers: servers,
+            mirrorTo: { [weak self] newTag in self?.selectedServerTag = newTag }
+        )
+
         do {
             try await vpnManager.load()
             startObservingVPNStatus()
@@ -109,6 +154,71 @@ class AppState {
         if configStore.username != nil {
             await silentConfigUpdate()
         }
+    }
+
+    /// Build-32 one-shot: rewrite a legacy leaf-tag pin (e.g. `de-h2-de`)
+    /// to the country urltest tag the leaf belongs to (`🇩🇪 Германия`).
+    ///
+    /// Why this exists: build 31 and earlier wrote leaf tags directly into
+    /// `selectedServerTag` when the user drilled into a country picker.
+    /// Build 32 promotes the country picker to a one-tap flow, and a stale
+    /// leaf pin leaves the user with no UI affordance to recover. Country
+    /// urltests are also more resilient — they survive a single leg going
+    /// dark — which is what we actually want most of the time.
+    ///
+    /// Idempotent: gates on `migrationLeafToCountryV32Key` in App Group
+    /// UserDefaults. Power-mode users who deliberately pick a leaf after
+    /// migration ran are unaffected.
+    ///
+    /// Static so unit tests can drive it with synthetic ServerGroup arrays
+    /// without spinning up a full AppState.
+    static func migrateLeafToCountryIfNeeded(
+        configStore: ConfigStore,
+        servers: [ServerGroup],
+        defaults: UserDefaults? = UserDefaults(suiteName: AppConstants.appGroupID),
+        mirrorTo: ((String?) -> Void)? = nil
+    ) {
+        let result = migrateLeafToCountry(
+            currentTag: configStore.selectedServerTag,
+            servers: servers,
+            isMigrated: { defaults?.bool(forKey: AppConstants.migrationLeafToCountryV32Key) ?? false },
+            markMigrated: { defaults?.set(true, forKey: AppConstants.migrationLeafToCountryV32Key) }
+        )
+        guard let newTag = result else { return }
+        configStore.selectedServerTag = newTag
+        mirrorTo?(newTag)
+    }
+
+    /// Pure logic core of `migrateLeafToCountryIfNeeded` — fully unit-testable
+    /// without UserDefaults or ConfigStore. Returns the new tag the caller
+    /// should persist, or nil if no migration is needed (already migrated,
+    /// pinned to non-leaf, or no matching country found). The callbacks
+    /// gate the one-shot guard so it remains idempotent across launches.
+    static func migrateLeafToCountry(
+        currentTag: String?,
+        servers: [ServerGroup],
+        isMigrated: () -> Bool,
+        markMigrated: () -> Void
+    ) -> String? {
+        if isMigrated() { return nil }
+        defer { markMigrated() }
+
+        guard let pinned = currentTag else { return nil }
+        guard case .leaf = ServerTagShape(pinned) else { return nil }
+
+        let countryTag: String? = servers
+            .flatMap(\.countries)
+            .first(where: { $0.serverTags.contains(pinned) })?
+            .tag
+
+        guard let countryTag else {
+            AppLogger.app.info("migration v32: leaf '\(pinned)' has no matching country, leaving as-is")
+            return nil
+        }
+
+        AppLogger.app.info("migration v32: leaf '\(pinned)' → country '\(countryTag)'")
+        TunnelFileLogger.log("migration v32: leaf '\(pinned)' → country '\(countryTag)'", category: "ui")
+        return countryTag
     }
 
     /// Called when app returns to foreground. Refreshes config in background.
@@ -685,11 +795,27 @@ class AppState {
     }
 
     func selectServer(groupTag: String, serverTag: String) {
+        selectServer(groupTag: groupTag, serverTag: serverTag, clearCascade: true)
+    }
+
+    /// Internal entry point — `clearCascade: false` is used by the
+    /// fallback chain so the dead-leaves set we just appended to isn't
+    /// wiped when we hop to the next leaf.
+    private func selectServer(groupTag: String, serverTag: String, clearCascade: Bool) {
         let previousTag = configStore.selectedServerTag
         let isAuto = serverTag == "Auto"
         let newTag: String? = isAuto ? nil : serverTag
         configStore.selectedServerTag = newTag
         selectedServerTag = newTag  // @Observable mirror for SwiftUI
+
+        // Manual pick clears the cascade history and gives the new leg
+        // a grace window before the health monitor probes again — sing-box
+        // needs a moment to settle. Fallback callers pass clearCascade=false
+        // so the dead-leaf set survives the hop.
+        if clearCascade {
+            deadLeavesInCurrentCascade.removeAll()
+        }
+        trafficHealthMonitor?.suspendForManualSwitch()
 
         // Persist the full multi-step selection into the cached startOptions
         // immediately, regardless of whether the tunnel is currently up. This
@@ -1094,10 +1220,13 @@ class AppState {
                 self?.applyRoutingModeIfLive(mode)
                 self?.applyServerSelectionIfLive()
             }
+            startTrafficHealthMonitorIfEligible()
         case .disconnected, .invalid:
             vpnConnectedAt = nil
             UserDefaults(suiteName: AppConstants.appGroupID)?.removeObject(forKey: AppConstants.vpnConnectedAtKey)
             if commandClient.isConnected { commandClient.disconnect() }
+            trafficHealthMonitor?.stop()
+            deadLeavesInCurrentCascade.removeAll()
             // Check if the PacketTunnel extension signaled a user-initiated stop
             // (from iOS Settings toggle). If so, disable On Demand to prevent auto-reconnect.
             let userStoppedVPN = sharedDefaults?.bool(forKey: AppConstants.userStoppedVPNKey) ?? false
@@ -1107,6 +1236,138 @@ class AppState {
                 Task { await vpnManager.disableOnDemand() }
             }
         default: break
+        }
+    }
+
+    // MARK: - Traffic health monitor + fallback chain
+
+    /// Hook called by MadFrogVPNApp on `scenePhase` change. Resumes the
+    /// monitor when the app becomes active and pauses it on background —
+    /// URLSession in the suspended main app would just stall forever.
+    func handleScenePhaseActive(_ active: Bool) {
+        let wasActive = isAppActive
+        isAppActive = active
+        TunnelFileLogger.log("scene phase: active=\(active)", category: "ui")
+        if active && !wasActive {
+            // Coming back to foreground: re-evaluate eligibility. The
+            // monitor itself short-circuits if not eligible.
+            startTrafficHealthMonitorIfEligible()
+        }
+    }
+
+    private func startTrafficHealthMonitorIfEligible() {
+        // Lazy build. The monitor's lifetime tracks AppState so a single
+        // instance survives across connect/disconnect cycles.
+        if trafficHealthMonitor == nil {
+            trafficHealthMonitor = TrafficHealthMonitor(dependencies: .init(
+                isVPNConnected: { [weak self] in self?.vpnManager.isConnected ?? false },
+                isCommandClientConnected: { [weak self] in self?.commandClient.isConnected ?? false },
+                isAppActive: { [weak self] in self?.isAppActive ?? false },
+                isUserEnabled: { [weak self] in self?.configStore.autoRecoverEnabled ?? true },
+                probe: { url, timeout in
+                    await HealthProbeURLSession.probe(url: url, timeout: timeout)
+                },
+                onStallDetected: { [weak self] in
+                    await self?.performFallbackForCurrentLeg()
+                },
+                log: { msg in
+                    TunnelFileLogger.log(msg, category: "ui")
+                }
+            ))
+        }
+        guard configStore.autoRecoverEnabled, vpnManager.isConnected, isAppActive else { return }
+        trafficHealthMonitor?.start()
+    }
+
+    /// Smart fallback chain executed when the monitor decides the current
+    /// leg is dead. Strategy mirrors what mature VPN clients do (Mullvad,
+    /// ProtonVPN, Cloudflare WARP):
+    ///
+    ///   1. Pinned leaf: blacklist it for the current cascade, try the
+    ///      next leaf inside the same country. Stay in country — silent,
+    ///      no toast.
+    ///   2. All leaves in pinned country are dead: escalate to Auto and
+    ///      surface a localized toast so the user knows the country pin
+    ///      is no longer in effect.
+    ///   3. Pinned country urltest (or current state already): trigger
+    ///      `urlTest("Auto")` + `closeConnections()` to force sing-box
+    ///      to re-elect. No tag change.
+    ///
+    /// All log lines are written to TunnelFileLogger so support reports
+    /// can attribute fallback events. Manual user actions take immediate
+    /// priority — `selectServer` clears `deadLeavesInCurrentCascade`.
+    func performFallbackForCurrentLeg() async {
+        guard vpnManager.isConnected else { return }
+        let pinned = configStore.selectedServerTag
+        let shape = ServerTagShape(pinned)
+        guard let group = servers.first(where: { $0.type == "selector" && $0.selectable }) else {
+            TunnelFileLogger.log("fallback: no selector group, skipping", category: "ui")
+            return
+        }
+
+        switch shape {
+        case .leaf:
+            await fallbackFromLeaf(pinned: pinned!, group: group)
+        case .countryUrltest:
+            await fallbackFromCountry(pinned: pinned!, group: group)
+        case .auto, .unknown:
+            await fallbackOnAuto(group: group)
+        }
+    }
+
+    private func fallbackFromLeaf(pinned: String, group: ServerGroup) async {
+        deadLeavesInCurrentCascade.insert(pinned)
+        TunnelFileLogger.log("fallback: leaf '\(pinned)' marked dead (cascade size=\(deadLeavesInCurrentCascade.count))", category: "ui")
+
+        // Find the country this leaf belongs to and pick the next
+        // not-yet-tried leaf in the same country.
+        guard let country = group.countries.first(where: { $0.serverTags.contains(pinned) }) else {
+            TunnelFileLogger.log("fallback: leaf '\(pinned)' has no country, escalating to Auto", category: "ui")
+            await escalateToAuto(reason: "leaf orphan", group: group)
+            return
+        }
+
+        let candidates = country.serverTags.filter { !deadLeavesInCurrentCascade.contains($0) }
+        if let next = candidates.first {
+            TunnelFileLogger.log("fallback: leaf '\(pinned)' → leaf '\(next)' (same country '\(country.tag)')", category: "ui")
+            selectServer(groupTag: group.tag, serverTag: next, clearCascade: false)
+            fallbackToastMessage = L10n.Recovery.switchedLeg(country.name)
+            return
+        }
+
+        // All leaves in this country exhausted — escalate.
+        TunnelFileLogger.log("fallback: all leaves in '\(country.tag)' tried, escalating to Auto", category: "ui")
+        await escalateToAuto(reason: "country '\(country.name)' exhausted", group: group, country: country)
+    }
+
+    private func fallbackFromCountry(pinned: String, group: ServerGroup) async {
+        // User pinned a country urltest. sing-box's urltest cycles the
+        // leaves itself; if we still got here, the country itself is
+        // dark — escalate to Auto.
+        let country = group.countries.first(where: { $0.tag == pinned })
+        TunnelFileLogger.log("fallback: country '\(pinned)' unreachable, escalating to Auto", category: "ui")
+        await escalateToAuto(reason: "country '\(pinned)' unreachable", group: group, country: country)
+    }
+
+    private func fallbackOnAuto(group: ServerGroup) async {
+        // Already on Auto — just kick the urltest + close existing
+        // connections so the next request renegotiates over a fresh leg.
+        TunnelFileLogger.log("fallback: on Auto already, re-running urltest + closeConnections", category: "ui")
+        commandClient.urlTest(groupTag: "Auto")
+        commandClient.urlTest(groupTag: group.tag)
+        // No toast — silent recovery on Auto is the expected path.
+    }
+
+    private func escalateToAuto(reason: String, group: ServerGroup, country: CountryGroup? = nil) async {
+        TunnelFileLogger.log("fallback: ESCALATE → Auto (reason: \(reason))", category: "ui")
+        // Wipe cascade BEFORE selectServer (which keeps it as-is when
+        // clearCascade=false would have been passed). Auto is a fresh start.
+        deadLeavesInCurrentCascade.removeAll()
+        selectServer(groupTag: group.tag, serverTag: "Auto")
+        if let country {
+            fallbackToastMessage = L10n.Recovery.switchedToAuto(country.name)
+        } else {
+            fallbackToastMessage = L10n.Recovery.switchedToAuto("")
         }
     }
 }

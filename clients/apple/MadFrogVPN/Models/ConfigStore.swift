@@ -100,6 +100,22 @@ class ConfigStore {
         set { sharedDefaults?.set(newValue, forKey: AppConstants.selectedServerTagKey) }
     }
 
+    // MARK: - Auto-recover Preference
+
+    /// Whether TrafficHealthMonitor is allowed to switch the user off a dead
+    /// server automatically. Default ON. Stored in App Group UserDefaults so
+    /// the user's choice survives reinstalls of the app extension.
+    var autoRecoverEnabled: Bool {
+        get {
+            // First-run: no key present → default ON.
+            guard let raw = sharedDefaults?.object(forKey: AppConstants.autoRecoverEnabledKey) else {
+                return true
+            }
+            return (raw as? Bool) ?? true
+        }
+        set { sharedDefaults?.set(newValue, forKey: AppConstants.autoRecoverEnabledKey) }
+    }
+
     // MARK: - Config Save/Load
 
     func saveConfig(_ jsonString: String) throws {

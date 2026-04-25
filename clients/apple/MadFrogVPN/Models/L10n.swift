@@ -241,6 +241,17 @@ enum L10n {
         static let deleteCancel    = LKey("settings.delete_confirm.cancel")
         static let version         = LKey("settings.version")
         static let debugLogs       = LKey("settings.debug_logs")
+        static let autoRecover     = LKey("settings.auto_recover")
+        static let autoRecoverHint = LKey("settings.auto_recover.hint")
+    }
+
+    enum Recovery {
+        static func switchedToAuto(_ country: String) -> String {
+            String(format: String(localized: "recovery.switched_to_auto"), country)
+        }
+        static func switchedLeg(_ country: String) -> String {
+            String(format: String(localized: "recovery.switched_leg"), country)
+        }
     }
 
     enum Account {

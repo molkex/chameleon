@@ -1,0 +1,225 @@
+import Foundation
+import Network
+
+/// Foreground-only health probe. When the VPN tunnel is up and the user is
+/// actively using the app, this checks every `probeInterval` whether traffic
+/// is actually flowing through the tunnel by issuing a small HTTPS GET to
+/// Apple's captive-portal endpoint. If the probe fails twice in a row, we
+/// classify the current leg as dead and call `onStallDetected`, which is
+/// expected to perform a fallback (switch leg / country / Auto).
+///
+/// Why this matters: sing-box's own urltest decides whether a leg is alive
+/// based on a single HEAD probe to gstatic.com running periodically. That
+/// signal is fine for "should I prefer A over B at startup?" but not for
+/// "the user picked DE and DE just started silently dropping packets" —
+/// urltest only re-elects when its interval fires, not when traffic stalls.
+/// This monitor is the missing piece, modelled after Cloudflare WARP and
+/// ProtonVPN's connection guard.
+///
+/// Apple-friendly choices:
+/// - Probe target is `captive.apple.com`, the same endpoint iOS itself
+///   uses for connectivity detection. App Review can't object.
+/// - Foreground-only (`isAppActive == true`). When backgrounded the
+///   monitor is paused; we don't burn battery on speculative URLSession
+///   tasks while the user isn't watching.
+/// - Honours a user toggle (`isUserEnabled`) — Settings → Auto-recover.
+/// - Hard caps fallback frequency (cooldown + per-hour limit) so a
+///   genuinely broken environment doesn't trigger reconnect storms.
+@MainActor
+final class TrafficHealthMonitor {
+    /// Inputs from the calling context.
+    struct Dependencies {
+        var isVPNConnected: () -> Bool
+        var isCommandClientConnected: () -> Bool
+        var isAppActive: () -> Bool
+        var isUserEnabled: () -> Bool
+        var probe: (URL, TimeInterval) async -> ProbeResult
+        var onStallDetected: () async -> Void
+        var log: (String) -> Void
+    }
+
+    enum ProbeResult: Equatable {
+        case success
+        case failure(reason: String)
+    }
+
+    /// Tunable intervals. Defaults match the Cloudflare WARP guard
+    /// (~10s interval, ~4s probe budget). Keep these as `let` so a unit
+    /// test can override via the constructor and run in compressed time.
+    let probeInterval: Duration
+    let probeTimeoutSeconds: TimeInterval
+    let cooldownAfterFallback: Duration
+    let suspendAfterManualSwitch: Duration
+    let stallThreshold: Int          // consecutive failures to trigger fallback
+    let maxFallbacksPerHour: Int
+
+    private let deps: Dependencies
+    private let probeURL: URL
+
+    private var task: Task<Void, Never>?
+    /// Wall-clock timestamps so cooldowns survive scenePhase transitions
+    /// without us having to maintain an internal Duration counter that
+    /// only advances while the loop is running.
+    private var lastFallbackAt: Date?
+    private var suspendUntil: Date?
+    private var consecutiveFailures = 0
+    private var fallbacksInLastHour: [Date] = []
+
+    init(
+        probeURL: URL = URL(string: "https://captive.apple.com/hotspot-detect.html")!,
+        probeInterval: Duration = .seconds(10),
+        probeTimeoutSeconds: TimeInterval = 4.0,
+        cooldownAfterFallback: Duration = .seconds(60),
+        suspendAfterManualSwitch: Duration = .seconds(5),
+        stallThreshold: Int = 2,
+        maxFallbacksPerHour: Int = 5,
+        dependencies: Dependencies
+    ) {
+        self.probeURL = probeURL
+        self.probeInterval = probeInterval
+        self.probeTimeoutSeconds = probeTimeoutSeconds
+        self.cooldownAfterFallback = cooldownAfterFallback
+        self.suspendAfterManualSwitch = suspendAfterManualSwitch
+        self.stallThreshold = stallThreshold
+        self.maxFallbacksPerHour = maxFallbacksPerHour
+        self.deps = dependencies
+    }
+
+    deinit {
+        task?.cancel()
+    }
+
+    /// Start the periodic probe loop. Idempotent — calling start while
+    /// a loop is running is a no-op.
+    func start() {
+        if task != nil { return }
+        deps.log("TrafficHealthMonitor: start")
+        task = Task { [weak self] in
+            await self?.runLoop()
+        }
+    }
+
+    /// Stop the probe loop. Failure counters are reset so the next
+    /// start() is a clean slate.
+    func stop() {
+        task?.cancel()
+        task = nil
+        consecutiveFailures = 0
+        deps.log("TrafficHealthMonitor: stop")
+    }
+
+    /// Suppress probing for a short window after a manual server switch
+    /// or a network transition. Prevents the monitor from fighting with
+    /// the user/sing-box during settle time.
+    func suspendForManualSwitch() {
+        suspendUntil = Date().addingTimeInterval(toSeconds(suspendAfterManualSwitch))
+        consecutiveFailures = 0
+        deps.log("TrafficHealthMonitor: suspended until \(suspendUntil!)")
+    }
+
+    private func runLoop() async {
+        while !Task.isCancelled {
+            try? await Task.sleep(for: probeInterval)
+            if Task.isCancelled { break }
+            await tickIfEligible()
+        }
+    }
+
+    /// Public so unit tests can drive a single iteration without waiting
+    /// on the Task.sleep loop.
+    func tickIfEligible() async {
+        guard deps.isUserEnabled() else { return }
+        guard deps.isAppActive() else { return }
+        guard deps.isVPNConnected() else {
+            // Tunnel is down — nothing for us to recover. Reset failure
+            // counter so a future reconnect doesn't inherit stale state.
+            consecutiveFailures = 0
+            return
+        }
+        if let until = suspendUntil, Date() < until { return }
+        if let last = lastFallbackAt, Date().timeIntervalSince(last) < toSeconds(cooldownAfterFallback) {
+            return
+        }
+        // Trim the per-hour window before checking the cap.
+        let oneHourAgo = Date().addingTimeInterval(-3600)
+        fallbacksInLastHour.removeAll { $0 < oneHourAgo }
+        if fallbacksInLastHour.count >= maxFallbacksPerHour {
+            deps.log("TrafficHealthMonitor: hourly cap reached, idle")
+            return
+        }
+
+        let result = await deps.probe(probeURL, probeTimeoutSeconds)
+        switch result {
+        case .success:
+            if consecutiveFailures > 0 {
+                deps.log("TrafficHealthMonitor: probe OK (after \(consecutiveFailures) misses)")
+            }
+            consecutiveFailures = 0
+        case .failure(let reason):
+            consecutiveFailures += 1
+            deps.log("TrafficHealthMonitor: probe FAIL #\(consecutiveFailures) — \(reason)")
+            if consecutiveFailures >= stallThreshold {
+                let now = Date()
+                lastFallbackAt = now
+                fallbacksInLastHour.append(now)
+                consecutiveFailures = 0
+                deps.log("TrafficHealthMonitor: STALL — invoking fallback")
+                await deps.onStallDetected()
+            }
+        }
+    }
+
+    private func toSeconds(_ d: Duration) -> TimeInterval {
+        let comps = d.components
+        return TimeInterval(comps.seconds) + TimeInterval(comps.attoseconds) / 1e18
+    }
+}
+
+// MARK: - Default URLSession probe
+
+/// Default real-world probe against `captive.apple.com`. Counts the response
+/// as success only when the HTTP status is 2xx **and** the body matches the
+/// Apple sentinel — mitigates a captive-portal-style middlebox returning
+/// 200 with a login page.
+///
+/// Sentinel: `<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY>Success</BODY></HTML>`
+/// We only check for "Success" substring to be tolerant of trailing whitespace
+/// or charset variations.
+enum HealthProbeURLSession {
+    static func probe(url: URL, timeout: TimeInterval) async -> TrafficHealthMonitor.ProbeResult {
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData, timeoutInterval: timeout)
+        // Defensive headers: some captive portals key off User-Agent for
+        // their interception. iOS itself uses CaptiveNetworkSupport but
+        // we want consistent behaviour.
+        request.setValue("MadFrog-HealthCheck/1.0", forHTTPHeaderField: "User-Agent")
+        request.httpMethod = "GET"
+
+        let session: URLSession = {
+            let config = URLSessionConfiguration.ephemeral
+            config.timeoutIntervalForRequest = timeout
+            config.timeoutIntervalForResource = timeout + 1
+            // Don't piggy-back on shared cookies/cache — clean probe each time.
+            config.httpCookieAcceptPolicy = .never
+            config.urlCache = nil
+            config.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+            return URLSession(configuration: config)
+        }()
+
+        do {
+            let (data, response) = try await session.data(for: request)
+            guard let http = response as? HTTPURLResponse else {
+                return .failure(reason: "no http response")
+            }
+            guard (200..<300).contains(http.statusCode) else {
+                return .failure(reason: "status \(http.statusCode)")
+            }
+            let body = String(data: data, encoding: .utf8) ?? ""
+            if body.contains("Success") {
+                return .success
+            }
+            return .failure(reason: "body mismatch (len \(data.count))")
+        } catch {
+            return .failure(reason: error.localizedDescription)
+        }
+    }
+}

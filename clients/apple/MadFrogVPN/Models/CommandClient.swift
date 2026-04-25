@@ -30,6 +30,11 @@ final class CommandClientWrapper {
     var onGroupsReceived: (([ServerGroup]) -> Void)?
     fileprivate var didDeliverGroups = false
 
+    /// Last logged "active leg" per group tag. Used to dedup the leg-change
+    /// log line — sing-box pushes a writeGroups event ~1/s and we only want
+    /// to journal an entry when the urltest's pick actually flips.
+    fileprivate var lastLoggedSelected: [String: String] = [:]
+
     private var client: LibboxCommandClient?
     private let handler: ClientHandler
 
@@ -291,6 +296,17 @@ private final class ClientHandler: NSObject, LibboxCommandClientHandlerProtocol,
             guard let self, self.isActive() else { return }
             guard let wrapper = self.wrapper else { return }
             wrapper.groups = newGroups
+            // Journal active-leg flips for the support log. Only log on
+            // change to keep the file readable — sing-box pushes a groups
+            // event roughly every second, but the user's effective leg
+            // changes far less often (urltest interval, network change,
+            // manual switch).
+            for g in newGroups where !g.selected.isEmpty {
+                if wrapper.lastLoggedSelected[g.tag] != g.selected {
+                    wrapper.lastLoggedSelected[g.tag] = g.selected
+                    TunnelFileLogger.log("active leg: '\(g.tag)' → '\(g.selected)'", category: "ui")
+                }
+            }
             if !wrapper.didDeliverGroups && !newGroups.isEmpty {
                 wrapper.didDeliverGroups = true
                 wrapper.onGroupsReceived?(newGroups)

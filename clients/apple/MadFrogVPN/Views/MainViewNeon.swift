@@ -236,10 +236,17 @@ struct MainViewNeon: View {
                         .font(.system(size: 16, weight: .black))
                         .foregroundStyle(.white)
                         .lineLimit(1)
-                    Text(VPNStateHelper.isConnected(app) ? L10n.Home.serverActive : L10n.Home.serverStandby)
-                        .font(.system(size: 11, weight: .semibold))
-                        .kerning(0.8)
-                        .foregroundStyle(theme.textSecondary)
+                    if let leg = legSubtitle {
+                        Text(leg)
+                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(theme.accent.opacity(0.85))
+                            .lineLimit(1)
+                    } else {
+                        Text(VPNStateHelper.isConnected(app) ? L10n.Home.serverActive : L10n.Home.serverStandby)
+                            .font(.system(size: 11, weight: .semibold))
+                            .kerning(0.8)
+                            .foregroundStyle(theme.textSecondary)
+                    }
                 }
 
                 Spacer()
@@ -275,17 +282,19 @@ struct MainViewNeon: View {
         if app.selectedServerTag == nil {
             return String(localized: "home.server.auto_long")
         }
-        // If the selected tag is itself a country urltest (user picked the
-        // whole country, not a specific leaf), show the country label as-is.
-        if let tag = app.selectedServerTag,
-           let group = app.servers.first(where: { $0.type == "selector" && $0.selectable }),
-           let country = group.countries.first(where: { $0.tag == tag }) {
-            return "\(country.flagEmoji) \(country.name)".trimmingCharacters(in: .whitespaces)
-        }
-        if let server = selectedServer {
-            return "\(L10n.Servers.countryName(server.countryKey)) · \(server.displayLabel)"
-        }
+        // Build-32: home pill always shows country only — leg is exposed
+        // only via power-mode subtitle (see legSubtitle below). selectedServerName
+        // promotes leaf tags to their containing country for display.
         return VPNStateHelper.selectedServerName(app)
+    }
+
+    /// Power-mode-only subtitle showing the active leg ("Hysteria2", "TUIC",
+    /// "Через MSK", "Напрямую"). Hidden in default UX so the home screen
+    /// matches Mullvad/ProtonVPN/ExpressVPN — country first, protocol on
+    /// demand only.
+    private var legSubtitle: String? {
+        guard app.powerModeUnlocked else { return nil }
+        return VPNStateHelper.currentLegName(app)
     }
 
     private var protocolBadgeText: String {

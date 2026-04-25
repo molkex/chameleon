@@ -206,6 +206,12 @@
 "settings.delete_confirm.cancel" = "Отмена";
 "settings.version"               = "Версия";
 "settings.debug_logs"            = "Логи отладки";
+"settings.auto_recover"          = "Авто-восстановление";
+"settings.auto_recover.hint"     = "Если выбранный сервер перестанет отвечать — автоматически переключим на рабочий, чтобы трафик не прерывался.";
+
+/* ===== Recovery toasts ===== */
+"recovery.switched_to_auto"      = "%@ недоступна — переключено на Авто";
+"recovery.switched_leg"          = "%@: переключено на рабочий сервер";
 
 /* ===== Аккаунт ===== */
 "account.title"                  = "Аккаунт";

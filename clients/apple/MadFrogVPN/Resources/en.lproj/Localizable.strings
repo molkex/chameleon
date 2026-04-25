@@ -206,6 +206,12 @@
 "settings.delete_confirm.cancel" = "Cancel";
 "settings.version"               = "Version";
 "settings.debug_logs"            = "Debug logs";
+"settings.auto_recover"          = "Auto-recover";
+"settings.auto_recover.hint"     = "If the chosen server stops responding, automatically pick a working one so traffic keeps flowing.";
+
+/* ===== Recovery toasts ===== */
+"recovery.switched_to_auto"      = "%@ unreachable — switched to Auto";
+"recovery.switched_leg"          = "%@: switched to a working server";
 
 /* ===== Account ===== */
 "account.title"                  = "Account";

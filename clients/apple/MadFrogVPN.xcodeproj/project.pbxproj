@@ -34,6 +34,7 @@
 		23ED595CF63572E126B9C141 /* PlatformDevice.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C61B1AA0AC6A405D189C34B /* PlatformDevice.swift */; };
 		24AF754CC3500A6D8402BA19 /* ApplicationServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 84CA81E1B48C9260C55A6012 /* ApplicationServices.framework */; };
 		27118EF86F80BE16990516DF /* StringUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = D231623164FE9FECAD770789 /* StringUtils.swift */; };
+		29395303030F6B15D4E0F443 /* ServerTagShapeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA66DA58C2FEC081307F44D9 /* ServerTagShapeTests.swift */; };
 		2AA4A088C59F575FA98E5305 /* WebPaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F6C0D910C8814F24440E9B4 /* WebPaywallView.swift */; };
 		2C7219DBE9E489EF766980D5 /* ConfigSanitizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E043C787773D9E89FA561E25 /* ConfigSanitizer.swift */; };
 		2D02A6B04E2703020780C0F2 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1256FD7DB2FC529473E9686 /* OnboardingView.swift */; };
@@ -83,6 +84,7 @@
 		7CCC25DD1ADCED3D051E5EF6 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33A809CDAD52A1FB3A57D0A1 /* Constants.swift */; };
 		7CEEABB0BB6A4C2CC85A2CDE /* PacketTunnel.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 4334355585E46811414C5916 /* PacketTunnel.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		7DC47C6A50DA5981E2299091 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 24B5AA74AD15F2E0E0774B06 /* GoogleSignInSwift */; };
+		7DF0EBCB21BB2660769E7006 /* MigrationLeafToCountryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4747B2349F04A8B6F61387F /* MigrationLeafToCountryTests.swift */; };
 		7E28503788E8E5595446762E /* RunBlocking.swift in Sources */ = {isa = PBXBuildFile; fileRef = 056A5CFAAD6E085B3A0ACF9A /* RunBlocking.swift */; };
 		810BCB5D9294C89E73DD3930 /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4EBA8BF2FC663C0650E1255 /* AccountView.swift */; };
 		8172F3C87D8F283C5BE0FD57 /* MadFrogVPNApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2782F0253DCD456F2722BCC /* MadFrogVPNApp.swift */; };
@@ -97,8 +99,10 @@
 		87FFB27A4907D550DB3E9FE7 /* CoreWLAN.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A630BB5B9993A8152A622ED3 /* CoreWLAN.framework */; };
 		882104E7A1040997AE2683E8 /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FF7E993E8B445FBA2EBEC98C /* IOKit.framework */; };
 		88554DBB410CBE11723FF7F3 /* StringUtilsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B07C7F761E8467D5C74E4CD /* StringUtilsTests.swift */; };
+		8AEFE40F991011124CAE96AC /* TrafficHealthMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0F1E53A2387E8AB9E727CD9 /* TrafficHealthMonitor.swift */; };
 		8B0B22B50382DB9506F96734 /* Libbox.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C18C942EF28864C26636822B /* Libbox.xcframework */; };
 		8D0556BA2F8691356C8F0E04 /* RunBlocking.swift in Sources */ = {isa = PBXBuildFile; fileRef = 056A5CFAAD6E085B3A0ACF9A /* RunBlocking.swift */; };
+		8F75A2437F55A299C19D3960 /* TrafficHealthMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0F1E53A2387E8AB9E727CD9 /* TrafficHealthMonitor.swift */; };
 		8FBB24D22BEABD59685F7B82 /* MenuBarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8EF3541F56531E6A2C1EA76 /* MenuBarContent.swift */; };
 		905E0BB257310FDDB4781269 /* PingServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B114B8A077748A71A618058A /* PingServiceTests.swift */; };
 		942A96B073B8A5480C18FD7B /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C0143BDF66872F26920B09B /* Theme.swift */; };
@@ -113,6 +117,7 @@
 		A6AC0803683CB64628D5F99D /* libresolv.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = C4C20C0AE163F2C1F4C77012 /* libresolv.tbd */; };
 		A6F4C7DE3D8BA428F4C7274E /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEBE74F9DD0282A5EA7B00DE /* APIClient.swift */; };
 		AF2008FBFCD6A201C00555AB /* PlatformViewExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11EBC90E3AED9A381EEA7F2F /* PlatformViewExtensions.swift */; };
+		B12BD63053EC36D717193BCE /* TrafficHealthMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 850D3937870EEB29F3CD7BD9 /* TrafficHealthMonitorTests.swift */; };
 		B47890D763FC848171491E96 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 16E41091FB71C918EFBEF6B9 /* Localizable.strings */; };
 		B5436C52407C154AA274BB10 /* PlatformViewExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11EBC90E3AED9A381EEA7F2F /* PlatformViewExtensions.swift */; };
 		B5F8C1AECBBB9D9B61265F72 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 16E41091FB71C918EFBEF6B9 /* Localizable.strings */; };
@@ -268,6 +273,7 @@
 		7C61B1AA0AC6A405D189C34B /* PlatformDevice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformDevice.swift; sourceTree = "<group>"; };
 		828C4AEC2AEC8A2EEB92717E /* ConfigSanitizerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigSanitizerTests.swift; sourceTree = "<group>"; };
 		84CA81E1B48C9260C55A6012 /* ApplicationServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ApplicationServices.framework; path = System/Library/Frameworks/ApplicationServices.framework; sourceTree = SDKROOT; };
+		850D3937870EEB29F3CD7BD9 /* TrafficHealthMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrafficHealthMonitorTests.swift; sourceTree = "<group>"; };
 		85938B035247DB5D54633361 /* GoogleAuthCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleAuthCoordinator.swift; sourceTree = "<group>"; };
 		872DE7900BBC5982BA0688E8 /* CoreLocation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreLocation.framework; path = System/Library/Frameworks/CoreLocation.framework; sourceTree = SDKROOT; };
 		8C0143BDF66872F26920B09B /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
@@ -280,11 +286,13 @@
 		A630BB5B9993A8152A622ED3 /* CoreWLAN.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreWLAN.framework; path = System/Library/Frameworks/CoreWLAN.framework; sourceTree = SDKROOT; };
 		AAFB204D1606673779D65246 /* PaywallRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallRouter.swift; sourceTree = "<group>"; };
 		AE8C33AF6B8E237DD5BC9D5B /* ThemePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemePickerView.swift; sourceTree = "<group>"; };
+		B0F1E53A2387E8AB9E727CD9 /* TrafficHealthMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrafficHealthMonitor.swift; sourceTree = "<group>"; };
 		B114B8A077748A71A618058A /* PingServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PingServiceTests.swift; sourceTree = "<group>"; };
 		BD660F09A2FD36D53775C288 /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = System/Library/Frameworks/AppKit.framework; sourceTree = SDKROOT; };
 		C18C942EF28864C26636822B /* Libbox.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Libbox.xcframework; path = Frameworks/Libbox.xcframework; sourceTree = "<group>"; };
 		C254991A86781B863F8BA92C /* SubscriptionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManager.swift; sourceTree = "<group>"; };
 		C2782F0253DCD456F2722BCC /* MadFrogVPNApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MadFrogVPNApp.swift; sourceTree = "<group>"; };
+		C4747B2349F04A8B6F61387F /* MigrationLeafToCountryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigrationLeafToCountryTests.swift; sourceTree = "<group>"; };
 		C4C20C0AE163F2C1F4C77012 /* libresolv.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libresolv.tbd; path = usr/lib/libresolv.tbd; sourceTree = SDKROOT; };
 		C7486DEC72FBB5DD5338F158 /* RoutingMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutingMode.swift; sourceTree = "<group>"; };
 		CBA31374948F1B482110AB8A /* SystemConfiguration.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SystemConfiguration.framework; path = System/Library/Frameworks/SystemConfiguration.framework; sourceTree = SDKROOT; };
@@ -305,6 +313,7 @@
 		F48680996CDA6DA1906F2747 /* L10n.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = L10n.swift; sourceTree = "<group>"; };
 		F4EBA8BF2FC663C0650E1255 /* AccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountView.swift; sourceTree = "<group>"; };
 		F64AFDF15C8A5F646A1C431B /* MainViewNeon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewNeon.swift; sourceTree = "<group>"; };
+		FA66DA58C2FEC081307F44D9 /* ServerTagShapeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerTagShapeTests.swift; sourceTree = "<group>"; };
 		FBE7C9320BF719748D0BBC0A /* MadFrogVPN.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = MadFrogVPN.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FCCF7452218980C7681CEDA6 /* Haptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
 		FEBE74F9DD0282A5EA7B00DE /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
@@ -392,10 +401,13 @@
 			children = (
 				828C4AEC2AEC8A2EEB92717E /* ConfigSanitizerTests.swift */,
 				FF66055FD7D08B8EB5770BAF /* KeychainHelperTests.swift */,
+				C4747B2349F04A8B6F61387F /* MigrationLeafToCountryTests.swift */,
 				B114B8A077748A71A618058A /* PingServiceTests.swift */,
 				D718F38ECFF87F89796E9233 /* ProxyChainResolverTests.swift */,
 				911405BB4A76493BB81F7FD7 /* RoutingModeTests.swift */,
+				FA66DA58C2FEC081307F44D9 /* ServerTagShapeTests.swift */,
 				9B07C7F761E8467D5C74E4CD /* StringUtilsTests.swift */,
+				850D3937870EEB29F3CD7BD9 /* TrafficHealthMonitorTests.swift */,
 			);
 			path = UnitTests;
 			sourceTree = "<group>";
@@ -484,6 +496,7 @@
 				C254991A86781B863F8BA92C /* SubscriptionManager.swift */,
 				8C0143BDF66872F26920B09B /* Theme.swift */,
 				12B28AD4A0F0B61B1CCA267A /* ThemeManager.swift */,
+				B0F1E53A2387E8AB9E727CD9 /* TrafficHealthMonitor.swift */,
 				E683952FD2B39BA18604AB73 /* VPNErrorMapper.swift */,
 				04FC8CF248986C535F825CAB /* VPNManager.swift */,
 			);
@@ -774,6 +787,7 @@
 				942A96B073B8A5480C18FD7B /* Theme.swift in Sources */,
 				DE990DCFB1EDE9CF6D509867 /* ThemeManager.swift in Sources */,
 				11AAD0CBBD52EE06355ACA56 /* ThemePickerView.swift in Sources */,
+				8AEFE40F991011124CAE96AC /* TrafficHealthMonitor.swift in Sources */,
 				C6AF80BEEEDDF6223C295DD5 /* TunnelFileLogger.swift in Sources */,
 				D15236DEDA6726380031CE01 /* VPNErrorMapper.swift in Sources */,
 				83C2376AD12AE7EA471F5DDD /* VPNManager.swift in Sources */,
@@ -844,6 +858,7 @@
 				B988B34E1D31DA0B7F335675 /* Theme.swift in Sources */,
 				BACEC61FEE678594868C78AF /* ThemeManager.swift in Sources */,
 				BC0EB19FC3432F56C64386DD /* ThemePickerView.swift in Sources */,
+				8F75A2437F55A299C19D3960 /* TrafficHealthMonitor.swift in Sources */,
 				EE90271EC8C8EF0A80F23C19 /* TunnelFileLogger.swift in Sources */,
 				0D6FD98F17D51EA831F22DB9 /* VPNErrorMapper.swift in Sources */,
 				EB087C443D026C56DB4CEC2F /* VPNManager.swift in Sources */,
@@ -858,10 +873,13 @@
 			files = (
 				9AB874F30E33334B32A64AA5 /* ConfigSanitizerTests.swift in Sources */,
 				C9076459425BD8F9966B4CEE /* KeychainHelperTests.swift in Sources */,
+				7DF0EBCB21BB2660769E7006 /* MigrationLeafToCountryTests.swift in Sources */,
 				905E0BB257310FDDB4781269 /* PingServiceTests.swift in Sources */,
 				818BF0849C7EDBF7651897E8 /* ProxyChainResolverTests.swift in Sources */,
 				71544D80CE087259EC1D47FC /* RoutingModeTests.swift in Sources */,
+				29395303030F6B15D4E0F443 /* ServerTagShapeTests.swift in Sources */,
 				88554DBB410CBE11723FF7F3 /* StringUtilsTests.swift in Sources */,
+				B12BD63053EC36D717193BCE /* TrafficHealthMonitorTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1124,7 +1142,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 31;
+				CURRENT_PROJECT_VERSION = 32;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = 99W3C374T2;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -1201,7 +1219,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 31;
+				CURRENT_PROJECT_VERSION = 32;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = 99W3C374T2;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;

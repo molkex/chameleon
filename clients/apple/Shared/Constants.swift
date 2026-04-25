@@ -114,4 +114,12 @@ enum AppConstants {
 
     // Authenticated config endpoint
     static let mobileConfigURL = baseURL + "/api/v1/mobile/config"
+
+    // Auto-recover from server failures (TrafficHealthMonitor).
+    // Default ON. User can disable from Settings → Diagnostics.
+    static let autoRecoverEnabledKey = "autoRecoverEnabled"
+
+    // One-shot migration guards. Each key, once set, prevents the migration
+    // from running again on subsequent launches. Bumped per release.
+    static let migrationLeafToCountryV32Key = "migration.leafToCountry.v32"
 }

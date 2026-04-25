@@ -77,6 +77,37 @@ struct SettingsView: View {
                                     .font(theme.font(size: 13))
                                     .foregroundStyle(theme.textSecondary)
                                     .fixedSize(horizontal: false, vertical: true)
+
+                                // Auto-recover toggle. Default ON — TrafficHealthMonitor
+                                // probes the tunnel and switches the user off a dead
+                                // leg when the chosen server stops responding. User can
+                                // disable for fully manual control. Storage lives in the
+                                // App Group UserDefaults so the picker hint and the
+                                // monitor read the same source of truth.
+                                Divider()
+                                    .background(theme.textSecondary.opacity(0.15))
+                                HStack(spacing: 14) {
+                                    iconCircle("arrow.triangle.2.circlepath")
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(L10n.Settings.autoRecover)
+                                            .font(theme.font(size: 16, weight: .medium))
+                                            .foregroundStyle(theme.textPrimary)
+                                        Text(L10n.Settings.autoRecoverHint)
+                                            .font(theme.font(size: 12))
+                                            .foregroundStyle(theme.textSecondary)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                    Spacer()
+                                    Toggle("", isOn: Binding(
+                                        get: { app.configStore.autoRecoverEnabled },
+                                        set: { newValue in
+                                            app.configStore.autoRecoverEnabled = newValue
+                                            TunnelFileLogger.log("auto-recover toggled: \(newValue)", category: "ui")
+                                        }
+                                    ))
+                                    .labelsHidden()
+                                    .tint(theme.accent)
+                                }
                             }
                             .padding(16)
                         }

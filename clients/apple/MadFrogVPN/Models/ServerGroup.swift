@@ -247,6 +247,46 @@ struct CountryGroup: Identifiable {
     }
 }
 
+/// Classification of a `selectedServerTag` value. Lets us tell apart the
+/// new "country urltest" pins (`🇩🇪 Германия`) from legacy "leaf" pins
+/// (`de-h2-de`) at runtime — needed for build-32 migration and for the
+/// power-mode UI to show the right subtitle.
+enum ServerTagShape {
+    case auto                       // selectedServerTag == nil
+    case countryUrltest             // tag begins with a flag emoji
+    case leaf(country: String)      // {cc}-{kind}-{...}
+    case unknown(String)            // anything else
+
+    init(_ tag: String?) {
+        guard let raw = tag, !raw.isEmpty else {
+            self = .auto
+            return
+        }
+        if let first = raw.first,
+           String(first).unicodeScalars.allSatisfy({ (0x1F1E6...0x1F1FF).contains($0.value) }) {
+            self = .countryUrltest
+            return
+        }
+        let parts = raw.split(separator: "-").map(String.init)
+        if parts.count >= 3 {
+            let cc = parts[0].lowercased()
+            let kind = parts[1].lowercased()
+            let knownCC = ["nl", "de", "ru"].contains(cc)
+            let knownKind = ["direct", "h2", "tuic", "via", "spb"].contains(kind)
+            if knownCC && knownKind {
+                self = .leaf(country: cc)
+                return
+            }
+        }
+        self = .unknown(raw)
+    }
+
+    var isLeaf: Bool {
+        if case .leaf = self { return true }
+        return false
+    }
+}
+
 struct ServerGroup: Identifiable {
     let id: String
     let tag: String

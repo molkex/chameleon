@@ -68,8 +68,43 @@ struct MainView: View {
                     }
                 }
             }
+
+            // Recovery toast — softer styling than errorMessage (blue/info,
+            // not red/alarm). Surfaces TrafficHealthMonitor fallback events.
+            if let toast = app.fallbackToastMessage {
+                VStack {
+                    HStack(spacing: 8) {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .foregroundStyle(.white)
+                        Text(toast)
+                            .font(.caption)
+                            .foregroundStyle(.white)
+                            .accessibilityAddTraits(.updatesFrequently)
+                        Button {
+                            app.fallbackToastMessage = nil
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.white.opacity(0.85))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(Color.blue.opacity(0.85), in: Capsule())
+                    Spacer()
+                }
+                .padding(.top, 60)
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .task(id: toast) {
+                    try? await Task.sleep(for: .seconds(5))
+                    if app.fallbackToastMessage == toast {
+                        app.fallbackToastMessage = nil
+                    }
+                }
+            }
         }
         .animation(.easeInOut(duration: 0.3), value: app.errorMessage != nil)
+        .animation(.easeInOut(duration: 0.3), value: app.fallbackToastMessage != nil)
         .onAppear {
             #if DEBUG
             cachedBuildInfoLine = computeBuildInfoLine()
@@ -169,17 +204,61 @@ enum VPNStateHelper {
         let s = state(app)
         return s == .connecting || s == .reconnecting
     }
+    /// Pretty country-level name for the home screen pill/chip.
+    /// Build-32 UX: surface only the country, never the leaf protocol.
+    /// Power-mode users see the leg as a subtitle (`currentLegName` below).
     static func selectedServerName(_ app: AppState) -> String {
-        if let tag = app.selectedServerTag {
-            for group in app.servers {
-                if let item = group.items.first(where: { $0.tag == tag }) {
-                    return item.tag
-                }
-                if group.tag == tag { return group.tag }
-            }
-            return tag
+        guard let tag = app.selectedServerTag else {
+            return String(localized: "home.server.auto")
         }
-        return String(localized: "home.server.auto")
+        for group in app.servers {
+            // Tag points at a country urltest directly: show its label.
+            if let country = group.countries.first(where: { $0.tag == tag }) {
+                return "\(country.flagEmoji) \(country.name)".trimmingCharacters(in: .whitespaces)
+            }
+            // Tag is a leaf: promote display to its containing country.
+            if let country = group.countries.first(where: { $0.serverTags.contains(tag) }) {
+                return "\(country.flagEmoji) \(country.name)".trimmingCharacters(in: .whitespaces)
+            }
+            // Selector tag itself.
+            if group.tag == tag { return group.tag }
+        }
+        return tag
+    }
+
+    /// Live "current leg" for the selected country — reads the urltest pick
+    /// from the command client's groups feed. Returns nil if the leg is
+    /// the country itself (user hasn't pinned a specific protocol) or if
+    /// the data isn't available yet. Used by power-mode subtitle and by
+    /// TrafficHealthMonitor for fallback decisions.
+    static func currentLegName(_ app: AppState) -> String? {
+        let pinnedTag = app.selectedServerTag
+        guard let group = app.servers.first(where: { $0.type == "selector" && $0.selectable }) else {
+            return nil
+        }
+        // Country urltest tag the user is currently routed through. For Auto
+        // (pinnedTag == nil) we follow Proxy's selected hop.
+        let countryTag: String? = {
+            if let pinned = pinnedTag,
+               let _ = group.countries.first(where: { $0.tag == pinned }) {
+                return pinned
+            }
+            if let pinned = pinnedTag,
+               let country = group.countries.first(where: { $0.serverTags.contains(pinned) }) {
+                return country.tag
+            }
+            return nil
+        }()
+        guard let countryTag else { return nil }
+        // Live group state from libbox. Match by tag; use the urltest's
+        // `selected` field which is the leaf currently picked by it.
+        guard let live = app.commandClient.groups.first(where: { $0.tag == countryTag }),
+              !live.selected.isEmpty
+        else { return nil }
+        if let leaf = live.items.first(where: { $0.tag == live.selected }) {
+            return leaf.displayLabel
+        }
+        return nil
     }
 }
 
@@ -211,6 +290,10 @@ struct TimerView: View {
 struct ServerListView: View {
     @Environment(AppState.self) private var app
     @Environment(\.dismiss) private var dismiss
+
+    /// Number of taps on the nav title since the view appeared. Resets on
+    /// dismiss. 5 consecutive taps unlock power mode (per-protocol leaves).
+    @State private var titleTapCount = 0
 
     private var selectorGroup: ServerGroup? {
         app.servers.first { $0.type == "selector" && $0.selectable }
@@ -267,7 +350,10 @@ struct ServerListView: View {
             .platformInsetGroupedList()
             .navigationTitle(Text(L10n.Servers.title))
             .iosInlineNavTitle()
-            .onAppear { TunnelFileLogger.log("ServerListView: appeared, groups=\(app.servers.count)", category: "ui") }
+            .onAppear {
+                TunnelFileLogger.log("ServerListView: appeared, groups=\(app.servers.count), powerMode=\(app.powerModeUnlocked)", category: "ui")
+                titleTapCount = 0
+            }
             .onDisappear { TunnelFileLogger.log("ServerListView: disappeared", category: "ui") }
             .task {
                 // One-shot probe on appear. Manual refresh available via the
@@ -276,6 +362,24 @@ struct ServerListView: View {
                 await app.pingService.probe(allServers)
             }
             .toolbar {
+                // Invisible 5-tap target where the inline nav title renders.
+                // The system-rendered title doesn't surface SwiftUI gestures,
+                // so we put our own Text in the principal slot and count taps
+                // there. 5 taps unlock power mode (per-protocol leaves) for
+                // the rest of the session.
+                ToolbarItem(placement: .principal) {
+                    Text(L10n.Servers.title)
+                        .font(.headline)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            titleTapCount += 1
+                            if titleTapCount >= 5 && !app.powerModeUnlocked {
+                                app.powerModeUnlocked = true
+                                Haptics.notify(.success)
+                                TunnelFileLogger.log("power mode: UNLOCKED via 5-tap on nav title", category: "ui")
+                            }
+                        }
+                }
                 ToolbarItem(placement: PlatformToolbarPlacement.trailing.resolved) {
                     Button(L10n.Servers.done) {
                         TunnelFileLogger.log("TAP: Done in server list", category: "ui")
@@ -299,18 +403,36 @@ struct ServerListView: View {
         }
     }
 
-    /// Row for a country. Countries with a single server collapse to a
-    /// one-tap selection (no submenu). Multi-server countries open a list
-    /// so the user can pick a specific node — we never take that choice
-    /// away, just hide it when there's nothing to pick between.
+    /// Row for a country. Behaviour:
+    ///   - Default mode (powerMode = false), direct section: tap pins the
+    ///     country urltest tag and dismisses. The user never sees the leaf
+    ///     submenu — like Mullvad/ProtonVPN/ExpressVPN. sing-box's urltest
+    ///     auto-picks the best leg inside the country and TrafficHealthMonitor
+    ///     promotes them off a dead leg if one stops responding.
+    ///   - Power mode unlocked: multi-server countries drill into the leaf
+    ///     picker so testers can pin a specific protocol.
+    ///   - Whitelist-bypass section: always drills in (SPB relay endpoints
+    ///     are intentionally exposed individually — they have very different
+    ///     reachability profiles).
+    ///   - Single-server country (only one leaf): always one-tap regardless
+    ///     of mode — there's nothing to pick between.
     @ViewBuilder
     private func countryRowOrLink(for country: CountryGroup) -> some View {
         let serversInCountry = allServers.filter { country.serverTags.contains($0.tag) }
-        // Multi-server countries drill into a picker; single-server countries
-        // collapse to one tap. Whitelist-bypass groups always drill in so the
-        // user can see the individual SPB endpoints before picking.
         let alwaysDrillIn = country.section == .whitelistBypass
-        if !alwaysDrillIn, serversInCountry.count <= 1, let only = serversInCountry.first {
+        let singleServer = serversInCountry.count <= 1
+        let showLeafPicker = alwaysDrillIn || (app.powerModeUnlocked && !singleServer)
+
+        if showLeafPicker {
+            NavigationLink {
+                CountryServersView(country: country, servers: serversInCountry)
+            } label: {
+                CountryRow(country: country, selectedTag: app.selectedServerTag, pingService: app.pingService)
+            }
+        } else if singleServer, let only = serversInCountry.first {
+            // Edge case: country with exactly one leaf — pin the leaf
+            // itself; pinning the country urltest would still resolve to
+            // the same outbound but is needlessly indirect.
             Button {
                 TunnelFileLogger.log("TAP: country row (flat) '\(country.id)' → '\(only.tag)'", category: "ui")
                 if let group = selectorGroup {
@@ -322,11 +444,20 @@ struct ServerListView: View {
             }
             .buttonStyle(.plain)
         } else {
-            NavigationLink {
-                CountryServersView(country: country, servers: serversInCountry)
+            // Default UX: one-tap country pin. Selects the country's
+            // urltest tag (e.g. "🇩🇪 Германия"). sing-box urltest then
+            // picks the best leg, and TrafficHealthMonitor escalates if
+            // the country itself goes dark.
+            Button {
+                TunnelFileLogger.log("TAP: country row (urltest pin) '\(country.id)' → '\(country.tag)'", category: "ui")
+                if let group = selectorGroup {
+                    app.selectServer(groupTag: group.tag, serverTag: country.tag)
+                }
+                dismiss()
             } label: {
                 CountryRow(country: country, selectedTag: app.selectedServerTag, pingService: app.pingService)
             }
+            .buttonStyle(.plain)
         }
     }
 
@@ -374,7 +505,9 @@ private struct CountryRow: View {
 
     private var isSelected: Bool {
         guard let selectedTag else { return false }
-        return country.serverTags.contains(selectedTag)
+        // Match either the country urltest tag itself (default-mode pin)
+        // or any leaf tag inside the country (power-mode pin).
+        return selectedTag == country.tag || country.serverTags.contains(selectedTag)
     }
 
     /// Best probed latency across this country's servers.
