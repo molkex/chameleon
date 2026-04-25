@@ -78,6 +78,19 @@ class AppState {
     @ObservationIgnored
     private var deadLeavesInCurrentCascade: Set<String> = []
 
+    /// Country urltest tags that exhausted all their leaves in the current
+    /// cascade. Used by the build-33 cascade chain to skip already-tried
+    /// countries when escalating to the next-best country. Cleared on
+    /// manual user pick or a clean recovery (probe success).
+    @ObservationIgnored
+    private var deadCountriesInCurrentCascade: Set<String> = []
+
+    /// Hard cap on cascade depth. We try at most `maxCascadeDepth` distinct
+    /// countries before falling through to SPB relays — prevents the
+    /// monitor from spending the user's battery flailing across every
+    /// country when the underlying network is genuinely down.
+    private let maxCascadeDepth = 3
+
     nonisolated(unsafe) private var statusObserver: Any?
     /// Background config refresh task (handleForeground, toggleVPN).
     nonisolated(unsafe) private var refreshTask: Task<Void, Never>?
@@ -811,9 +824,10 @@ class AppState {
         // Manual pick clears the cascade history and gives the new leg
         // a grace window before the health monitor probes again — sing-box
         // needs a moment to settle. Fallback callers pass clearCascade=false
-        // so the dead-leaf set survives the hop.
+        // so the dead-leaf and dead-country sets survive the hop.
         if clearCascade {
             deadLeavesInCurrentCascade.removeAll()
+            deadCountriesInCurrentCascade.removeAll()
         }
         trafficHealthMonitor?.suspendForManualSwitch()
 
@@ -885,6 +899,22 @@ class AppState {
                 TunnelFileLogger.log("selectServer: LIVE selectOutbound '\(step.group)' → '\(step.target)'", category: "ui")
                 commandClient.selectOutbound(groupTag: step.group, outboundTag: step.target)
             }
+            // Build-33 fix: force a fresh urltest probe on every group we
+            // just touched. Without this, sing-box's urltest waits up to
+            // its `interval` (default 3min) before re-electing — and on a
+            // network change (WiFi→LTE) the cached pick can be a leg that
+            // is reachable on WiFi but blocked on the user's carrier ASN.
+            // Forcing the probe now means within ~3s the urltest will
+            // pick whichever leaf actually works under current conditions.
+            for step in chain where step.group != "Proxy" {
+                // Only re-probe urltest groups (not the Proxy selector itself,
+                // which is type=selector and doesn't accept urlTest).
+                TunnelFileLogger.log("selectServer: force urlTest('\(step.group)')", category: "ui")
+                commandClient.urlTest(groupTag: step.group)
+            }
+            // Also kick "Auto" urltest — it shares leaves and benefits from
+            // fresh data so a future fallback to Auto inherits good signal.
+            commandClient.urlTest(groupTag: "Auto")
             return
         }
 
@@ -1071,6 +1101,15 @@ class AppState {
                             TunnelFileLogger.log("applyServerSelectionIfLive: '\(step.group)' → '\(step.target)'", category: "ui")
                             self.commandClient.selectOutbound(groupTag: step.group, outboundTag: step.target)
                         }
+                        // Build-33 fix (cold start path): force a fresh
+                        // urltest probe under whatever network the tunnel
+                        // is now running on. Without this, urltest may pick
+                        // a stale leg cached from the previous network's
+                        // probes (e.g. WiFi pick that's blocked on LTE).
+                        for step in chain where step.group != "Proxy" {
+                            self.commandClient.urlTest(groupTag: step.group)
+                        }
+                        self.commandClient.urlTest(groupTag: "Auto")
                         return
                     }
                 }
@@ -1082,6 +1121,10 @@ class AppState {
             TunnelFileLogger.log("applyServerSelectionIfLive: '\(step.group)' → '\(step.target)'", category: "ui")
             commandClient.selectOutbound(groupTag: step.group, outboundTag: step.target)
         }
+        for step in chain where step.group != "Proxy" {
+            commandClient.urlTest(groupTag: step.group)
+        }
+        commandClient.urlTest(groupTag: "Auto")
     }
 
     /// Legacy single-selector lookup. Still used by cold-start paths
@@ -1227,6 +1270,7 @@ class AppState {
             if commandClient.isConnected { commandClient.disconnect() }
             trafficHealthMonitor?.stop()
             deadLeavesInCurrentCascade.removeAll()
+            deadCountriesInCurrentCascade.removeAll()
             // Check if the PacketTunnel extension signaled a user-initiated stop
             // (from iOS Settings toggle). If so, disable On Demand to prevent auto-reconnect.
             let userStoppedVPN = sharedDefaults?.bool(forKey: AppConstants.userStoppedVPNKey) ?? false
@@ -1279,23 +1323,23 @@ class AppState {
         trafficHealthMonitor?.start()
     }
 
-    /// Smart fallback chain executed when the monitor decides the current
-    /// leg is dead. Strategy mirrors what mature VPN clients do (Mullvad,
-    /// ProtonVPN, Cloudflare WARP):
+    /// Smart fallback chain (build-33 cascade). Strategy modelled on what
+    /// the user actually expects: stay close to their original choice for
+    /// as long as possible, only escalating away from it when all options
+    /// in that scope are exhausted. Order:
     ///
-    ///   1. Pinned leaf: blacklist it for the current cascade, try the
-    ///      next leaf inside the same country. Stay in country — silent,
-    ///      no toast.
-    ///   2. All leaves in pinned country are dead: escalate to Auto and
-    ///      surface a localized toast so the user knows the country pin
-    ///      is no longer in effect.
-    ///   3. Pinned country urltest (or current state already): trigger
-    ///      `urlTest("Auto")` + `closeConnections()` to force sing-box
-    ///      to re-elect. No tag change.
+    ///   1. **Same country, different leaf** — try the next not-yet-tried
+    ///      leaf inside the pinned country. Silent, no toast.
+    ///   2. **Country exhausted** — mark country dead in the cascade, send
+    ///      diagnostic to backend, pick the next-best country by ping and
+    ///      pin it. Toast "Германия недоступна, переключено на NL".
+    ///   3. **All direct countries dead (or `maxCascadeDepth` hit)** —
+    ///      jump to SPB whitelist-bypass relays as last resort. Toast.
+    ///   4. **SPB relays also dead** — toast "Сеть недоступна", log error,
+    ///      fire diagnostic. Stop probing for the rest of the cooldown
+    ///      window.
     ///
-    /// All log lines are written to TunnelFileLogger so support reports
-    /// can attribute fallback events. Manual user actions take immediate
-    /// priority — `selectServer` clears `deadLeavesInCurrentCascade`.
+    /// Manual user pick clears the cascade state and resets the chain.
     func performFallbackForCurrentLeg() async {
         guard vpnManager.isConnected else { return }
         let pinned = configStore.selectedServerTag
@@ -1317,13 +1361,11 @@ class AppState {
 
     private func fallbackFromLeaf(pinned: String, group: ServerGroup) async {
         deadLeavesInCurrentCascade.insert(pinned)
-        TunnelFileLogger.log("fallback: leaf '\(pinned)' marked dead (cascade size=\(deadLeavesInCurrentCascade.count))", category: "ui")
+        TunnelFileLogger.log("fallback: leaf '\(pinned)' marked dead (cascade leaves=\(deadLeavesInCurrentCascade.count))", category: "ui")
 
-        // Find the country this leaf belongs to and pick the next
-        // not-yet-tried leaf in the same country.
         guard let country = group.countries.first(where: { $0.serverTags.contains(pinned) }) else {
-            TunnelFileLogger.log("fallback: leaf '\(pinned)' has no country, escalating to Auto", category: "ui")
-            await escalateToAuto(reason: "leaf orphan", group: group)
+            TunnelFileLogger.log("fallback: leaf '\(pinned)' has no country, escalating", category: "ui")
+            await escalateBeyondCountry(group: group, exhaustedCountry: nil, reason: "leaf orphan")
             return
         }
 
@@ -1335,39 +1377,116 @@ class AppState {
             return
         }
 
-        // All leaves in this country exhausted — escalate.
-        TunnelFileLogger.log("fallback: all leaves in '\(country.tag)' tried, escalating to Auto", category: "ui")
-        await escalateToAuto(reason: "country '\(country.name)' exhausted", group: group, country: country)
+        TunnelFileLogger.log("fallback: all leaves in '\(country.tag)' tried, escalating", category: "ui")
+        deadCountriesInCurrentCascade.insert(country.tag)
+        reportDiagnostic(event: "country_dead", country: country.tag, deadLeaves: Array(deadLeavesInCurrentCascade))
+        await escalateBeyondCountry(group: group, exhaustedCountry: country, reason: "country '\(country.name)' exhausted")
     }
 
     private func fallbackFromCountry(pinned: String, group: ServerGroup) async {
-        // User pinned a country urltest. sing-box's urltest cycles the
-        // leaves itself; if we still got here, the country itself is
-        // dark — escalate to Auto.
+        // User pinned a country urltest. Sing-box already cycles leaves
+        // inside it via its own urltest probes — if we still got here the
+        // country itself is dark. Mark dead and escalate.
         let country = group.countries.first(where: { $0.tag == pinned })
-        TunnelFileLogger.log("fallback: country '\(pinned)' unreachable, escalating to Auto", category: "ui")
-        await escalateToAuto(reason: "country '\(pinned)' unreachable", group: group, country: country)
+        let leaves = country?.serverTags ?? []
+        deadCountriesInCurrentCascade.insert(pinned)
+        for leaf in leaves { deadLeavesInCurrentCascade.insert(leaf) }
+        TunnelFileLogger.log("fallback: country '\(pinned)' unreachable, escalating", category: "ui")
+        reportDiagnostic(event: "country_dead", country: pinned, deadLeaves: leaves)
+        await escalateBeyondCountry(group: group, exhaustedCountry: country, reason: "country '\(pinned)' unreachable")
     }
 
     private func fallbackOnAuto(group: ServerGroup) async {
-        // Already on Auto — just kick the urltest + close existing
-        // connections so the next request renegotiates over a fresh leg.
-        TunnelFileLogger.log("fallback: on Auto already, re-running urltest + closeConnections", category: "ui")
+        // User is on Auto — re-trigger urltest probes across all groups
+        // and close in-flight connections so subsequent requests renegotiate
+        // through whatever leg sing-box now thinks is best.
+        TunnelFileLogger.log("fallback: on Auto, re-running urltest + closeConnections", category: "ui")
         commandClient.urlTest(groupTag: "Auto")
-        commandClient.urlTest(groupTag: group.tag)
-        // No toast — silent recovery on Auto is the expected path.
+        for c in group.countries { commandClient.urlTest(groupTag: c.tag) }
+        // No toast — recovery on Auto is the expected silent path.
     }
 
-    private func escalateToAuto(reason: String, group: ServerGroup, country: CountryGroup? = nil) async {
-        TunnelFileLogger.log("fallback: ESCALATE → Auto (reason: \(reason))", category: "ui")
-        // Wipe cascade BEFORE selectServer (which keeps it as-is when
-        // clearCascade=false would have been passed). Auto is a fresh start.
-        deadLeavesInCurrentCascade.removeAll()
-        selectServer(groupTag: group.tag, serverTag: "Auto")
-        if let country {
-            fallbackToastMessage = L10n.Recovery.switchedToAuto(country.name)
-        } else {
-            fallbackToastMessage = L10n.Recovery.switchedToAuto("")
+    /// Pick the next-best country (or SPB relay), pin it, force its
+    /// urltest to probe under current network. Called once per cascade
+    /// step. Caller is responsible for marking the previous country dead.
+    private func escalateBeyondCountry(
+        group: ServerGroup,
+        exhaustedCountry: CountryGroup?,
+        reason: String
+    ) async {
+        // Cascade depth check — bound how many countries we'll try before
+        // jumping straight to SPB. Without this a network with widespread
+        // DPI could have us thrash through every country.
+        let directCountries = group.countries.filter { $0.section == .direct && $0.id != "other" }
+        let triedDirect = deadCountriesInCurrentCascade.intersection(Set(directCountries.map(\.tag))).count
+
+        // Step A: try next direct country (sorted by best ping, dead-skipped)
+        if triedDirect < maxCascadeDepth {
+            let candidates = directCountries
+                .filter { !deadCountriesInCurrentCascade.contains($0.tag) }
+                .sorted { lhs, rhs in
+                    // bestDelay 0 = unknown, push to end. Otherwise ascending.
+                    let l = lhs.bestDelay > 0 ? Int(lhs.bestDelay) : Int.max
+                    let r = rhs.bestDelay > 0 ? Int(rhs.bestDelay) : Int.max
+                    return l < r
+                }
+            if let nextCountry = candidates.first {
+                TunnelFileLogger.log("fallback: ESCALATE → country '\(nextCountry.tag)' (depth=\(triedDirect + 1)/\(maxCascadeDepth), reason: \(reason))", category: "ui")
+                selectServer(groupTag: group.tag, serverTag: nextCountry.tag, clearCascade: false)
+                if let from = exhaustedCountry {
+                    fallbackToastMessage = L10n.Recovery.switchedFromTo(from.name, nextCountry.name)
+                } else {
+                    fallbackToastMessage = L10n.Recovery.switchedTo(nextCountry.name)
+                }
+                return
+            }
         }
+
+        // Step B: try SPB whitelist-bypass relays as last resort
+        let bypassCountries = group.countries.filter { $0.section == .whitelistBypass }
+        let allBypassLeaves = bypassCountries.flatMap(\.serverTags)
+        let bypassLeavesAlive = allBypassLeaves.filter { !deadLeavesInCurrentCascade.contains($0) }
+        if let firstBypassLeaf = bypassLeavesAlive.first {
+            TunnelFileLogger.log("fallback: ESCALATE → SPB relay '\(firstBypassLeaf)' (last resort, reason: \(reason))", category: "ui")
+            selectServer(groupTag: group.tag, serverTag: firstBypassLeaf, clearCascade: false)
+            fallbackToastMessage = L10n.Recovery.switchedToBypass
+            return
+        }
+
+        // Step C: nothing left
+        TunnelFileLogger.log("fallback: ALL COUNTRIES + SPB DEAD — giving up (reason: \(reason))", category: "ui")
+        reportDiagnostic(event: "all_dead", country: "*", deadLeaves: Array(deadLeavesInCurrentCascade))
+        fallbackToastMessage = L10n.Recovery.allDead
+        // Don't reset cascade — let the cooldown elapse, next stall will
+        // start a fresh sequence (cascade sets are wiped on selectServer).
+    }
+
+    /// Fire-and-forget diagnostic POST to backend. Catches network errors
+    /// silently — the cascade decision must not depend on whether ops
+    /// telemetry succeeded. Backend appends to a log file ops can grep
+    /// when a user reports "country X stopped working".
+    private func reportDiagnostic(event: String, country: String, deadLeaves: [String]) {
+        Task.detached { [weak self] in
+            guard let self else { return }
+            let token = await self.configStore.accessToken
+            let networkType = await self.currentNetworkTypeLabel()
+            try? await self.apiClient.reportDiagnostic(
+                event: event,
+                country: country,
+                deadLeaves: deadLeaves,
+                networkType: networkType,
+                accessToken: token
+            )
+        }
+    }
+
+    /// Best-effort label for the active network type — used in diagnostic
+    /// payloads only, never in routing decisions. Returns "wifi", "cellular",
+    /// "wired", or "unknown".
+    private func currentNetworkTypeLabel() -> String {
+        // ROADMAP iOS-22: hook NWPathMonitor into AppState. For now the
+        // extension's pathUpdate logs already capture this on the support
+        // side, so the diagnostic payload is informational only.
+        return "unknown"
     }
 }

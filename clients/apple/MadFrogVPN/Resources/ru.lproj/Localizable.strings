@@ -212,6 +212,10 @@
 /* ===== Recovery toasts ===== */
 "recovery.switched_to_auto"      = "%@ недоступна — переключено на Авто";
 "recovery.switched_leg"          = "%@: переключено на рабочий сервер";
+"recovery.switched_from_to"      = "%1$@ недоступна — переключено на %2$@";
+"recovery.switched_to"           = "Переключено на %@";
+"recovery.switched_to_bypass"    = "Прямые маршруты заблокированы — переключено на обход";
+"recovery.all_dead"              = "Сеть недоступна со всех серверов";
 
 /* ===== Аккаунт ===== */
 "account.title"                  = "Аккаунт";

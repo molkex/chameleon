@@ -753,4 +753,42 @@ class APIClient {
             throw APIError.networkError(error.localizedDescription)
         }
     }
+
+    /// Send a one-line diagnostic event to the backend so ops can see
+    /// when a country / SPB relay started failing for real users. The
+    /// backend appends to a file log, no PII is sent — just the event,
+    /// the failed country tag, the leaf tags that were tried, and a
+    /// rough network type label.
+    ///
+    /// Best-effort: any error (network, server, auth) is swallowed.
+    /// Build-33 fallback decisions never block on telemetry.
+    func reportDiagnostic(
+        event: String,
+        country: String,
+        deadLeaves: [String],
+        networkType: String,
+        accessToken: String?
+    ) async throws {
+        guard let url = URL(string: "\(AppConstants.baseURL)/api/v1/mobile/diagnostic") else {
+            return
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 5
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let accessToken {
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        }
+        let body: [String: Any] = [
+            "event": event,
+            "country": country,
+            "dead_leaves": deadLeaves,
+            "network_type": networkType,
+            "ts": ISO8601DateFormatter().string(from: Date()),
+        ]
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        // Fire and forget — even a 401 here is fine, server can log
+        // unauthenticated diagnostics if it wants. Caller never throws.
+        _ = try? await URLSession.shared.data(for: applyTelemetry(to: request))
+    }
 }

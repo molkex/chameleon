@@ -82,4 +82,10 @@ func RegisterRoutes(g *echo.Group, h *Handler) {
 	// Apple sees /api/mobile/subscription/notification AND
 	// /api/v1/mobile/subscription/notification.
 	g.POST("/subscription/notification", h.AppleNotification)
+
+	// Diagnostic endpoint — public, soft-auth (best-effort user_id from
+	// Bearer token if present). Receives one-line cascade events from the
+	// iOS TrafficHealthMonitor: which country went dark, which leaves were
+	// tried, what network type. Append-only structured log; ops greps it.
+	g.POST("/diagnostic", h.PostDiagnostic)
 }

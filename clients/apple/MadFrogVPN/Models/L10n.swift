@@ -252,6 +252,14 @@ enum L10n {
         static func switchedLeg(_ country: String) -> String {
             String(format: String(localized: "recovery.switched_leg"), country)
         }
+        static func switchedFromTo(_ from: String, _ to: String) -> String {
+            String(format: String(localized: "recovery.switched_from_to"), from, to)
+        }
+        static func switchedTo(_ to: String) -> String {
+            String(format: String(localized: "recovery.switched_to"), to)
+        }
+        static var switchedToBypass: String { String(localized: "recovery.switched_to_bypass") }
+        static var allDead: String { String(localized: "recovery.all_dead") }
     }
 
     enum Account {

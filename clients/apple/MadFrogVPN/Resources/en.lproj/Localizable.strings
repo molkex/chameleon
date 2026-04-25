@@ -212,6 +212,10 @@
 /* ===== Recovery toasts ===== */
 "recovery.switched_to_auto"      = "%@ unreachable — switched to Auto";
 "recovery.switched_leg"          = "%@: switched to a working server";
+"recovery.switched_from_to"      = "%1$@ unreachable — switched to %2$@";
+"recovery.switched_to"           = "Switched to %@";
+"recovery.switched_to_bypass"    = "Direct routes blocked — using bypass relay";
+"recovery.all_dead"              = "Network unreachable from all servers";
 
 /* ===== Account ===== */
 "account.title"                  = "Account";
