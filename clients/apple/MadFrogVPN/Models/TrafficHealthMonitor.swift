@@ -35,6 +35,11 @@ final class TrafficHealthMonitor {
         var isUserEnabled: () -> Bool
         var probe: (URL, TimeInterval) async -> ProbeResult
         var onStallDetected: () async -> Void
+        /// Build-35: notified after every probe success. AppState uses this
+        /// to record "leg X worked on network Y for country Z" into the
+        /// per-network memory, so subsequent connects bypass the race.
+        /// Optional — preserves test-fixture compatibility.
+        var onProbeSuccess: (() async -> Void)?
         var log: (String) -> Void
     }
 
@@ -47,6 +52,7 @@ final class TrafficHealthMonitor {
     /// (~10s interval, ~4s probe budget). Keep these as `let` so a unit
     /// test can override via the constructor and run in compressed time.
     let probeInterval: Duration
+    let firstProbeDelay: Duration    // delay before the very first probe at start()
     let probeTimeoutSeconds: TimeInterval
     let cooldownAfterFallback: Duration
     let suspendAfterManualSwitch: Duration
@@ -68,6 +74,7 @@ final class TrafficHealthMonitor {
     init(
         probeURL: URL = URL(string: "https://captive.apple.com/hotspot-detect.html")!,
         probeInterval: Duration = .seconds(10),
+        firstProbeDelay: Duration = .seconds(3),
         probeTimeoutSeconds: TimeInterval = 4.0,
         cooldownAfterFallback: Duration = .seconds(60),
         suspendAfterManualSwitch: Duration = .seconds(5),
@@ -77,6 +84,7 @@ final class TrafficHealthMonitor {
     ) {
         self.probeURL = probeURL
         self.probeInterval = probeInterval
+        self.firstProbeDelay = firstProbeDelay
         self.probeTimeoutSeconds = probeTimeoutSeconds
         self.cooldownAfterFallback = cooldownAfterFallback
         self.suspendAfterManualSwitch = suspendAfterManualSwitch
@@ -118,6 +126,12 @@ final class TrafficHealthMonitor {
     }
 
     private func runLoop() async {
+        // Run the first probe quickly (default ~3s) to catch a misrouted
+        // initial leg before the user even sees a stalled page load. After
+        // that, fall back to the steady-state interval.
+        try? await Task.sleep(for: firstProbeDelay)
+        if Task.isCancelled { return }
+        await tickIfEligible()
         while !Task.isCancelled {
             try? await Task.sleep(for: probeInterval)
             if Task.isCancelled { break }
@@ -155,6 +169,9 @@ final class TrafficHealthMonitor {
                 deps.log("TrafficHealthMonitor: probe OK (after \(consecutiveFailures) misses)")
             }
             consecutiveFailures = 0
+            if let onSuccess = deps.onProbeSuccess {
+                await onSuccess()
+            }
         case .failure(let reason):
             consecutiveFailures += 1
             deps.log("TrafficHealthMonitor: probe FAIL #\(consecutiveFailures) — \(reason)")

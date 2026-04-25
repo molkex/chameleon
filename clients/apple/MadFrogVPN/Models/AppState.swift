@@ -70,6 +70,23 @@ class AppState {
     @ObservationIgnored
     private var trafficHealthMonitor: TrafficHealthMonitor?
 
+    /// Build-35: pre-connect TCP race + per-network leg memory. Race runs
+    /// once per connect attempt against the pinned country's TCP-probable
+    /// leaves; the winner is biased to position 0 of the country urltest's
+    /// outbounds so sing-box uses it during the ~3-5s startup window
+    /// before its own internal probe completes. After tunnel up, a
+    /// successful TrafficHealthMonitor probe writes the active leaf into
+    /// the store so warm reconnects on the same network short-circuit
+    /// the race.
+    @ObservationIgnored
+    private let legRaceProbe = LegRaceProbe()
+    @ObservationIgnored
+    private let lastWorkingLegStore = LastWorkingLegStore()
+    /// Cached fingerprint of the current network — refreshed at every
+    /// connect attempt and at health-probe success.
+    @ObservationIgnored
+    private var currentNetworkFingerprint: String?
+
     /// Per-country failed-leaf attempts inside a single fallback cascade.
     /// Cleared whenever the user manually selects a server or the cascade
     /// settles back to a working state. Prevents the monitor from cycling
@@ -396,6 +413,77 @@ class AppState {
         return buildConfigWithSelections(chain: resolveSelectionChain(target: target))
     }
 
+    /// Build-35: like `configForStartup()` but additionally runs a pre-connect
+    /// TCP race against the candidate legs of the pinned country and biases
+    /// the country urltest's `outbounds` order so the race winner is first.
+    /// Sing-box's URLTestGroup.Select returns the first-listed detour when
+    /// no probe history exists — this controls which leg the user's first
+    /// requests use during the ~3-5s window before sing-box's own probe
+    /// completes. Skipped for Auto (too many candidates) and for leaf pins
+    /// (already specific). Side-effect: refreshes `currentNetworkFingerprint`.
+    private func configForStartupWithRace() async -> String? {
+        currentNetworkFingerprint = await NetworkFingerprint.current()
+        let baseJSON = configForStartup()
+        guard let baseJSON, let baseData = baseJSON.data(using: .utf8),
+              let base = try? JSONSerialization.jsonObject(with: baseData) as? [String: Any]
+        else { return baseJSON }
+
+        let pinned = configStore.selectedServerTag
+        let shape = ServerTagShape(pinned)
+        guard case .countryUrltest = shape, let countryTag = pinned else {
+            return baseJSON
+        }
+        // Find the country group in the cached `servers` (built by ConfigStore
+        // last time the picker was opened). If empty (very first launch),
+        // skip the race — sing-box will do its own probe at PostStart.
+        guard let proxy = servers.first(where: { $0.type == "selector" && $0.selectable }),
+              let country = proxy.countries.first(where: { $0.tag == countryTag }) else {
+            return baseJSON
+        }
+
+        let candidates = LegRaceConfigParser.candidates(forLegTags: country.serverTags, inConfigJSON: base)
+        guard !candidates.isEmpty else {
+            return baseJSON
+        }
+
+        // Country code derived from a representative leaf tag: "de-via-msk" → "DE".
+        let countryCC: String? = country.serverTags.first.flatMap { leafCountryCode($0) }
+        let preferred: String? = {
+            guard let fp = currentNetworkFingerprint, let cc = countryCC else { return nil }
+            return lastWorkingLegStore.get(fingerprint: fp, country: cc)
+        }()
+
+        TunnelFileLogger.log("preconnect race: country='\(countryTag)' candidates=\(candidates.map(\.tag)) preferred=\(preferred ?? "—") fp=\(currentNetworkFingerprint ?? "—")", category: "ui")
+        let result = await legRaceProbe.race(candidates: candidates, preferred: preferred)
+        guard let winner = result.winnerTag else {
+            TunnelFileLogger.log("preconnect race: NO WINNER after \(String(format: "%.2f", result.elapsedSeconds))s — using config as-is", category: "ui")
+            return baseJSON
+        }
+        TunnelFileLogger.log("preconnect race: winner='\(winner)' in \(String(format: "%.2f", result.elapsedSeconds))s — biasing country urltest", category: "ui")
+
+        let patched = SingBoxConfigPatcher.biasGroup(countryTag, toFirst: winner, inConfigJSON: base)
+        guard let out = try? JSONSerialization.data(withJSONObject: patched),
+              let str = String(data: out, encoding: .utf8) else {
+            return baseJSON
+        }
+        return str
+    }
+
+    /// Build-35: snapshot the currently-active leaf for the pinned country
+    /// and remember it as the "known good" choice on the current network.
+    /// Called from TrafficHealthMonitor.onProbeSuccess so we only record
+    /// real-world-confirmed legs, not whatever sing-box's HEAD probe
+    /// happens to like.
+    private func recordWorkingLegToMemory() {
+        guard let fp = currentNetworkFingerprint else { return }
+        guard let pinned = configStore.selectedServerTag else { return }
+        guard case .countryUrltest = ServerTagShape(pinned) else { return }
+        guard let activeLeaf = servers.first(where: { $0.tag == pinned })?.selected,
+              !activeLeaf.isEmpty,
+              let cc = leafCountryCode(activeLeaf) else { return }
+        lastWorkingLegStore.set(fingerprint: fp, country: cc, leg: activeLeaf)
+    }
+
     /// Fetch fresh config with a timeout. Falls back to cached config if fetch fails or times out.
     /// Public so the UI refresh button can force a re-fetch when user suspects stale config.
     func refreshConfig(timeout: Duration = .seconds(5)) async {
@@ -611,8 +699,8 @@ class AppState {
         // in the background for next time. Only block on refresh when there is
         // no cache at all (first launch, offline).
         if configStore.hasConfig() {
-            TunnelFileLogger.log("toggleVPN: have cached config, building...", category: "ui")
-            let config: String? = configForStartup() ?? configStore.loadConfig()
+            TunnelFileLogger.log("toggleVPN: have cached config, running preconnect race + building", category: "ui")
+            let config: String? = await configForStartupWithRace() ?? configStore.loadConfig()
             TunnelFileLogger.log("toggleVPN: config built, running preflight probe", category: "ui")
 
             // Fail-fast preflight: probe each outbound's TCP endpoint before
@@ -1325,6 +1413,11 @@ class AppState {
                 onStallDetected: { [weak self] in
                     await self?.performFallbackForCurrentLeg()
                 },
+                onProbeSuccess: { [weak self] in
+                    await MainActor.run {
+                        self?.recordWorkingLegToMemory()
+                    }
+                },
                 log: { msg in
                     TunnelFileLogger.log(msg, category: "ui")
                 }
@@ -1395,16 +1488,55 @@ class AppState {
     }
 
     private func fallbackFromCountry(pinned: String, group: ServerGroup) async {
-        // User pinned a country urltest. Sing-box already cycles leaves
-        // inside it via its own urltest probes — if we still got here the
-        // country itself is dark. Mark dead and escalate.
-        let country = group.countries.first(where: { $0.tag == pinned })
-        let leaves = country?.serverTags ?? []
+        // User pinned a country urltest. Build-35: try the next not-yet-tried
+        // leaf inside the country *first* — sing-box's urltest can mis-pick
+        // (HEAD passes on a path that drops real data), so cycling at our
+        // layer reliably catches degraded paths even when sing-box's own
+        // probe says everything is fine. Only escalate to the next country
+        // when every leaf in this one has been tried this cascade.
+        guard let country = group.countries.first(where: { $0.tag == pinned }) else {
+            TunnelFileLogger.log("fallback: country tag '\(pinned)' not found, escalating", category: "ui")
+            await escalateBeyondCountry(group: group, exhaustedCountry: nil, reason: "country tag '\(pinned)' missing")
+            return
+        }
+        let activeLeaf = servers.first(where: { $0.tag == pinned })?.selected
+        if let leaf = activeLeaf, !leaf.isEmpty {
+            deadLeavesInCurrentCascade.insert(leaf)
+            // Forget memory bias for this network+country — the remembered
+            // leg is now dead under current conditions.
+            if let fp = currentNetworkFingerprint, let cc = leafCountryCode(leaf) {
+                lastWorkingLegStore.forget(fingerprint: fp, country: cc)
+            }
+        }
+        let candidates = country.serverTags.filter { !deadLeavesInCurrentCascade.contains($0) }
+        if let next = candidates.first {
+            TunnelFileLogger.log("fallback: '\(pinned)' leaf '\(activeLeaf ?? "?")' → '\(next)' (same country)", category: "ui")
+            // selectOutbound on Proxy with a leaf tag bypasses the country
+            // urltest entirely — sing-box honours the explicit pick until
+            // we set it back via another selectOutbound or the user picks
+            // a country/Auto. The country pin in selectedServerTag is
+            // preserved at the iOS state level so leaving and returning
+            // re-pins.
+            // selectOutbound itself closes existing connections so in-flight
+            // sockets get re-dialled through the new leaf.
+            commandClient.selectOutbound(groupTag: group.tag, outboundTag: next)
+            fallbackToastMessage = L10n.Recovery.switchedLeg(country.name)
+            return
+        }
+        // Every leaf in the country has been tried — promote to country-dead
+        // and escalate.
         deadCountriesInCurrentCascade.insert(pinned)
-        for leaf in leaves { deadLeavesInCurrentCascade.insert(leaf) }
-        TunnelFileLogger.log("fallback: country '\(pinned)' unreachable, escalating", category: "ui")
-        reportDiagnostic(event: "country_dead", country: pinned, deadLeaves: leaves)
+        for leaf in country.serverTags { deadLeavesInCurrentCascade.insert(leaf) }
+        TunnelFileLogger.log("fallback: all leaves in '\(pinned)' tried, escalating", category: "ui")
+        reportDiagnostic(event: "country_dead", country: pinned, deadLeaves: country.serverTags)
         await escalateBeyondCountry(group: group, exhaustedCountry: country, reason: "country '\(pinned)' unreachable")
+    }
+
+    /// Extract two-letter country code from a leaf tag like "de-via-msk" → "DE".
+    private func leafCountryCode(_ leaf: String) -> String? {
+        let parts = leaf.split(separator: "-")
+        guard let first = parts.first else { return nil }
+        return first.uppercased()
     }
 
     private func fallbackOnAuto(group: ServerGroup) async {

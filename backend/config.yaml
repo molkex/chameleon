@@ -25,7 +25,7 @@ vpn:
   client_mtu: 1280
   dns_remote: "https://1.1.1.1/dns-query"
   dns_direct: "https://8.8.8.8/dns-query"
-  urltest_interval: "3m"
+  urltest_interval: "30s"
   clash_api_port: 9090
   user_api_port: 15380
   user_api_secret: "${USER_API_SECRET}"
