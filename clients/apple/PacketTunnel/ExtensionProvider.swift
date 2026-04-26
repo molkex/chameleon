@@ -15,6 +15,10 @@ open class ExtensionProvider: NEPacketTunnelProvider {
     private var platformInterface: ExtensionPlatformInterface?
     private var isGrpcRunning = false
     private var memoryWatchdog: DispatchSourceTimer?
+    /// Build-39 stall detector. Lives only while sing-box is running.
+    /// Catches the dead-leaf scenario the main-app TrafficHealthMonitor
+    /// can't reach when the user is in Safari and MadFrog is suspended.
+    private var stallProbe: TunnelStallProbe?
 
     private var sharedDefaults: UserDefaults? {
         UserDefaults(suiteName: AppConstants.appGroupID)
@@ -22,17 +26,48 @@ open class ExtensionProvider: NEPacketTunnelProvider {
 
     // MARK: - Memory diagnostics
 
-    /// Current resident memory footprint of this process in MB.
-    fileprivate func currentMemoryFootprintMB() -> Int {
+    /// Build-38: detailed memory snapshot for jetsam-correlation diagnostics.
+    /// All values in MB. `phys` is what jetsam tracks; the rest help localize
+    /// growth between Swift heap, Go heap, and mmap'd regions.
+    fileprivate struct MemorySnapshot {
+        let phys: Int        // phys_footprint — the jetsam metric
+        let resident: Int    // resident_size — RSS, uncompressed pages in RAM
+        let virt: Int        // virtual_size — total VM mapping (incl. file-backed)
+        let compressed: Int  // pages currently in compressed memory
+        let intern: Int      // process-internal pages (heaps, stacks)
+        let external: Int    // mmap'd files + shared regions
+        let avail: Int       // os_proc_available_memory — left before jetsam
+    }
+
+    fileprivate func memorySnapshot() -> MemorySnapshot {
         var info = task_vm_info_data_t()
         var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<natural_t>.size)
-        let result = withUnsafeMutablePointer(to: &info) {
+        let kr = withUnsafeMutablePointer(to: &info) {
             $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
                 task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count)
             }
         }
-        guard result == KERN_SUCCESS else { return -1 }
-        return Int(info.phys_footprint / (1024 * 1024))
+        let mb: (UInt64) -> Int = { Int($0 / (1024 * 1024)) }
+        let avail = Int(os_proc_available_memory() / (1024 * 1024))
+        guard kr == KERN_SUCCESS else {
+            return MemorySnapshot(phys: -1, resident: -1, virt: -1, compressed: -1,
+                                  intern: -1, external: -1, avail: avail)
+        }
+        return MemorySnapshot(
+            phys: mb(info.phys_footprint),
+            resident: mb(info.resident_size),
+            virt: mb(info.virtual_size),
+            compressed: mb(info.compressed),
+            intern: mb(info.`internal`),
+            external: mb(info.external),
+            avail: avail
+        )
+    }
+
+    /// Current resident memory footprint of this process in MB. Kept for
+    /// callers that just want the headline number (logSync at start/stop).
+    fileprivate func currentMemoryFootprintMB() -> Int {
+        memorySnapshot().phys
     }
 
     /// Remaining memory before jetsam fires (iOS 13+), in MB.
@@ -42,21 +77,30 @@ open class ExtensionProvider: NEPacketTunnelProvider {
 
     /// Start a timer that logs memory every 15s. Gives us breadcrumbs so post-kill
     /// debug reports show the growth curve leading up to jetsam.
+    ///
+    /// Build-38: log full breakdown + active interface name (en0 vs pdp_ip0)
+    /// so we can correlate the WiFi-only memory pressure observed in build 37
+    /// field tests (44MB on Wi-Fi → jetsam in ~60s vs 37–39MB plateau on LTE).
     private func startMemoryWatchdog() {
         memoryWatchdog?.cancel()
         let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .utility))
         timer.schedule(deadline: .now() + 15, repeating: 15)
         timer.setEventHandler { [weak self] in
             guard let self else { return }
-            let used = self.currentMemoryFootprintMB()
-            let avail = self.availableMemoryMB()
-            TunnelFileLogger.log("memory: \(used)MB used, \(avail)MB available", category: "memory")
+            let s = self.memorySnapshot()
+            let iface = self.platformInterface?.currentInterfaceName ?? "?"
+            TunnelFileLogger.log(
+                "memory: phys=\(s.phys)MB resident=\(s.resident)MB virt=\(s.virt)MB "
+                + "compressed=\(s.compressed)MB internal=\(s.intern)MB external=\(s.external)MB "
+                + "avail=\(s.avail)MB iface=\(iface)",
+                category: "memory"
+            )
             // Proactive GC hint when we're close to the limit. Libbox is Go —
             // setting GOMEMLIMIT already presses the runtime but an explicit
             // hint from Swift can't hurt. (We call Swift's malloc_zone_pressure
             // equivalent; the Go side reacts via signal handler.)
-            if avail < 8 {
-                TunnelFileLogger.logSync("memory pressure — \(avail)MB left", category: "memory")
+            if s.avail < 8 {
+                TunnelFileLogger.logSync("memory pressure — \(s.avail)MB left iface=\(iface)", category: "memory")
             }
         }
         timer.resume()
@@ -135,6 +179,7 @@ open class ExtensionProvider: NEPacketTunnelProvider {
                 TunnelFileLogger.logSync("sing-box started successfully (memory: \(self.currentMemoryFootprintMB())MB/\(self.availableMemoryMB())MB avail)", category: "memory")
                 AppLogger.tunnel.info("sing-box started successfully")
                 self.startMemoryWatchdog()
+                self.startStallProbe()
                 completionHandler(nil)
             } catch {
                 TunnelFileLogger.logSync("ERROR: sing-box start failed: \(error)")
@@ -160,10 +205,25 @@ open class ExtensionProvider: NEPacketTunnelProvider {
             TunnelFileLogger.log("User-initiated stop — signaled to main app")
         }
 
+        stopStallProbe()
         stopMemoryWatchdog()
         stopSingBox()
         setGrpcState(false)
         completionHandler()
+    }
+
+    // MARK: - Stall probe lifecycle
+
+    private func startStallProbe() {
+        guard stallProbe == nil else { return }
+        let probe = TunnelStallProbe()
+        stallProbe = probe
+        probe.start()
+    }
+
+    private func stopStallProbe() {
+        stallProbe?.stop()
+        stallProbe = nil
     }
 
     override open func handleAppMessage(_ messageData: Data,

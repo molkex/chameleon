@@ -295,7 +295,8 @@ final class PingService {
 
 /// Tiny atomic bool wrapper — avoids pulling in swift-atomics just for this.
 /// Uses NSLock which is cheap and enough for single-flag coordination.
-private final class ManagedAtomic {
+/// Sendable: NSLock serialises every read/write, so cross-actor capture is safe.
+private final class ManagedAtomic: @unchecked Sendable {
     private var value: Bool
     private let lock = NSLock()
     init(_ initial: Bool) { self.value = initial }

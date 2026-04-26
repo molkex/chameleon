@@ -40,7 +40,7 @@ vpn:
   client_mtu: 1280
   dns_remote: "https://1.1.1.1/dns-query"
   dns_direct: "https://8.8.8.8/dns-query"
-  urltest_interval: "30s"
+  urltest_interval: "5m"  # Was "30s"; with 80ms RTT delta between de-via-msk and de-direct-de + LTE jitter, 30s caused flapping every 30-47s and tore TLS mid-session. 5m makes urltest re-evaluate at most once per typical session.
   clash_api_port: 9090
   user_api_port: 15380
   user_api_secret: "${USER_API_SECRET}"

@@ -10,8 +10,20 @@ final class ExtensionPlatformInterface: NSObject, @unchecked Sendable {
     weak var tunnel: NEPacketTunnelProvider?
     private var pathMonitor: NWPathMonitor?
     private var interfaceListener: LibboxInterfaceUpdateListenerProtocol?
-    private var lastInterfaceName: String = ""
+    private let interfaceLock = NSLock()
+    private var _lastInterfaceName: String = ""
     // neighborListener removed in libbox 1.13
+
+    /// Build-38: thread-safe read of the current default interface name
+    /// (`en0` for Wi-Fi, `pdp_ip0` for cellular, etc.). Mutated on the
+    /// NWPathMonitor's background queue from `handlePathUpdate`; the memory
+    /// watchdog on its own utility queue reads this to label diagnostics so
+    /// we can correlate growth curves with the active uplink.
+    var currentInterfaceName: String {
+        interfaceLock.lock()
+        defer { interfaceLock.unlock() }
+        return _lastInterfaceName
+    }
 
     init(tunnel: NEPacketTunnelProvider) {
         self.tunnel = tunnel
@@ -240,8 +252,11 @@ extension ExtensionPlatformInterface: LibboxPlatformInterfaceProtocol {
             interfaceIndex = Int32(iface.index)
         }
 
-        let networkChanged = !lastInterfaceName.isEmpty && interfaceName != lastInterfaceName
-        lastInterfaceName = interfaceName
+        interfaceLock.lock()
+        let prevInterfaceName = _lastInterfaceName
+        _lastInterfaceName = interfaceName
+        interfaceLock.unlock()
+        let networkChanged = !prevInterfaceName.isEmpty && interfaceName != prevInterfaceName
 
         TunnelFileLogger.log("pathUpdate: status=\(path.status), iface=\(interfaceName)(\(interfaceIndex)), expensive=\(path.isExpensive)\(networkChanged ? " [NETWORK CHANGED]" : "")", category: "network")
 

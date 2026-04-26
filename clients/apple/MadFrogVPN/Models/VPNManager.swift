@@ -13,7 +13,7 @@ import os.log
 class VPNManager {
     private(set) var status: NEVPNStatus = .disconnected
     private var manager: NETunnelProviderManager?
-    nonisolated(unsafe) private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "VPN", category: "VPNManager")
+    nonisolated private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "VPN", category: "VPNManager")
     private var statusObserver: Any?
     /// Set to true when disconnect() is called from the app, reset on connect().
     /// Prevents disabling On Demand when iOS Settings or On Demand itself triggers disconnect.

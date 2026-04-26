@@ -8,6 +8,12 @@ struct MadFrogVPNApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
+        // Sync boot marker — proves TunnelFileLogger is writing to disk.
+        // logSync ensures the line is on disk before init returns; if the
+        // log file is empty after a launch we can rule out "missing call
+        // site" and look at file system / entitlement issues.
+        TunnelFileLogger.logSync("=== APP LAUNCH (build 38d) base=\(AppConstants.sharedContainerURL.path) ===", category: "boot")
+
         // Libbox needs basePath set so LibboxNewCommandClient can find
         // command.sock created by the extension's CommandServer.
         // MUST match paths used in ExtensionProvider.startSingBox().
@@ -19,9 +25,9 @@ struct MadFrogVPNApp: App {
         var err: NSError?
         LibboxSetup(opts, &err)
         if let err {
-            TunnelFileLogger.log("MadFrogVPNApp: LibboxSetup failed: \(err)", category: "ui")
+            TunnelFileLogger.logSync("MadFrogVPNApp: LibboxSetup failed: \(err)", category: "ui")
         } else {
-            TunnelFileLogger.log("MadFrogVPNApp: LibboxSetup OK base=\(opts.basePath)", category: "ui")
+            TunnelFileLogger.logSync("MadFrogVPNApp: LibboxSetup OK base=\(opts.basePath)", category: "ui")
         }
     }
 

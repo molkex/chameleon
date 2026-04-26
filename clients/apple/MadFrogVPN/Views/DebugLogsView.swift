@@ -494,32 +494,30 @@ struct DebugLogsView: View {
                 using: .tcp
             )
             let queue = DispatchQueue(label: "tcp-test-\(host)-\(port)")
-            var completed = false
+            let completed = TestCompleteFlag()
 
             // Timeout after 5 seconds
             queue.asyncAfter(deadline: .now() + 5) {
-                guard !completed else { return }
-                completed = true
+                if completed.set() { return }
                 connection.cancel()
                 continuation.resume(returning: (false, 5.0, "TIMEOUT (5s)"))
             }
 
             connection.stateUpdateHandler = { state in
-                guard !completed else { return }
+                guard !completed.isSet else { return }
                 switch state {
                 case .ready:
-                    completed = true
+                    if completed.set() { return }
                     let elapsed = CFAbsoluteTimeGetCurrent() - start
                     connection.cancel()
                     continuation.resume(returning: (true, elapsed, ""))
                 case .failed(let error):
-                    completed = true
+                    if completed.set() { return }
                     connection.cancel()
                     let elapsed = CFAbsoluteTimeGetCurrent() - start
                     continuation.resume(returning: (false, elapsed, error.localizedDescription))
                 case .cancelled:
-                    guard !completed else { return }
-                    completed = true
+                    if completed.set() { return }
                     continuation.resume(returning: (false, 0, "cancelled"))
                 default:
                     break
@@ -539,23 +537,21 @@ struct DebugLogsView: View {
                 using: params
             )
             let queue = DispatchQueue(label: "udp-test-\(host)-\(port)")
-            var completed = false
+            let completed = TestCompleteFlag()
 
             queue.asyncAfter(deadline: .now() + 5) {
-                guard !completed else { return }
-                completed = true
+                if completed.set() { return }
                 connection.cancel()
                 continuation.resume(returning: (false, 5.0, "TIMEOUT (5s)"))
             }
 
             connection.stateUpdateHandler = { state in
-                guard !completed else { return }
+                guard !completed.isSet else { return }
                 switch state {
                 case .ready:
                     // UDP is "connectionless" — send a probe to confirm path
                     connection.send(content: Data([0x00]), completion: .contentProcessed { error in
-                        guard !completed else { return }
-                        completed = true
+                        if completed.set() { return }
                         let elapsed = CFAbsoluteTimeGetCurrent() - start
                         connection.cancel()
                         if let error {
@@ -565,13 +561,12 @@ struct DebugLogsView: View {
                         }
                     })
                 case .failed(let error):
-                    completed = true
+                    if completed.set() { return }
                     let elapsed = CFAbsoluteTimeGetCurrent() - start
                     connection.cancel()
                     continuation.resume(returning: (false, elapsed, error.localizedDescription))
                 case .cancelled:
-                    guard !completed else { return }
-                    completed = true
+                    if completed.set() { return }
                     continuation.resume(returning: (false, 0, "cancelled"))
                 default:
                     break
@@ -598,5 +593,26 @@ struct DebugLogsView: View {
             let elapsed = CFAbsoluteTimeGetCurrent() - start
             return (false, 0, elapsed, error.localizedDescription)
         }
+    }
+}
+
+/// Single-shot completion flag for the TCP/UDP test closures. NSLock-guarded
+/// so Swift 6 strict concurrency lets us share it across the @Sendable
+/// callbacks (timeout watchdog + state handler) — same pattern as
+/// `ManagedAtomic` in PingService.
+private final class TestCompleteFlag: @unchecked Sendable {
+    private var done = false
+    private let lock = NSLock()
+    var isSet: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return done
+    }
+    /// Atomically set true. Returns the previous value — caller uses
+    /// `if completed.set() { return }` to guarantee single delivery.
+    func set() -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        let prev = done
+        done = true
+        return prev
     }
 }

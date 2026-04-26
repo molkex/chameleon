@@ -103,7 +103,15 @@ final class TrafficHealthMonitorTests: XCTestCase {
 
     // MARK: - Eligibility
 
-    func testNotEligibleWhenAppBackgrounded() async {
+    /// Build-39: the foreground gate (`isAppActive`) was removed because
+    /// stall detection only matters when the user IS using the network —
+    /// the same window when the gate also paused us. The PacketTunnel
+    /// extension hosts a parallel probe (`TunnelStallProbe`) that runs
+    /// even while iOS suspends the main app entirely; this main-app
+    /// monitor is now defense-in-depth for the foreground window. The
+    /// test inverts the old assertion: backgrounded must NOT skip the
+    /// probe.
+    func testProbesRegardlessOfForegroundState() async {
         let probe = Probe()
         let flags = Flags()
         flags.appActive = false
@@ -112,8 +120,8 @@ final class TrafficHealthMonitorTests: XCTestCase {
 
         await mon.tickIfEligible()
         await mon.tickIfEligible()
-        XCTAssertEqual(probe.calls, 0, "must not probe when backgrounded")
-        XCTAssertEqual(flags.stallCount, 0)
+        XCTAssertEqual(probe.calls, 2, "must probe even while backgrounded (build-39)")
+        XCTAssertEqual(flags.stallCount, 1, "two failures while backgrounded must still trigger stall")
     }
 
     func testNotEligibleWhenUserDisabled() async {

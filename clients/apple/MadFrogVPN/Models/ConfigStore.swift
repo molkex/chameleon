@@ -169,21 +169,25 @@ class ConfigStore {
 
     /// Parse the saved sing-box config JSON into the UI's server list model.
     ///
-    /// Architecture (matches backend `clientconfig.go` 2026-04-24+):
+    /// Architecture (build-39+, post `urltest` removal):
     ///   - `Proxy` selector is the top-level picker. Its `outbounds` list
-    ///     contains: "Auto" (urltest), one urltest per country (e.g.
-    ///     "🇳🇱 Нидерланды"), and optionally one whitelist-bypass urltest
-    ///     ("🇷🇺 Россия (обход белых списков)").
-    ///   - Each country urltest's `outbounds` lists leaf outbound tags
-    ///     (type=vless/hysteria2/tuic) that actually carry traffic.
+    ///     is now FLAT: every leaf (vless/hysteria2/tuic outbounds) plus
+    ///     optionally one whitelist-bypass selector group
+    ///     ("🇷🇺 Россия (обход белых списков)") whose own members are the
+    ///     SPB leaves.
+    ///   - Country grouping is derived client-side from leaf-tag prefixes
+    ///     (de-*, nl-*, ru-spb-*) — there are no urltest outbounds in the
+    ///     config to read groups from. See `PathPicker.swift` header for
+    ///     why this lives in the host process now.
     ///   - Leaf tags are opaque short IDs ("de-direct-de", "nl-via-msk");
-    ///     display name + flag live on the urltest tag itself.
+    ///     display name + flag come from a hardcoded mapping below
+    ///     (`Self.countryDisplay`) since the backend no longer ships them.
     ///
     /// Returned shape:
     ///   A single `ServerGroup` with tag="Proxy", `items` = every leaf
-    ///   server flattened across all child urltests. Each child urltest
-    ///   becomes a `CountryGroup` inside the group. The "Auto" meta-urltest
-    ///   is surfaced through `ServerGroup.hasAuto` rather than as a country.
+    ///   server. `countries` is built virtually by grouping leaves by their
+    ///   prefix. `hasAuto = true` always (Auto is now a synthetic UI mode
+    ///   handled by PathPicker — not a real outbound).
     ///
     /// Fallback: if a usable "Proxy" selector isn't found (older configs,
     /// direct-only configs), fall back to scanning standalone leaf
@@ -233,50 +237,43 @@ class ConfigStore {
             return []
         }
 
-        // Build one CountryGroup per urltest member of Proxy.
-        // "Auto" is special — tracked via hasAuto flag, not as a country.
-        var countryGroups: [CountryGroup] = []
+        // Build-39: collect every leaf (recursively) reachable from any
+        // Proxy member, then group leaves by tag-prefix into virtual
+        // CountryGroups. The backend's `clientconfig.go` no longer emits
+        // urltest groups, so we derive country structure on-device.
+        // Leaves directly under Proxy + leaves under any sub-selector
+        // (notably the whitelist-bypass group) are all collected.
         var allLeaves: [ServerItem] = []
         var leafSeen = Set<String>()
-        var hasAuto = false
 
         for memberTag in proxyMembers {
-            guard let member = byTag[memberTag],
-                  let memberType = member["type"] as? String
-            else { continue }
-
-            if memberTag == "Auto" {
-                hasAuto = true
-                continue
-            }
-
-            // Accept urltest OR selector — both can group leaves.
-            guard memberType == "urltest" || memberType == "selector" else { continue }
-
             var visited = Set<String>()
             let leaves = resolveLeaves(from: memberTag, visited: &visited)
-            if leaves.isEmpty { continue }
-
-            // Dedup across groups — a leaf could theoretically appear in
-            // both a country urltest and a whitelist group; the picker
-            // renders it once, under its first group.
             for leaf in leaves where !leafSeen.contains(leaf.tag) {
                 leafSeen.insert(leaf.tag)
                 allLeaves.append(leaf)
             }
-
-            countryGroups.append(CountryGroup.from(urltestTag: memberTag, items: leaves))
         }
 
-        if allLeaves.isEmpty && !hasAuto {
+        if allLeaves.isEmpty {
             return fallbackGroup(from: outbounds)
         }
 
+        // Group leaves by country prefix (de-*, nl-*, ru-spb-*) and build a
+        // virtual CountryGroup per bucket. Order: NL first (LTE-native),
+        // then alphabetical, then whitelist-bypass last. Match backend's
+        // legSortKey ordering inside each country (direct, via, h2, tuic).
+        let countryGroups = Self.buildVirtualCountryGroups(from: allLeaves)
+
         let savedTag = selectedServerTag
         let selected: String = {
-            if let s = savedTag, byTag[s] != nil { return s }
-            if hasAuto { return "Auto" }
-            return allLeaves.first?.tag ?? ""
+            if let s = savedTag {
+                // Saved tag may be a leaf, a country display tag, or "Auto".
+                if byTag[s] != nil { return s }
+                if Self.countryDisplay.values.contains(s) { return s }
+                if s == "Auto" { return s }
+            }
+            return "Auto"
         }()
 
         return [ServerGroup(
@@ -286,9 +283,65 @@ class ConfigStore {
             selected: selected,
             items: allLeaves,
             selectable: true,
-            hasAuto: hasAuto,
+            hasAuto: true, // Auto is always available — synthetic UI mode now.
             countries: countryGroups
         )]
+    }
+
+    // MARK: - Build-39: virtual country grouping
+
+    /// Display labels for country code prefixes. Mirrors backend's
+    /// `clientconfig.go::countryDisplay` so picker entries match what the
+    /// build-32 migration / `selectedServerTag` logic expects.
+    static let countryDisplay: [String: String] = [
+        "de": "🇩🇪 Германия",
+        "nl": "🇳🇱 Нидерланды",
+        "ru-spb": "🇷🇺 Россия (обход белых списков)"
+    ]
+
+    /// Country code derived from a leaf tag's prefix. Mirrors
+    /// `LeafCandidate.country` so picker grouping and PathPicker selection
+    /// agree on which leaves belong to which country.
+    private static func countryCode(forLeafTag tag: String) -> String {
+        if tag.hasPrefix("ru-spb-") { return "ru-spb" }
+        return tag.split(separator: "-").first.map(String.init) ?? ""
+    }
+
+    /// Stable sort key inside a country: direct, then via, then h2, then
+    /// tuic, then anything else. Mirrors backend's `legSortKey` so logs +
+    /// UI ordering line up.
+    private static func legSortKey(_ tag: String) -> String {
+        if tag.contains("-direct-") { return "0-" + tag }
+        if tag.contains("-via-")    { return "1-" + tag }
+        if tag.contains("-h2-")     { return "2-" + tag }
+        if tag.contains("-tuic-")   { return "3-" + tag }
+        return "9-" + tag
+    }
+
+    private static func buildVirtualCountryGroups(from leaves: [ServerItem]) -> [CountryGroup] {
+        // Bucket by country code.
+        var buckets: [String: [ServerItem]] = [:]
+        for leaf in leaves {
+            let cc = countryCode(forLeafTag: leaf.tag)
+            guard !cc.isEmpty else { continue }
+            buckets[cc, default: []].append(leaf)
+        }
+
+        // Sort countries: NL first, then alphabetical, ru-spb always last.
+        let order: [String] = buckets.keys.sorted { a, b in
+            if a == "ru-spb" && b != "ru-spb" { return false }
+            if b == "ru-spb" && a != "ru-spb" { return true }
+            if a == "nl" && b != "nl" { return true }
+            if b == "nl" && a != "nl" { return false }
+            return a < b
+        }
+
+        return order.compactMap { cc in
+            guard var items = buckets[cc], !items.isEmpty else { return nil }
+            items.sort { legSortKey($0.tag) < legSortKey($1.tag) }
+            let display = countryDisplay[cc] ?? cc
+            return CountryGroup.from(urltestTag: display, items: items)
+        }
     }
 
     /// Fallback for configs that don't follow the Proxy/urltest layout.

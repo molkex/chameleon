@@ -63,6 +63,37 @@ struct LastWorkingLegStore {
         defaults.removeObject(forKey: Self.storageKey)
     }
 
+    /// Build-39: returns the set of leaf-class buckets ("direct", "relay",
+    /// "bypass") that have at least one positive record on this network.
+    /// `PathPicker.cascadePick(demoteClasses:)` callers use this to decide
+    /// whether to skip `.direct` on networks where direct never works (RU
+    /// LTE: TCP probe is a false-positive, real Reality data dies post-
+    /// handshake — so direct gets picked at boot but immediately stalls.
+    /// After one bad session the main-app monitor records the surviving
+    /// relay leg here; on next connect we see direct never won and demote it).
+    ///
+    /// Returns nil if no records exist for this network at all — caller
+    /// should NOT demote anything in that case (default cascade behaviour).
+    func classesEverWorked(fingerprint: String) -> Set<String>? {
+        let dict = loadRaw()
+        var sawAny = false
+        var classes: Set<String> = []
+        for (key, value) in dict {
+            guard key.hasPrefix(fingerprint + "::") else { continue }
+            sawAny = true
+            guard let entry = value as? [String: Any], let leg = entry["leg"] as? String else { continue }
+            // Class derivation mirrors `LeafCandidate.leafClass` exactly.
+            if leg.hasPrefix("ru-spb-") {
+                classes.insert("bypass")
+            } else if leg.contains("-via-") {
+                classes.insert("relay")
+            } else {
+                classes.insert("direct")
+            }
+        }
+        return sawAny ? classes : nil
+    }
+
     private func loadRaw() -> [String: Any] {
         defaults.dictionary(forKey: Self.storageKey) ?? [:]
     }

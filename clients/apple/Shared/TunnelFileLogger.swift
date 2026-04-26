@@ -1,8 +1,13 @@
 import Foundation
+import OSLog
 
 /// File-based logger for PacketTunnel extension debugging.
-/// Writes timestamped entries to tunnel-debug.log in the App Group container.
-/// Readable from both the extension and the main app.
+/// Writes timestamped entries to tunnel-debug.log at the App Group
+/// container root. Readable from both the extension and the main app.
+///
+/// **Reader robustness:** `readLog()` tries multiple historical paths
+/// (root, then Library/Caches as a 26.x experimental fallback) so logs
+/// remain visible across path migrations.
 ///
 /// **Durability note:** the iOS PacketTunnel extension has a 50 MB hard memory
 /// cap. When jetsam kills the extension with SIGKILL, any log lines still sitting
@@ -13,6 +18,11 @@ enum TunnelFileLogger {
     static let fileName = "tunnel-debug.log"
     static let maxFileSize = 512 * 1024 // 512 KB — auto-truncate
 
+    /// Primary write path: App Group container root. Confirmed writable
+    /// across iOS versions including 26.x (extension reports debugLogSize
+    /// > 0 there). Reverting here after a Library/Caches detour caused
+    /// reader/writer mismatch when old extension binaries kept writing
+    /// to root while the new main app code looked elsewhere.
     static var logFileURL: URL {
         AppConstants.sharedContainerURL.appendingPathComponent(fileName)
     }
@@ -20,6 +30,11 @@ enum TunnelFileLogger {
     static var stderrLogURL: URL {
         AppConstants.sharedContainerURL.appendingPathComponent("stderr.log")
     }
+
+    /// Mirror of every log line to os_log so they show up in
+    /// `idevicesyslog` / `log stream` even if the file write fails.
+    /// Subsystem matches AppLogger so existing predicates work.
+    private static let osLogger = Logger(subsystem: "com.madfrog.vpn", category: "tunnelfile")
 
     private static let queue = DispatchQueue(label: "com.madfrog.vpn.filelogger")
     private static let dateFormatter: DateFormatter = {
@@ -31,6 +46,7 @@ enum TunnelFileLogger {
 
     /// Log a message with timestamp and category tag. Normal async path.
     static func log(_ message: String, category: String = "tunnel") {
+        osLogger.log("[\(category, privacy: .public)] \(message, privacy: .public)")
         let line = formatLine(message, category: category)
         queue.async { writeToFile(line) }
     }
@@ -39,6 +55,7 @@ enum TunnelFileLogger {
     /// START, crash-adjacent ERRORs) so they survive even if the extension gets
     /// SIGKILL'd moments later before the async queue drains.
     static func logSync(_ message: String, category: String = "tunnel") {
+        osLogger.log("[\(category, privacy: .public)] \(message, privacy: .public)")
         let line = formatLine(message, category: category)
         queue.sync { writeToFile(line) }
     }
@@ -50,14 +67,38 @@ enum TunnelFileLogger {
         }
     }
 
-    /// Read the full debug log.
+    /// Read the full debug log. Tries the primary path, then the
+    /// Library/Caches fallback (left over from a 38d build that used a
+    /// different write path). On any read error, returns a diagnostic
+    /// string with the underlying reason instead of silent "(empty)".
     static func readLog() -> String {
-        (try? String(contentsOf: logFileURL, encoding: .utf8)) ?? "(empty)"
+        readWithFallback(filename: fileName)
     }
 
     /// Read the stderr log from libbox.
     static func readStderrLog() -> String {
-        (try? String(contentsOf: stderrLogURL, encoding: .utf8)) ?? "(empty)"
+        readWithFallback(filename: "stderr.log")
+    }
+
+    private static func readWithFallback(filename: String) -> String {
+        let primary = AppConstants.sharedContainerURL.appendingPathComponent(filename)
+        let fallback = AppConstants.sharedContainerURL
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Caches", isDirectory: true)
+            .appendingPathComponent(filename)
+
+        for url in [primary, fallback] {
+            guard FileManager.default.fileExists(atPath: url.path) else { continue }
+            guard let data = try? Data(contentsOf: url) else { continue }
+            // Lossy UTF-8 decode — replaces invalid byte sequences with
+            // U+FFFD. Concurrent writes from main app and extension can
+            // tear in the middle of a multi-byte codepoint, producing
+            // a few invalid bytes; strict `String(data:encoding:.utf8)`
+            // returns nil for the entire file in that case (one bad byte
+            // = whole log unreadable). Lossy keeps everything legible.
+            return String(decoding: data, as: UTF8.self)
+        }
+        return "(empty)"
     }
 
     private static func formatLine(_ message: String, category: String) -> String {
@@ -69,10 +110,16 @@ enum TunnelFileLogger {
         let url = logFileURL
         let data = Data(line.utf8)
 
-        // Ensure the file exists up-front. The parent directory is the App Group
-        // container which iOS creates; the file itself may not exist on first run.
+        // Ensure the file exists. createFile returns Bool — log failures so
+        // we know if root is somehow not writable on this iOS version.
         if !FileManager.default.fileExists(atPath: url.path) {
-            FileManager.default.createFile(atPath: url.path, contents: nil, attributes: nil)
+            let ok = FileManager.default.createFile(atPath: url.path, contents: data, attributes: nil)
+            if !ok {
+                osLogger.error("createFile failed at \(url.path, privacy: .public)")
+            } else {
+                // First write went via createFile contents — done.
+                return
+            }
         }
 
         // Truncate-to-half if we crossed the cap.
@@ -85,11 +132,14 @@ enum TunnelFileLogger {
             }
         }
 
-        if let handle = try? FileHandle(forWritingTo: url) {
-            handle.seekToEndOfFile()
-            handle.write(data)
-            try? handle.synchronize() // fsync — survive SIGKILL
-            handle.closeFile()
+        do {
+            let handle = try FileHandle(forWritingTo: url)
+            try handle.seek(toOffset: handle.seekToEndOfFile())
+            try handle.write(contentsOf: data)
+            try handle.synchronize()
+            try handle.close()
+        } catch {
+            osLogger.error("writeToFile failed at \(url.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
     }
 }

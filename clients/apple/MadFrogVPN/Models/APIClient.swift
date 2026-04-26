@@ -171,7 +171,20 @@ class APIClient {
             if let q = url.query, !q.isEmpty { return "\(url.path)?\(q)" }
             return url.path.isEmpty ? "/" : url.path
         }()
-        var reqHeaders = request.allHTTPHeaderFields ?? [:]
+
+        // Build-36: idempotency key for mutating methods. The same key flows
+        // to every hedged leg (primary, direct-IP, http:80) via the shared
+        // request, so a backend dedup middleware can collapse duplicate
+        // arrivals from the race into one logical effect.
+        var augmentedRequest = request
+        var idempotencyKey: String?
+        if method != "GET" && method != "HEAD" && request.value(forHTTPHeaderField: "Idempotency-Key") == nil {
+            let key = UUID().uuidString
+            augmentedRequest.setValue(key, forHTTPHeaderField: "Idempotency-Key")
+            idempotencyKey = key
+        }
+
+        var reqHeaders = augmentedRequest.allHTTPHeaderFields ?? [:]
         if reqHeaders["User-Agent"] == nil { reqHeaders["User-Agent"] = AppConfig.userAgent }
         if request.httpBody != nil, reqHeaders["Content-Type"] == nil {
             reqHeaders["Content-Type"] = "application/json"
@@ -179,13 +192,14 @@ class APIClient {
         let body = request.httpBody
 
         let raceStart = DispatchTime.now()
-        AppLogger.network.info("race.start path=\(path, privacy: .public) method=\(method, privacy: .public)")
+        let idempLog = idempotencyKey.map { String($0.prefix(8)) } ?? "n/a"
+        AppLogger.network.info("race.start path=\(path, privacy: .public) method=\(method, privacy: .public) idempkey=\(idempLog, privacy: .public)")
 
         return try await withThrowingTaskGroup(of: (Data, URLResponse, String)?.self) { group in
             group.addTask { [session] in
                 AppLogger.network.info("race.primary.start path=\(path, privacy: .public) elapsed=\(Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000, privacy: .public)ms")
                 do {
-                    let (data, response) = try await session.data(for: request)
+                    let (data, response) = try await session.data(for: augmentedRequest)
                     let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
                     if let http = response as? HTTPURLResponse, http.statusCode >= 500 {
                         AppLogger.network.info("race.primary.done rejected status=\(http.statusCode, privacy: .public) elapsed=\(ms, privacy: .public)ms")
@@ -207,21 +221,25 @@ class APIClient {
             // timeout and delays the race by ~6s even when NL wins. For RU
             // users skip the DE legs entirely. Primary Cloudflare leg + NL +
             // SPB relay still race so a working path keeps working.
-            let isRURegion: Bool = {
-                if #available(iOS 16, macOS 13, *) {
-                    return Locale.current.region?.identifier == "RU"
-                }
-                return Locale.current.regionCode == "RU"
-            }()
+            let isRURegion = Locale.current.region?.identifier == "RU"
             let raceIPs = isRURegion
                 ? AppConfig.directBackendIPs.filter { $0 != "162.19.242.30" }
                 : AppConfig.directBackendIPs
             if isRURegion {
                 AppLogger.network.info("race.region ru=true skipped=DE")
             }
-            for ip in raceIPs {
+            // Build-36: hedged dispatch (Dean & Barroso "Tail at Scale").
+            // Primary fires at T+0; each direct leg waits legIndex*250ms before
+            // its real work, so a fast primary saves the rest from ever starting.
+            // 4xx is no longer discarded as a "bad leg" — it propagates so the
+            // caller (e.g. fetchAndSaveConfig 404→re-register) can react.
+            for (i, ip) in raceIPs.enumerated() {
+                let legIndex = 1 + i
                 group.addTask {
-                    AppLogger.network.info("race.direct.start ip=\(ip, privacy: .public) elapsed=\(Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000, privacy: .public)ms")
+                    let staggerMs = legIndex * 250
+                    try? await Task.sleep(for: .milliseconds(staggerMs))
+                    if Task.isCancelled { return nil }
+                    AppLogger.network.info("race.direct.start ip=\(ip, privacy: .public) delay=\(staggerMs, privacy: .public)ms elapsed=\(Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000, privacy: .public)ms")
                     do {
                         let (bodyData, meta) = try await DirectConnection.request(
                             ip: ip, port: 443, sni: sni,
@@ -230,7 +248,7 @@ class APIClient {
                             timeout: 6
                         )
                         let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
-                        if meta.status >= 400 {
+                        if meta.status >= 500 {
                             AppLogger.network.info("race.direct.done ip=\(ip, privacy: .public) rejected status=\(meta.status, privacy: .public) elapsed=\(ms, privacy: .public)ms")
                             return nil
                         }
@@ -260,14 +278,20 @@ class APIClient {
             // chance for the response to come back fast.
             let isAuthenticated = request.value(forHTTPHeaderField: "Authorization") != nil
             if !isAuthenticated {
-            for ip in raceIPs {
+            // HTTP legs continue the hedge ladder after direct legs.
+            let httpStartIndex = 1 + raceIPs.count
+            for (i, ip) in raceIPs.enumerated() {
+                let legIndex = httpStartIndex + i
                 group.addTask { [fallbackSession] in
-                    AppLogger.network.info("race.http.start ip=\(ip, privacy: .public) elapsed=\(Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000, privacy: .public)ms")
+                    let staggerMs = legIndex * 250
+                    try? await Task.sleep(for: .milliseconds(staggerMs))
+                    if Task.isCancelled { return nil }
+                    AppLogger.network.info("race.http.start ip=\(ip, privacy: .public) delay=\(staggerMs, privacy: .public)ms elapsed=\(Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000, privacy: .public)ms")
                     guard var httpURL = URLComponents(string: "http://\(ip)") else { return nil }
                     httpURL.path = url.path
                     httpURL.query = url.query
                     guard let finalURL = httpURL.url else { return nil }
-                    var httpReq = request
+                    var httpReq = augmentedRequest
                     httpReq.url = finalURL
                     httpReq.timeoutInterval = 8
                     httpReq.setValue(nil, forHTTPHeaderField: "Host")
@@ -276,7 +300,7 @@ class APIClient {
                         let (data, response) = try await fallbackSession.data(for: httpReq)
                         let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
                         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-                        if status >= 400 {
+                        if status >= 500 {
                             AppLogger.network.info("race.http.done ip=\(ip, privacy: .public) rejected status=\(status, privacy: .public) elapsed=\(ms, privacy: .public)ms")
                             return nil
                         }

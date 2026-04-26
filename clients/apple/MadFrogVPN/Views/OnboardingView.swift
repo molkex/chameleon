@@ -23,6 +23,12 @@ struct OnboardingView: View {
     @State private var showTerms = false
     @State private var showPrivacy = false
     @State private var showEmailSignIn = false
+    /// Build-36 single-flight gate. Set synchronously on tap so duplicate
+    /// taps and competing login methods can't fire while one is in flight.
+    /// `app.isLoading` only flips inside the async signIn methods, which
+    /// leaves a window (Google sheet show, Apple system sheet) where it's
+    /// still false — this state covers that gap.
+    @State private var isAuthInFlight = false
 
     var body: some View {
         ZStack {
@@ -54,13 +60,14 @@ struct OnboardingView: View {
                 // Auth group: Apple + divider + chips read as one block
                 VStack(spacing: 8) {
                     SignInWithAppleButton(.continue) { request in
+                        isAuthInFlight = true
                         hapticLight()
                         request.requestedScopes = [.email]
                     } onCompletion: { handleApple($0) }
                         .signInWithAppleButtonStyle(.white)
                         .frame(height: 52)
                         .cornerRadius(14)
-                        .disabled(app.isLoading)
+                        .disabled(app.isLoading || isAuthInFlight)
 
                     // "or" divider — text has solid bg so the line reads cleanly
                     ZStack {
@@ -75,14 +82,20 @@ struct OnboardingView: View {
 
                     HStack(spacing: 8) {
                         chipButton(icon: { GoogleGLogo(tint: theme.textPrimary) }, label: "Google") {
+                            guard !isAuthInFlight else { return }
+                            isAuthInFlight = true
                             hapticLight()
-                            Task { await GoogleAuthCoordinator.signIn(into: app) }
+                            Task {
+                                await GoogleAuthCoordinator.signIn(into: app)
+                                isAuthInFlight = false
+                            }
                         }
                         chipButton(icon: {
                             Image(systemName: "envelope.fill")
                                 .font(.system(size: 15, weight: .semibold))
                                 .foregroundStyle(theme.textPrimary)
                         }, label: "Email") {
+                            guard !isAuthInFlight else { return }
                             hapticLight()
                             showEmailSignIn = true
                         }
@@ -238,7 +251,7 @@ struct OnboardingView: View {
             )
         }
         .buttonStyle(.plain)
-        .disabled(app.isLoading)
+        .disabled(app.isLoading || isAuthInFlight)
     }
 
     // MARK: - Handlers
@@ -246,9 +259,16 @@ struct OnboardingView: View {
     private func handleApple(_ result: Result<ASAuthorization, Error>) {
         switch result {
         case .success(let auth):
-            guard let credential = auth.credential as? ASAuthorizationAppleIDCredential else { return }
-            Task { await app.signInWithApple(credential: credential) }
+            guard let credential = auth.credential as? ASAuthorizationAppleIDCredential else {
+                isAuthInFlight = false
+                return
+            }
+            Task {
+                await app.signInWithApple(credential: credential)
+                isAuthInFlight = false
+            }
         case .failure(let error):
+            isAuthInFlight = false
             if (error as NSError).code != ASAuthorizationError.canceled.rawValue {
                 app.errorMessage = String(localized: "onboarding.signin_failed")
             }
@@ -273,7 +293,12 @@ struct OnboardingView: View {
 
     private var guestButton: some View {
         Button {
-            Task { await app.signInAnonymous() }
+            guard !isAuthInFlight else { return }
+            isAuthInFlight = true
+            Task {
+                await app.signInAnonymous()
+                isAuthInFlight = false
+            }
         } label: {
             Text(L10n.Onboarding.continueWithoutAccount)
                 .font(theme.font(size: 13, weight: .medium))
@@ -283,7 +308,7 @@ struct OnboardingView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(app.isLoading)
+        .disabled(app.isLoading || isAuthInFlight)
     }
 }
 

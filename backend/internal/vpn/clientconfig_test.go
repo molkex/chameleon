@@ -139,27 +139,35 @@ func outboundMembers(cfg map[string]any, tag string) []string {
 	return out
 }
 
-// TestProxySelectorContainsAllLeaves verifies the 2026-04-25 architectural
-// fix: the top-level "Proxy" selector lists every leaf outbound as a
-// direct child, not just Auto + country urltests. Without this, the iOS
-// app's Clash-API `selectOutbound("Proxy", "de-tuic-de")` fails with
-// "outbound is not a selector" on the country-group step and falls
-// through to a 2-step chain that can't pin the specific leaf.
-func TestProxySelectorContainsAllLeaves(t *testing.T) {
+// TestProxySelectorContainsAutoAndCountryGroups verifies the Proxy selector
+// (build 39+ return-to-urltest): top-level user choice has Auto, per-country
+// urltest groups, and every leaf as a direct member. sing-box's `urltest`
+// outbound runs end-to-end HTTP HEAD probes through each leaf and pins to
+// the lowest-latency working one — it correctly identifies broken paths
+// (e.g., RKN-blocked direct on RU LTE: TCP handshake succeeds but Reality
+// data dies after) which a TCP-only probe in the iOS host process cannot.
+func TestProxySelectorContainsAutoAndCountryGroups(t *testing.T) {
 	cfg := parseGenerated(t)
 	members := outboundMembers(cfg, "Proxy")
 	if len(members) == 0 {
 		t.Fatal("Proxy selector has no members")
 	}
 
-	// Category roots.
-	for _, tag := range []string{"Auto", "🇩🇪 Германия", "🇳🇱 Нидерланды"} {
-		if !slices.Contains(members, tag) {
-			t.Errorf("Proxy missing required category root %q; got %v", tag, members)
+	// Must contain Auto urltest at index 0 (so the cold-start tunnel without
+	// a UI selection lands on it via Proxy.default).
+	if len(members) == 0 || members[0] != "Auto" {
+		t.Errorf("Proxy first member must be \"Auto\"; got %v", members)
+	}
+
+	// Country urltest groups must be members so the user can pick a country.
+	for _, group := range []string{"🇩🇪 Германия", "🇳🇱 Нидерланды"} {
+		if !slices.Contains(members, group) {
+			t.Errorf("Proxy missing country urltest group %q; got %v", group, members)
 		}
 	}
 
-	// Standard leaves — every protocol × country combination.
+	// Standard leaves — every protocol × country combination — also listed
+	// so power-mode pins (specific leaf override via Clash API) work.
 	expectedLeaves := []string{
 		"de-direct-de", "de-h2-de", "de-tuic-de", "de-via-msk",
 		"nl-direct-nl2", "nl-h2-nl2", "nl-tuic-nl2", "nl-via-msk",
@@ -170,6 +178,11 @@ func TestProxySelectorContainsAllLeaves(t *testing.T) {
 		}
 	}
 
+	// Whitelist-bypass group tag present (for manual override).
+	if !slices.Contains(members, "🇷🇺 Россия (обход белых списков)") {
+		t.Errorf("Proxy missing whitelist-bypass group tag; got %v", members)
+	}
+
 	// Whitelist-bypass leaves also exposed directly for manual pinning.
 	for _, leaf := range []string{"ru-spb-de", "ru-spb-nl"} {
 		if !slices.Contains(members, leaf) {
@@ -178,24 +191,75 @@ func TestProxySelectorContainsAllLeaves(t *testing.T) {
 	}
 }
 
-// TestCountryGroupsContainOnlyOwnCountryLegs guards against cross-country
-// contamination — the bug the "pick Germany get NL IP" symptom would have
-// indicated if it had been a backend issue (it wasn't; it was iOS-side).
-// The urltest for 🇩🇪 Германия must not include any nl-* leg and vice versa.
-func TestCountryGroupsContainOnlyOwnCountryLegs(t *testing.T) {
+// TestUrltestGroupsHaveProbeURL asserts that Auto and per-country urltest
+// groups have probe URL + interval set. Without these sing-box won't probe
+// at all and the group degrades to "always pick the first member" — losing
+// the auto-failover behaviour we rely on for RU-LTE-blocked paths.
+func TestUrltestGroupsHaveProbeURL(t *testing.T) {
 	cfg := parseGenerated(t)
-
-	deLegs := outboundMembers(cfg, "🇩🇪 Германия")
-	for _, l := range deLegs {
-		if !startsWith(l, "de-") {
-			t.Errorf("🇩🇪 Германия urltest contains non-DE leg %q", l)
+	for _, tag := range []string{"Auto", "🇩🇪 Германия", "🇳🇱 Нидерланды"} {
+		g := outboundByTag(cfg, tag)
+		if g == nil {
+			t.Errorf("urltest group %q not emitted", tag)
+			continue
+		}
+		if g["type"] != "urltest" {
+			t.Errorf("group %q type=%v, want urltest", tag, g["type"])
+		}
+		if u, _ := g["url"].(string); u == "" {
+			t.Errorf("group %q has empty probe URL", tag)
+		}
+		if iv, _ := g["interval"].(string); iv == "" {
+			t.Errorf("group %q has empty interval", tag)
 		}
 	}
+}
 
-	nlLegs := outboundMembers(cfg, "🇳🇱 Нидерланды")
-	for _, l := range nlLegs {
-		if !startsWith(l, "nl-") {
-			t.Errorf("🇳🇱 Нидерланды urltest contains non-NL leg %q", l)
+// TestUrltestGroupsRecoverFast asserts the build-39+40 fast-recovery values:
+// interval=10s, tolerance=0, AND interrupt_exist_connections=true on every
+// urltest group.
+//
+// interval/tolerance: old defaults (5m / 50ms) left users on a dead leaf for
+// up to 5 minutes when RKN started throttling DE direct post-handshake on RU
+// LTE — sing-box invalidates leaf history on dial error, but the tiny gstatic
+// 204 probe re-stamps "OK" histories within seconds, masking the stall.
+// Aggressive 10s reprobe + zero tolerance ensures any latency degradation
+// triggers an immediate reselect.
+//
+// interrupt_exist_connections (build 40 fix, 2026-04-26): without this flag,
+// when urltest re-elects to a healthy leaf the existing TCP sockets stay
+// glued to the old (dead) outbound and time out at the OS TCP layer (75s+).
+// User-visible: pages stuck for 1m+, "open new tab" required to recover.
+// Field log 2026-04-26 confirmed 1m23s/1m24s/1m41s stuck connections to
+// dead 162.19.242.30 after urltest had already switched to de-via-msk.
+func TestUrltestGroupsRecoverFast(t *testing.T) {
+	cfg := parseGenerated(t)
+	for _, tag := range []string{"Auto", "🇩🇪 Германия", "🇳🇱 Нидерланды"} {
+		g := outboundByTag(cfg, tag)
+		if g == nil {
+			t.Errorf("urltest group %q not emitted", tag)
+			continue
+		}
+		if iv, _ := g["interval"].(string); iv != "10s" {
+			t.Errorf("group %q interval=%q, want %q", tag, iv, "10s")
+		}
+		// Tolerance is encoded as JSON number; absent (omitempty when 0)
+		// or 0 — both are acceptable.
+		if tol, ok := g["tolerance"]; ok {
+			if n, _ := tol.(float64); n != 0 {
+				t.Errorf("group %q tolerance=%v, want 0 (or omitted)", tag, n)
+			}
+		}
+		// Build-40: interrupt_exist_connections MUST be true on urltest
+		// groups, else stuck TCP sockets through dead outbound persist 75s+.
+		iec, ok := g["interrupt_exist_connections"]
+		if !ok {
+			t.Errorf("group %q missing interrupt_exist_connections — must be true (build 40)", tag)
+			continue
+		}
+		b, _ := iec.(bool)
+		if !b {
+			t.Errorf("group %q interrupt_exist_connections=%v, want true (build 40)", tag, b)
 		}
 	}
 }
@@ -220,17 +284,22 @@ func TestWhitelistBypassGroupIsSelectorNotUrltest(t *testing.T) {
 	}
 }
 
-// TestAutoExcludesWhitelistBypass — Auto urltest must never include
-// ru-spb-* legs: they intentionally exit from a country different from
-// what the user picked in the main country list, and letting Auto
-// RTT-select one would silently override the user's primary choice.
-func TestAutoExcludesWhitelistBypass(t *testing.T) {
+// TestProxySelectorDefault asserts Proxy.Default = "Auto" so a fresh
+// tunnel without an explicit UI pick lands on the Auto urltest group, which
+// in turn picks the lowest-latency working leaf via end-to-end HTTP HEAD
+// probes.
+func TestProxySelectorDefault(t *testing.T) {
 	cfg := parseGenerated(t)
-	auto := outboundMembers(cfg, "Auto")
-	for _, l := range auto {
-		if startsWith(l, "ru-spb-") {
-			t.Errorf("Auto urltest leaked whitelist-bypass leg %q", l)
-		}
+	proxy := outboundByTag(cfg, "Proxy")
+	if proxy == nil {
+		t.Fatal("Proxy selector not found")
+	}
+	def, _ := proxy["default"].(string)
+	if def != "Auto" {
+		t.Errorf("Proxy.default = %q — must be \"Auto\" (build 39+ return-to-urltest)", def)
+	}
+	if outboundByTag(cfg, def) == nil {
+		t.Errorf("Proxy.default = %q does not exist as an outbound", def)
 	}
 }
 
@@ -291,6 +360,32 @@ func TestHysteria2AndTUICOmittedWhenPortsZero(t *testing.T) {
 	// NL still has them.
 	if outboundByTag(cfg, "nl-h2-nl2") == nil {
 		t.Error("nl-h2-nl2 missing — NL h2 shouldn't have been affected")
+	}
+}
+
+// TestProxySelectorLeafOrder asserts that standard leaves appear in
+// legSortKey order (direct before via before h2 before tuic) within the
+// section of Proxy members that lists them as direct children. Auto and
+// country group tags appear before the leaf section and are skipped.
+func TestProxySelectorLeafOrder(t *testing.T) {
+	cfg := parseGenerated(t)
+	members := outboundMembers(cfg, "Proxy")
+	// Collect only standard leaves: exclude Auto, country group tags
+	// (🇩🇪/🇳🇱/🇷🇺-prefixed), and whitelist ru-spb-* leaves.
+	var leaves []string
+	for _, m := range members {
+		if m == "Auto" || startsWith(m, "🇩🇪") || startsWith(m, "🇳🇱") || startsWith(m, "🇷🇺") {
+			continue
+		}
+		if startsWith(m, "ru-spb-") {
+			continue
+		}
+		leaves = append(leaves, m)
+	}
+	for i := 1; i < len(leaves); i++ {
+		if legSortKey(leaves[i]) < legSortKey(leaves[i-1]) {
+			t.Errorf("Proxy leaves out of legSortKey order at index %d: %q before %q", i, leaves[i-1], leaves[i])
+		}
 	}
 }
 

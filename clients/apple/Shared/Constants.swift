@@ -119,6 +119,21 @@ enum AppConstants {
     // Default ON. User can disable from Settings → Diagnostics.
     static let autoRecoverEnabledKey = "autoRecoverEnabled"
 
+    /// Build-39: PacketTunnel extension writes a Date.timeIntervalSince1970
+    /// here when its TunnelStallProbe detects a stall (2 consecutive captive-
+    /// portal probe misses). Main app reads this on every foreground
+    /// transition and on every TrafficHealthMonitor tick — if the timestamp
+    /// is newer than the last fallback we ran, AppState invokes
+    /// performFallbackForCurrentLeg synchronously. This is the IPC channel
+    /// from the extension (which iOS keeps alive while the tunnel is up) to
+    /// the main app (which iOS suspends while the user is in Safari) so a
+    /// stalled leaf can be replaced even while MadFrog is in the background.
+    static let tunnelStallRequestedAtKey = "tunnel_stall_requested_at"
+    /// Last timestamp the main app actually serviced an extension stall
+    /// request — set by AppState after performFallbackForCurrentLeg runs.
+    /// Compared against `tunnelStallRequestedAtKey` to dedup.
+    static let tunnelStallServicedAtKey = "tunnel_stall_serviced_at"
+
     // One-shot migration guards. Each key, once set, prevents the migration
     // from running again on subsequent launches. Bumped per release.
     static let migrationLeafToCountryV32Key = "migration.leafToCountry.v32"

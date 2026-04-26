@@ -18,27 +18,6 @@ const (
 	whitelistBypassGroupTag = "🇷🇺 Россия (обход белых списков)"
 )
 
-// countryDisplay returns the user-visible label for a country urltest,
-// derived purely from the ISO-3166-1 alpha-2 code — NOT from any server
-// row's Name field, so e.g. a DB row named "Netherlands 2" doesn't bleed
-// into the picker UI. Unknown codes fall through to the code itself.
-//
-// Labels are Russian to match the primary user audience (iOS app runs in
-// RU locale for the overwhelming majority of users). iOS can override
-// purely on the client via its own localization if needed.
-func countryDisplay(cc string) string {
-	switch strings.ToUpper(cc) {
-	case "NL":
-		return "🇳🇱 Нидерланды"
-	case "DE":
-		return "🇩🇪 Германия"
-	case "RU":
-		return "🇷🇺 Россия"
-	default:
-		return cc
-	}
-}
-
 // legSortKey returns a comparable string that orders leaf tags within a
 // country urltest: direct first, then chain (via-*), then h2/tuic. Keeps
 // log ordering stable + predictable; urltest itself picks lowest RTT.
@@ -57,37 +36,60 @@ func legSortKey(tag string) string {
 	}
 }
 
+// countryCodeFromTag extracts the lowercase country code prefix from a leaf
+// tag. Tag shape is "{cc}-{kind}-{key}" — first dash-separated segment is
+// the country code. Returns empty string for malformed tags.
+func countryCodeFromTag(tag string) string {
+	if idx := strings.Index(tag, "-"); idx > 0 {
+		return strings.ToLower(tag[:idx])
+	}
+	return ""
+}
+
+// countryDisplay maps an ISO country code to the user-facing label shown in
+// the Proxy selector's children. Must stay in sync with iOS
+// `PathPicker.countryCode(forSelectedTag:)` which does the inverse mapping.
+func countryDisplay(cc string) string {
+	switch strings.ToLower(cc) {
+	case "de":
+		return "🇩🇪 Германия"
+	case "nl":
+		return "🇳🇱 Нидерланды"
+	case "fr":
+		return "🇫🇷 Франция"
+	case "us":
+		return "🇺🇸 США"
+	case "ru":
+		return "🇷🇺 Россия"
+	default:
+		return ""
+	}
+}
+
 // generateClientConfig creates a sing-box client config JSON for iOS/macOS.
 //
-// Outbound topology (2026-04-24, migrations 010+011):
+// Outbound topology (build 39+): all leaf selection is done by the iOS main
+// app's PathPicker (NWConnection probes in host process). The extension
+// receives ONE leaf pre-selected, avoiding urltest Go-heap spikes (>44 MB)
+// that risked the 50 MB NE jetsam cap on cold-start.
 //
-//   Proxy (selector, default=Auto)
-//     ├─ Auto
-//     ├─ 🇳🇱 Нидерланды       (urltest, standard, country)
-//     ├─ 🇩🇪 Германия          (urltest, standard, country)
-//     └─ 🇷🇺 Россия (обход)   (urltest, whitelist_bypass, isolated)
-//   Auto (urltest)              — every standard leaf (no whitelist_bypass)
+//   Proxy (selector, default=<first NL/standard leaf>)
+//     ├─ de-direct-de, de-h2-de, de-tuic-de, de-via-msk, …  (standard leaves)
+//     ├─ nl-direct-nl2, nl-h2-nl2, …
+//     ├─ 🇷🇺 Россия (обход)   (selector, whitelist_bypass, isolated)
+//     └─ ru-spb-de, ru-spb-nl, …   (whitelist leaves, directly selectable)
 //   Mode selectors              — RU Traffic, Blocked Traffic, Default Route
-//   Leaf outbounds              — de-direct, de-h2, de-tuic, de-via-msk,
-//                                 nl-direct-nl2, nl-via-msk, ru-spb-de, ru-spb-nl, …
+//   Leaf outbounds              — individual protocol outbounds
 //   System                      — direct, block
 //
 // Leaf tag format: "{cc}-{kind}-{key}" (lowercase, dash-joined).
 //   kind = direct|h2|tuic|via
-//   The iOS picker uses the owning urltest's tag for display; leaf tags are
-//   opaque IDs — keeping them short and structured simplifies sing-box logs.
-//
-// Country urltest tag: "{flagEmoji} {localizedName}" derived from CountryCode
-// via countryDisplay() below. Deriving from CC (not from first server row's
-// Name) means rows like "Netherlands 2" don't bleed into the picker label.
+//   The iOS PathPicker derives country from the tag prefix (e.g. "nl-" → NL).
 //
 // Whitelist-bypass group: servers with Category='whitelist_bypass' are
-// projected into a single dedicated urltest "🇷🇺 Россия (обход белых списков)"
-// (constant defined below). They're excluded from per-country groups AND
-// from the global Auto urltest — whitelist bypass is a narrow manual-only
-// option, never an auto pick.
-//
-// See memory/project_relay_architecture_poc.md for design history.
+// projected into a single dedicated selector "🇷🇺 Россия (обход белых списков)"
+// (constant defined below). They're excluded from standard leaves — whitelist
+// bypass is a narrow manual-only option, never an auto pick.
 func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []ServerEntry, chains []ChainedEntry) ([]byte, error) {
 	// Split servers by role + category:
 	//   standardExits    — role='exit', category='standard'          → country groups + Auto
@@ -122,9 +124,8 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 	// Accumulators — every leaf outbound is registered here once, regardless
 	// of which group it lands in.
 	var allLeafOutbounds []clientOutbound
-	tagsByCountry := map[string][]string{}
-	var autoLegs []string     // standard leaves only — feeds the global Auto urltest
-	var whitelistLegs []string // whitelist-bypass leaves — feed the isolated group
+	var autoLegs []string      // standard leaves — go directly into Proxy selector
+	var whitelistLegs []string // whitelist-bypass leaves — feed the isolated selector group
 
 	makeVless := func(tag, server string, port int, pub, sni, shortID string) clientOutbound {
 		return clientOutbound{
@@ -164,7 +165,6 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 
 		vlessTag := fmt.Sprintf("%s-direct-%s", strings.ToLower(cc), srv.Key)
 		allLeafOutbounds = append(allLeafOutbounds, makeVless(vlessTag, srv.Host, srv.Port, pub, sni, defaultShortID))
-		tagsByCountry[cc] = append(tagsByCountry[cc], vlessTag)
 		autoLegs = append(autoLegs, vlessTag)
 
 		if srv.Hysteria2Port > 0 {
@@ -181,7 +181,6 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 					Insecure:   boolPtr(true),
 				},
 			})
-			tagsByCountry[cc] = append(tagsByCountry[cc], h2Tag)
 			autoLegs = append(autoLegs, h2Tag)
 		}
 		if srv.TUICPort > 0 {
@@ -200,7 +199,6 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 					Insecure:   boolPtr(true),
 				},
 			})
-			tagsByCountry[cc] = append(tagsByCountry[cc], tuicTag)
 			autoLegs = append(autoLegs, tuicTag)
 		}
 	}
@@ -224,7 +222,6 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 
 		chainTag := fmt.Sprintf("%s-via-%s", strings.ToLower(cc), ch.RelayKey)
 		allLeafOutbounds = append(allLeafOutbounds, makeVless(chainTag, ch.RelayHost, ch.RelayListenPort, ch.RelayRealityPub, sni, shortID))
-		tagsByCountry[cc] = append(tagsByCountry[cc], chainTag)
 		autoLegs = append(autoLegs, chainTag)
 	}
 
@@ -251,99 +248,126 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 		return nil, fmt.Errorf("generate client config: no usable legs (standard=%d chains=%d whitelist=%d)", len(standardExits), len(chains), len(whitelistExits))
 	}
 
-	urltestInterval := engineCfg.UrltestInterval
-	if urltestInterval == "" {
-		urltestInterval = "3m"
-	}
-
-	// --- Per-country urltests ---
-	// Sort countries: NL first (LTE-native for RU users — the "just works"
-	// default), then alphabetical. Order matters: it's what the user sees
-	// in the picker.
-	countryCodes := make([]string, 0, len(tagsByCountry))
-	for cc := range tagsByCountry {
-		countryCodes = append(countryCodes, cc)
-	}
-	sort.SliceStable(countryCodes, func(i, j int) bool {
-		a, b := countryCodes[i], countryCodes[j]
-		if a == "NL" && b != "NL" {
-			return true
-		}
-		if b == "NL" && a != "NL" {
-			return false
-		}
-		return a < b
-	})
-
-	var countryTags []string
-	var countryOutbounds []clientOutbound
-	for _, cc := range countryCodes {
-		displayTag := countryDisplay(cc)
-		// Sort within-country: direct first (fast path on unblocked nets);
-		// then via-* (relay chains); then h2/tuic. urltest picks lowest RTT
-		// regardless of order, but stable order makes logs readable.
-		legs := append([]string(nil), tagsByCountry[cc]...)
-		sort.SliceStable(legs, func(i, j int) bool {
-			return legSortKey(legs[i]) < legSortKey(legs[j])
-		})
-		countryOutbounds = append(countryOutbounds, clientOutbound{
-			Type:                      "urltest",
-			Tag:                       displayTag,
-			Outbounds:                 legs,
-			URL:                       "https://cp.cloudflare.com",
-			Interval:                  urltestInterval,
-			Tolerance:                 100,
-			InterruptExistConnections: boolPtr(false),
-		})
-		countryTags = append(countryTags, displayTag)
-	}
-
 	// --- Whitelist-bypass isolated group (if any rows exist) ---
 	// Rendered as a `selector`, NOT `urltest`: the two SPB legs exit in
 	// different countries (SPB→DE vs SPB→NL), so auto-pickoff by RTT would
 	// silently override the user's deliberate country choice. `selector`
 	// honours the pin set via Clash API. Whitelist-bypass is manual-only
-	// by design — never part of global "Auto".
+	// by design — never part of standard leaves.
 	var whitelistGroupTag string
+	var whitelistGroupOutbound *clientOutbound
 	if len(whitelistLegs) > 0 {
 		whitelistGroupTag = whitelistBypassGroupTag
 		sort.Strings(whitelistLegs)
-		countryOutbounds = append(countryOutbounds, clientOutbound{
+		ob := clientOutbound{
 			Type:                      "selector",
 			Tag:                       whitelistGroupTag,
 			Outbounds:                 whitelistLegs,
 			Default:                   whitelistLegs[0],
 			InterruptExistConnections: boolPtr(false),
-		})
+		}
+		whitelistGroupOutbound = &ob
 	}
 
-	// --- "Auto" — best across all STANDARD legs (never whitelist-bypass) ---
-	autoOutbound := clientOutbound{
+	// --- urltest groups: Auto (all leaves) + per-country ---
+	// Build-39 return-to-urltest: sing-box's `urltest` outbound probes each
+	// member end-to-end via HTTP HEAD periodically and pins to the lowest-
+	// latency working leaf. Replaces build-38's iOS-side TCP probe + custom
+	// fallback watchdog — TCP probe is a false-positive on RKN-blocked direct
+	// paths (handshake succeeds, Reality data dies after), and a custom
+	// watchdog reading global bytes-flow counters can't distinguish Proxy
+	// stalls from native LTE direct traffic. urltest catches both because it
+	// actually completes a request through the leaf.
+	sortedLeaves := append([]string(nil), autoLegs...)
+	sort.SliceStable(sortedLeaves, func(i, j int) bool {
+		return legSortKey(sortedLeaves[i]) < legSortKey(sortedLeaves[j])
+	})
+
+	// Probe target: small, globally reliable, deterministic 204 response.
+	// Same target sing-box's own examples and most popular GUIs use.
+	const urltestProbeURL = "https://www.gstatic.com/generate_204"
+	// Build-39 (2026-04-26): drop interval 5m → 10s, tolerance 50 → 0.
+	// 5m left users on a dead leaf for up to 5 minutes when RKN started
+	// throttling direct-DE post-handshake on RU LTE — sing-box's
+	// `history.DeleteURLTestHistory` invalidates on dial error, but the next
+	// CheckOutbounds re-stamps a "OK" history because the gstatic 204 probe
+	// (~50 byte response) passes even when bulk traffic to the same IP times
+	// out. With 10s interval we re-test every 10s instead of every 5m, and
+	// tolerance:0 means any latency improvement triggers reselect (pseudo-
+	// load-balance, since sing-box has no native `load_balance` group).
+	// Probe overhead: 4 leaves × ~50ms / 10s = ~2% per-tunnel.
+	//
+	// Build-40 (2026-04-26): interrupt_exist_connections=true on urltest groups.
+	// Without this, when urltest re-elects to a healthy leaf, existing TCP
+	// sockets stay glued to the old (dead) outbound and time out at the OS
+	// TCP layer (75s+). User-visible: pages stuck for 1m+, "open new tab"
+	// to recover. Field log 2026-04-26 confirmed: 1m23s/1m24s/1m41s stuck
+	// connections to dead 162.19.242.30 after urltest had already switched
+	// to de-via-msk. With interrupt=true, sing-box closes inbound conns
+	// routed through old outbound on switch — Safari pipelines auto-recreate.
+	const urltestInterval = "10s"
+	const urltestTolerance = 0
+
+	autoUrltest := clientOutbound{
 		Type:                      "urltest",
 		Tag:                       "Auto",
-		Outbounds:                 append([]string(nil), autoLegs...),
-		URL:                       "https://cp.cloudflare.com",
+		Outbounds:                 sortedLeaves,
+		URL:                       urltestProbeURL,
 		Interval:                  urltestInterval,
-		Tolerance:                 100,
-		InterruptExistConnections: boolPtr(false),
+		Tolerance:                 urltestTolerance,
+		InterruptExistConnections: boolPtr(true),
+	}
+
+	// Country urltest groups. Tag format is `{cc}-...`, so we group by the
+	// country-code prefix. Country labels (display names with emoji) are
+	// produced by `countryDisplay`. We always emit a group per country that
+	// has at least 1 leaf, even if it's a single leaf — sing-box's urltest
+	// degrades gracefully to "always pick that one" with 1 member.
+	leavesByCountry := map[string][]string{}
+	for _, leaf := range sortedLeaves {
+		cc := countryCodeFromTag(leaf)
+		if cc == "" {
+			continue
+		}
+		leavesByCountry[cc] = append(leavesByCountry[cc], leaf)
+	}
+	// Stable iteration order so JSON output is reproducible.
+	var countryCodes []string
+	for cc := range leavesByCountry {
+		countryCodes = append(countryCodes, cc)
+	}
+	sort.Strings(countryCodes)
+
+	var countryGroups []clientOutbound
+	var countryGroupTags []string
+	for _, cc := range countryCodes {
+		tag := countryDisplay(cc)
+		if tag == "" {
+			tag = strings.ToUpper(cc)
+		}
+		countryGroups = append(countryGroups, clientOutbound{
+			Type:                      "urltest",
+			Tag:                       tag,
+			Outbounds:                 leavesByCountry[cc],
+			URL:                       urltestProbeURL,
+			Interval:                  urltestInterval,
+			Tolerance:                 urltestTolerance,
+			InterruptExistConnections: boolPtr(true),
+		})
+		countryGroupTags = append(countryGroupTags, tag)
 	}
 
 	// --- "Proxy" selector — top-level user choice ---
-	// Auto → country groups (ordered) → whitelist-bypass group → individual
-	// leaves. Leaves are appended as direct children so the iOS app can pin
-	// a specific protocol/leg via Clash API (`selectOutbound("Proxy", leaf)`).
-	// Country groups remain urltest for Auto-like failover; the leaves here
-	// are just selectable shortcuts that bypass the RTT picker when the user
-	// has a deliberate preference (e.g. "force TUIC" when Reality is blocked
-	// on their network, or "force via-MSK" on RU LTE). Without this, the
-	// urltest inside a country group can't be pinned via Clash API
-	// ("outbound is not a selector" error) and the user's leaf pick is lost.
-	proxyMembers := append([]string{"Auto"}, countryTags...)
+	// Members order: [Auto, country urltests..., individual leaves..., 🇷🇺
+	// Россия (обход), whitelist leaves]. Default = "Auto" so a fresh tunnel
+	// without a UI selection lands on the urltest's pick automatically.
+	// Specific leaves are also listed so the user can pin a single protocol
+	// in power-mode via Clash API.
+	proxyMembers := []string{"Auto"}
+	proxyMembers = append(proxyMembers, countryGroupTags...)
+	proxyMembers = append(proxyMembers, sortedLeaves...)
 	if whitelistGroupTag != "" {
 		proxyMembers = append(proxyMembers, whitelistGroupTag)
-	}
-	for _, leaf := range autoLegs {
-		proxyMembers = append(proxyMembers, leaf)
 	}
 	for _, leaf := range whitelistLegs {
 		proxyMembers = append(proxyMembers, leaf)
@@ -393,12 +417,20 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 
 	// Outbound order matters: selectors reference downstream tags, and
 	// downstream tags must be declared after their referencing selector in
-	// sing-box 1.13. "Proxy" references "Auto" + country urltests, so Proxy
-	// goes first, then Auto + countries, then leaf server outbounds, then
-	// mode selectors (which only reference "Proxy"/"direct").
-	allOutbounds := []clientOutbound{proxyOutbound, autoOutbound}
-	allOutbounds = append(allOutbounds, countryOutbounds...)
+	// sing-box 1.13. Topology:
+	//   Proxy (selector)            → references Auto, country urltests, leaves
+	//   Mode selectors              → reference Proxy / direct
+	//   Auto + country urltests     → reference leaves
+	//   Whitelist group (selector)  → references whitelist leaves
+	//   All leaves                  → individual outbounds
+	//   System                      → direct, block
+	allOutbounds := []clientOutbound{proxyOutbound}
 	allOutbounds = append(allOutbounds, ruTrafficOutbound, blockedTrafficOutbound, defaultRouteOutbound)
+	allOutbounds = append(allOutbounds, autoUrltest)
+	allOutbounds = append(allOutbounds, countryGroups...)
+	if whitelistGroupOutbound != nil {
+		allOutbounds = append(allOutbounds, *whitelistGroupOutbound)
+	}
 	allOutbounds = append(allOutbounds, allLeafOutbounds...)
 	allOutbounds = append(allOutbounds, directOutbound, blockOutbound)
 

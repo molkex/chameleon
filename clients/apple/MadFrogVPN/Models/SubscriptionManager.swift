@@ -56,7 +56,7 @@ final class SubscriptionManager {
     /// the manager testable and avoids a hard dependency on AppState.
     private let syncToBackend: (_ signedJWS: String) async throws -> APIClient.SubscriptionVerification
 
-    nonisolated(unsafe) private var transactionListenerTask: Task<Void, Never>?
+    @ObservationIgnored nonisolated(unsafe) private var transactionListenerTask: Task<Void, Never>?
 
     init(syncToBackend: @escaping (_ signedJWS: String) async throws -> APIClient.SubscriptionVerification) {
         self.syncToBackend = syncToBackend

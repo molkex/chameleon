@@ -70,22 +70,59 @@ class AppState {
     @ObservationIgnored
     private var trafficHealthMonitor: TrafficHealthMonitor?
 
-    /// Build-35: pre-connect TCP race + per-network leg memory. Race runs
-    /// once per connect attempt against the pinned country's TCP-probable
-    /// leaves; the winner is biased to position 0 of the country urltest's
-    /// outbounds so sing-box uses it during the ~3-5s startup window
-    /// before its own internal probe completes. After tunnel up, a
-    /// successful TrafficHealthMonitor probe writes the active leaf into
-    /// the store so warm reconnects on the same network short-circuit
-    /// the race.
+    /// Build-39: server selection moved out of the NetworkExtension's
+    /// sing-box `urltest` outbound and into the main app. PathPicker probes
+    /// candidate leaves via NWConnection (TCP-only, no HTTP) and picks the
+    /// lowest-latency winner — the extension just gets a single leaf via
+    /// `selectOutbound("Proxy", leaf)`. See PathPicker.swift header for
+    /// rationale (50MB jetsam cap on iOS NE extensions).
     @ObservationIgnored
-    private let legRaceProbe = LegRaceProbe()
+    private let leafRankingStore = LeafRankingStore()
+    @ObservationIgnored
+    private lazy var pathPicker = PathPicker(store: leafRankingStore)
+
+    /// Build-35: per-network "this leaf worked here last time" memory.
+    /// Kept across the build-39 refactor as a fast-path hint: if PathPicker
+    /// has a fresh measurement for the remembered leaf, we skip the full
+    /// probe round.
+    @ObservationIgnored
+    private let legRaceProbe = LegRaceProbe()  // build-39: kept for tests; new code uses pathPicker
     @ObservationIgnored
     private let lastWorkingLegStore = LastWorkingLegStore()
     /// Cached fingerprint of the current network — refreshed at every
     /// connect attempt and at health-probe success.
     @ObservationIgnored
     private var currentNetworkFingerprint: String?
+
+    /// Build-37: single-flight guard for `toggleVPN()`. iOS sometimes delivers
+    /// duplicate touch events from a single physical tap (or the user double-
+    /// taps), and SwiftUI's `Button` does not debounce. Without this guard, two
+    /// taps within the same MainActor hop both pass `vpnManager.isConnected`
+    /// and start two parallel connect flows: 2× preconnect race, 2× tunnel
+    /// start, then 2× `applyRoutingModeIfLive` + `applyServerSelectionIfLive`,
+    /// each spawning its own `selectOutbound` chain. The combined burst (8+
+    /// `closeConnections` in 100ms) tears every TLS handshake the user's
+    /// browser has in flight — the "то грузило то не грузило" symptom from
+    /// 2026-04-26 field test. Stored as nonisolated(unsafe) since `@Observable`
+    /// + `@MainActor` + mutable property combo needs the dance.
+    @ObservationIgnored
+    private var toggleVPNInFlight: Bool = false
+
+    /// Build-37: cancel-then-replace slots for the deferred apply tasks
+    /// triggered by `handleStatus(.connected)`. NEVPNStatusDidChange can fire
+    /// `.connected` more than once during a single connect cycle (status
+    /// observer may re-emit; toggleVPN's `awaitConnectionWithSilentRetry`
+    /// also triggers `handleStatus()` directly to belt-and-braces a missed
+    /// transition). Without these slots, every duplicate `.connected` queues
+    /// another retry-loop that polls `commandClient.isConnected` and fires
+    /// the same `selectOutbound` calls when it becomes ready — which is what
+    /// caused the 8× `closeConnections` storm in the 2026-04-26 NL field log.
+    @ObservationIgnored
+    private var pendingApplyTask: Task<Void, Never>?
+    @ObservationIgnored
+    private var routingApplyTask: Task<Void, Never>?
+    @ObservationIgnored
+    private var selectionApplyTask: Task<Void, Never>?
 
     /// Per-country failed-leaf attempts inside a single fallback cascade.
     /// Cleared whenever the user manually selects a server or the cascade
@@ -108,12 +145,12 @@ class AppState {
     /// country when the underlying network is genuinely down.
     private let maxCascadeDepth = 3
 
-    nonisolated(unsafe) private var statusObserver: Any?
+    @ObservationIgnored nonisolated(unsafe) private var statusObserver: Any?
     /// Background config refresh task (handleForeground, toggleVPN).
-    nonisolated(unsafe) private var refreshTask: Task<Void, Never>?
+    @ObservationIgnored nonisolated(unsafe) private var refreshTask: Task<Void, Never>?
     /// Server switch reconnect task (selectServer). Separate from refreshTask
     /// so that background config updates don't cancel reconnection.
-    nonisolated(unsafe) private var reconnectTask: Task<Void, Never>?
+    @ObservationIgnored nonisolated(unsafe) private var reconnectTask: Task<Void, Never>?
 
     private var hasInitialized = false
 
@@ -268,19 +305,22 @@ class AppState {
               let outbounds = json["outbounds"] as? [[String: Any]]
         else { return }
 
-        let hasSelector = outbounds.contains { ($0["type"] as? String) == "selector" }
-        let hasUrltest = outbounds.contains { ($0["type"] as? String) == "urltest" }
+        let hasProxySelector = outbounds.contains {
+            ($0["type"] as? String) == "selector" && ($0["tag"] as? String) == "Proxy"
+        }
 
         // Check for deprecated inbound fields (sing-box 1.13 deprecation)
         let inbounds = (json["inbounds"] as? [[String: Any]]) ?? []
         let hasLegacyInbound = inbounds.contains { $0["sniff"] != nil || $0["sniff_override_destination"] != nil }
 
-        // Need both selector AND urltest, or it's a broken config. Parens
-        // matter — without them && would bind tighter and treat configs with
-        // only urltest as valid.
-        if (!hasSelector || !hasUrltest) || hasLegacyInbound {
-            // Config has deprecated fields — delete and re-fetch
-            AppLogger.app.info("repairConfigIfNeeded: clearing outdated config")
+        // Build-39: only the Proxy selector is required. Pre-build-39 configs
+        // also had `urltest` outbounds for "Auto" + per-country grouping;
+        // those are gone now (server selection moved into the main app via
+        // PathPicker). A fresh build-39 config legitimately has zero urltest
+        // outbounds, so don't gate on their presence — that would loop-clear
+        // every healthy config.
+        if !hasProxySelector || hasLegacyInbound {
+            AppLogger.app.info("repairConfigIfNeeded: clearing outdated config (proxy=\(hasProxySelector) legacyInbound=\(hasLegacyInbound))")
             try? FileManager.default.removeItem(at: AppConstants.configFileURL)
             UserDefaults(suiteName: AppConstants.appGroupID)?.removeObject(forKey: AppConstants.startOptionsKey)
         }
@@ -292,12 +332,15 @@ class AppState {
     /// Apple from Settings, which links this device to an Apple identity
     /// server-side.
     func signInAnonymous() async {
+        errorMessage = nil
         isLoading = true
         defer { isLoading = false }
         AppLogger.app.info("signInAnonymous: starting device registration")
+        TunnelFileLogger.log("signInAnonymous: ENTER", category: "auth")
         do {
             let result = try await apiClient.registerDevice()
             AppLogger.app.info("signInAnonymous: registered as \(result.username)")
+            TunnelFileLogger.log("signInAnonymous: registerDevice OK, username=\(result.username) isNew=\(result.isNew ?? false)", category: "auth")
             configStore.accessToken = result.accessToken
             configStore.refreshToken = result.refreshToken
             configStore.username = result.username
@@ -305,8 +348,10 @@ class AppState {
             subscriptionExpire = configStore.subscriptionExpire
             UserDefaults(suiteName: AppConstants.appGroupID)?.set(true, forKey: AppConstants.onboardingCompletedKey)
             isAuthenticated = true
+            TunnelFileLogger.log("signInAnonymous: SUCCESS", category: "auth")
         } catch {
             AppLogger.app.error("signInAnonymous: FAILED: \(error.localizedDescription)")
+            TunnelFileLogger.log("signInAnonymous: FAILED — \(String(describing: error))", category: "auth")
             errorMessage = String(localized: "onboarding.anon_failed")
         }
     }
@@ -410,78 +455,101 @@ class AppState {
     /// parsed — callers fall back to the raw config in that case.
     private func configForStartup() -> String? {
         let target = configStore.selectedServerTag ?? "Auto"
-        return buildConfigWithSelections(chain: resolveSelectionChain(target: target))
+        return buildConfigWithSelections(chain: chainOrFallback(target: target))
     }
 
-    /// Build-35: like `configForStartup()` but additionally runs a pre-connect
-    /// TCP race against the candidate legs of the pinned country and biases
-    /// the country urltest's `outbounds` order so the race winner is first.
-    /// Sing-box's URLTestGroup.Select returns the first-listed detour when
-    /// no probe history exists — this controls which leg the user's first
-    /// requests use during the ~3-5s window before sing-box's own probe
-    /// completes. Skipped for Auto (too many candidates) and for leaf pins
-    /// (already specific). Side-effect: refreshes `currentNetworkFingerprint`.
+    /// Build a fresh `[LeafCandidate]` from the cached server list. Empty
+    /// before `parseServersFromConfig` has populated `servers` (very first
+    /// launch / no config) — callers should treat empty as "no probe possible,
+    /// fall through to whatever default the config baked in".
+    private func leafCandidates() -> [LeafCandidate] {
+        guard let proxy = servers.first(where: { $0.type == "selector" && $0.selectable }) else {
+            return []
+        }
+        return proxy.items.compactMap { item in
+            guard !item.host.isEmpty, item.port > 0 else { return nil }
+            return LeafCandidate(tag: item.tag, host: item.host, port: item.port, type: item.type)
+        }
+    }
+
+    /// Build-39: synchronous best-guess translator used by sync code paths
+    /// (`selectServer`, `configForStartup`) that need a Proxy → leaf chain
+    /// without running an async PathPicker probe. Falls through to the
+    /// existing `resolveSelectionChain` first; on miss (target is "Auto"
+    /// or a country urltest tag — both no longer exist in the new flat
+    /// config), maps to the cached-best or alphabetically-first leaf in
+    /// the matching country.
+    ///
+    /// Async paths (`configForStartupWithRace`, `applyServerSelectionIfLive`)
+    /// use the full `pathPicker.bestLeaf` which can probe; this helper
+    /// only consults `LeafRankingStore` and the parsed candidates so it
+    /// stays sync and cheap.
+    private func chainOrFallback(target: String) -> [SelectionStep] {
+        let chain = resolveSelectionChain(target: target)
+        if !chain.isEmpty { return chain }
+
+        let candidates = leafCandidates()
+        guard !candidates.isEmpty else { return [] }
+
+        // Power-mode pin (target IS a leaf tag in current candidates).
+        if candidates.contains(where: { $0.tag == target }) {
+            return [SelectionStep(group: "Proxy", target: target)]
+        }
+
+        // Map "Auto" / country label → leaf via cache or alphabetical.
+        let countryFilter = PathPicker.countryCode(forSelectedTag: target)
+        let pool = candidates.filter { countryFilter == nil || $0.country == countryFilter }
+        guard !pool.isEmpty else { return [] }
+
+        // Cache-best from LeafRankingStore (fresh successful entry only).
+        let cutoff = Date().addingTimeInterval(-PathPicker.defaultCacheTTL)
+        let recent = leafRankingStore.load()
+            .filter { $0.measuredAt > cutoff && $0.success }
+        let recentByTag = Dictionary(uniqueKeysWithValues: recent.map { ($0.tag, $0) })
+        let pickedTag: String = pool.min(by: {
+            (recentByTag[$0.tag]?.latencyMs ?? .max)
+            < (recentByTag[$1.tag]?.latencyMs ?? .max)
+        })?.tag ?? pool.sorted(by: { $0.tag < $1.tag }).first!.tag
+        return [SelectionStep(group: "Proxy", target: pickedTag)]
+    }
+
+    /// Build the cold-start config. Build-39 return-to-urltest: no pre-connect
+    /// TCP probe — we no longer pick a leaf before the tunnel is up. The
+    /// config is built around the user's UI selection ("Auto" / country
+    /// urltest tag / specific leaf for power-mode), and sing-box's own
+    /// urltest groups decide which leaf actually carries traffic, end-to-end
+    /// rather than first-hop. This eliminates the false-positive class on
+    /// RKN-blocked direct paths (TCP handshake succeeds → Reality data dies)
+    /// and removes the need for a custom watchdog.
+    ///
+    /// Side effects: refreshes `currentNetworkFingerprint` for telemetry.
     private func configForStartupWithRace() async -> String? {
         currentNetworkFingerprint = await NetworkFingerprint.current()
-        let baseJSON = configForStartup()
-        guard let baseJSON, let baseData = baseJSON.data(using: .utf8),
-              let base = try? JSONSerialization.jsonObject(with: baseData) as? [String: Any]
-        else { return baseJSON }
-
-        let pinned = configStore.selectedServerTag
-        let shape = ServerTagShape(pinned)
-        guard case .countryUrltest = shape, let countryTag = pinned else {
-            return baseJSON
-        }
-        // Find the country group in the cached `servers` (built by ConfigStore
-        // last time the picker was opened). If empty (very first launch),
-        // skip the race — sing-box will do its own probe at PostStart.
-        guard let proxy = servers.first(where: { $0.type == "selector" && $0.selectable }),
-              let country = proxy.countries.first(where: { $0.tag == countryTag }) else {
-            return baseJSON
-        }
-
-        let candidates = LegRaceConfigParser.candidates(forLegTags: country.serverTags, inConfigJSON: base)
-        guard !candidates.isEmpty else {
-            return baseJSON
-        }
-
-        // Country code derived from a representative leaf tag: "de-via-msk" → "DE".
-        let countryCC: String? = country.serverTags.first.flatMap { leafCountryCode($0) }
-        let preferred: String? = {
-            guard let fp = currentNetworkFingerprint, let cc = countryCC else { return nil }
-            return lastWorkingLegStore.get(fingerprint: fp, country: cc)
-        }()
-
-        TunnelFileLogger.log("preconnect race: country='\(countryTag)' candidates=\(candidates.map(\.tag)) preferred=\(preferred ?? "—") fp=\(currentNetworkFingerprint ?? "—")", category: "ui")
-        let result = await legRaceProbe.race(candidates: candidates, preferred: preferred)
-        guard let winner = result.winnerTag else {
-            TunnelFileLogger.log("preconnect race: NO WINNER after \(String(format: "%.2f", result.elapsedSeconds))s — using config as-is", category: "ui")
-            return baseJSON
-        }
-        TunnelFileLogger.log("preconnect race: winner='\(winner)' in \(String(format: "%.2f", result.elapsedSeconds))s — biasing country urltest", category: "ui")
-
-        let patched = SingBoxConfigPatcher.biasGroup(countryTag, toFirst: winner, inConfigJSON: base)
-        guard let out = try? JSONSerialization.data(withJSONObject: patched),
-              let str = String(data: out, encoding: .utf8) else {
-            return baseJSON
-        }
-        return str
+        return configForStartup()
     }
 
-    /// Build-35: snapshot the currently-active leaf for the pinned country
-    /// and remember it as the "known good" choice on the current network.
-    /// Called from TrafficHealthMonitor.onProbeSuccess so we only record
-    /// real-world-confirmed legs, not whatever sing-box's HEAD probe
+    /// Snapshot the currently-active leaf as "known good". Build-39 records
+    /// to PathPicker's ranking store (so subsequent connects bypass the
+    /// probe) AND to `LastWorkingLegStore` (per-network preferred hint,
+    /// preserved for backwards compat / future use). Called from
+    /// TrafficHealthMonitor.onProbeSuccess so we only record
+    /// real-world-confirmed legs, not whatever picker's RTT probe
     /// happens to like.
     private func recordWorkingLegToMemory() {
-        guard let fp = currentNetworkFingerprint else { return }
-        guard let pinned = configStore.selectedServerTag else { return }
-        guard case .countryUrltest = ServerTagShape(pinned) else { return }
-        guard let activeLeaf = servers.first(where: { $0.tag == pinned })?.selected,
-              !activeLeaf.isEmpty,
-              let cc = leafCountryCode(activeLeaf) else { return }
-        lastWorkingLegStore.set(fingerprint: fp, country: cc, leg: activeLeaf)
+        // PathPicker's currentLeaf is the one we just connected through.
+        // The probe-success signal from TrafficHealthMonitor doesn't carry
+        // a fresh latency, so re-stamp the stored measurement with `now()`
+        // and the existing latency (or 50ms as a fallback) so cache TTL
+        // resets on every healthy probe.
+        if let activeLeaf = pathPicker.currentLeaf, !activeLeaf.isEmpty {
+            let prev = leafRankingStore.load().first(where: { $0.tag == activeLeaf })
+            let latencyMs = prev?.latencyMs ?? 50
+            pathPicker.recordSuccess(leaf: activeLeaf, latencyMs: latencyMs)
+            // Legacy per-network memory — keep populated for future pinning.
+            if let fp = currentNetworkFingerprint, let cc = leafCountryCode(activeLeaf) {
+                lastWorkingLegStore.set(fingerprint: fp, country: cc, leg: activeLeaf)
+            }
+        }
     }
 
     /// Fetch fresh config with a timeout. Falls back to cached config if fetch fails or times out.
@@ -504,11 +572,14 @@ class AppState {
     /// Parallel to `signInWithApple` but without a credential wrapper.
     func signInWithGoogle(idToken: String) async {
         AppLogger.app.info("signInWithGoogle: entry, tokenLen=\(idToken.count, privacy: .public)")
+        TunnelFileLogger.log("signInWithGoogle: ENTER, tokenLen=\(idToken.count)", category: "auth")
+        errorMessage = nil
         isLoading = true
         defer { isLoading = false }
         do {
             let result = try await apiClient.signInWithGoogle(idToken: idToken)
             AppLogger.app.info("signInWithGoogle: username=\(result.username), isNew=\(result.isNew ?? false)")
+            TunnelFileLogger.log("signInWithGoogle: API OK, username=\(result.username) isNew=\(result.isNew ?? false)", category: "auth")
             configStore.accessToken = result.accessToken
             configStore.refreshToken = result.refreshToken
             configStore.username = result.username
@@ -516,8 +587,10 @@ class AppState {
             subscriptionExpire = configStore.subscriptionExpire
             UserDefaults(suiteName: AppConstants.appGroupID)?.set(true, forKey: AppConstants.onboardingCompletedKey)
             isAuthenticated = true
+            TunnelFileLogger.log("signInWithGoogle: SUCCESS", category: "auth")
         } catch {
             AppLogger.app.error("signInWithGoogle: failed: \(String(describing: error), privacy: .public)")
+            TunnelFileLogger.log("signInWithGoogle: FAILED — \(String(describing: error))", category: "auth")
             errorMessage = String(localized: "onboarding.signin_failed")
         }
     }
@@ -526,8 +599,11 @@ class AppState {
     /// "check your email" confirmation in UI, even on rate-limit, because we
     /// don't want to leak which addresses have accounts.
     func requestMagicLink(email: String) async -> Bool {
+        TunnelFileLogger.log("requestMagicLink: ENTER", category: "auth")
+        errorMessage = nil
         let trimmed = email.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
+            TunnelFileLogger.log("requestMagicLink: REJECTED — empty email", category: "auth")
             errorMessage = String(localized: "magic.error.invalid_email")
             return false
         }
@@ -535,12 +611,15 @@ class AppState {
         defer { isLoading = false }
         do {
             try await apiClient.requestMagicLink(email: trimmed)
+            TunnelFileLogger.log("requestMagicLink: SUCCESS", category: "auth")
             return true
-        } catch let APIError.serverError(429) {
+        } catch APIError.serverError(429) {
+            TunnelFileLogger.log("requestMagicLink: RATE LIMITED (429)", category: "auth")
             errorMessage = String(localized: "magic.error.rate_limited")
             return false
         } catch {
             AppLogger.app.error("requestMagicLink: failed: \(String(describing: error), privacy: .public)")
+            TunnelFileLogger.log("requestMagicLink: FAILED — \(String(describing: error))", category: "auth")
             errorMessage = String(localized: "magic.error.generic")
             return false
         }
@@ -556,7 +635,10 @@ class AppState {
     func consumeMagicToken(_ token: String) async {
         let wasAuthenticated = isAuthenticated
         AppLogger.app.info("consumeMagicToken: entry, tokenLen=\(token.count, privacy: .public), alreadyAuthenticated=\(wasAuthenticated, privacy: .public)")
+        TunnelFileLogger.log("consumeMagicToken: ENTER, tokenLen=\(token.count) alreadyAuth=\(wasAuthenticated)", category: "auth")
+        errorMessage = nil
         if wasAuthenticated {
+            TunnelFileLogger.log("consumeMagicToken: skip — already authenticated", category: "auth")
             errorMessage = String(localized: "magic.already_signed_in")
             return
         }
@@ -565,6 +647,7 @@ class AppState {
         do {
             let result = try await apiClient.verifyMagicLink(token: token)
             AppLogger.app.info("consumeMagicToken: username=\(result.username), isNew=\(result.isNew ?? false)")
+            TunnelFileLogger.log("consumeMagicToken: API OK, username=\(result.username) isNew=\(result.isNew ?? false)", category: "auth")
             configStore.accessToken = result.accessToken
             configStore.refreshToken = result.refreshToken
             configStore.username = result.username
@@ -572,21 +655,27 @@ class AppState {
             subscriptionExpire = configStore.subscriptionExpire
             UserDefaults(suiteName: AppConstants.appGroupID)?.set(true, forKey: AppConstants.onboardingCompletedKey)
             isAuthenticated = true
+            TunnelFileLogger.log("consumeMagicToken: SUCCESS", category: "auth")
         } catch {
             AppLogger.app.error("consumeMagicToken: failed: \(String(describing: error), privacy: .public)")
+            TunnelFileLogger.log("consumeMagicToken: FAILED — \(String(describing: error))", category: "auth")
             errorMessage = String(localized: "magic.error.invalid_link")
         }
     }
 
     func signInWithApple(credential: ASAuthorizationAppleIDCredential) async {
         AppLogger.app.info("signInWithApple: entry, hasToken=\(credential.identityToken != nil, privacy: .public), user=\(credential.user, privacy: .public)")
+        TunnelFileLogger.log("signInWithApple: ENTER, hasToken=\(credential.identityToken != nil)", category: "auth")
+        errorMessage = nil
         guard let tokenData = credential.identityToken,
               let token = String(data: tokenData, encoding: .utf8) else {
             AppLogger.app.error("signInWithApple: no identity token in credential")
+            TunnelFileLogger.log("signInWithApple: FAILED — no identity token in credential", category: "auth")
             errorMessage = String(localized: "onboarding.signin_failed")
             return
         }
         AppLogger.app.info("signInWithApple: got token, len=\(token.count, privacy: .public)")
+        TunnelFileLogger.log("signInWithApple: tokenLen=\(token.count), calling backend", category: "auth")
 
         isLoading = true
         defer { isLoading = false }
@@ -594,6 +683,7 @@ class AppState {
         do {
             let result = try await apiClient.signInWithApple(identityToken: token)
             AppLogger.app.info("signInWithApple: username=\(result.username), isNew=\(result.isNew ?? false)")
+            TunnelFileLogger.log("signInWithApple: API OK, username=\(result.username) isNew=\(result.isNew ?? false)", category: "auth")
             configStore.accessToken = result.accessToken
             configStore.refreshToken = result.refreshToken
             configStore.username = result.username
@@ -601,8 +691,10 @@ class AppState {
             subscriptionExpire = configStore.subscriptionExpire
             UserDefaults(suiteName: AppConstants.appGroupID)?.set(true, forKey: AppConstants.onboardingCompletedKey)
             isAuthenticated = true
+            TunnelFileLogger.log("signInWithApple: SUCCESS", category: "auth")
         } catch {
             AppLogger.app.error("signInWithApple: failed: \(String(describing: error), privacy: .public)")
+            TunnelFileLogger.log("signInWithApple: FAILED — \(String(describing: error))", category: "auth")
             errorMessage = String(localized: "onboarding.signin_failed")
         }
     }
@@ -683,7 +775,41 @@ class AppState {
         await toggleVPN()
     }
 
+    /// Build-36: wait up to 18s for the tunnel; on `.timedOut`, silently
+    /// disconnects, sleeps 1s, reconnects, and waits 18s again. Only the
+    /// second timeout surfaces. Buys a near-100% success rate against the
+    /// build-35 watchdog regression where libbox cold-start on LTE could
+    /// take 9-15s and the 10s watchdog killed connects ~50ms before success.
+    /// Worst-case latency before a real error: ~40s.
+    private func awaitConnectionWithSilentRetry(config: String?) async -> VPNManager.ConnectOutcome {
+        let first = await vpnManager.waitUntilConnected(timeout: .seconds(18))
+        guard case .timedOut = first else { return first }
+        TunnelFileLogger.log("toggleVPN: watchdog 18s timeout — silent retry", category: "ui")
+        vpnManager.disconnect()
+        await vpnManager.waitUntilDisconnected(timeout: .seconds(3))
+        try? await Task.sleep(for: .seconds(1))
+        do {
+            try await vpnManager.connect(configJSON: config)
+        } catch {
+            TunnelFileLogger.log("toggleVPN: silent retry connect FAILED: \(error)", category: "ui")
+            return .failed
+        }
+        let second = await vpnManager.waitUntilConnected(timeout: .seconds(18))
+        if case .timedOut = second {
+            TunnelFileLogger.log("toggleVPN: watchdog 18s timeout — second time, giving up", category: "ui")
+        }
+        return second
+    }
+
     func toggleVPN() async {
+        // Build-37: single-flight. See `toggleVPNInFlight` doc.
+        guard !toggleVPNInFlight else {
+            TunnelFileLogger.log("toggleVPN: ignored — already in flight (duplicate tap)", category: "ui")
+            return
+        }
+        toggleVPNInFlight = true
+        defer { toggleVPNInFlight = false }
+
         TunnelFileLogger.log("toggleVPN: begin, isConnected=\(vpnManager.isConnected)", category: "ui")
         Haptics.impact(.medium)
         if vpnManager.isConnected {
@@ -731,12 +857,13 @@ class AppState {
                 return
             }
 
-            // Watchdog: the tunnel must reach .connected within 10s. The
-            // preflight probe already confirmed at least one outbound is
-            // network-reachable, so the remaining failure modes (Reality
-            // handshake mismatch, bad UUID) surface in <10s — no reason
-            // to make the user wait 30.
-            let outcome = await vpnManager.waitUntilConnected(timeout: .seconds(10))
+            // Watchdog: the tunnel must reach .connected within 18s, with
+            // one silent retry on timeout. Build-36: libbox cold-start on
+            // LTE can take 9-15s; the previous 10s watchdog killed connects
+            // ~50ms before success. Preflight already confirmed at least one
+            // outbound is network-reachable, so non-timeout failure modes
+            // (Reality handshake mismatch, bad UUID) still surface fast.
+            let outcome = await awaitConnectionWithSilentRetry(config: config)
             switch outcome {
             case .connected:
                 Haptics.notify(.success)
@@ -760,7 +887,6 @@ class AppState {
                 errorMessage = VPNErrorMapper.permissionMissing
                 return
             case .timedOut:
-                TunnelFileLogger.log("toggleVPN: watchdog — timed out after 10s", category: "ui")
                 vpnManager.disconnect()
                 errorMessage = VPNErrorMapper.watchdogTimeout
                 return
@@ -809,7 +935,7 @@ class AppState {
             return
         }
 
-        let outcome = await vpnManager.waitUntilConnected(timeout: .seconds(10))
+        let outcome = await awaitConnectionWithSilentRetry(config: config)
         switch outcome {
         case .connected:
             Haptics.notify(.success)
@@ -925,7 +1051,7 @@ class AppState {
         // rather than falling back to "Auto"/"direct" and routing through
         // the wrong country.
         let persistTarget = isAuto ? "Auto" : serverTag
-        if let persisted = buildConfigWithSelections(chain: resolveSelectionChain(target: persistTarget)) {
+        if let persisted = buildConfigWithSelections(chain: chainOrFallback(target: persistTarget)) {
             UserDefaults(suiteName: AppConstants.appGroupID)?.set(persisted, forKey: AppConstants.startOptionsKey)
         }
         TunnelFileLogger.log("selectServer ENTER: groupTag='\(groupTag)' serverTag='\(serverTag)' prev='\(previousTag ?? "Auto")' connected=\(vpnManager.isConnected) cmdClientConnected=\(commandClient.isConnected)", category: "ui")
@@ -965,7 +1091,7 @@ class AppState {
         // A country urltest tag (e.g. "🇳🇱 Нидерланды") needs only step 2.
         // "Auto" needs only step 2 with target="Auto".
         let selectorTarget = isAuto ? "Auto" : serverTag
-        let chain = resolveSelectionChain(target: selectorTarget)
+        let chain = chainOrFallback(target: selectorTarget)
         guard !chain.isEmpty else {
             AppLogger.app.error("selectServer: could not resolve selection chain for '\(serverTag)'")
             return
@@ -981,23 +1107,12 @@ class AppState {
             UserDefaults(suiteName: AppConstants.appGroupID)?.set(updatedConfig, forKey: AppConstants.startOptionsKey)
         }
 
-        // Fast path: live tunnel — apply every step in order via Clash API.
+        // Fast path: live tunnel — re-pick the leaf via PathPicker for the
+        // new selection and push it. Build-39: replaces the old chain-walk +
+        // forceUrlTestEverywhere combo. With country urltests gone from the
+        // config, the entire selection is a single Clash API call.
         if commandClient.isConnected {
-            for step in chain {
-                TunnelFileLogger.log("selectServer: LIVE selectOutbound '\(step.group)' → '\(step.target)'", category: "ui")
-                commandClient.selectOutbound(groupTag: step.group, outboundTag: step.target)
-            }
-            // Build-34 fix: force urlTest on every urltest group, not just
-            // the ones in `chain`. The chain for a country pin is just
-            // `[Proxy → "🇩🇪 Германия"]`, single step with group=Proxy
-            // (a selector, can't urlTest). The country urltest itself
-            // sits in step.target. Build-33 filtered by step.group and
-            // therefore never re-probed the urltest the user just pinned —
-            // which is exactly the leg that needs a fresh look under the
-            // current network. Brute-force fix: re-probe Auto + every
-            // known country urltest. Cheap (sing-box probes in parallel)
-            // and idempotent.
-            forceUrlTestEverywhere()
+            applyServerSelectionIfLive()
             return
         }
 
@@ -1156,73 +1271,55 @@ class AppState {
     /// Re-applies the persisted server selection to the live tunnel. Called from
     /// handleStatus(.connected) so that a cold-start tunnel whose sing-box Proxy
     /// selector booted on a stale default gets forced onto the user's real pick.
-    private func applyServerSelectionIfLive() {
-        let serverTag = configStore.selectedServerTag
-        let selectorTarget = serverTag ?? "Auto"
-        let chain = resolveSelectionChain(target: selectorTarget)
-        guard !chain.isEmpty else {
-            AppLogger.app.error("applyServerSelectionIfLive: chain empty for '\(selectorTarget)'")
-            return
-        }
-
-        // Retry with backoff — same pattern as applyRoutingModeIfLive.
-        // commandClient binds to the extension's unix socket after the tunnel
-        // is up, and that race used to drop the server-selection pin here
-        // (routing mode's retry ran on its own Task; this function returned
-        // early and the Proxy selector kept its fresh-config default "Auto",
-        // so Auto urltest picked the lowest-RTT leaf regardless of the
-        // user's country pick). Retry every 500ms for 5s.
-        guard commandClient.isConnected else {
-            TunnelFileLogger.log("applyServerSelectionIfLive: cmdClient not connected, scheduling retry for '\(selectorTarget)'", category: "ui")
-            Task { [weak self] in
-                for attempt in 1...10 {
-                    try? await Task.sleep(for: .milliseconds(500))
-                    guard let self else { return }
-                    if self.commandClient.isConnected {
-                        TunnelFileLogger.log("applyServerSelectionIfLive: cmdClient ready after \(attempt * 500)ms, applying '\(selectorTarget)'", category: "ui")
-                        for step in chain {
-                            TunnelFileLogger.log("applyServerSelectionIfLive: '\(step.group)' → '\(step.target)'", category: "ui")
-                            self.commandClient.selectOutbound(groupTag: step.group, outboundTag: step.target)
-                        }
-                        // Build-34 fix (cold start path): re-probe every
-                        // urltest group, not just the ones in chain.
-                        // See selectServer's force-urlTest comment for
-                        // the rationale.
-                        self.forceUrlTestEverywhere()
-                        return
-                    }
-                }
-                TunnelFileLogger.log("applyServerSelectionIfLive: cmdClient still not connected after 5s, giving up", category: "ui")
-            }
-            return
-        }
-        for step in chain {
-            TunnelFileLogger.log("applyServerSelectionIfLive: '\(step.group)' → '\(step.target)'", category: "ui")
-            commandClient.selectOutbound(groupTag: step.group, outboundTag: step.target)
-        }
-        forceUrlTestEverywhere()
-    }
-
-    /// Force `urlTest` on every urltest group sing-box knows about: Auto,
-    /// every country urltest in the user's selector. The default sing-box
-    /// urltest interval is 3 min, which is too slow when a network change
-    /// (WiFi↔LTE) puts a previously-good leg behind a regional ASN block.
-    /// Probing all urltests in parallel is cheap and idempotent — sing-box
-    /// already debounces its own internal probe queue.
     ///
-    /// Called immediately after any selectOutbound: ensures by the time the
-    /// next user request leaves the tunnel, the freshly-picked leg has been
-    /// re-validated under current conditions instead of inheriting a stale
-    /// urltest result from a previous network.
-    private func forceUrlTestEverywhere() {
-        // The country urltests live inside the Proxy selector group's
-        // countries collection, parsed from the saved sing-box config.
-        let countryTags = (servers.first(where: { $0.type == "selector" && $0.selectable })?.countries ?? [])
-            .map(\.tag)
-        TunnelFileLogger.log("force urlTest: Auto + \(countryTags.count) countries", category: "ui")
-        commandClient.urlTest(groupTag: "Auto")
-        for tag in countryTags {
-            commandClient.urlTest(groupTag: tag)
+    /// Build-39 return-to-urltest: we no longer pick a *leaf* and pin Proxy to
+    /// it. The user's pick is a UI label ("Auto" / "🇩🇪 Германия" / specific
+    /// leaf for power-mode), and `resolveSelectionChain` produces the chain of
+    /// `selectOutbound` calls that route Proxy → that label. For Auto and
+    /// country urltest groups the chain is a single step that hands control
+    /// to sing-box's own urltest — sing-box probes each leaf end-to-end and
+    /// picks the lowest-latency *working* one, automatically failing over
+    /// when a leaf goes dead. Build-38's pre-connect TCP probe and bytes-flow
+    /// watchdog were re-implementing what sing-box already does correctly,
+    /// just worse — TCP probe is a false-positive on RKN-blocked paths
+    /// (handshake succeeds, Reality data dies), and bytes-flow watchdog read
+    /// global counters that mixed Proxy traffic with native LTE direct traffic.
+    ///
+    /// Why retry: `commandClient` binds to the extension's unix socket AFTER
+    /// the tunnel reaches `.connected`. Without retry the apply races the
+    /// socket bind and `Proxy` keeps its fresh-config default. Retry 500ms ×
+    /// 10 = 5s budget covers the worst observed bind delay (LTE cold-start,
+    /// ~700ms).
+    private func applyServerSelectionIfLive() {
+        let selectedTag = configStore.selectedServerTag ?? "Auto"
+        // Build-37: cancel-then-replace. See `selectionApplyTask` doc.
+        selectionApplyTask?.cancel()
+        selectionApplyTask = Task { [weak self] in
+            guard let self else { return }
+
+            let chain = self.resolveSelectionChain(target: selectedTag)
+            guard !chain.isEmpty else {
+                TunnelFileLogger.log("applyServerSelectionIfLive: empty chain for '\(selectedTag)' — keeping baked-in default", category: "ui")
+                return
+            }
+            let chainStr = chain.map { "\($0.group)→\($0.target)" }.joined(separator: " / ")
+
+            for attempt in 1...10 {
+                if Task.isCancelled { return }
+                if self.commandClient.isConnected {
+                    if attempt > 1 {
+                        TunnelFileLogger.log("applyServerSelectionIfLive: cmdClient ready after \(attempt * 500)ms, applying chain=\(chainStr)", category: "ui")
+                    } else {
+                        TunnelFileLogger.log("applyServerSelectionIfLive: applying chain=\(chainStr)", category: "ui")
+                    }
+                    for step in chain {
+                        self.commandClient.selectOutbound(groupTag: step.group, outboundTag: step.target)
+                    }
+                    return
+                }
+                try? await Task.sleep(for: .milliseconds(500))
+            }
+            TunnelFileLogger.log("applyServerSelectionIfLive: cmdClient still not connected after 5s, giving up", category: "ui")
         }
     }
 
@@ -1294,9 +1391,12 @@ class AppState {
         // real IP. Retry every 500ms for 5s.
         guard commandClient.isConnected else {
             TunnelFileLogger.log("applyRoutingMode: cmdClient not connected, scheduling retry for \(mode.rawValue)", category: "ui")
-            Task { [weak self] in
+            // Build-37: cancel-then-replace. See `routingApplyTask` doc.
+            routingApplyTask?.cancel()
+            routingApplyTask = Task { [weak self] in
                 for attempt in 1...10 {
                     try? await Task.sleep(for: .milliseconds(500))
+                    if Task.isCancelled { return }
                     guard let self else { return }
                     if self.commandClient.isConnected {
                         TunnelFileLogger.log("applyRoutingMode: cmdClient ready after \(attempt * 500)ms, applying \(mode.rawValue)", category: "ui")
@@ -1357,8 +1457,14 @@ class AppState {
             // to. Server selection must be re-asserted because sing-box may
             // have resolved Proxy to a different default than configStore.
             let mode = routingMode
-            Task { [weak self] in
+            // Build-37: cancel-then-replace. NEVPNStatusDidChange may emit
+            // `.connected` more than once per cycle; without this guard each
+            // emit queues another apply pass that bombards `selectOutbound`
+            // (which itself tears in-flight TLS).
+            pendingApplyTask?.cancel()
+            pendingApplyTask = Task { [weak self] in
                 try? await Task.sleep(for: .milliseconds(400))
+                if Task.isCancelled { return }
                 self?.applyRoutingModeIfLive(mode)
                 self?.applyServerSelectionIfLive()
             }
@@ -1384,18 +1490,58 @@ class AppState {
 
     // MARK: - Traffic health monitor + fallback chain
 
-    /// Hook called by MadFrogVPNApp on `scenePhase` change. Resumes the
-    /// monitor when the app becomes active and pauses it on background —
-    /// URLSession in the suspended main app would just stall forever.
+    /// Hook called by MadFrogVPNApp on `scenePhase` change.
+    /// Build-39: gate removed from monitor lifetime — see
+    /// `startTrafficHealthMonitorIfEligible`. We still observe the
+    /// transition because:
+    ///   1. Coming back to foreground is the canonical "user noticed
+    ///      something stalled" moment, so we drain the extension's
+    ///      stall-signal flag and immediately fire fallback if needed.
+    ///   2. UI affordances (the stale-error banner) still need the
+    ///      foreground edge.
     func handleScenePhaseActive(_ active: Bool) {
         let wasActive = isAppActive
         isAppActive = active
         TunnelFileLogger.log("scene phase: active=\(active)", category: "ui")
         if active && !wasActive {
-            // Coming back to foreground: re-evaluate eligibility. The
-            // monitor itself short-circuits if not eligible.
+            // Build-38: clear stale error banner from a previous foreground
+            // session for not-yet-signed-in users. AppState survives
+            // background→foreground unchanged, so an errorMessage set during
+            // a failed sign-in attempt yesterday would otherwise still be
+            // showing over OnboardingView today — symptom user reported as
+            // «не сразу вошло» in the 2026-04-26 build 36 field test.
+            // Authenticated users see status/connection errors here that
+            // are still meaningful, so leave those alone.
+            if !isAuthenticated {
+                errorMessage = nil
+            }
             startTrafficHealthMonitorIfEligible()
+            // Build-39: drain the extension's stall flag. If the extension
+            // detected a stall while we were backgrounded, run the fallback
+            // synchronously now so the very first user interaction (Safari
+            // tap, refresh) lands on a working leg.
+            Task { [weak self] in
+                await self?.handleExtensionStallSignalIfAny()
+            }
         }
+    }
+
+    /// Build-39: read the `AppConstants.tunnelStallRequestedAtKey` flag
+    /// the PacketTunnel extension's `TunnelStallProbe` writes when it
+    /// detects 2 consecutive captive-portal probe misses. If a request is
+    /// newer than the last one we serviced, run `performFallbackForCurrentLeg`
+    /// and stamp the serviced timestamp so we don't re-fire.
+    func handleExtensionStallSignalIfAny() async {
+        guard let defaults = UserDefaults(suiteName: AppConstants.appGroupID) else { return }
+        let requestedAt = defaults.double(forKey: AppConstants.tunnelStallRequestedAtKey)
+        guard requestedAt > 0 else { return }
+        let servicedAt = defaults.double(forKey: AppConstants.tunnelStallServicedAtKey)
+        guard requestedAt > servicedAt else { return }
+        guard vpnManager.isConnected else { return }
+
+        TunnelFileLogger.log("ext-stall: signal received (requestedAt=\(requestedAt) servicedAt=\(servicedAt)), invoking fallback", category: "ui")
+        await performFallbackForCurrentLeg()
+        defaults.set(Date().timeIntervalSince1970, forKey: AppConstants.tunnelStallServicedAtKey)
     }
 
     private func startTrafficHealthMonitorIfEligible() {
@@ -1417,13 +1563,24 @@ class AppState {
                     await MainActor.run {
                         self?.recordWorkingLegToMemory()
                     }
+                    // Build-39: every successful main-app probe also drains
+                    // the extension stall flag. Catches the case where
+                    // background→foreground happened so fast we missed the
+                    // scenePhase event but extension had flagged a stall.
+                    await self?.handleExtensionStallSignalIfAny()
                 },
                 log: { msg in
                     TunnelFileLogger.log(msg, category: "ui")
                 }
             ))
         }
-        guard configStore.autoRecoverEnabled, vpnManager.isConnected, isAppActive else { return }
+        // Build-39: isAppActive gate removed. The PacketTunnel extension
+        // hosts an identical probe (TunnelStallProbe) that runs even while
+        // iOS suspends the main app — exactly when stall detection actually
+        // matters (user is in Safari, MadFrog backgrounded). This main-app
+        // monitor is now defense-in-depth for the foreground window plus a
+        // place to react to the extension's cross-process stall flag.
+        guard configStore.autoRecoverEnabled, vpnManager.isConnected else { return }
         trafficHealthMonitor?.start()
     }
 
@@ -1540,13 +1697,47 @@ class AppState {
     }
 
     private func fallbackOnAuto(group: ServerGroup) async {
-        // User is on Auto — re-trigger urltest probes across all groups
-        // and close in-flight connections so subsequent requests renegotiate
-        // through whatever leg sing-box now thinks is best.
-        TunnelFileLogger.log("fallback: on Auto, re-running urltest + closeConnections", category: "ui")
-        commandClient.urlTest(groupTag: "Auto")
-        for c in group.countries { commandClient.urlTest(groupTag: c.tag) }
+        // Build-39: ask PathPicker for the next-best leaf across the whole
+        // pool, excluding any we've already given up on this cascade. The
+        // pre-build-39 path called `commandClient.urlTest(...)` per group
+        // which was a no-op once urltest groups were removed from the
+        // config; now we directly re-probe via NWConnection in main app
+        // and push the new winner via Clash API.
+        let candidates = leafCandidates()
+        guard !candidates.isEmpty else {
+            TunnelFileLogger.log("fallback(auto): no candidates, skipping", category: "ui")
+            return
+        }
+        let demote = computeDemoteClasses()
+        guard let leaf = await pathPicker.bestLeaf(
+            excluding: deadLeavesInCurrentCascade,
+            for: nil,                           // Auto = no country filter
+            candidates: candidates,
+            demoteClasses: demote
+        ) else {
+            TunnelFileLogger.log("fallback(auto): all candidates dead, giving up", category: "ui")
+            return
+        }
+        TunnelFileLogger.log("fallback(auto): re-pick leaf='\(leaf)' demote=\(demote.map { "\($0)" }.sorted())", category: "ui")
+        commandClient.selectOutbound(groupTag: group.tag, outboundTag: leaf)
         // No toast — recovery on Auto is the expected silent path.
+    }
+
+    /// Build-39: derive the cascade demote set from the per-network record
+    /// in `LastWorkingLegStore`. If we have any successful records on this
+    /// network and NONE of them are direct, demote `.direct` so the next
+    /// fallback skips it entirely. Returns empty set when we have no
+    /// records or when direct has worked here at least once.
+    private func computeDemoteClasses() -> Set<LeafClass> {
+        guard let fp = currentNetworkFingerprint else { return [] }
+        guard let workedClasses = lastWorkingLegStore.classesEverWorked(fingerprint: fp) else {
+            return [] // never connected on this network — no signal
+        }
+        var demote: Set<LeafClass> = []
+        if !workedClasses.contains("direct") {
+            demote.insert(.direct)
+        }
+        return demote
     }
 
     /// Pick the next-best country (or SPB relay), pin it, force its

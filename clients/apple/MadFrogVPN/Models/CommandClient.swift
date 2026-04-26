@@ -41,7 +41,7 @@ final class CommandClientWrapper {
     /// Token-based cancellation: incremented on each connect/disconnect call.
     /// Prevents stale callbacks from old connections from updating state.
     /// nonisolated(unsafe) because ClientHandler reads this from libbox callbacks on arbitrary threads.
-    fileprivate nonisolated(unsafe) var connectionToken: UInt64 = 0
+    @ObservationIgnored fileprivate nonisolated(unsafe) var connectionToken: UInt64 = 0
     private var connectTask: Task<Void, Never>?
 
     init() {

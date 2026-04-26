@@ -1,12 +1,11 @@
 import Foundation
 import Network
 
-/// Foreground-only health probe. When the VPN tunnel is up and the user is
-/// actively using the app, this checks every `probeInterval` whether traffic
-/// is actually flowing through the tunnel by issuing a small HTTPS GET to
-/// Apple's captive-portal endpoint. If the probe fails twice in a row, we
-/// classify the current leg as dead and call `onStallDetected`, which is
-/// expected to perform a fallback (switch leg / country / Auto).
+/// Health probe running in the main app whenever the VPN tunnel is up.
+/// Issues a small HTTPS GET to Apple's captive-portal endpoint on every
+/// `probeInterval`; on `stallThreshold` consecutive failures it calls
+/// `onStallDetected`, which is expected to perform a fallback (switch
+/// leg / country / Auto).
 ///
 /// Why this matters: sing-box's own urltest decides whether a leg is alive
 /// based on a single HEAD probe to gstatic.com running periodically. That
@@ -16,12 +15,18 @@ import Network
 /// This monitor is the missing piece, modelled after Cloudflare WARP and
 /// ProtonVPN's connection guard.
 ///
+/// Build-39 (2026-04-26): the foreground-only `isAppActive` gate was
+/// removed. The original rationale ("don't burn battery on speculative
+/// URLSession tasks while the user isn't watching") inverted the actual
+/// failure mode: stall detection only matters when the user IS using the
+/// network — the only window where the gate also paused us. The PacketTunnel
+/// extension now hosts an identical probe (`TunnelStallProbe`) so detection
+/// keeps running even when iOS suspends the main app entirely; this
+/// main-app monitor is now defense-in-depth for the foreground window.
+///
 /// Apple-friendly choices:
 /// - Probe target is `captive.apple.com`, the same endpoint iOS itself
 ///   uses for connectivity detection. App Review can't object.
-/// - Foreground-only (`isAppActive == true`). When backgrounded the
-///   monitor is paused; we don't burn battery on speculative URLSession
-///   tasks while the user isn't watching.
 /// - Honours a user toggle (`isUserEnabled`) — Settings → Auto-recover.
 /// - Hard caps fallback frequency (cooldown + per-hour limit) so a
 ///   genuinely broken environment doesn't trigger reconnect storms.
@@ -143,7 +148,7 @@ final class TrafficHealthMonitor {
     /// on the Task.sleep loop.
     func tickIfEligible() async {
         guard deps.isUserEnabled() else { return }
-        guard deps.isAppActive() else { return }
+        // Build-39: isAppActive gate removed. See class doc.
         guard deps.isVPNConnected() else {
             // Tunnel is down — nothing for us to recover. Reset failure
             // counter so a future reconnect doesn't inherit stale state.
