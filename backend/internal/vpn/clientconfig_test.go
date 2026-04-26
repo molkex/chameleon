@@ -288,6 +288,13 @@ func TestWhitelistBypassGroupIsSelectorNotUrltest(t *testing.T) {
 // tunnel without an explicit UI pick lands on the Auto urltest group, which
 // in turn picks the lowest-latency working leaf via end-to-end HTTP HEAD
 // probes.
+//
+// Also asserts Proxy.interrupt_exist_connections=true (build 40 evening fix):
+// the urltest auto-recovery chain only works end-to-end when EVERY selector
+// in the path TUN→Mode→Proxy→Auto→leaf has interrupt=true. Field log
+// 2026-04-26 22:52 confirmed: with Proxy.interrupt=false the inbound from
+// upstream Mode selector keeps the user connection alive, glued to the dead
+// path even after Auto urltest already re-elected.
 func TestProxySelectorDefault(t *testing.T) {
 	cfg := parseGenerated(t)
 	proxy := outboundByTag(cfg, "Proxy")
@@ -300,6 +307,14 @@ func TestProxySelectorDefault(t *testing.T) {
 	}
 	if outboundByTag(cfg, def) == nil {
 		t.Errorf("Proxy.default = %q does not exist as an outbound", def)
+	}
+	// Build-40 evening: Proxy MUST also propagate interrupt-on-switch so the
+	// urltest re-election kills user-facing connections through the dead leaf.
+	iec, ok := proxy["interrupt_exist_connections"]
+	if !ok {
+		t.Errorf("Proxy missing interrupt_exist_connections — must be true (build 40 chain fix)")
+	} else if b, _ := iec.(bool); !b {
+		t.Errorf("Proxy.interrupt_exist_connections=%v, want true (build 40 chain fix)", b)
 	}
 }
 

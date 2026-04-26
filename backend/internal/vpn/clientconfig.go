@@ -372,12 +372,23 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 	for _, leaf := range whitelistLegs {
 		proxyMembers = append(proxyMembers, leaf)
 	}
+	// Build-40 (2026-04-26 evening): InterruptExistConnections=true on Proxy too.
+	// Previously was `false` to avoid killing in-flight connections on manual
+	// server-pin via Clash API. But that broke the urltest auto-recovery chain:
+	// when Auto urltest re-elects to a healthy leaf it closes its own inbound
+	// (Proxy→Auto), but with Proxy.interrupt=false the upstream chain
+	// (TUN→BlockedTraffic→Proxy) keeps the user-visible connection alive, glued
+	// to the now-dead path via the OLD Proxy→Auto leg. Field log 2026-04-26
+	// 22:52: connections to 162.19.242.30 still timing out 1m54s after urltest
+	// already switched to de-via-msk. Trade-off: rare manual-pin via power-mode
+	// also closes connections (one TLS handshake reconnect — mild UX hiccup).
+	// Auto-recovery for the 99% case wins.
 	proxyOutbound := clientOutbound{
 		Type:                      "selector",
 		Tag:                       "Proxy",
 		Outbounds:                 proxyMembers,
 		Default:                   "Auto",
-		InterruptExistConnections: boolPtr(false),
+		InterruptExistConnections: boolPtr(true),
 	}
 
 	// --- Mode selectors (unchanged semantics from pre-relay architecture) ---
