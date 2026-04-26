@@ -389,3 +389,65 @@ func TestSearchUsersPageSizeClamp(t *testing.T) {
 		t.Errorf("len(users): want 3, got %d", len(users))
 	}
 }
+
+// TestFindUserByIDAliasResolution covers the id_aliases transitive lookup added
+// after the NL postgres was decommissioned (see migrations 012/013). A JWT
+// minted on NL contains the NL-local id; on DE that id has no row, so the
+// alias table maps it back to the canonical users.id row. iOS clients keep
+// working with their stale Keychain tokens.
+func TestFindUserByIDAliasResolution(t *testing.T) {
+	database := startTestDB(t)
+	ctx := context.Background()
+
+	now := time.Now().UTC()
+	canonical := &User{
+		VPNUsername: ptr("device_canonical"),
+		VPNUUID:     ptr("11111111-0001-4000-8000-000000000001"),
+		VPNShortID:  ptr(""),
+		IsActive:    true,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	if err := database.CreateUser(ctx, canonical); err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+
+	// 1. Direct lookup by canonical id finds the row.
+	got, err := database.FindUserByID(ctx, canonical.ID)
+	if err != nil {
+		t.Fatalf("FindUserByID(canonical): %v", err)
+	}
+	if got == nil || got.ID != canonical.ID {
+		t.Fatalf("FindUserByID(canonical): want id=%d, got %v", canonical.ID, got)
+	}
+
+	// 2. Direct lookup of an unaliased id returns nil (not error).
+	missing, err := database.FindUserByID(ctx, 999_999)
+	if err != nil {
+		t.Fatalf("FindUserByID(missing): %v", err)
+	}
+	if missing != nil {
+		t.Fatalf("FindUserByID(missing): want nil, got id=%d", missing.ID)
+	}
+
+	// 3. Insert an alias and verify the lookup follows it.
+	const altID = 424242
+	if _, err := database.Pool.Exec(ctx,
+		`INSERT INTO id_aliases (alt_id, real_id, source) VALUES ($1, $2, 'test')`,
+		altID, canonical.ID); err != nil {
+		t.Fatalf("insert alias: %v", err)
+	}
+	resolved, err := database.FindUserByID(ctx, altID)
+	if err != nil {
+		t.Fatalf("FindUserByID(alt): %v", err)
+	}
+	if resolved == nil {
+		t.Fatalf("FindUserByID(alt): want canonical id=%d, got nil", canonical.ID)
+	}
+	if resolved.ID != canonical.ID {
+		t.Fatalf("FindUserByID(alt): want id=%d, got id=%d", canonical.ID, resolved.ID)
+	}
+	if got := strings.TrimSpace(*resolved.VPNUsername); got != "device_canonical" {
+		t.Errorf("alias resolved to wrong row: vpn_username=%q", got)
+	}
+}

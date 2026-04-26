@@ -175,10 +175,12 @@ func (s *Server) setupRoutes(e *echo.Echo) {
 	// Mobile API: /api/mobile/* and /api/v1/mobile/* (iOS app uses v1 prefix)
 	mobileGroup := e.Group("/api/mobile")
 	mobileGroup.Use(mw.RateLimit(s.Ctx, s.Config.RateLimit.MobilePerMinute))
+	mobileGroup.Use(mw.Idempotency(s.Redis, s.Logger))
 	mobile.RegisterRoutes(mobileGroup, mobileHandler)
 
 	mobileV1 := e.Group("/api/v1/mobile")
 	mobileV1.Use(mw.RateLimit(s.Ctx, s.Config.RateLimit.MobilePerMinute))
+	mobileV1.Use(mw.Idempotency(s.Redis, s.Logger))
 	mobile.RegisterRoutes(mobileV1, mobileHandler)
 
 	// FreeKassa server-to-server webhook. Public, unauthenticated — trust

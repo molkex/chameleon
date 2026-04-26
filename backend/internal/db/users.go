@@ -129,12 +129,30 @@ func (db *DB) FindUserByVPNUsername(ctx context.Context, username string) (*User
 }
 
 // FindUserByID returns the user matching the given id, or nil if not found.
+//
+// If the direct lookup misses, FindUserByID falls back to id_aliases —
+// historical id values from the now-retired NL multi-master backend (and from
+// race-registration dedup) map to their canonical users.id row there. This
+// transparently keeps iOS clients with stale JWTs in Keychain working after
+// the federated cluster was consolidated to single-master DE on 2026-04-25.
+//
+// Single hop only: id_aliases.real_id is FK-constrained to users.id, so a
+// follow-up alias chain is structurally impossible.
 func (db *DB) FindUserByID(ctx context.Context, id int64) (*User, error) {
 	ctx, cancel := defaultTimeout(ctx)
 	defer cancel()
 
 	row := db.Pool.QueryRow(ctx,
 		`SELECT `+userColumns+` FROM users WHERE id = $1`, id)
+	u, err := scanUser(row)
+	if err != nil || u != nil {
+		return u, err
+	}
+
+	row = db.Pool.QueryRow(ctx,
+		`SELECT `+userColumns+`
+		 FROM users
+		 WHERE id = (SELECT real_id FROM id_aliases WHERE alt_id = $1)`, id)
 	return scanUser(row)
 }
 

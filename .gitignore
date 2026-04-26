@@ -53,3 +53,6 @@ idb-*/
 
 # Claude
 .claude/
+
+# Local DB snapshots / operational backups (not source-controlled)
+backups/
