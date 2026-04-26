@@ -18,11 +18,18 @@ import (
 )
 
 const (
-	appleJWKSURL     = "https://appleid.apple.com/auth/keys"
 	appleIssuer      = "https://appleid.apple.com"
 	jwksCacheTTL     = 24 * time.Hour
 	jwksFetchTimeout = 10 * time.Second
 )
+
+// kidMissCooldown caps how often we refetch JWKS in response to a kid
+// the cache doesn't know about. Prevents a forged-token attacker from
+// hammering Apple via our backend. Var (not const) so tests can shrink it.
+var kidMissCooldown = 1 * time.Minute
+
+// appleJWKSURL is a var (not const) so tests can point it at httptest.NewServer.
+var appleJWKSURL = "https://appleid.apple.com/auth/keys"
 
 // appleJWK represents a single key from Apple's JWKS.
 type appleJWK struct {
@@ -47,9 +54,10 @@ type cachedJWKS struct {
 // for separate App Store listings — `com.madfrog.vpn` and
 // `com.madfrog.vpn.mac`).
 type AppleVerifier struct {
-	bundleIDs []string
-	jwks      atomic.Pointer[cachedJWKS]
-	fetchMu   sync.Mutex // serializes JWKS fetches to prevent stampede
+	bundleIDs    []string
+	jwks         atomic.Pointer[cachedJWKS]
+	fetchMu      sync.Mutex   // serializes JWKS fetches to prevent stampede
+	lastFetchAt  atomic.Int64 // unix nano of last fetch attempt (success or failure); throttles kid-miss refetches
 }
 
 // NewAppleVerifier creates a verifier that accepts any of the provided
@@ -153,38 +161,73 @@ func (v *AppleVerifier) VerifyAndExtract(ctx context.Context, tokenString string
 
 // getPublicKey returns the RSA public key matching the given kid.
 // It fetches and caches JWKS from Apple, refreshing after jwksCacheTTL.
-func (v *AppleVerifier) getPublicKey(ctx context.Context, kid string) (*rsa.PublicKey, error) {
-	// Try cached keys first.
+//
+// On fetch failure it falls back to a stale cache entry if one is available
+// (stale-while-revalidate). This protects against a transient outage of
+// Apple's JWKS endpoint causing every sign-in to fail.
+func (v *AppleVerifier) getPublicKey(_ context.Context, kid string) (*rsa.PublicKey, error) {
+	// Fast path: fresh cache hit for this kid.
 	if cached := v.jwks.Load(); cached != nil && time.Since(cached.fetchedAt) < jwksCacheTTL {
+		if key, err := findAndParseKey(cached.keys, kid); err == nil {
+			return key, nil
+		}
+		// kid not in cache — Apple may have rotated, fall through to fetch.
+	}
+
+	fetchErr := v.fetchJWKS(kid)
+
+	// Try whatever cache we have now — fresh fetch result, or stale entry
+	// surviving a fetch failure.
+	if cached := v.jwks.Load(); cached != nil {
 		if key, err := findAndParseKey(cached.keys, kid); err == nil {
 			return key, nil
 		}
 	}
 
-	// Fetch fresh JWKS (serialized to prevent stampede).
-	if err := v.fetchJWKS(ctx); err != nil {
-		return nil, err
+	if fetchErr != nil {
+		return nil, fetchErr
 	}
-
-	cached := v.jwks.Load()
-	if cached == nil {
-		return nil, fmt.Errorf("auth/apple: JWKS cache is empty after fetch")
-	}
-
-	return findAndParseKey(cached.keys, kid)
+	return nil, fmt.Errorf("auth/apple: no key found for kid %q", kid)
 }
 
 // fetchJWKS fetches Apple's JWKS endpoint. Only one goroutine fetches at a time.
-func (v *AppleVerifier) fetchJWKS(ctx context.Context) error {
+//
+// `wantKID` is the kid the caller is looking for — used so a fresh-but-rotated
+// cache (cache is within TTL but doesn't have this kid) triggers a refetch.
+// To prevent forged-token DoS via repeated kid misses, refetches in this
+// case are throttled by kidMissCooldown.
+//
+// The HTTP request runs on a context.Background-derived context, NOT the
+// inbound request context. Otherwise a single client cancellation (e.g. iOS
+// hitting its request timeout) would abort an in-flight fetch shared by every
+// concurrent sign-in, leaving the cache empty and the next attempt to fail
+// the same way. See: 2026-04-26 incident — 2× consecutive 400s on Apple
+// sign-in resolved only when one fetch finally outran the iOS timeout.
+func (v *AppleVerifier) fetchJWKS(wantKID string) error {
 	v.fetchMu.Lock()
 	defer v.fetchMu.Unlock()
 
 	// Double-check after acquiring lock — another goroutine may have already fetched.
-	if cached := v.jwks.Load(); cached != nil && time.Since(cached.fetchedAt) < jwksCacheTTL {
-		return nil
+	cached := v.jwks.Load()
+	cacheFresh := cached != nil && time.Since(cached.fetchedAt) < jwksCacheTTL
+	if cacheFresh {
+		// Cache is fresh — skip fetch unless caller is looking for a kid
+		// that's missing from it (likely Apple key rotation).
+		if wantKID == "" {
+			return nil
+		}
+		if _, err := findAndParseKey(cached.keys, wantKID); err == nil {
+			return nil
+		}
+		// kid missing — refetch unless we just tried recently (throttle).
+		if last := v.lastFetchAt.Load(); last != 0 && time.Since(time.Unix(0, last)) < kidMissCooldown {
+			return nil
+		}
 	}
 
-	fetchCtx, cancel := context.WithTimeout(ctx, jwksFetchTimeout)
+	v.lastFetchAt.Store(time.Now().UnixNano())
+
+	fetchCtx, cancel := context.WithTimeout(context.Background(), jwksFetchTimeout)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(fetchCtx, http.MethodGet, appleJWKSURL, nil)

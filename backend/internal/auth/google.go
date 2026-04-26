@@ -15,11 +15,13 @@ import (
 )
 
 const (
-	googleJWKSURL  = "https://www.googleapis.com/oauth2/v3/certs"
-	googleIssuer1  = "https://accounts.google.com"
-	googleIssuer2  = "accounts.google.com"
-	googleJWKSTTL  = 24 * time.Hour
+	googleIssuer1 = "https://accounts.google.com"
+	googleIssuer2 = "accounts.google.com"
+	googleJWKSTTL = 24 * time.Hour
 )
+
+// googleJWKSURL is a var (not const) so tests can point it at httptest.NewServer.
+var googleJWKSURL = "https://www.googleapis.com/oauth2/v3/certs"
 
 // GoogleClaims is the subset of the Google ID token payload we care about.
 // https://developers.google.com/identity/openid-connect/openid-connect
@@ -36,9 +38,10 @@ type GoogleVerifier struct {
 	// The iOS OAuth client ID registered in Google Cloud. Used as expected
 	// `aud`. Multiple IDs are supported if we ever publish a separate macOS
 	// client; pass all of them.
-	clientIDs []string
-	jwks      atomic.Pointer[cachedJWKS]
-	fetchMu   sync.Mutex
+	clientIDs   []string
+	jwks        atomic.Pointer[cachedJWKS]
+	fetchMu     sync.Mutex
+	lastFetchAt atomic.Int64 // throttles kid-miss refetches; see AppleVerifier
 }
 
 // NewGoogleVerifier returns a verifier that accepts any of the provided
@@ -136,33 +139,53 @@ func strValue(m jwt.MapClaims, k string) string {
 }
 
 // getPublicKey is an exact mirror of AppleVerifier.getPublicKey — different
-// JWKS URL, same fetch/cache pattern.
-func (v *GoogleVerifier) getPublicKey(ctx context.Context, kid string) (*rsa.PublicKey, error) {
+// JWKS URL, same fetch/cache pattern, same stale-while-revalidate behavior.
+func (v *GoogleVerifier) getPublicKey(_ context.Context, kid string) (*rsa.PublicKey, error) {
 	if cached := v.jwks.Load(); cached != nil && time.Since(cached.fetchedAt) < googleJWKSTTL {
 		if key, err := findAndParseKey(cached.keys, kid); err == nil {
 			return key, nil
 		}
 	}
 
-	if err := v.fetchJWKS(ctx); err != nil {
-		return nil, err
+	fetchErr := v.fetchJWKS(kid)
+
+	if cached := v.jwks.Load(); cached != nil {
+		if key, err := findAndParseKey(cached.keys, kid); err == nil {
+			return key, nil
+		}
 	}
-	cached := v.jwks.Load()
-	if cached == nil {
-		return nil, fmt.Errorf("auth/google: JWKS cache empty after fetch")
+
+	if fetchErr != nil {
+		return nil, fetchErr
 	}
-	return findAndParseKey(cached.keys, kid)
+	return nil, fmt.Errorf("auth/google: no key found for kid %q", kid)
 }
 
-func (v *GoogleVerifier) fetchJWKS(ctx context.Context) error {
+// fetchJWKS uses a context.Background-derived context (not the request ctx)
+// so a single client cancel doesn't poison the cache for everyone else. See
+// AppleVerifier.fetchJWKS for the full rationale, including the kid-miss
+// refetch throttle.
+func (v *GoogleVerifier) fetchJWKS(wantKID string) error {
 	v.fetchMu.Lock()
 	defer v.fetchMu.Unlock()
 
-	if cached := v.jwks.Load(); cached != nil && time.Since(cached.fetchedAt) < googleJWKSTTL {
-		return nil
+	cached := v.jwks.Load()
+	cacheFresh := cached != nil && time.Since(cached.fetchedAt) < googleJWKSTTL
+	if cacheFresh {
+		if wantKID == "" {
+			return nil
+		}
+		if _, err := findAndParseKey(cached.keys, wantKID); err == nil {
+			return nil
+		}
+		if last := v.lastFetchAt.Load(); last != 0 && time.Since(time.Unix(0, last)) < kidMissCooldown {
+			return nil
+		}
 	}
 
-	fetchCtx, cancel := context.WithTimeout(ctx, jwksFetchTimeout)
+	v.lastFetchAt.Store(time.Now().UnixNano())
+
+	fetchCtx, cancel := context.WithTimeout(context.Background(), jwksFetchTimeout)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(fetchCtx, http.MethodGet, googleJWKSURL, nil)
