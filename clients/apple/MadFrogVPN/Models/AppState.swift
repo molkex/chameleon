@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import NetworkExtension
 import AuthenticationServices
+import UserNotifications
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -151,6 +152,8 @@ class AppState {
     /// Server switch reconnect task (selectServer). Separate from refreshTask
     /// so that background config updates don't cancel reconnection.
     @ObservationIgnored nonisolated(unsafe) private var reconnectTask: Task<Void, Never>?
+    /// Darwin cross-process observer installed once for tunnel-stall wakeup.
+    @ObservationIgnored nonisolated(unsafe) private var darwinStallObserverInstalled = false
 
     private var hasInitialized = false
 
@@ -163,6 +166,8 @@ class AppState {
     }
 
     func initialize() async {
+        installDarwinStallObserverIfNeeded()
+
         // Keychain survives app deletion on iOS — detect fresh install via UserDefaults flag.
         // If onboardingCompleted is not set, treat as fresh install and wipe Keychain.
         let sharedDefaults = UserDefaults(suiteName: AppConstants.appGroupID)
@@ -1526,6 +1531,29 @@ class AppState {
         }
     }
 
+    /// Register a Darwin cross-process notification observer so the main app
+    /// can react to a tunnel stall even when backgrounded (not suspended).
+    /// The extension posts `tunnelStallDarwinNotification` after writing to
+    /// shared UserDefaults. Safe to call multiple times — idempotent.
+    func installDarwinStallObserverIfNeeded() {
+        guard !darwinStallObserverInstalled else { return }
+        darwinStallObserverInstalled = true
+        let name = AppConstants.tunnelStallDarwinNotification as CFString
+        let selfPtr = Unmanaged.passUnretained(self).toOpaque()
+        CFNotificationCenterAddObserver(
+            CFNotificationCenterGetDarwinNotifyCenter(),
+            selfPtr,
+            { _, ptr, _, _, _ in
+                guard let ptr else { return }
+                let state = Unmanaged<AppState>.fromOpaque(ptr).takeUnretainedValue()
+                Task { @MainActor in
+                    await state.handleExtensionStallSignalIfAny()
+                }
+            },
+            name, nil, .deliverImmediately
+        )
+    }
+
     /// Build-39: read the `AppConstants.tunnelStallRequestedAtKey` flag
     /// the PacketTunnel extension's `TunnelStallProbe` writes when it
     /// detects 2 consecutive captive-portal probe misses. If a request is
@@ -1542,6 +1570,10 @@ class AppState {
         TunnelFileLogger.log("ext-stall: signal received (requestedAt=\(requestedAt) servicedAt=\(servicedAt)), invoking fallback", category: "ui")
         await performFallbackForCurrentLeg()
         defaults.set(Date().timeIntervalSince1970, forKey: AppConstants.tunnelStallServicedAtKey)
+        // Dismiss the stall notification if it's still showing (user didn't tap it).
+        UNUserNotificationCenter.current().removeDeliveredNotifications(
+            withIdentifiers: [AppConstants.tunnelStallNotificationID]
+        )
     }
 
     private func startTrafficHealthMonitorIfEligible() {

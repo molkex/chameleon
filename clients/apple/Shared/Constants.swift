@@ -140,6 +140,11 @@ enum AppConstants {
     /// request — set by AppState after performFallbackForCurrentLeg runs.
     /// Compared against `tunnelStallRequestedAtKey` to dedup.
     static let tunnelStallServicedAtKey = "tunnel_stall_serviced_at"
+    /// Darwin notification name posted by the extension so the main app can
+    /// react without a scene-phase change (works while backgrounded, not suspended).
+    static let tunnelStallDarwinNotification = "com.madfrog.vpn.tunnelStall"
+    /// UNUserNotificationCenter identifier for the in-tunnel stall banner.
+    static let tunnelStallNotificationID = "tunnel-stall"
 
     // One-shot migration guards. Each key, once set, prevents the migration
     // from running again on subsequent launches. Bumped per release.

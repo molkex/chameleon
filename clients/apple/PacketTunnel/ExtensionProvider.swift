@@ -1,5 +1,6 @@
 import NetworkExtension
 import Libbox
+import UserNotifications
 
 /// Base class for PacketTunnelProvider. Implements sing-box lifecycle
 /// using CommandServer API (modern approach, same as SFI).
@@ -234,16 +235,37 @@ open class ExtensionProvider: NEPacketTunnelProvider {
         // main app on its own — only RealTrafficStallDetector does).
         let detector = RealTrafficStallDetector(onStall: { [weak self] now in
             guard let self else { return }
-            // Same fallback contract as the old synthetic probe used:
-            // 1. Cross-process flag → main app picks it up on next
-            //    foreground or own probe tick → AppState calls
-            //    performFallbackForCurrentLeg() to pin a different leaf
-            //    via Clash API.
-            // 2. Best-effort: nudge sing-box urltest groups to re-probe
-            //    NOW. Keeps the same signal surface as build 39-43.
             self.sharedDefaults?.set(now.timeIntervalSince1970,
                                      forKey: AppConstants.tunnelStallRequestedAtKey)
             TunnelFileLogger.log("RealTrafficStallDetector: signalled main app via shared defaults", category: "real-stall")
+
+            // Wake the main app immediately if it is backgrounded (not suspended).
+            // Darwin notifications are delivered cross-process to any running process
+            // that registered an observer — this fires AppState.handleExtensionStallSignalIfAny()
+            // without requiring a scene-phase change.
+            CFNotificationCenterPostNotification(
+                CFNotificationCenterGetDarwinNotifyCenter(),
+                CFNotificationName(AppConstants.tunnelStallDarwinNotification as CFString),
+                nil, nil, true
+            )
+
+            // For the suspended-app case: show a silent local notification so the
+            // user sees a banner and can tap to open the app, which triggers
+            // the fallback immediately on foreground.
+            let content = UNMutableNotificationContent()
+            content.title = "MadFrog VPN"
+            content.body = "Переключаемся на резервный сервер…"
+            content.sound = .none
+            content.interruptionLevel = .passive
+            let request = UNNotificationRequest(
+                identifier: AppConstants.tunnelStallNotificationID,
+                content: content,
+                trigger: nil
+            )
+            UNUserNotificationCenter.current().removeDeliveredNotifications(
+                withIdentifiers: [AppConstants.tunnelStallNotificationID]
+            )
+            UNUserNotificationCenter.current().add(request)
         })
         realStallDetector = detector
         platformInterface?.realStallDetector = detector
