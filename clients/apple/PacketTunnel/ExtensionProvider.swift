@@ -337,18 +337,14 @@ open class ExtensionProvider: NEPacketTunnelProvider {
         setupOptions.basePath = AppConstants.sharedContainerURL.path
         setupOptions.workingPath = AppConstants.workingDirectory.path
         setupOptions.tempPath = AppConstants.tempDirectory.path
-        // libbox debug=true emits per-packet TRACE lines (XtlsPadding/Unpadding/
-        // XtlsRead, ~50 per second). The strings are buffered in memory before
-        // hitting writeDebugMessage. Combined with the singbox config log
-        // level, this pushed the PacketTunnel extension over the iOS ~50MB
-        // budget and triggered oom-killer service to reset the network every
-        // few hundred ms — manifested as "Germany selected, NL exit IP" and
-        // "pages don't load on LTE". Production builds stay at INFO.
-        #if DEBUG
+        // Build-48: always enable libbox debug log forwarding so
+        // RealTrafficStallDetector receives ERROR-level dial-timeout lines
+        // in production builds. Earlier builds set debug=false in Release
+        // which caused writeDebugMessage to never fire (0 sing-box log lines
+        // in TestFlight), making the stall detector completely blind.
+        // logMaxLines=500 caps the Go-side ring buffer so memory stays
+        // bounded even at ~30 lines/sec with sing-box config level="info".
         setupOptions.debug = true
-        #else
-        setupOptions.debug = false
-        #endif
         setupOptions.logMaxLines = 500
         TunnelFileLogger.log("Paths — base: \(setupOptions.basePath), work: \(setupOptions.workingPath)")
 
