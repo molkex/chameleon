@@ -16,7 +16,12 @@ import OSLog
 /// before startOrReloadService even begins.
 enum TunnelFileLogger {
     static let fileName = "tunnel-debug.log"
-    static let maxFileSize = 512 * 1024 // 512 KB — auto-truncate
+    // Build-43: bumped 512 KB → 2 MB. Sing-box at default verbosity emits
+    // ~5 MB of logs in 5 minutes on busy LTE traffic; the old 512 KB cap
+    // truncated the start of the session including TunnelStallProbe boot
+    // events and the first 2-3 probe ticks, making it impossible to
+    // diagnose stall-detection behaviour from a field-test log.
+    static let maxFileSize = 2 * 1024 * 1024 // 2 MB — auto-truncate
 
     /// Primary write path: App Group container root. Confirmed writable
     /// across iOS versions including 26.x (extension reports debugLogSize

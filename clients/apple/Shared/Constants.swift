@@ -115,6 +115,13 @@ enum AppConstants {
     // Authenticated config endpoint
     static let mobileConfigURL = baseURL + "/api/v1/mobile/config"
 
+    // Tunnel health probe endpoint — public, no auth, returns a 32 KB
+    // body. Sized to actually traverse RU LTE bulk-traffic throttles
+    // (small probes pass even when bulk is throttled) so the iOS
+    // TunnelStallProbe can detect "handshake-OK-but-throttled" paths
+    // that sing-box's HEAD-based urltest probe cannot see on its own.
+    static let mobileHealthcheckURL = baseURL + "/api/v1/mobile/healthcheck"
+
     // Auto-recover from server failures (TrafficHealthMonitor).
     // Default ON. User can disable from Settings → Diagnostics.
     static let autoRecoverEnabledKey = "autoRecoverEnabled"

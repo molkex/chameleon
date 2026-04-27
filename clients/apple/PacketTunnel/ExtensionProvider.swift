@@ -18,7 +18,17 @@ open class ExtensionProvider: NEPacketTunnelProvider {
     /// Build-39 stall detector. Lives only while sing-box is running.
     /// Catches the dead-leaf scenario the main-app TrafficHealthMonitor
     /// can't reach when the user is in Safari and MadFrog is suspended.
+    /// Build-44: kept as a passive diagnostic only — `RealTrafficStallDetector`
+    /// below is the new authoritative source for stall signals because
+    /// synthetic probes (which is what TunnelStallProbe does) gave
+    /// false-OK readings while real user traffic was timing out.
     private var stallProbe: TunnelStallProbe?
+
+    /// Build-44 real-traffic stall detector. Subscribes to every
+    /// sing-box log line via `ExtensionPlatformInterface.writeLogs`,
+    /// counts dial timeouts in a 30 s sliding window, fires STALL when
+    /// the formula matches against actual user-traffic outcomes.
+    private var realStallDetector: RealTrafficStallDetector?
 
     private var sharedDefaults: UserDefaults? {
         UserDefaults(suiteName: AppConstants.appGroupID)
@@ -216,6 +226,28 @@ open class ExtensionProvider: NEPacketTunnelProvider {
 
     private func startStallProbe() {
         guard stallProbe == nil else { return }
+
+        // Build-44: real-traffic detector takes authority for fallback
+        // signals. The synthetic probe stays only as an idle health
+        // ping with `onStall` set to no-op (its FAIL counter still logs
+        // for diagnostics, but it does NOT cross-process-signal the
+        // main app on its own — only RealTrafficStallDetector does).
+        let detector = RealTrafficStallDetector(onStall: { [weak self] now in
+            guard let self else { return }
+            // Same fallback contract as the old synthetic probe used:
+            // 1. Cross-process flag → main app picks it up on next
+            //    foreground or own probe tick → AppState calls
+            //    performFallbackForCurrentLeg() to pin a different leaf
+            //    via Clash API.
+            // 2. Best-effort: nudge sing-box urltest groups to re-probe
+            //    NOW. Keeps the same signal surface as build 39-43.
+            self.sharedDefaults?.set(now.timeIntervalSince1970,
+                                     forKey: AppConstants.tunnelStallRequestedAtKey)
+            TunnelFileLogger.log("RealTrafficStallDetector: signalled main app via shared defaults", category: "real-stall")
+        })
+        realStallDetector = detector
+        platformInterface?.realStallDetector = detector
+
         let probe = TunnelStallProbe()
         stallProbe = probe
         probe.start()
@@ -224,6 +256,8 @@ open class ExtensionProvider: NEPacketTunnelProvider {
     private func stopStallProbe() {
         stallProbe?.stop()
         stallProbe = nil
+        platformInterface?.realStallDetector = nil
+        realStallDetector = nil
     }
 
     override open func handleAppMessage(_ messageData: Data,

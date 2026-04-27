@@ -147,6 +147,16 @@ struct MainView: View {
         let cfgHash: String = {
             guard let config = app.configStore.loadConfig(),
                   let data = config.data(using: .utf8) else { return "?" }
+            // Prefer the human-readable `_marker` field that the backend
+            // stamps on every generated config (e.g. "40.2-chain-fix"). The
+            // backend bumps this constant on any behavioural change to
+            // clientconfig.go, so the user can tell at a glance which
+            // version they have. Fall back to a 32-bit FNV-1a digest only
+            // if the marker is missing (older configs / non-MadFrog JSON).
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let marker = json["_marker"] as? String, !marker.isEmpty {
+                return marker
+            }
             var hash: UInt64 = 14695981039346656037
             for byte in data {
                 hash ^= UInt64(byte)

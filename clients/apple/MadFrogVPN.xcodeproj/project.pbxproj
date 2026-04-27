@@ -74,6 +74,7 @@
 		5CD7449941DEE7DDF53F8C06 /* PlatformDevice.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C61B1AA0AC6A405D189C34B /* PlatformDevice.swift */; };
 		5E6D263F0FF461BEFA5FECE7 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6378A272B7EFCCF1FBCDFBFE /* KeychainHelper.swift */; };
 		62946247597840D24A0C03C3 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31BA223EF19A5BDE5145B520 /* Logger.swift */; };
+		62994815B126F13D48820ECE /* RealTrafficStallDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC879DEDEBE9302A8936940 /* RealTrafficStallDetector.swift */; };
 		6796802AABB7434354F3280B /* LeafRankingStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD40F85317EC15AD9DC28123 /* LeafRankingStoreTests.swift */; };
 		6A8DE20C7A5B339770CC4E77 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0CB7FDF9EA71B70EF8E2BB5 /* MainView.swift */; };
 		6B44D4AE2C892A6DB3116CF4 /* L10n.swift in Sources */ = {isa = PBXBuildFile; fileRef = F48680996CDA6DA1906F2747 /* L10n.swift */; };
@@ -179,6 +180,7 @@
 		DE6A3A0722A49FA8B22297D0 /* NetworkExtension.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 21AE788D6595D4029A9B4AD5 /* NetworkExtension.framework */; };
 		DE887C6682FB3DEA7FE8E77F /* SingBoxConfigPatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BFE7E8B5C268A8B4E1F44C8 /* SingBoxConfigPatcher.swift */; };
 		DE990DCFB1EDE9CF6D509867 /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B28AD4A0F0B61B1CCA267A /* ThemeManager.swift */; };
+		DF38699B83BD4DA7C37DCAF1 /* RealTrafficStallDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC879DEDEBE9302A8936940 /* RealTrafficStallDetector.swift */; };
 		DF6547B5F8BC8B36193C0B3C /* LastWorkingLegStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDCBB9F4E8DCDA4AC3C58517 /* LastWorkingLegStore.swift */; };
 		E192518FF4AAD355DE6154DA /* L10n.swift in Sources */ = {isa = PBXBuildFile; fileRef = F48680996CDA6DA1906F2747 /* L10n.swift */; };
 		E1C7677A6E0BD00FC7138CFC /* CommandClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E4759379DDD3262CA6B47A9 /* CommandClient.swift */; };
@@ -353,6 +355,7 @@
 		E8EF3541F56531E6A2C1EA76 /* MenuBarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarContent.swift; sourceTree = "<group>"; };
 		E95E9718D8CE81EE4E41BE02 /* MainViewCalm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewCalm.swift; sourceTree = "<group>"; };
 		E9C795586D98E530507B81D4 /* ru */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ru; path = ru.lproj/Localizable.strings; sourceTree = "<group>"; };
+		EAC879DEDEBE9302A8936940 /* RealTrafficStallDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealTrafficStallDetector.swift; sourceTree = "<group>"; };
 		F0CB7FDF9EA71B70EF8E2BB5 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
 		F48680996CDA6DA1906F2747 /* L10n.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = L10n.swift; sourceTree = "<group>"; };
 		F4EBA8BF2FC663C0650E1255 /* AccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountView.swift; sourceTree = "<group>"; };
@@ -492,6 +495,7 @@
 				2C2574959FF261C13D150E6D /* PacketTunnel.entitlements */,
 				3C3AA0F75FD43492C173B8C4 /* PacketTunnelProvider.swift */,
 				52F25CA4945E63F7C3CB0355 /* PrivacyInfo.xcprivacy */,
+				EAC879DEDEBE9302A8936940 /* RealTrafficStallDetector.swift */,
 				3B77B8C83804315DF2505934 /* TunnelStallProbe.swift */,
 			);
 			path = PacketTunnel;
@@ -898,6 +902,7 @@
 				74B8FB1F0BBCA68D8ECE3F26 /* PacketTunnelProvider.swift in Sources */,
 				C169E2181C04C0F144D8DAA7 /* PlatformDevice.swift in Sources */,
 				030161ACB3667CD2C0B7B723 /* PlatformViewExtensions.swift in Sources */,
+				DF38699B83BD4DA7C37DCAF1 /* RealTrafficStallDetector.swift in Sources */,
 				3AF0A8290A7215D2EF09A649 /* RoutingMode.swift in Sources */,
 				EFCA4C93C13AB9439614EF54 /* RunBlocking.swift in Sources */,
 				DE887C6682FB3DEA7FE8E77F /* SingBoxConfigPatcher.swift in Sources */,
@@ -1001,6 +1006,7 @@
 				0EBA362331D54BBEFC487615 /* PacketTunnelProvider.swift in Sources */,
 				E954C11C4185740C1077192E /* PlatformDevice.swift in Sources */,
 				AF2008FBFCD6A201C00555AB /* PlatformViewExtensions.swift in Sources */,
+				62994815B126F13D48820ECE /* RealTrafficStallDetector.swift in Sources */,
 				83A8F949616EDA373081F7BC /* RoutingMode.swift in Sources */,
 				7E28503788E8E5595446762E /* RunBlocking.swift in Sources */,
 				8707A01FC388AEEF2BBB77E8 /* SingBoxConfigPatcher.swift in Sources */,
@@ -1248,7 +1254,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 40;
+				CURRENT_PROJECT_VERSION = 45;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = 99W3C374T2;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -1325,7 +1331,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 40;
+				CURRENT_PROJECT_VERSION = 45;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = 99W3C374T2;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;

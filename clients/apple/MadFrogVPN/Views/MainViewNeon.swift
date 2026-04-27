@@ -385,6 +385,7 @@ struct MainViewNeon: View {
 
     private var ctaButtonColor: Color {
         switch connState {
+        case .connected:     return theme.danger
         case .disconnecting: return theme.textSecondary
         default:             return theme.accent
         }

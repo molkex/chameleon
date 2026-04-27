@@ -216,8 +216,8 @@ func TestUrltestGroupsHaveProbeURL(t *testing.T) {
 }
 
 // TestUrltestGroupsRecoverFast asserts the build-39+40 fast-recovery values:
-// interval=10s, tolerance=0, AND interrupt_exist_connections=true on every
-// urltest group.
+// interval=10s, tolerance=0, AND interrupt_exist_connections=true on the
+// LEAF-level urltest groups (Auto + per-country inner _<cc>_leaves).
 //
 // interval/tolerance: old defaults (5m / 50ms) left users on a dead leaf for
 // up to 5 minutes when RKN started throttling DE direct post-handshake on RU
@@ -232,9 +232,14 @@ func TestUrltestGroupsHaveProbeURL(t *testing.T) {
 // User-visible: pages stuck for 1m+, "open new tab" required to recover.
 // Field log 2026-04-26 confirmed 1m23s/1m24s/1m41s stuck connections to
 // dead 162.19.242.30 after urltest had already switched to de-via-msk.
+//
+// Build-41 split: outer country groups (🇩🇪 Германия / 🇳🇱 Нидерланды) now
+// use different parameters (interval=15s, tolerance=65000) — see
+// TestCountryGroupsHaveCrossCountryFallback. The leaf-level fast-recovery
+// rules tested here apply to Auto and the inner _<cc>_leaves groups.
 func TestUrltestGroupsRecoverFast(t *testing.T) {
 	cfg := parseGenerated(t)
-	for _, tag := range []string{"Auto", "🇩🇪 Германия", "🇳🇱 Нидерланды"} {
+	for _, tag := range []string{"Auto", "_de_leaves", "_nl_leaves"} {
 		g := outboundByTag(cfg, tag)
 		if g == nil {
 			t.Errorf("urltest group %q not emitted", tag)
@@ -260,6 +265,103 @@ func TestUrltestGroupsRecoverFast(t *testing.T) {
 		b, _ := iec.(bool)
 		if !b {
 			t.Errorf("group %q interrupt_exist_connections=%v, want true (build 40)", tag, b)
+		}
+	}
+}
+
+// TestCountryGroupsHaveCrossCountryFallback asserts the build-41 nested-urltest
+// architecture: the user-visible country group "🇩🇪 Германия" is itself a
+// urltest whose members are the per-country inner urltests, with own-country
+// first and other countries listed as fallback. The outer tolerance is high
+// (65000) so the urltest sticks to the user's chosen country and only
+// switches when that country's inner group returns "no member available" —
+// e.g. RU LTE + OVH ASN block where all 4 DE leaves time out simultaneously
+// (field log 2026-04-26 23:58 confirmed 4/4 DE leaves dead, only de-via-msk
+// crawling at 4500ms probe). With tolerance=65000, switching to the NL
+// inner is triggered ONLY by full-DE-failure, never by latency drift.
+func TestCountryGroupsHaveCrossCountryFallback(t *testing.T) {
+	cfg := parseGenerated(t)
+
+	// Inner per-country urltest groups must exist with `_<cc>_leaves` tag
+	// (the leading underscore lets iOS UI filter them from the picker).
+	for _, innerTag := range []string{"_de_leaves", "_nl_leaves"} {
+		g := outboundByTag(cfg, innerTag)
+		if g == nil {
+			t.Errorf("inner urltest %q not emitted", innerTag)
+			continue
+		}
+		if g["type"] != "urltest" {
+			t.Errorf("inner %q type=%v, want urltest", innerTag, g["type"])
+		}
+	}
+
+	// Outer "🇩🇪 Германия": members must be [_de_leaves, _nl_leaves] in that
+	// order — own country first, others as fallback in alpha order.
+	deOuter := outboundByTag(cfg, "🇩🇪 Германия")
+	if deOuter == nil {
+		t.Fatal("outer country group 🇩🇪 Германия not emitted")
+	}
+	if deOuter["type"] != "urltest" {
+		t.Errorf("🇩🇪 Германия type=%v, want urltest", deOuter["type"])
+	}
+	deMembers := outboundMembers(cfg, "🇩🇪 Германия")
+	wantDE := []string{"_de_leaves", "_nl_leaves"}
+	if !slices.Equal(deMembers, wantDE) {
+		t.Errorf("🇩🇪 Германия members=%v, want %v (own country first, others as fallback)", deMembers, wantDE)
+	}
+	if iv, _ := deOuter["interval"].(string); iv != "15s" {
+		t.Errorf("🇩🇪 Германия interval=%q, want 15s (build-41 outer)", iv)
+	}
+	if tol, _ := deOuter["tolerance"].(float64); tol != 65000 {
+		t.Errorf("🇩🇪 Германия tolerance=%v, want 65000 (sticky country pin)", tol)
+	}
+	if iec, _ := deOuter["interrupt_exist_connections"].(bool); !iec {
+		t.Errorf("🇩🇪 Германия missing interrupt_exist_connections=true (build 40 chain rule)")
+	}
+
+	// Outer "🇳🇱 Нидерланды": members must be [_nl_leaves, _de_leaves] —
+	// NL first because it's own country.
+	nlOuter := outboundByTag(cfg, "🇳🇱 Нидерланды")
+	if nlOuter == nil {
+		t.Fatal("outer country group 🇳🇱 Нидерланды not emitted")
+	}
+	nlMembers := outboundMembers(cfg, "🇳🇱 Нидерланды")
+	wantNL := []string{"_nl_leaves", "_de_leaves"}
+	if !slices.Equal(nlMembers, wantNL) {
+		t.Errorf("🇳🇱 Нидерланды members=%v, want %v (own country first, others as fallback)", nlMembers, wantNL)
+	}
+	if iv, _ := nlOuter["interval"].(string); iv != "15s" {
+		t.Errorf("🇳🇱 Нидерланды interval=%q, want 15s (build-41 outer)", iv)
+	}
+	if tol, _ := nlOuter["tolerance"].(float64); tol != 65000 {
+		t.Errorf("🇳🇱 Нидерланды tolerance=%v, want 65000 (sticky country pin)", tol)
+	}
+	if iec, _ := nlOuter["interrupt_exist_connections"].(bool); !iec {
+		t.Errorf("🇳🇱 Нидерланды missing interrupt_exist_connections=true (build 40 chain rule)")
+	}
+
+	// Inner _de_leaves must contain all DE leaves (direct + via + h2 + tuic),
+	// none from other countries. Same shape for _nl_leaves.
+	deInner := outboundMembers(cfg, "_de_leaves")
+	for _, want := range []string{"de-direct-de", "de-h2-de", "de-tuic-de", "de-via-msk"} {
+		if !slices.Contains(deInner, want) {
+			t.Errorf("_de_leaves missing %q; got %v", want, deInner)
+		}
+	}
+	for _, leaf := range deInner {
+		if !startsWith(leaf, "de-") {
+			t.Errorf("_de_leaves contains non-DE leaf %q", leaf)
+		}
+	}
+	nlInner := outboundMembers(cfg, "_nl_leaves")
+	for _, want := range []string{"nl-direct-nl2", "nl-h2-nl2", "nl-tuic-nl2", "nl-via-msk"} {
+		if !slices.Contains(nlInner, want) {
+			t.Errorf("_nl_leaves missing %q; got %v", want, nlInner)
+		}
+	}
+	for _, leaf := range nlInner {
+		if !startsWith(leaf, "nl-") {
+			t.Errorf("_nl_leaves contains non-NL leaf %q", leaf)
 		}
 	}
 }

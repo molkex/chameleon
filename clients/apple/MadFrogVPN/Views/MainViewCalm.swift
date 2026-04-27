@@ -180,7 +180,7 @@ struct MainViewCalm: View {
                             } else {
                                 Image(systemName: powerIcon)
                                     .font(.system(size: 28, weight: .heavy))
-                                    .foregroundStyle(heroCardColor)
+                                    .foregroundStyle(connState.isProtected ? heroCardColor : .white)
                             }
                         }
                     }

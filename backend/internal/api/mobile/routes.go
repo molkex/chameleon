@@ -67,6 +67,11 @@ func RegisterRoutes(g *echo.Group, h *Handler) {
 	// Paywall catalog — no auth, so the paywall can render before sign-in.
 	g.GET("/plans", h.GetPlans)
 
+	// Tunnel health probe — no auth, returns a 32 KB body so the iOS
+	// TunnelStallProbe can detect RU LTE bulk-traffic throttling that
+	// passes small probes (gstatic 204) but stalls real flows.
+	g.GET("/healthcheck", h.Healthcheck)
+
 	// Payment flow — auth required; the user id is pulled from JWT.
 	payGroup := g.Group("/payment", requireAuth)
 	payGroup.POST("/initiate", h.InitiatePayment)

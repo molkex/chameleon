@@ -7,6 +7,13 @@ import Libbox
 /// Bridges sing-box Go engine ↔ iOS NetworkExtension.
 /// Based on SFI (sing-box-for-apple) reference implementation.
 final class ExtensionPlatformInterface: NSObject, @unchecked Sendable {
+
+    /// Build-44: real-traffic stall detector receives every sing-box
+    /// log line via `writeLogs` below. Set by `ExtensionProvider`
+    /// when the tunnel starts; cleared on stop. Optional because the
+    /// detector only exists while sing-box is alive — no point
+    /// retaining 30 s of stale events across reconnects.
+    weak var realStallDetector: RealTrafficStallDetector?
     weak var tunnel: NEPacketTunnelProvider?
     private var pathMonitor: NWPathMonitor?
     private var interfaceListener: LibboxInterfaceUpdateListenerProtocol?
@@ -339,6 +346,11 @@ extension ExtensionPlatformInterface: LibboxCommandServerHandlerProtocol {
                 default: levelStr = "L\(entry.level)"
                 }
                 TunnelFileLogger.log("[\(levelStr)] \(entry.message)", category: "singbox")
+                // Build-44: feed every sing-box log line to the stall
+                // detector. The detector itself fast-paths non-dial
+                // events (substring check before regex), so the cost
+                // of every-line ingestion is negligible.
+                realStallDetector?.ingest(level: entry.level, message: entry.message)
             }
         }
     }
@@ -346,6 +358,7 @@ extension ExtensionPlatformInterface: LibboxCommandServerHandlerProtocol {
     func writeMessage(_ level: Int32, message: String?) {
         guard let message else { return }
         TunnelFileLogger.log("[L\(level)] \(message)", category: "singbox")
+        realStallDetector?.ingest(level: level, message: message)
     }
 
     func writeDebugMessage(_ message: String?) {
@@ -355,6 +368,10 @@ extension ExtensionPlatformInterface: LibboxCommandServerHandlerProtocol {
         // serial queue so concurrent emissions don't interleave (which used
         // to corrupt singbox.log because FileHandle has no internal locking).
         TunnelFileLogger.log(message, category: "singbox")
+        // Build-44: most singbox dial-event lines arrive here (stderr-formatted
+        // INFO/DEBUG/ERROR strings), so feed the detector here too. Detector's
+        // fast-path filter ignores anything that's not a dial pattern.
+        realStallDetector?.ingest(level: 2, message: message)
         Self.singboxLogQueue.async {
             let logURL = AppConstants.sharedContainerURL.appendingPathComponent("singbox.log")
             let line = "\(message)\n"
