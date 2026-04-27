@@ -244,6 +244,12 @@ final class TunnelStallProbe {
         nudgeUrltestGroups()
     }
 
+    /// Build-49: called by RealTrafficStallDetector's onStall so the extension
+    /// can switch outbounds without waiting for the suspended main app.
+    func nudgeNow() {
+        nudgeUrltestGroups()
+    }
+
     /// Force sing-box to re-probe every urltest group immediately. Best
     /// effort: failures are logged but don't block the fallback flag.
     /// Implementation intentionally creates a short-lived CommandClient

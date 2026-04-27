@@ -239,19 +239,23 @@ open class ExtensionProvider: NEPacketTunnelProvider {
                                      forKey: AppConstants.tunnelStallRequestedAtKey)
             TunnelFileLogger.log("RealTrafficStallDetector: signalled main app via shared defaults", category: "real-stall")
 
-            // Wake the main app immediately if it is backgrounded (not suspended).
-            // Darwin notifications are delivered cross-process to any running process
-            // that registered an observer — this fires AppState.handleExtensionStallSignalIfAny()
-            // without requiring a scene-phase change.
+            // Build-49: force sing-box to re-probe all urltest groups RIGHT NOW
+            // from inside the extension — don't wait for the suspended main app.
+            // After re-probe OVH shows timeout, NL wins; interrupt_exist_connections
+            // kills stalled streams and they reconnect through NL automatically.
+            // This recovers traffic without any user action.
+            self.stallProbe?.nudgeNow()
+
+            // Also wake the main app if it is backgrounded (not suspended) so
+            // AppState.handleExtensionStallSignalIfAny() can update UI and persist
+            // the new server selection.
             CFNotificationCenterPostNotification(
                 CFNotificationCenterGetDarwinNotifyCenter(),
                 CFNotificationName(AppConstants.tunnelStallDarwinNotification as CFString),
                 nil, nil, true
             )
 
-            // For the suspended-app case: show a silent local notification so the
-            // user sees a banner and can tap to open the app, which triggers
-            // the fallback immediately on foreground.
+            // For the suspended-app case: passive banner so user can tap to open.
             let content = UNMutableNotificationContent()
             content.title = "MadFrog VPN"
             content.body = "Переключаемся на резервный сервер…"
