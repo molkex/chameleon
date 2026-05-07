@@ -86,6 +86,7 @@ rsync -avz --delete \
     --exclude='backend/config.yaml' \
     --exclude='node_modules' \
     --exclude='target' \
+    --exclude='ss-ws' \
     -e ssh \
     "${PROJECT_DIR}/" \
     "${NODE_SSH}:${NODE_DIR}/"
