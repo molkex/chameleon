@@ -16,11 +16,56 @@ import (
 
 // productDays maps Apple productIds to the number of VPN days to credit.
 // These strings MUST match the product ids created in App Store Connect.
+//
+// Auto-renewing products (`com.madfrog.vpn.sub.{month,3month,6month,year}`)
+// and legacy non-renewing products (`*.{30,90,180,365}days`) coexist during
+// the migration window — the non-renewing ids remain here so Restore
+// Purchases keeps working for users who already bought them. Cleanup after
+// all 365-day legacy purchases expire (≈ 2027-05).
 var productDays = map[string]int{
+	// Auto-renewing (current — used by build 54+)
+	"com.madfrog.vpn.sub.month":   30,
+	"com.madfrog.vpn.sub.3month":  90,
+	"com.madfrog.vpn.sub.6month":  180,
+	"com.madfrog.vpn.sub.year":    365,
+	// Legacy non-renewing (kept for Restore Purchases / in-flight buyers)
 	"com.madfrog.vpn.sub.30days":  30,
 	"com.madfrog.vpn.sub.90days":  90,
 	"com.madfrog.vpn.sub.180days": 180,
 	"com.madfrog.vpn.sub.365days": 365,
+}
+
+// autoRenewingProducts marks the products that share an originalTransactionId
+// across every renewal. For those, `payments.charge_id` MUST use the per-event
+// transactionId — otherwise renewal #2+ collides on UNIQUE(source, charge_id)
+// in CreditDays, the credit silently no-ops, and ReconcileFromLedger caps
+// subscription_expiry at the original purchase date instead of extending it.
+//
+// Non-renewing products always have a fresh originalTransactionId per
+// purchase, so for them we keep using originalTransactionId as charge_id
+// (the existing idempotency story works as-is).
+var autoRenewingProducts = map[string]bool{
+	"com.madfrog.vpn.sub.month":  true,
+	"com.madfrog.vpn.sub.3month": true,
+	"com.madfrog.vpn.sub.6month": true,
+	"com.madfrog.vpn.sub.year":   true,
+}
+
+// isAutoRenewing reports whether productID is one of our auto-renewing
+// subscription products. Used to pick the right charge_id strategy.
+func isAutoRenewing(productID string) bool {
+	return autoRenewingProducts[productID]
+}
+
+// appleChargeID picks the correct payments.charge_id for a verified Apple
+// transaction. For auto-renewing products that's the per-event transactionId
+// (so each renewal is a distinct row in the ledger). For everything else
+// it's the stable originalTransactionId.
+func appleChargeID(tx *apple.Transaction) string {
+	if isAutoRenewing(tx.ProductID) && tx.TransactionID != "" {
+		return tx.TransactionID
+	}
+	return tx.OriginalTransactionID
 }
 
 // ProductDays returns a copy of the Apple productId → days mapping. Exposed
@@ -113,10 +158,12 @@ func (h *Handler) VerifySubscription(c echo.Context) error {
 
 	ctx := c.Request().Context()
 
-	// charge_id is the stable originalTransactionId — the same across renewals.
-	// For renewals the iOS client hits ASN v2 webhook (Phase 1b); this endpoint
-	// is primarily for the initial purchase + Restore Purchases flow.
-	chargeID := tx.OriginalTransactionID
+	// charge_id strategy depends on product type:
+	//   - non-renewing: originalTransactionId (stable, one per purchase)
+	//   - auto-renewing: transactionId (per-event, so renewals don't collide
+	//     on UNIQUE(source, charge_id) and silently no-op).
+	// See appleChargeID() and autoRenewingProducts above.
+	chargeID := appleChargeID(tx)
 
 	amountMinor := int64(0) // StoreKit JWS does not expose localized price here; fill from ASC if needed later
 	currency := ""

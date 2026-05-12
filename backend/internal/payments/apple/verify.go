@@ -42,8 +42,8 @@ type Config struct {
 // Transaction is the minimal, verified subset of a StoreKit 2 JWS transaction
 // that the rest of the backend needs to credit a subscription.
 type Transaction struct {
-	TransactionID         string
-	OriginalTransactionID string // stable id across renewals — use as payments.charge_id
+	TransactionID         string // per-event id; use as payments.charge_id for auto-renewing
+	OriginalTransactionID string // stable across renewals; use as charge_id for non-renewing
 	ProductID             string
 	BundleID              string
 	Environment           Environment

@@ -127,10 +127,14 @@ func (h *Handler) creditFromNotification(ctx context.Context, tx *apple.Transact
 		return nil
 	}
 
+	// Use the per-event transactionId for auto-renewing products so that
+	// each renewal is a distinct ledger row. originalTransactionId is the
+	// same across renewals and would silently collide on UNIQUE(source,
+	// charge_id). See appleChargeID() in subscription.go.
 	_, err = h.Payments.CreditDays(ctx, payments.Credit{
 		UserID:   user.ID,
 		Source:   payments.SourceAppleIAP,
-		ChargeID: tx.OriginalTransactionID,
+		ChargeID: appleChargeID(tx),
 		Days:     tx.Days,
 	})
 	return err
