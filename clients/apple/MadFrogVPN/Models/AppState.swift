@@ -692,15 +692,53 @@ class AppState {
             configStore.accessToken = result.accessToken
             configStore.refreshToken = result.refreshToken
             configStore.username = result.username
-            try await fetchAndSaveConfig()
-            subscriptionExpire = configStore.subscriptionExpire
+            // /config 403 on a returning user whose trial has lapsed must NOT
+            // be a hard failure — auth itself succeeded. Treat it as "signed
+            // in, no active subscription" so the user lands inside the app
+            // and can purchase / restore from the paywall instead of seeing
+            // "Sign in failed" with no recourse. App Review build 52 hit
+            // exactly this path on May 12 2026.
+            do {
+                try await fetchAndSaveConfig()
+                subscriptionExpire = configStore.subscriptionExpire
+            } catch APIError.serverError(403) {
+                AppLogger.app.info("signInWithApple: /config 403 — no active subscription, completing sign-in")
+                TunnelFileLogger.log("signInWithApple: /config 403 (no active sub), proceeding", category: "auth")
+                subscriptionExpire = nil
+            }
             UserDefaults(suiteName: AppConstants.appGroupID)?.set(true, forKey: AppConstants.onboardingCompletedKey)
             isAuthenticated = true
             TunnelFileLogger.log("signInWithApple: SUCCESS", category: "auth")
+        } catch let apiErr as APIError {
+            AppLogger.app.error("signInWithApple: APIError \(String(describing: apiErr), privacy: .public)")
+            TunnelFileLogger.log("signInWithApple: FAILED APIError \(String(describing: apiErr))", category: "auth")
+            errorMessage = signInFailureMessage(for: apiErr)
+        } catch let decodingErr as DecodingError {
+            AppLogger.app.error("signInWithApple: decode error \(String(describing: decodingErr), privacy: .public)")
+            TunnelFileLogger.log("signInWithApple: FAILED decode \(String(describing: decodingErr))", category: "auth")
+            errorMessage = String(localized: "onboarding.signin_failed") + " (decode)"
         } catch {
             AppLogger.app.error("signInWithApple: failed: \(String(describing: error), privacy: .public)")
             TunnelFileLogger.log("signInWithApple: FAILED — \(String(describing: error))", category: "auth")
             errorMessage = String(localized: "onboarding.signin_failed")
+        }
+    }
+
+    /// Map APIError into a user-visible message that gives App Review (and
+    /// real users) enough context to know whether to retry or contact support.
+    private func signInFailureMessage(for err: APIError) -> String {
+        let base = String(localized: "onboarding.signin_failed")
+        switch err {
+        case .unauthorized:
+            return base + " (401)"
+        case .serverError(let code):
+            return base + " (\(code))"
+        case .networkError(let msg):
+            return base + " (network: \(msg))"
+        case .noConfig:
+            return base + " (no config)"
+        case .invalidCode:
+            return base + " (invalid code)"
         }
     }
 

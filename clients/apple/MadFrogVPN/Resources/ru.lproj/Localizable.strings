@@ -1,6 +1,6 @@
 /* ===== Главный экран ===== */
 "home.status.protected"          = "Защищены";
-"home.status.exposed"            = "Не защищены";
+"home.status.exposed"            = "Отключены";
 "home.status.connecting"         = "Подключение…";
 "home.status.reconnecting"       = "Переподключение…";
 "home.status.disconnecting"      = "Отключение…";
@@ -30,7 +30,7 @@
 
 "home.neon.you_are"              = "ВЫ";
 "home.neon.protected"            = "ЗАЩИЩЕНЫ";
-"home.neon.exposed"              = "В ОПАСНОСТИ";
+"home.neon.exposed"              = "ОТКЛЮЧЕНЫ";
 "home.neon.connecting"           = "ПОДКЛЮЧАЕМ";
 "home.neon.reconnecting"         = "ВОЗВРАЩАЕМ";
 "home.neon.stopping"             = "ОСТАНАВЛИВАЕМ";
@@ -63,13 +63,14 @@
 
 /* ===== Онбординг ===== */
 "onboarding.title"               = "MadFrog VPN";
-"onboarding.subtitle"            = "Приватно. Быстро. Без блокировок.";
+"onboarding.subtitle"            = "Приватно. Быстро. Безопасно.";
 "onboarding.feature.trial"       = "3 дня бесплатно";
 "onboarding.feature.no_logs"     = "Не храним логи";
 "onboarding.feature.servers"     = "Быстрые надёжные серверы";
 "onboarding.signin_failed"       = "Не удалось войти. Попробуйте ещё раз.";
 "onboarding.anon_failed"         = "Не удалось начать пробный период. Проверьте подключение и повторите.";
 "onboarding.continue_no_account" = "Продолжить как гость";
+"onboarding.sign_in_with_apple"  = "Продолжить с Apple";
 "onboarding.sign_in_with_google" = "Войти через Google";
 "onboarding.sign_in_with_email"  = "Войти по email";
 "onboarding.or"                  = "или";
@@ -176,8 +177,8 @@
 "servers.country.other"          = "Другие";
 "servers.section.countries"      = "СТРАНЫ";
 "servers.section.direct"         = "Прямые подключения";
-"servers.section.bypass"         = "Обход блокировок";
-"servers.section.bypass_hint"    = "Подключение через российский сервер в зарубежные узлы — для обхода блокировок провайдеров.";
+"servers.section.bypass"         = "Альтернативные маршруты";
+"servers.section.bypass_hint"    = "Альтернативные маршруты для нестабильных сетей.";
 "servers.servers_in"             = "Серверы · %@";
 
 /* ===== Настройки ===== */
@@ -186,11 +187,11 @@
 "settings.section.routing"       = "Маршрутизация";
 "settings.routing_mode"          = "Режим";
 "settings.routing_mode.smart"          = "Умный";
-"settings.routing_mode.smart.hint"     = "Через VPN идут только заблокированные в РФ ресурсы (YouTube, Instagram и др.). Остальное — напрямую. Максимальная экономия трафика и защита от детекта VPN в банках/госуслугах.";
-"settings.routing_mode.ru_direct"      = "РФ напрямую";
-"settings.routing_mode.ru_direct.hint" = "Российские сайты идут напрямую, весь остальной мир — через VPN. Классический split tunneling.";
+"settings.routing_mode.smart.hint"     = "Через VPN идут только недоступные сайты. Остальное — напрямую. Максимальная экономия трафика.";
+"settings.routing_mode.ru_direct"      = "Сплит-туннель";
+"settings.routing_mode.ru_direct.hint" = "Локальные ресурсы — напрямую, остальные — через VPN. Классический split tunneling.";
 "settings.routing_mode.full_vpn"       = "Всё через VPN";
-"settings.routing_mode.full_vpn.hint"  = "Весь трафик идёт через VPN (кроме банков и госуслуг, они всегда напрямую). Для поездок и публичных Wi-Fi.";
+"settings.routing_mode.full_vpn.hint"  = "Весь трафик через VPN (кроме платёжных и официальных сервисов). Для поездок и публичных Wi-Fi.";
 "settings.section.account"       = "Аккаунт";
 "settings.section.about"         = "О программе";
 "settings.section.diagnostics"   = "Диагностика";
@@ -214,7 +215,7 @@
 "recovery.switched_leg"          = "%@: переключено на рабочий сервер";
 "recovery.switched_from_to"      = "%1$@ недоступна — переключено на %2$@";
 "recovery.switched_to"           = "Переключено на %@";
-"recovery.switched_to_bypass"    = "Прямые маршруты заблокированы — переключено на обход";
+"recovery.switched_to_bypass"    = "Маршрут изменён — используем альтернативный путь";
 "recovery.all_dead"              = "Сеть недоступна со всех серверов";
 
 /* ===== Аккаунт ===== */
@@ -265,7 +266,7 @@
 "country.russia"                 = "Россия";
 "country.other"                  = "Другие";
 "server.direct_connection"       = "Прямое подключение";
-"server.whitelist_bypass_subtitle" = "Обход белых списков РФ";
+"server.whitelist_bypass_subtitle" = "Обходной маршрут";
 "server.leaf.direct"             = "Напрямую";
 "server.leaf.via_fmt"            = "Через %@";
 

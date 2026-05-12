@@ -197,6 +197,27 @@ func (h *Handler) AppleSignIn(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
 	}
 
+	// Fall back to device_id — the user may have first tapped "Continue
+	// without account" on this device, creating a row with this device_id.
+	// We must reuse THAT row, otherwise createUser would collide on
+	// UNIQUE(device_id) against the guest user that already owns it.
+	if user == nil {
+		existingByDevice, err := h.DB.FindUserByDeviceID(ctx, req.DeviceID)
+		if err != nil {
+			h.Logger.Error("db: find user by device_id", zap.Error(err))
+			return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
+		}
+		if existingByDevice != nil {
+			// Promote the guest/anon user to a Sign-in-with-Apple identity by
+			// stamping apple_id on it. Treat as existing-user path below so
+			// IsActive / device_id / vpn-creds are reconciled properly.
+			existingByDevice.AppleID = &appleID
+			provider := "apple"
+			existingByDevice.AuthProvider = &provider
+			user = existingByDevice
+		}
+	}
+
 	isNew := false
 
 	if user == nil {
@@ -247,8 +268,41 @@ func (h *Handler) AppleSignIn(c echo.Context) error {
 			)
 		}
 		if user.DeviceID == nil || *user.DeviceID != req.DeviceID {
+			// Free up the new device_id if currently held by a different user
+			// (transient guest from this install). Without this, UPDATE
+			// collides on UNIQUE(device_id).
+			other, ferr := h.DB.FindUserByDeviceID(ctx, req.DeviceID)
+			if ferr != nil {
+				h.Logger.Error("apple: find conflicting device_id", zap.Error(ferr))
+				return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
+			}
+			if other != nil && other.ID != user.ID {
+				h.Logger.Info("apple: freeing device_id from conflicting user",
+					zap.Int64("conflicting_user_id", other.ID),
+					zap.Int64("claiming_user_id", user.ID))
+				if err := h.DB.ClearDeviceID(ctx, other.ID); err != nil {
+					h.Logger.Error("apple: clear conflicting device_id", zap.Error(err))
+					return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
+				}
+			}
 			user.DeviceID = &req.DeviceID
 			dirty = true
+		}
+		// Returning user with expired trial — extend by 3 days. Without this,
+		// /config returns 403 immediately after a successful sign-in, and the
+		// iOS app interprets the entire flow as failed. Users with an active
+		// IAP receipt are handled separately by StoreKit verification.
+		if user.SubscriptionExpiry == nil || user.SubscriptionExpiry.Before(time.Now()) {
+			trialDays := 3
+			if h.Config != nil && h.Config.Payments.Trial.Enabled && h.Config.Payments.Trial.Days > 0 {
+				trialDays = h.Config.Payments.Trial.Days
+			}
+			newExpiry := time.Now().Add(time.Duration(trialDays) * 24 * time.Hour)
+			user.SubscriptionExpiry = &newExpiry
+			dirty = true
+			h.Logger.Info("apple: extending expired trial on sign-in",
+				zap.Int64("user_id", user.ID),
+				zap.Time("new_expiry", newExpiry))
 		}
 		if dirty {
 			if err := h.DB.UpdateUser(ctx, user); err != nil {

@@ -57,16 +57,16 @@ struct OnboardingView: View {
 
                 Spacer(minLength: 24)
 
-                // Auth group: Apple + divider + chips read as one block
+                // Auth group: Apple + divider + chips read as one block.
+                // We use a styled Button (visually matching Apple's HIG) that
+                // routes through AppleAuthCoordinator, which uses UIKit-backed
+                // ASAuthorizationController with explicit presentation anchor.
+                // SwiftUI's SignInWithAppleButton has known anchor lookup
+                // failures on iPad in iPhone-compatibility mode (App Review
+                // saw "no action took place" on iPad Air M3, build 51).
                 VStack(spacing: 8) {
-                    SignInWithAppleButton(.continue) { request in
-                        isAuthInFlight = true
-                        hapticLight()
-                        request.requestedScopes = [.email]
-                    } onCompletion: { handleApple($0) }
-                        .signInWithAppleButtonStyle(.white)
+                    appleSignInButton
                         .frame(height: 52)
-                        .cornerRadius(14)
                         .disabled(app.isLoading || isAuthInFlight)
 
                     // "or" divider — text has solid bg so the line reads cleanly
@@ -254,25 +254,34 @@ struct OnboardingView: View {
         .disabled(app.isLoading || isAuthInFlight)
     }
 
-    // MARK: - Handlers
+    // MARK: - Apple sign-in button
 
-    private func handleApple(_ result: Result<ASAuthorization, Error>) {
-        switch result {
-        case .success(let auth):
-            guard let credential = auth.credential as? ASAuthorizationAppleIDCredential else {
-                isAuthInFlight = false
-                return
-            }
+    /// White, rounded "Continue with Apple" button styled per Apple HIG.
+    /// Tapping routes through AppleAuthCoordinator (UIKit-backed) which
+    /// presents the system auth sheet with an explicit anchor — required
+    /// for reliability on iPad in iPhone-compatibility mode.
+    private var appleSignInButton: some View {
+        Button {
+            guard !isAuthInFlight else { return }
+            isAuthInFlight = true
+            hapticLight()
             Task {
-                await app.signInWithApple(credential: credential)
+                await AppleAuthCoordinator.signIn(into: app)
                 isAuthInFlight = false
             }
-        case .failure(let error):
-            isAuthInFlight = false
-            if (error as NSError).code != ASAuthorizationError.canceled.rawValue {
-                app.errorMessage = String(localized: "onboarding.signin_failed")
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "applelogo")
+                    .font(.system(size: 18, weight: .medium))
+                Text(L10n.Onboarding.signInWithApple)
+                    .font(.system(size: 17, weight: .semibold))
             }
+            .foregroundStyle(Color.black)
+            .frame(maxWidth: .infinity)
+            .frame(height: 52)
+            .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
+        .buttonStyle(.plain)
     }
 
     private var termsButton: some View {

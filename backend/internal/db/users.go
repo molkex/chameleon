@@ -272,6 +272,19 @@ func (db *DB) SetUserEmail(ctx context.Context, id int64, email string) error {
 	return nil
 }
 
+// ClearDeviceID nulls out the device_id for the given user. Used when claiming
+// a device_id that's currently associated with a different (e.g. transient
+// guest) user — required to avoid UNIQUE(device_id) collision when an existing
+// authenticated user signs in on a fresh install where a guest row was created.
+func (db *DB) ClearDeviceID(ctx context.Context, id int64) error {
+	ctx, cancel := defaultTimeout(ctx)
+	defer cancel()
+
+	_, err := db.Pool.Exec(ctx,
+		`UPDATE users SET device_id = NULL WHERE id = $1`, id)
+	return err
+}
+
 // DeleteUser soft-deletes a user by setting is_active = false.
 func (db *DB) DeleteUser(ctx context.Context, id int64) error {
 	ctx, cancel := defaultTimeout(ctx)

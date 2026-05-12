@@ -89,6 +89,7 @@ enum L10n {
         static let signInFailed   = LKey("onboarding.signin_failed")
         static let anonFailed     = LKey("onboarding.anon_failed")
         static let continueWithoutAccount = LKey("onboarding.continue_no_account")
+        static let signInWithApple    = LKey("onboarding.sign_in_with_apple")
         static let signInWithGoogle   = LKey("onboarding.sign_in_with_google")
         static let signInWithEmail    = LKey("onboarding.sign_in_with_email")
         static let orLabel            = LKey("onboarding.or")

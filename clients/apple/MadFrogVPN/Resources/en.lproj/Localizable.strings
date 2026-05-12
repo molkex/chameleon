@@ -1,6 +1,6 @@
 /* ===== Home / Main screen ===== */
 "home.status.protected"          = "Protected";
-"home.status.exposed"            = "Not protected";
+"home.status.exposed"            = "Disconnected";
 "home.status.connecting"         = "Connecting…";
 "home.status.reconnecting"       = "Reconnecting…";
 "home.status.disconnecting"      = "Disconnecting…";
@@ -30,7 +30,7 @@
 
 "home.neon.you_are"              = "YOU ARE";
 "home.neon.protected"            = "PROTECTED";
-"home.neon.exposed"              = "EXPOSED";
+"home.neon.exposed"              = "OFFLINE";
 "home.neon.connecting"           = "CONNECTING";
 "home.neon.reconnecting"         = "RECONNECTING";
 "home.neon.stopping"             = "STOPPING";
@@ -63,13 +63,14 @@
 
 /* ===== Onboarding ===== */
 "onboarding.title"               = "MadFrog VPN";
-"onboarding.subtitle"            = "Private. Fast. Unblocked.";
+"onboarding.subtitle"            = "Private. Fast. Secure.";
 "onboarding.feature.trial"       = "3 days free trial";
 "onboarding.feature.no_logs"     = "No logs policy";
 "onboarding.feature.servers"     = "Fast & reliable servers";
 "onboarding.signin_failed"       = "Sign in failed. Please try again.";
 "onboarding.anon_failed"         = "Could not start a trial. Check your connection and try again.";
 "onboarding.continue_no_account" = "Continue as guest";
+"onboarding.sign_in_with_apple"  = "Continue with Apple";
 "onboarding.sign_in_with_google" = "Sign in with Google";
 "onboarding.sign_in_with_email"  = "Sign in with email";
 "onboarding.or"                  = "or";
@@ -176,8 +177,8 @@
 "servers.country.other"          = "Other";
 "servers.section.countries"      = "COUNTRIES";
 "servers.section.direct"         = "Direct connections";
-"servers.section.bypass"         = "Bypass regional blocks";
-"servers.section.bypass_hint"    = "Routes through a Russian exit to reach blocked destinations from ISP-filtered networks.";
+"servers.section.bypass"         = "Alternative routes";
+"servers.section.bypass_hint"    = "Alternative routes for unstable networks.";
 "servers.servers_in"             = "Servers in %@";
 
 /* ===== Settings ===== */
@@ -186,11 +187,11 @@
 "settings.section.routing"       = "Routing";
 "settings.routing_mode"          = "Mode";
 "settings.routing_mode.smart"          = "Smart";
-"settings.routing_mode.smart.hint"     = "Only resources blocked in Russia go through the VPN. Everything else stays on the native connection — maximum bandwidth savings and minimal VPN-detection signal in banking and government apps.";
-"settings.routing_mode.ru_direct"      = "RU Direct";
-"settings.routing_mode.ru_direct.hint" = "Russian sites go direct, the rest of the world goes through the VPN. Classic split tunneling.";
+"settings.routing_mode.smart.hint"     = "Only unreachable sites route through the VPN. Everything else stays on the native connection. Maximum bandwidth savings.";
+"settings.routing_mode.ru_direct"      = "Split tunnel";
+"settings.routing_mode.ru_direct.hint" = "Local resources go direct, the rest of the world goes through the VPN. Classic split tunneling.";
 "settings.routing_mode.full_vpn"       = "Full VPN";
-"settings.routing_mode.full_vpn.hint"  = "All traffic goes through the VPN (except banks and gov services — always direct). For travel and public Wi-Fi.";
+"settings.routing_mode.full_vpn.hint"  = "All traffic through the VPN (except payment and official services). For travel and public Wi-Fi.";
 "settings.section.account"       = "Account";
 "settings.section.about"         = "About";
 "settings.section.diagnostics"   = "Diagnostics";
@@ -214,7 +215,7 @@
 "recovery.switched_leg"          = "%@: switched to a working server";
 "recovery.switched_from_to"      = "%1$@ unreachable — switched to %2$@";
 "recovery.switched_to"           = "Switched to %@";
-"recovery.switched_to_bypass"    = "Direct routes blocked — using bypass relay";
+"recovery.switched_to_bypass"    = "Route changed — using alternative path";
 "recovery.all_dead"              = "Network unreachable from all servers";
 
 /* ===== Account ===== */
@@ -265,7 +266,7 @@
 "country.russia"                 = "Russia";
 "country.other"                  = "Other";
 "server.direct_connection"       = "Direct connection";
-"server.whitelist_bypass_subtitle" = "RU whitelist bypass";
+"server.whitelist_bypass_subtitle" = "Alternate route";
 "server.leaf.direct"             = "Direct";
 "server.leaf.via_fmt"            = "Via %@";
 

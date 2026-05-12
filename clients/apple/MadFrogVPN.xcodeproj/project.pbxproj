@@ -120,6 +120,7 @@
 		8B17F3977E0355622286B8EC /* LastWorkingLegStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDCBB9F4E8DCDA4AC3C58517 /* LastWorkingLegStore.swift */; };
 		8C50FBC490B8B107D281C129 /* SingBoxConfigPatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BFE7E8B5C268A8B4E1F44C8 /* SingBoxConfigPatcher.swift */; };
 		8D0556BA2F8691356C8F0E04 /* RunBlocking.swift in Sources */ = {isa = PBXBuildFile; fileRef = 056A5CFAAD6E085B3A0ACF9A /* RunBlocking.swift */; };
+		8E14DDF4A3DED8C5DD74F8A3 /* AppleAuthCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A2105C436C4E871B1CFB916 /* AppleAuthCoordinator.swift */; };
 		8F75A2437F55A299C19D3960 /* TrafficHealthMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0F1E53A2387E8AB9E727CD9 /* TrafficHealthMonitor.swift */; };
 		8FBB24D22BEABD59685F7B82 /* MenuBarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8EF3541F56531E6A2C1EA76 /* MenuBarContent.swift */; };
 		905E0BB257310FDDB4781269 /* PingServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B114B8A077748A71A618058A /* PingServiceTests.swift */; };
@@ -190,6 +191,7 @@
 		E70D83F87454714019114F62 /* CommandClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E4759379DDD3262CA6B47A9 /* CommandClient.swift */; };
 		E713B19758696F61DA4F415F /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31BA223EF19A5BDE5145B520 /* Logger.swift */; };
 		E954C11C4185740C1077192E /* PlatformDevice.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C61B1AA0AC6A405D189C34B /* PlatformDevice.swift */; };
+		E99FC7119377C8BAED207807 /* AppleAuthCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A2105C436C4E871B1CFB916 /* AppleAuthCoordinator.swift */; };
 		EB087C443D026C56DB4CEC2F /* VPNManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04FC8CF248986C535F825CAB /* VPNManager.swift */; };
 		EB519AA99D0A4BC7475737BA /* LastWorkingLegStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDCBB9F4E8DCDA4AC3C58517 /* LastWorkingLegStore.swift */; };
 		ED2932322BA67C98F3937409 /* SubscriptionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C254991A86781B863F8BA92C /* SubscriptionManager.swift */; };
@@ -283,6 +285,7 @@
 		21AE788D6595D4029A9B4AD5 /* NetworkExtension.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = NetworkExtension.framework; path = System/Library/Frameworks/NetworkExtension.framework; sourceTree = SDKROOT; };
 		233EE0ACC559229ABE75CF28 /* PingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PingService.swift; sourceTree = "<group>"; };
 		27C5C9C45F3855532EB54D77 /* VPNPermissionPrimerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VPNPermissionPrimerView.swift; sourceTree = "<group>"; };
+		2A2105C436C4E871B1CFB916 /* AppleAuthCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleAuthCoordinator.swift; sourceTree = "<group>"; };
 		2C2574959FF261C13D150E6D /* PacketTunnel.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PacketTunnel.entitlements; sourceTree = "<group>"; };
 		31BA223EF19A5BDE5145B520 /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
 		33A809CDAD52A1FB3A57D0A1 /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
@@ -544,6 +547,7 @@
 			isa = PBXGroup;
 			children = (
 				FEBE74F9DD0282A5EA7B00DE /* APIClient.swift */,
+				2A2105C436C4E871B1CFB916 /* AppleAuthCoordinator.swift */,
 				6EA1C04CBF00045661691673 /* AppState.swift */,
 				3E4759379DDD3262CA6B47A9 /* CommandClient.swift */,
 				3FC0F827BBF3A30F2EDE9AB3 /* ConfigStore.swift */,
@@ -835,6 +839,7 @@
 				A6F4C7DE3D8BA428F4C7274E /* APIClient.swift in Sources */,
 				810BCB5D9294C89E73DD3930 /* AccountView.swift in Sources */,
 				B77BC729E2F213EC14220EE7 /* AppState.swift in Sources */,
+				8E14DDF4A3DED8C5DD74F8A3 /* AppleAuthCoordinator.swift in Sources */,
 				E1C7677A6E0BD00FC7138CFC /* CommandClient.swift in Sources */,
 				2C7219DBE9E489EF766980D5 /* ConfigSanitizer.swift in Sources */,
 				348F2960A052562610557B1A /* ConfigStore.swift in Sources */,
@@ -919,6 +924,7 @@
 				C4967670CBC9B506176AAA06 /* APIClient.swift in Sources */,
 				BDF2B0388311B0C69188B3E4 /* AccountView.swift in Sources */,
 				A58383CFF190561236D7F7B7 /* AppState.swift in Sources */,
+				E99FC7119377C8BAED207807 /* AppleAuthCoordinator.swift in Sources */,
 				E70D83F87454714019114F62 /* CommandClient.swift in Sources */,
 				11CC47593EBE388CEBE2BB79 /* ConfigSanitizer.swift in Sources */,
 				D05105F5750E89121A262ED5 /* ConfigStore.swift in Sources */,
@@ -1254,7 +1260,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 47;
+				CURRENT_PROJECT_VERSION = 53;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = 99W3C374T2;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -1269,7 +1275,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0.24;
+				MARKETING_VERSION = 1.0.26;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1331,7 +1337,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 47;
+				CURRENT_PROJECT_VERSION = 53;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = 99W3C374T2;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -1352,7 +1358,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0.24;
+				MARKETING_VERSION = 1.0.26;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

@@ -62,22 +62,12 @@ func (h *Handler) GoogleSignIn(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
 	}
 
-	// If no google_id match but email is known and verified, link the existing
-	// email-based user to this Google identity. Prevents duplicate accounts
-	// when a user first signed up via email and later taps Google.
-	if user == nil && claims.Email != "" && claims.EmailVerified {
-		existing, err := h.DB.FindUserByEmail(ctx, claims.Email)
-		if err != nil {
-			h.Logger.Error("db: find by email", zap.Error(err))
-			return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
-		}
-		user = existing
-	}
-
-	// Also check by device_id — the user may have first tapped
+	// Check by device_id BEFORE email. The user may have first tapped
 	// "Continue without account" or Apple Sign-In on this device,
-	// generating a vpn_username deterministically from device_id. A fresh
-	// INSERT would then collide on unique(vpn_username). Re-use that row.
+	// creating a row with this device_id. We must reuse THAT row, not
+	// pick an unrelated user with a matching email — otherwise we'd try
+	// to set device_id on the email-user and collide on UNIQUE(device_id)
+	// against the guest-user that already owns this device.
 	if user == nil {
 		existingByDevice, err := h.DB.FindUserByDeviceID(ctx, req.DeviceID)
 		if err != nil {
@@ -85,6 +75,18 @@ func (h *Handler) GoogleSignIn(c echo.Context) error {
 			return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
 		}
 		user = existingByDevice
+	}
+
+	// If no google_id and no device_id match but email is known and verified,
+	// link the existing email-based user (cross-device merge: same person
+	// who signed up via email on a different device, now using Google here).
+	if user == nil && claims.Email != "" && claims.EmailVerified {
+		existing, err := h.DB.FindUserByEmail(ctx, claims.Email)
+		if err != nil {
+			h.Logger.Error("db: find by email", zap.Error(err))
+			return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
+		}
+		user = existing
 	}
 
 	isNew := false
@@ -105,6 +107,24 @@ func (h *Handler) GoogleSignIn(c echo.Context) error {
 		dirty = true
 	}
 	if user.DeviceID == nil || *user.DeviceID != req.DeviceID {
+		// Before claiming this device_id, check whether another user
+		// (typically a transient guest from the current install) already
+		// owns it. If so, free the device_id on that user — otherwise
+		// the UPDATE below explodes on UNIQUE(device_id).
+		other, ferr := h.DB.FindUserByDeviceID(ctx, req.DeviceID)
+		if ferr != nil {
+			h.Logger.Error("google: find conflicting device_id", zap.Error(ferr))
+			return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
+		}
+		if other != nil && other.ID != user.ID {
+			h.Logger.Info("google: freeing device_id from conflicting user",
+				zap.Int64("conflicting_user_id", other.ID),
+				zap.Int64("claiming_user_id", user.ID))
+			if err := h.DB.ClearDeviceID(ctx, other.ID); err != nil {
+				h.Logger.Error("google: clear conflicting device_id", zap.Error(err))
+				return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
+			}
+		}
 		did := req.DeviceID
 		user.DeviceID = &did
 		dirty = true
@@ -112,6 +132,46 @@ func (h *Handler) GoogleSignIn(c echo.Context) error {
 	if !user.IsActive {
 		user.IsActive = true
 		dirty = true
+	}
+	// Wiped users (account-deletion option B, or web-flow without VPN creds)
+	// come back with NULL VPN creds. Regenerate so the tunnel can actually
+	// authenticate with sing-box. Without this, /config returns 409 OR the
+	// tunnel "connects" but server-side drops every packet — exactly what
+	// the user sees as "VPN is on but Safari hangs".
+	if user.VPNUsername == nil || user.VPNUUID == nil {
+		vpnUUID, gerr := generateUUID()
+		if gerr != nil {
+			h.Logger.Error("google: regen vpn uuid", zap.Error(gerr))
+			return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
+		}
+		vpnUsername := generateVPNUsernameFromUUID(vpnUUID)
+		vpnShortID := ""
+		user.VPNUsername = &vpnUsername
+		user.VPNUUID = &vpnUUID
+		user.VPNShortID = &vpnShortID
+		dirty = true
+		h.Logger.Info("google: regenerated vpn creds for returning user",
+			zap.Int64("user_id", user.ID),
+			zap.String("vpn_username", vpnUsername))
+	}
+	// Returning user with expired trial / no active subscription — extend by
+	// 3 days so they re-enter a working state. Otherwise GET /config returns
+	// 403 (subscription expired) immediately after the sign-in succeeds, and
+	// the iOS app interprets the *flow* as failed even though auth itself
+	// worked. Users with an active App Store IAP receipt are validated
+	// separately (StoreKit verifies on backend) — this branch only kicks in
+	// when both server-side trial AND IAP entitlement are gone.
+	if user.SubscriptionExpiry == nil || user.SubscriptionExpiry.Before(time.Now()) {
+		trialDays := 3
+		if h.Config != nil && h.Config.Payments.Trial.Enabled && h.Config.Payments.Trial.Days > 0 {
+			trialDays = h.Config.Payments.Trial.Days
+		}
+		newExpiry := time.Now().Add(time.Duration(trialDays) * 24 * time.Hour)
+		user.SubscriptionExpiry = &newExpiry
+		dirty = true
+		h.Logger.Info("google: extending expired trial on sign-in",
+			zap.Int64("user_id", user.ID),
+			zap.Time("new_expiry", newExpiry))
 	}
 	if dirty {
 		if err := h.DB.UpdateUser(ctx, user); err != nil {
