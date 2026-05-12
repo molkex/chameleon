@@ -1,17 +1,609 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="refresh" content="0;url=/app/">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MadFrog VPN</title>
-<link rel="canonical" href="https://madfrog.online/app/">
-<style>body{font-family:-apple-system,sans-serif;background:#0a0a0a;color:#e8e8e8;text-align:center;padding:80px 24px}a{color:#7CFF6B}</style>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MadFrog VPN — Приватность и безопасность в интернете 🐸</title>
+<meta name="description" content="MadFrog VPN — современный VPN-сервис для защиты приватности. Шифрование трафика, политика без логов, быстрые серверы в Европе. iPhone, iPad, Mac, Windows, Android, Linux.">
+<meta name="keywords" content="MadFrog VPN, VPN, приватность, шифрование, защита данных, безопасность Wi-Fi, no logs VPN">
+<meta name="robots" content="index, follow">
+<meta name="author" content="MadFrog VPN">
+<link rel="canonical" href="https://madfrog.online/">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+
+<!-- Open Graph -->
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://madfrog.online/">
+<meta property="og:title" content="MadFrog VPN — Приватность в один клик 🐸">
+<meta property="og:description" content="Шифрование трафика, политика без логов, быстрые серверы. iPhone, iPad, Mac, Windows, Android, Linux.">
+<meta property="og:locale" content="ru_RU">
+<meta property="og:site_name" content="MadFrog VPN">
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="MadFrog VPN — Приватность в один клик 🐸">
+<meta name="twitter:description" content="Шифрование трафика, политика без логов, быстрые серверы в Европе.">
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<!-- Schema.org — SoftwareApplication only, NO aggregateRating (app is new, no real reviews yet) -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "MadFrog VPN",
+  "applicationCategory": "UtilitiesApplication",
+  "operatingSystem": "iOS, iPadOS, macOS, Android, Windows, Linux",
+  "description": "VPN-сервис для защиты приватности и безопасного подключения. Шифрование трафика, политика без логов, быстрые серверы в Европе."
+}
+</script>
+
+<style>
+/* === Reset & Base === */
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth;font-size:16px}
+body{
+  background:#0D1510;
+  font-family:'Golos Text',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  color:#e0f0e8;
+  line-height:1.6;
+  overflow-x:hidden;
+}
+a{color:#2EC87A;text-decoration:none}
+a:hover{text-decoration:underline}
+code,.mono{font-family:'JetBrains Mono',monospace;color:#00F0FF;font-size:.9em}
+
+/* === Background === */
+.bg{
+  position:fixed;inset:0;z-index:0;
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(46,200,122,.1) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 50%, rgba(0,240,255,.06) 0%, transparent 50%);
+}
+.bg::before{
+  content:'';position:absolute;inset:0;
+  background-image:
+    linear-gradient(rgba(46,200,122,.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(46,200,122,.03) 1px, transparent 1px);
+  background-size:60px 60px;
+  animation:gridMove 30s linear infinite;
+}
+@keyframes gridMove{0%{transform:translate(0,0)}100%{transform:translate(60px,60px)}}
+
+.particles{position:fixed;inset:0;z-index:0;pointer-events:none}
+.p{
+  position:absolute;width:3px;height:3px;
+  background:rgba(46,200,122,.4);border-radius:50%;
+  animation:float linear infinite;
+}
+@keyframes float{
+  0%{transform:translateY(100vh) scale(0);opacity:0}
+  10%{opacity:1}90%{opacity:1}
+  100%{transform:translateY(-10vh) scale(1);opacity:0}
+}
+
+/* === Layout === */
+.page{position:relative;z-index:1}
+section{padding:80px 20px}
+.wrap{max-width:1100px;margin:0 auto}
+.text-center{text-align:center}
+
+/* === Nav === */
+.nav{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  padding:16px 20px;
+  background:rgba(13,21,16,.9);
+  backdrop-filter:blur(20px);
+  border-bottom:1px solid rgba(46,200,122,.1);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.nav-logo{
+  font-size:1.3rem;font-weight:800;
+  color:#2EC87A;
+  display:flex;align-items:center;gap:8px;
+}
+.nav-logo .frog-icon{font-size:1.5rem}
+.nav-links{display:flex;gap:24px;align-items:center}
+.nav-links a{
+  color:rgba(255,255,255,.55);font-size:.9rem;font-weight:500;
+  text-decoration:none;transition:color .2s;
+}
+.nav-links a:hover{color:#2EC87A;text-decoration:none}
+.nav-cta{
+  padding:8px 20px;border-radius:30px;
+  background:#2EC87A;
+  color:#0D1510!important;font-weight:700;font-size:.85rem;
+  transition:transform .2s,box-shadow .2s;
+}
+.nav-cta:hover{transform:translateY(-2px);box-shadow:0 4px 20px rgba(46,200,122,.4)}
+.nav-burger{display:none;flex-direction:column;gap:5px;cursor:pointer;padding:4px}
+.nav-burger span{width:22px;height:2px;background:#2EC87A;border-radius:2px;transition:all .3s}
+
+/* === Hero === */
+.hero{
+  min-height:100vh;display:flex;align-items:center;justify-content:center;
+  text-align:center;padding-top:80px;
+}
+.hero-frog{
+  font-size:5rem;margin-bottom:1.5rem;
+  display:inline-block;
+  animation:frogBounce 2s ease-in-out infinite;
+}
+@keyframes frogBounce{
+  0%,100%{transform:translateY(0)}
+  50%{transform:translateY(-12px)}
+}
+h1{
+  font-size:clamp(2.2rem,6vw,3.8rem);font-weight:800;letter-spacing:-1px;
+  margin-bottom:.5rem;
+  color:#fff;
+  animation:titleIn .8s ease-out;
+}
+h1 .green{color:#2EC87A}
+.hero-sub{
+  font-size:clamp(1rem,2.5vw,1.3rem);color:rgba(255,255,255,.5);
+  margin-bottom:2.5rem;max-width:640px;margin-left:auto;margin-right:auto;
+}
+.hero-badges{
+  display:flex;gap:1.5rem;justify-content:center;flex-wrap:wrap;
+  margin-top:2rem;
+}
+.badge{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 16px;border-radius:30px;
+  background:rgba(46,200,122,.08);border:1px solid rgba(46,200,122,.15);
+  font-size:.85rem;color:rgba(255,255,255,.7);
+}
+.badge-icon{font-size:1.1rem}
+
+/* === CTA Button === */
+.cta{
+  display:inline-flex;align-items:center;gap:12px;
+  padding:18px 40px;font-size:1.15rem;font-weight:700;color:#0D1510;
+  background:#2EC87A;
+  border:none;border-radius:60px;cursor:pointer;text-decoration:none;
+  position:relative;overflow:hidden;
+  transition:transform .2s,box-shadow .2s;
+}
+.cta:hover{
+  transform:translateY(-3px) scale(1.03);text-decoration:none;
+  box-shadow:0 10px 40px rgba(46,200,122,.35),0 0 60px rgba(46,200,122,.15);
+}
+.cta:active{transform:translateY(0) scale(.98)}
+.cta::before{
+  content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.25),transparent);
+  animation:shine 3s ease-in-out infinite;
+}
+@keyframes shine{0%,100%{left:-100%}50%{left:100%}}
+.cta svg{width:22px;height:22px;flex-shrink:0}
+
+.cta-secondary{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:14px 28px;font-size:1rem;font-weight:600;color:#2EC87A;
+  background:transparent;border:2px solid rgba(46,200,122,.3);
+  border-radius:60px;text-decoration:none;
+  transition:all .2s;
+}
+.cta-secondary:hover{
+  background:rgba(46,200,122,.1);border-color:rgba(46,200,122,.5);
+  text-decoration:none;
+}
+.hero-btns{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;align-items:center}
+
+/* === Section Headers === */
+h2{
+  font-size:clamp(1.6rem,4vw,2.5rem);font-weight:800;
+  margin-bottom:.8rem;
+  color:#fff;
+}
+h2 .green{color:#2EC87A}
+.section-desc{color:rgba(255,255,255,.45);font-size:1.05rem;max-width:640px;margin:0 auto 3rem}
+
+/* === Features === */
+.features-grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px;
+}
+.feature-card{
+  padding:32px;border-radius:20px;
+  background:rgba(26,43,31,.5);border:1px solid rgba(46,200,122,.1);
+  transition:all .3s;
+}
+.feature-card:hover{
+  background:rgba(46,200,122,.08);border-color:rgba(46,200,122,.25);
+  transform:translateY(-4px);
+}
+.feature-icon{
+  width:48px;height:48px;border-radius:12px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.5rem;margin-bottom:16px;
+  background:rgba(46,200,122,.12);
+}
+.feature-card h3{font-size:1.1rem;font-weight:700;color:#fff;margin-bottom:8px}
+.feature-card p{font-size:.9rem;color:rgba(255,255,255,.5);line-height:1.55}
+
+/* === Platforms === */
+.platforms{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:16px;
+  max-width:900px;margin:0 auto;
+}
+.platform{
+  padding:24px 16px;border-radius:16px;text-align:center;
+  background:rgba(46,200,122,.04);border:1px solid rgba(46,200,122,.08);
+  transition:all .3s;
+}
+.platform:hover{
+  background:rgba(46,200,122,.1);border-color:rgba(46,200,122,.25);
+  transform:translateY(-4px);
+}
+.platform-icon{font-size:2rem;margin-bottom:8px;display:block}
+.platform-name{font-size:.95rem;font-weight:600;color:rgba(255,255,255,.85)}
+
+/* === How it works === */
+.steps{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:32px;
+  max-width:900px;margin:0 auto;
+}
+.step{text-align:center;padding:24px}
+.step-num{
+  width:56px;height:56px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.4rem;font-weight:800;color:#0D1510;
+  background:#2EC87A;
+  margin:0 auto 16px;
+}
+.step h3{font-size:1.1rem;font-weight:700;color:#fff;margin-bottom:8px}
+.step p{font-size:.9rem;color:rgba(255,255,255,.5)}
+
+/* === FAQ === */
+.faq-list{max-width:720px;margin:0 auto}
+.faq-item{
+  border-bottom:1px solid rgba(46,200,122,.1);
+  padding:20px 0;
+}
+.faq-q{
+  font-size:1.05rem;font-weight:600;color:#fff;cursor:pointer;
+  display:flex;justify-content:space-between;align-items:center;gap:16px;
+}
+.faq-q::after{content:'+';font-size:1.4rem;color:rgba(46,200,122,.4);transition:transform .3s}
+.faq-item.open .faq-q::after{transform:rotate(45deg);color:#2EC87A}
+.faq-a{
+  max-height:0;overflow:hidden;transition:max-height .4s ease,padding .3s;
+  font-size:.92rem;color:rgba(255,255,255,.5);line-height:1.7;
+}
+.faq-item.open .faq-a{max-height:320px;padding-top:12px}
+
+/* === Footer === */
+.footer{
+  padding:40px 20px;text-align:center;
+  border-top:1px solid rgba(46,200,122,.1);
+}
+.footer-links{display:flex;gap:24px;justify-content:center;flex-wrap:wrap;margin-bottom:16px}
+.footer-links a{font-size:.85rem;color:rgba(255,255,255,.4)}
+.footer-links a:hover{color:#2EC87A}
+.footer-copy{font-size:.8rem;color:rgba(255,255,255,.25)}
+.footer-disclaimer{font-size:.7rem;color:rgba(255,255,255,.2);margin-top:8px;max-width:640px;margin-left:auto;margin-right:auto}
+
+/* === Animations === */
+@keyframes titleIn{
+  0%{opacity:0;transform:translateY(40px) scale(.9);filter:blur(10px)}
+  100%{opacity:1;transform:translateY(0) scale(1);filter:blur(0)}
+}
+.anim{opacity:0;transform:translateY(30px);transition:all .6s ease-out}
+.anim.visible{opacity:1;transform:translateY(0)}
+
+/* === Mobile === */
+@media(max-width:768px){
+  section{padding:60px 16px}
+  .nav-links{display:none}
+  .nav-burger{display:flex}
+  .nav.open .nav-links{
+    display:flex;flex-direction:column;
+    position:absolute;top:100%;left:0;right:0;
+    background:rgba(13,21,16,.97);padding:20px;gap:16px;
+    border-bottom:1px solid rgba(46,200,122,.1);
+  }
+  .steps{grid-template-columns:1fr}
+  .platforms{grid-template-columns:repeat(3,1fr)}
+}
+@media(max-width:480px){
+  .platforms{grid-template-columns:repeat(2,1fr)}
+}
+</style>
 </head>
 <body>
-<h1>🐸 MadFrog VPN</h1>
-<p>Privacy-first VPN for iPhone.</p>
-<p><a href="/app/">Open the App Store landing</a></p>
-<script>window.location.replace('/app/');</script>
+
+<div class="bg"></div>
+<div class="particles" id="particles"></div>
+
+<div class="page">
+
+<!-- Nav -->
+<nav class="nav" id="nav">
+  <div class="nav-logo">
+    <span class="frog-icon">🐸</span> MadFrog VPN
+  </div>
+  <div class="nav-links" id="navLinks">
+    <a href="#features">Возможности</a>
+    <a href="#platforms">Устройства</a>
+    <a href="#howto">Как начать</a>
+    <a href="#faq">FAQ</a>
+    <a href="https://apps.apple.com/app/id6761008632" class="nav-cta">Скачать</a>
+  </div>
+  <div class="nav-burger" id="burger" onclick="document.getElementById('nav').classList.toggle('open')">
+    <span></span><span></span><span></span>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero" id="hero">
+  <div class="wrap text-center">
+    <div class="hero-frog">🐸</div>
+
+    <h1>Твоя приватность — <span class="green">в один клик</span></h1>
+    <p class="hero-sub">MadFrog VPN шифрует твой интернет-трафик и защищает данные в публичных Wi-Fi сетях. Современные протоколы, быстрые серверы в Европе, политика без логов.</p>
+
+    <div class="hero-btns">
+      <a href="https://apps.apple.com/app/id6761008632" class="cta">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 12.04c-.03-2.93 2.39-4.34 2.5-4.41-1.36-1.99-3.48-2.27-4.24-2.3-1.81-.18-3.53 1.06-4.45 1.06-.92 0-2.34-1.03-3.84-1.01-1.98.03-3.8 1.15-4.82 2.91-2.05 3.56-.52 8.83 1.48 11.73.98 1.42 2.15 3.01 3.68 2.95 1.48-.06 2.04-.96 3.83-.96 1.79 0 2.29.96 3.84.93 1.58-.03 2.59-1.44 3.56-2.87 1.12-1.65 1.59-3.25 1.61-3.33-.03-.02-3.09-1.18-3.12-4.7zM14.13 3.62C14.92 2.66 15.47 1.33 15.32 0c-1.14.05-2.54.76-3.36 1.71-.74.84-1.39 2.21-1.22 3.51 1.27.1 2.59-.65 3.39-1.6z"/></svg>
+        Скачать в App Store
+      </a>
+      <a href="https://t.me/MadFrogRobot?start=web" class="cta-secondary">
+        <svg viewBox="0 0 24 24" fill="currentColor" style="width:20px;height:20px"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.12.03-1.98 1.26-5.59 3.7-.53.36-1.01.54-1.43.53-.47-.01-1.38-.27-2.05-.49-.83-.27-1.49-.42-1.43-.88.03-.24.37-.49 1.02-.74 4-1.74 6.67-2.89 8.02-3.45 3.82-1.6 4.62-1.87 5.13-1.88.11 0 .37.03.54.17.14.12.18.28.2.45-.01.06.01.24 0 .38z"/></svg>
+        Другие платформы
+      </a>
+    </div>
+
+    <div class="hero-badges">
+      <div class="badge"><span class="badge-icon">🔐</span> Современное шифрование</div>
+      <div class="badge"><span class="badge-icon">🚫</span> Без логов активности</div>
+      <div class="badge"><span class="badge-icon">⚡</span> Быстрые серверы</div>
+      <div class="badge"><span class="badge-icon">📱</span> Любое устройство</div>
+    </div>
+  </div>
+</section>
+
+<!-- Features -->
+<section id="features">
+  <div class="wrap text-center">
+    <h2 class="anim">Почему <span class="green">MadFrog</span></h2>
+    <p class="section-desc anim">Простой и понятный VPN. Без рекламы, без слежки, без лишних настроек.</p>
+    <div class="features-grid">
+      <div class="feature-card anim">
+        <div class="feature-icon">🔐</div>
+        <h3>Шифрование трафика</h3>
+        <p>Весь твой интернет-трафик шифруется на устройстве и расшифровывается только на нашем сервере. Провайдер и владелец Wi-Fi видят зашифрованный поток данных.</p>
+      </div>
+      <div class="feature-card anim">
+        <div class="feature-icon">🚫</div>
+        <h3>Политика без логов</h3>
+        <p>Мы не записываем, какие сайты ты посещаешь, и не храним историю активности. Минимум данных, необходимых для работы аккаунта — и не более.</p>
+      </div>
+      <div class="feature-card anim">
+        <div class="feature-icon">📶</div>
+        <h3>Безопасный Wi-Fi</h3>
+        <p>Публичные сети в кафе, аэропортах и отелях часто небезопасны. MadFrog защищает данные от перехвата на ненадёжных подключениях.</p>
+      </div>
+      <div class="feature-card anim">
+        <div class="feature-icon">⚡</div>
+        <h3>Быстрые серверы</h3>
+        <p>Современная инфраструктура в Европе с минимальной задержкой. Стабильная скорость для звонков, видео и работы.</p>
+      </div>
+      <div class="feature-card anim">
+        <div class="feature-icon">🪶</div>
+        <h3>Простой интерфейс</h3>
+        <p>Одна кнопка — и ты под защитой. Никаких сложных настроек, без перегруженных меню. Дизайн в духе нативных приложений Apple.</p>
+      </div>
+      <div class="feature-card anim">
+        <div class="feature-icon">🌐</div>
+        <h3>Свобода слова</h3>
+        <p>Мы верим в открытый интернет и право на конфиденциальную коммуникацию. VPN — инструмент защиты приватности в цифровом мире.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Platforms -->
+<section id="platforms">
+  <div class="wrap text-center">
+    <h2 class="anim">Работает <span class="green">везде</span></h2>
+    <p class="section-desc anim">Одна подписка — все твои устройства</p>
+    <div class="platforms anim">
+      <div class="platform">
+        <span class="platform-icon">📱</span>
+        <div class="platform-name">iPhone</div>
+      </div>
+      <div class="platform">
+        <span class="platform-icon">📲</span>
+        <div class="platform-name">iPad</div>
+      </div>
+      <div class="platform">
+        <span class="platform-icon">💻</span>
+        <div class="platform-name">Mac</div>
+      </div>
+      <div class="platform">
+        <span class="platform-icon">🤖</span>
+        <div class="platform-name">Android</div>
+      </div>
+      <div class="platform">
+        <span class="platform-icon">🖥️</span>
+        <div class="platform-name">Windows</div>
+      </div>
+      <div class="platform">
+        <span class="platform-icon">🐧</span>
+        <div class="platform-name">Linux</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- How it works -->
+<section id="howto">
+  <div class="wrap text-center">
+    <h2 class="anim">Как <span class="green">начать</span></h2>
+    <p class="section-desc anim">Три шага и пара минут</p>
+    <div class="steps">
+      <div class="step anim">
+        <div class="step-num">1</div>
+        <h3>Скачай приложение</h3>
+        <p>iPhone, iPad и Mac — из App Store. Другие платформы — через Telegram-бота.</p>
+      </div>
+      <div class="step anim">
+        <div class="step-num">2</div>
+        <h3>Войди в аккаунт</h3>
+        <p>Sign in with Apple или magic link — без паролей. Регистрация занимает секунды.</p>
+      </div>
+      <div class="step anim">
+        <div class="step-num">3</div>
+        <h3>Нажми «Подключить»</h3>
+        <p>Одно касание — и весь твой трафик зашифрован. Готово.</p>
+      </div>
+    </div>
+    <div style="margin-top:2.5rem" class="anim">
+      <a href="https://apps.apple.com/app/id6761008632" class="cta">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 12.04c-.03-2.93 2.39-4.34 2.5-4.41-1.36-1.99-3.48-2.27-4.24-2.3-1.81-.18-3.53 1.06-4.45 1.06-.92 0-2.34-1.03-3.84-1.01-1.98.03-3.8 1.15-4.82 2.91-2.05 3.56-.52 8.83 1.48 11.73.98 1.42 2.15 3.01 3.68 2.95 1.48-.06 2.04-.96 3.83-.96 1.79 0 2.29.96 3.84.93 1.58-.03 2.59-1.44 3.56-2.87 1.12-1.65 1.59-3.25 1.61-3.33-.03-.02-3.09-1.18-3.12-4.7zM14.13 3.62C14.92 2.66 15.47 1.33 15.32 0c-1.14.05-2.54.76-3.36 1.71-.74.84-1.39 2.21-1.22 3.51 1.27.1 2.59-.65 3.39-1.6z"/></svg>
+        Открыть в App Store
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq">
+  <div class="wrap text-center">
+    <h2 class="anim">Частые <span class="green">вопросы</span></h2>
+    <p class="section-desc anim">Коротко и по делу</p>
+    <div class="faq-list anim" style="text-align:left">
+      <div class="faq-item">
+        <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+          Что такое VPN и зачем он нужен?
+        </div>
+        <div class="faq-a">
+          VPN (Virtual Private Network) — это технология, которая шифрует твой интернет-трафик
+          и направляет его через защищённый сервер. Это полезно для безопасности в публичных
+          Wi-Fi, защиты приватности от провайдера и других сетевых наблюдателей, а также
+          как часть базовой цифровой гигиены.
+        </div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+          Хранит ли MadFrog логи моей активности?
+        </div>
+        <div class="faq-a">
+          Нет. Мы не записываем, какие сайты ты посещаешь, и не храним историю DNS-запросов
+          или содержимое трафика. Подробности — в нашей <a href="/privacy">Политике конфиденциальности</a>.
+        </div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+          На каких устройствах работает MadFrog?
+        </div>
+        <div class="faq-a">
+          iPhone, iPad, Mac — нативные приложения из App Store. Android, Windows, Linux —
+          через клиенты с открытым исходным кодом, ключи выдаются в Telegram-боте.
+          Одна подписка работает на всех твоих устройствах.
+        </div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+          Какие протоколы шифрования используются?
+        </div>
+        <div class="faq-a">
+          Современные VPN-протоколы с авторитетным шифрованием на базе открытых стандартов.
+          Используем актуальные алгоритмы, которые применяются в индустрии для защиты
+          корпоративных и личных коммуникаций.
+        </div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+          Как происходит оплата?
+        </div>
+        <div class="faq-a">
+          На iPhone, iPad и Mac оплата идёт через App Store (Apple In-App Purchase) —
+          безопасно, в один клик, с возможностью отмены в настройках Apple ID.
+          Для других платформ доступна оплата в Telegram-боте.
+        </div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+          Можно ли пробовать бесплатно?
+        </div>
+        <div class="faq-a">
+          Да. В приложении доступен пробный период — попробуй сервис без обязательств,
+          чтобы понять, подходит ли он тебе. Отменить можно в один клик в настройках Apple ID.
+        </div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+          Где расположены серверы?
+        </div>
+        <div class="faq-a">
+          Наши серверы находятся в Европе — Германия и Нидерланды. Это страны с сильной
+          правовой защитой приватности пользователей и развитой сетевой инфраструктурой.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Final CTA -->
+<section style="padding:60px 20px">
+  <div class="wrap text-center anim">
+    <h2>Защити свой <span class="green">интернет</span></h2>
+    <p class="section-desc">Скачай MadFrog и подключайся к интернету безопасно — на любом устройстве.</p>
+    <div class="hero-btns" style="margin-top:1.5rem">
+      <a href="https://apps.apple.com/app/id6761008632" class="cta">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 12.04c-.03-2.93 2.39-4.34 2.5-4.41-1.36-1.99-3.48-2.27-4.24-2.3-1.81-.18-3.53 1.06-4.45 1.06-.92 0-2.34-1.03-3.84-1.01-1.98.03-3.8 1.15-4.82 2.91-2.05 3.56-.52 8.83 1.48 11.73.98 1.42 2.15 3.01 3.68 2.95 1.48-.06 2.04-.96 3.83-.96 1.79 0 2.29.96 3.84.93 1.58-.03 2.59-1.44 3.56-2.87 1.12-1.65 1.59-3.25 1.61-3.33-.03-.02-3.09-1.18-3.12-4.7zM14.13 3.62C14.92 2.66 15.47 1.33 15.32 0c-1.14.05-2.54.76-3.36 1.71-.74.84-1.39 2.21-1.22 3.51 1.27.1 2.59-.65 3.39-1.6z"/></svg>
+        App Store
+      </a>
+      <a href="https://t.me/MadFrogRobot?start=web" class="cta-secondary">Другие платформы</a>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="footer">
+  <div class="footer-links">
+    <a href="/privacy">Политика конфиденциальности</a>
+    <a href="/terms">Условия использования</a>
+    <a href="https://apps.apple.com/app/id6761008632">App Store</a>
+    <a href="https://t.me/MadFrogRobot?start=web">Telegram-бот</a>
+    <a href="https://t.me/i_support_robot">Поддержка</a>
+  </div>
+  <div class="footer-copy">MadFrog VPN &copy; 2025&ndash;2026 🐸</div>
+  <div class="footer-disclaimer">VPN-сервис предназначен для защиты приватности и безопасности интернет-подключения. Пользователь обязуется использовать сервис в соответствии с применимым законодательством.</div>
+</footer>
+
+</div>
+
+<script>
+// Particles — green theme
+const c=document.getElementById('particles');
+for(let i=0;i<25;i++){
+  const p=document.createElement('div');
+  p.className='p';
+  p.style.left=Math.random()*100+'%';
+  p.style.animationDuration=(10+Math.random()*15)+'s';
+  p.style.animationDelay=(-Math.random()*20)+'s';
+  p.style.width=p.style.height=(1+Math.random()*3)+'px';
+  const g=Math.round(160+Math.random()*80);
+  p.style.background=`rgba(46,${g},${80+Math.random()*60},${.15+Math.random()*.35})`;
+  c.appendChild(p);
+}
+
+// Scroll animations
+const observer=new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('visible');observer.unobserve(e.target)}});
+},{threshold:0.1,rootMargin:'0px 0px -50px 0px'});
+document.querySelectorAll('.anim').forEach(el=>observer.observe(el));
+
+// Close mobile menu on link click
+document.querySelectorAll('.nav-links a').forEach(a=>{
+  a.addEventListener('click',()=>document.getElementById('nav').classList.remove('open'));
+});
+</script>
 </body>
 </html>

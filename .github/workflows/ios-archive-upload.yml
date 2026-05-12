@@ -1,0 +1,110 @@
+name: ios-archive-upload
+
+# Tag-driven archive + upload to App Store Connect.
+# Triggered ONLY by tags matching `ios-build-*` (e.g. ios-build-54).
+# Enforces: code that ships to ASC must exist on origin/main with an audit trail.
+#
+# Required repo secrets:
+#   ASC_KEY_ID       — App Store Connect API key id (e.g. ABCD12EFGH)
+#   ASC_ISSUER_ID    — App Store Connect issuer id (uuid)
+#   ASC_KEY_BASE64   — .p8 private-key file, base64-encoded (single line)
+
+on:
+  push:
+    tags:
+      - 'ios-build-*'
+
+jobs:
+  archive-and-upload:
+    name: archive + upload to ASC
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: clients/apple
+    env:
+      TEAM_ID: 99W3C374T2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Need full history so we can verify tag points to a commit on origin/main.
+          fetch-depth: 0
+
+      - name: Verify working tree is clean
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::Working tree is dirty on tagged commit — refusing to ship."
+            git status
+            exit 1
+          fi
+
+      - name: Verify tag commit is on origin/main
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          TAG_COMMIT="$(git rev-list -n 1 "$GITHUB_REF")"
+          if ! git merge-base --is-ancestor "$TAG_COMMIT" origin/main; then
+            echo "::error::Tag $GITHUB_REF points to $TAG_COMMIT which is NOT on origin/main."
+            echo "::error::Refusing to upload to App Store Connect — only main-resident commits may ship."
+            exit 1
+          fi
+          echo "Tag commit $TAG_COMMIT verified on origin/main."
+
+      - name: Install xcodegen
+        run: brew install xcodegen
+
+      - name: Fetch Libbox.xcframework
+        run: |
+          if [ -x scripts/fetch-libbox.sh ]; then
+            ./scripts/fetch-libbox.sh
+          else
+            echo "::error::scripts/fetch-libbox.sh missing — cannot archive without Libbox.xcframework"
+            exit 1
+          fi
+
+      - name: Regenerate xcodeproj
+        run: xcodegen generate
+
+      - name: Write App Store Connect API key
+        env:
+          ASC_KEY_BASE64: ${{ secrets.ASC_KEY_BASE64 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+        run: |
+          if [ -z "$ASC_KEY_BASE64" ] || [ -z "$ASC_KEY_ID" ]; then
+            echo "::error::ASC_KEY_BASE64 / ASC_KEY_ID secrets not configured"
+            exit 1
+          fi
+          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          echo "$ASC_KEY_BASE64" | base64 --decode > "$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+          chmod 600 "$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+
+      - name: Archive (iOS)
+        run: |
+          xcodebuild \
+            -project MadFrogVPN.xcodeproj \
+            -scheme MadFrogVPN \
+            -destination 'generic/platform=iOS' \
+            -configuration Release \
+            -archivePath "$RUNNER_TEMP/MadFrogVPN.xcarchive" \
+            archive \
+            DEVELOPMENT_TEAM=$TEAM_ID \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$HOME/.appstoreconnect/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8" \
+            -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
+            -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}"
+
+      - name: Export & upload to App Store Connect
+        run: |
+          xcodebuild \
+            -exportArchive \
+            -archivePath "$RUNNER_TEMP/MadFrogVPN.xcarchive" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -exportOptionsPlist ExportOptions.plist \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$HOME/.appstoreconnect/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8" \
+            -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
+            -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}"
+
+      - name: Wipe API key from runner
+        if: always()
+        run: rm -f "$HOME/.appstoreconnect/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8"

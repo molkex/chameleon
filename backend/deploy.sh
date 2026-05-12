@@ -284,6 +284,17 @@ if [ -f "$HEALTHCHECK" ]; then
     echo ">>> Health check cron installed (root)"
 fi
 
+# Log monitor cron (every minute) — scans docker logs for critical patterns and
+# alerts via Telegram. Motivated by 2026-05-12 NL Postgres read-only incident:
+# traffic-collector + cluster sync failed silently for 12+ hours.
+LOGMONITOR="${REMOTE_DIR}/backend/scripts/log-monitor.sh"
+if [ -f "$LOGMONITOR" ]; then
+    CRON_LINE="* * * * * ${LOGMONITOR} >> /var/log/chameleon-monitor.log 2>&1"
+    sudo bash -c "(crontab -l 2>/dev/null | grep -v 'log-monitor' ; echo '$CRON_LINE') | crontab -"
+    (crontab -l 2>/dev/null | grep -v "log-monitor") | crontab - 2>/dev/null || true
+    echo ">>> Log monitor cron installed (root)"
+fi
+
 # DB backup cron (daily at 3:00 AM) — installed as ROOT because script writes
 # to /var/backups/chameleon and /var/log/chameleon-backup.log (both root-owned).
 # Previously installed under deploy user → cron fired but script failed silently
