@@ -23,7 +23,7 @@ const (
 	// emitted the config currently in their cache. BUMP THIS on any
 	// behavioural change to clientconfig.go (new flag, new outbound, new
 	// rule). Format: "<build>.<patch>-<short-tag>" e.g. "40.2-chain-fix".
-	configBuildMarker = "56.1-universal-nl-hint"
+	configBuildMarker = "56.2-telegram-direct"
 )
 
 // pinRecommendedFirst returns a copy of leaves with `hint` moved to index 0
@@ -596,6 +596,11 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 			},
 			Rules: []clientDNSRule{
 				{DomainSuffix: ruAlwaysDirectDomains, Server: "dns-direct"},
+				// Telegram (build 56.2): resolve via direct DNS (Yandex) so DNS
+				// doesn't leak through the proxy outbound. Telegram domains
+				// stay direct in Smart/Split-tunnel modes; resolving them via
+				// the proxy DNS would add unnecessary latency and a leak vector.
+				{DomainSuffix: telegramDomains, Server: "dns-direct"},
 				{DomainSuffix: []string{".ru"}, Server: "dns-direct"},
 			},
 			IndependentCache: true,
@@ -635,6 +640,23 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 				{Network: "udp", Port: 443, Action: "reject", NoDrop: boolPtr(true)},
 				{IPIsPrivate: boolPtr(true), Outbound: "direct"},
 				{DomainSuffix: ruAlwaysDirectDomains, Outbound: "direct"},
+				// Telegram (build 56.2, 2026-05-13): route through "RU Traffic"
+				// selector so it follows the user's mode. Telegram is unblocked
+				// in RU, so in Smart / Split-tunnel modes it goes direct (fast,
+				// ~10-30ms RTT instead of 100-200ms via VPN). In Full-VPN mode
+				// it goes through Proxy, respecting user intent. Telegram CDN
+				// IPs are NOT in geoip-ru (registered to Telegram Messenger Inc
+				// in NL), so this explicit rule is required — without it,
+				// Telegram falls through to Default Route. See telegram_routing.go
+				// for CIDR/domain source.
+				//
+				// TWO separate rules because sing-box uses AND between fields
+				// within a single rule: combining domain_suffix and ip_cidr
+				// would require BOTH to match, which fails for raw MTProto
+				// (no domain sniff) and for sniffed connections where the
+				// resolved IP isn't in our list. OR semantics need two rules.
+				{DomainSuffix: telegramDomains, Outbound: "RU Traffic"},
+				{IPCIDR: telegramCIDRs, Outbound: "RU Traffic"},
 				{RuleSet: "refilter", Outbound: "Blocked Traffic"},
 				{DomainSuffix: []string{".ru"}, Outbound: "RU Traffic"},
 				{RuleSet: "geoip-ru", Outbound: "RU Traffic"},
@@ -790,6 +812,7 @@ type clientRouteRule struct {
 	Port         int      `json:"port,omitempty"`
 	IPIsPrivate  *bool    `json:"ip_is_private,omitempty"`
 	DomainSuffix []string `json:"domain_suffix,omitempty"`
+	IPCIDR       []string `json:"ip_cidr,omitempty"`
 	RuleSet      string   `json:"rule_set,omitempty"`
 	Action       string   `json:"action,omitempty"`
 	Outbound     string   `json:"outbound,omitempty"`
