@@ -1,0 +1,144 @@
+# High-level component map. iOS / backend / fork modules and the
+# contracts between them. Update when adding a new top-level module
+# or changing the responsibility boundary.
+#
+# Schema: docs/SCHEMA.md § architecture/components.yaml
+
+components:
+  # ─── Backend (Go) ────────────────────────────────────────────────────────
+
+  - id: backend-config-generator
+    layer: backend
+    path: backend/internal/vpn/clientconfig.go
+    responsibility: |
+      Generate sing-box client config JSON for iOS/macOS from server +
+      chain DB rows + ClientConfigOpts (geo hint, country code).
+      Reads CHAMELEON_DISABLE_QUIC_OUTBOUNDS env on every call.
+    consumes:
+      - postgres.vpn_servers
+      - postgres.chains
+      - geoip.Resolver
+      - env.CHAMELEON_DISABLE_QUIC_OUTBOUNDS
+    produces: [singbox-config-json]
+    contracts:
+      - configBuildMarker exposes a human-readable revision id in the
+        JSON `_marker` field; iOS surfaces this in debug footer (DEBUG only)
+      - emits no outbound without country_code (skips DB rows quietly)
+      - empty ClientCountryCode means "unknown geo, ship full config"
+        (safe-fallback — never strips outbounds without positive ID)
+
+  - id: backend-mobile-config-endpoint
+    layer: backend
+    path: backend/internal/api/mobile/config.go
+    responsibility: |
+      GET /api/mobile/config — JWT-authenticated. Loads user, gathers
+      server entries + chains, resolves client country via geoip,
+      delegates JSON generation to backend-config-generator.
+    consumes: [backend-config-generator, auth.JWT, geoip.Resolver]
+    contracts:
+      - geoip Lookup capped at 1s; on miss country=""
+      - Returns raw sing-box JSON (not wrapped)
+      - Sets X-Expire header with subscription unix timestamp
+
+  - id: backend-geoip
+    layer: backend
+    path: backend/internal/geoip/geoip.go
+    responsibility: |
+      IP → country code lookup via free ip-api.com (45 req/min tier).
+      In-memory 24h cache; safe to fire-and-forget (errors swallowed).
+
+  # ─── iOS / macOS app ─────────────────────────────────────────────────────
+
+  - id: ios-app-state
+    layer: ios
+    path: clients/apple/MadFrogVPN/Models/AppState.swift
+    responsibility: |
+      High-level UI state machine. Wraps VPNManager + APIClient +
+      configStore. Owns toggleVPN(), refreshConfig(), error messages.
+      Watchdog enforces 18s connect deadline with silent retry.
+
+  - id: ios-vpn-manager
+    layer: ios
+    path: clients/apple/MadFrogVPN/Models/VPNManager.swift
+    responsibility: |
+      Wrapper around NEVPNManager + tunnel provider lifecycle. Connect /
+      disconnect / observe NEVPNStatus. Owns the App Group bridge for
+      passing startup config to the extension via UserDefaults.
+
+  - id: ios-packet-tunnel-provider
+    layer: ios
+    path: clients/apple/PacketTunnel/ExtensionProvider.swift
+    responsibility: |
+      NEPacketTunnelProvider subclass. Spawns sing-box (via Libbox),
+      gRPC server for stats, TunnelStallProbe, RealTrafficStallDetector,
+      memory watchdog. Wires platform-interface callback channel.
+
+  - id: ios-platform-interface
+    layer: ios
+    path: clients/apple/PacketTunnel/ExtensionPlatformInterface.swift
+    responsibility: |
+      Bridge from sing-box internals to iOS NetworkExtension APIs:
+      openTun, setTunnelNetworkSettings, NWPathMonitor → libbox interface
+      updates, log line dispatch to TunnelFileLogger.
+    contracts:
+      - Holds weak refs to TunnelStallProbe + RealTrafficStallDetector;
+        injection happens in ExtensionProvider.startStallProbe().
+      - On NWPath.isExpensive change → stallProbe.apply(.cellular|.wifi)
+
+  - id: ios-tunnel-stall-probe
+    layer: ios
+    path: clients/apple/PacketTunnel/TunnelStallProbe.swift
+    responsibility: |
+      Active health probe firing periodic HTTP GETs to our /healthcheck
+      32 KB endpoint via the active tunnel. Classifies outcome as
+      healthy / throttled / failed by bytes + elapsed time. On STALL
+      streak: invokes fallback (cross-process flag + LibboxCommandClient
+      urlTest nudge of every group).
+    contracts:
+      - Profile { wifi=2/15s, cellular=1/5s } selectable via apply(_:)
+      - Mid-flight profile swap takes effect on next tick (no restart)
+      - Cooldown after fallback (120s) + max 5 fallbacks/hour
+
+  - id: ios-real-stall-detector
+    layer: ios
+    path: clients/apple/PacketTunnel/RealTrafficStallDetector.swift
+    responsibility: |
+      Passive detector: parses sing-box log stream for "connection: open
+      ... timeout" + RST patterns in 30s sliding window. Fires onStall
+      when timeout rate exceeds threshold on actual user traffic.
+      Complements TunnelStallProbe (synthetic) — catches the KILL class
+      that small probe misses.
+
+  # ─── sing-box fork ───────────────────────────────────────────────────────
+
+  - id: fork-firstwrite-callback
+    layer: fork
+    path: sing-box-fork/common/callback/firstwrite.go
+    responsibility: |
+      Wraps net.Conn so the first Write error fires a callback exactly
+      once. Used by URLTest group to invalidate dead outbound's URLTest
+      history without waiting for next probe.
+    consumed-by: [sing-box-fork/protocol/group/urltest.go]
+    cherry-picked-from: MetaCubeX/mihomo common/callback/callback.go
+
+  - id: fork-libbox-build
+    layer: fork
+    path: sing-box-fork/cmd/internal/build_libbox/main.go
+    responsibility: |
+      Builds Libbox.xcframework for iOS + macOS. Drops heavy unused
+      tags (with_tailscale, with_naive_outbound, with_dhcp) to shrink
+      binary against the 50 MB iOS NE jetsam cap.
+
+  # ─── Infrastructure ──────────────────────────────────────────────────────
+
+  - id: infra-topology
+    layer: infra
+    path: infrastructure/topology.yaml
+    responsibility: |
+      Canonical server + relay + chain topology. Single source of truth
+      for: backend deploy script node registry, sing-box server config,
+      iOS Constants.swift. Edits here propagate via deploy.
+    note: |
+      We deliberately do NOT mirror this file into docs/architecture/ to
+      avoid drift. If a doc cross-reference is needed, link to the
+      infrastructure/ path directly.

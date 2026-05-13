@@ -1,0 +1,295 @@
+# Project phases — what we plan / are doing / have done.
+# Schema: docs/SCHEMA.md § plan.yaml
+#
+# Every named change is one phase. Use status to drive filters:
+#   yq '.phases[] | select(.status=="done")'
+#   yq '.phases[] | select(.status=="planned") | .id'
+#
+# Phase IDs are PERMALINKS — never renamed. Other files reference them.
+# Order in this file = chronological. Append new phases at the end.
+
+phases:
+  # ─── Smart-selection rollout (build 55 onward, 2026-05-13) ─────────────────
+
+  - id: phase-0-universal-nl-hint
+    title: Universal NL-first hint in Auto urltest
+    status: done
+    layer: backend
+    builds: [56]
+    completed: 2026-05-13
+    rationale: |
+      Field log 2026-05-13 morning showed Auto urltest picking de-direct-de
+      on cold start (136ms vs nl 143ms, tolerance=0). DE OVH widely DPI-
+      blocked from RU networks; real user TCP dies in 3-30s while urltest
+      probe (small gstatic 204) passes.
+    artifacts:
+      - backend/internal/api/mobile/geo_hint.go
+      - backend/internal/api/mobile/geo_hint_test.go
+      - backend/internal/vpn/clientconfig.go
+      - backend/internal/vpn/engine.go
+    outcome:
+      config-marker: 56.1-universal-nl-hint
+      cold-start-latency-s: 0.7
+      previous: 1.5
+    follow-up:
+      - phase-1.b-dpi-filter   # full filter, not just reorder
+
+  - id: phase-0.1-telegram-direct-routing
+    title: Route Telegram via "RU Traffic" selector (direct)
+    status: reverted
+    layer: backend
+    builds: [56]
+    completed: 2026-05-13
+    notes: |
+      Commit dba46b8 routed Telegram domains+CIDRs through RU Traffic
+      (direct in Smart/Split modes). Reverted in c953ce4 ~20 min later
+      after field log showed real users on mobile carriers couldn't TCP
+      to TG CDN IPs (91.105.192.x, 149.154.x, 95.161.76.x).
+    lesson: |
+      Don't assume "Telegram unblocked in RU = direct works". Many carriers
+      drop TG CDN at TCP layer; VPN is the only path.
+
+  - id: phase-1-first-write-callback
+    title: First-write callback in sing-box fork
+    status: done
+    layer: fork
+    builds: [56, 57, 58, 60]   # 56-58 had v1.13.6 OOM, 60 v1.13.5 + cherry-pick
+    completed: 2026-05-13
+    rationale: |
+      mihomo-pattern data-plane health. urltest probe (small gstatic) can
+      pass while real user TCP dies on first proxy-payload Write — DPI
+      handshake-kill. Wrap returned net.Conn; on first Write error,
+      invalidate the outbound's URL test history → urltest re-elects.
+    artifacts:
+      - sing-box-fork/common/callback/firstwrite.go
+      - sing-box-fork/common/callback/firstwrite_test.go
+      - sing-box-fork/protocol/group/urltest.go
+    cherry-picked-from: MetaCubeX/mihomo common/callback/callback.go
+
+  - id: phase-1.5-throughput-time-threshold
+    title: Throughput-time threshold in TunnelStallProbe
+    status: done
+    layer: ios
+    builds: [57]
+    completed: 2026-05-13
+    rationale: |
+      Build 42-56 probe checked bytes-received only. DPI throttle delivers
+      full 32 KB body slowly (20-25 KB/s), so probe reported "OK
+      body=32768 elapsed=1654ms" while real bulk traffic stalled. Added
+      elapsed-time budget (maxProbeElapsedMs).
+    artifacts:
+      - clients/apple/Shared/TunnelProbeOutcome.swift
+      - clients/apple/PacketTunnel/TunnelStallProbe.swift
+      - clients/apple/Tests/UnitTests/TunnelProbeOutcomeTests.swift
+
+  - id: phase-1.6-app-review-siwa-fix
+    title: SIWA re-fix via native SwiftUI SignInWithAppleButton
+    status: done
+    layer: ios
+    builds: [59, 60]
+    completed: 2026-05-13
+    rationale: |
+      App Review v1.0.26 rejection (Guideline 2.1a "Continue with Apple
+      no action" on iPad Air M3 + iPhone 17 Pro Max). Old UIKit
+      AppleAuthCoordinator did manual window-anchor walk that broke on
+      iOS 26.5 multi-scene plumbing.
+    artifacts:
+      - clients/apple/MadFrogVPN/Views/OnboardingView.swift
+      - clients/apple/MadFrogVPN/Models/L10n.swift
+    notes: |
+      AppleAuthCoordinator.swift kept in-tree but no longer called
+      (safe to delete in followup).
+
+  - id: phase-1.7-routing-mode-ux
+    title: Default mode .ruDirect, rename "Умный" → "Только блоки"
+    status: done
+    layer: ios
+    builds: [58]
+    completed: 2026-05-13
+    rationale: |
+      Field log: users picking "Умный" assumed smart=best, but smart mode
+      leaves TG/Speedtest exposed to cellular throttle. Split-tunnel
+      (foreign apps via VPN, RU sites direct) is better default.
+    artifacts:
+      - clients/apple/Shared/RoutingMode.swift
+      - clients/apple/MadFrogVPN/Views/SettingsView.swift
+      - clients/apple/MadFrogVPN/Resources/{ru,en}.lproj/Localizable.strings
+
+  - id: phase-1.9-libbox-revert
+    title: Revert libbox base from v1.13.6 → v1.13.5
+    status: reverted               # the revert itself was the wrong call
+    layer: fork
+    builds: [60]
+    completed: 2026-05-13
+    rationale: |
+      Builds 56-58 (sing-box v1.13.6) showed oom-killer storm at 43 MiB.
+      Hypothesis: v1.13.5→v1.13.6 memory regression. Reset fork branch
+      to upstream v1.13.5 tag, cherry-picked callback patch onto it.
+    related-incidents:
+      - 2026-05-13-libbox-1.13.6-oom-wrong-call
+    notes: |
+      Wrong call — see incident. The single-line diff between v0.8.3 and
+      v0.8.4 of sagernet/sing (Iovec(Cap()) → Iovec(FreeLen())) is
+      provably no-op for freshly-created buffers. Real cause was config
+      inflation, addressed in phase-1.a. We're keeping v1.13.5-madfrog
+      anyway since rolling forward isn't urgent.
+
+  - id: phase-1.a-quic-suppress
+    title: Suppress QUIC outbounds via CHAMELEON_DISABLE_QUIC_OUTBOUNDS
+    status: done
+    layer: backend
+    builds: [60.2]
+    completed: 2026-05-13
+    rationale: |
+      Config audit showed 44 outbounds × ~1-3 MiB each on Go heap.
+      4 QUIC leaves (de-h2, de-tuic, nl-h2, nl-tuic) timeout reliably on
+      cellular but still reserve BBR + uTLS state. ~10 MiB savings.
+    artifacts:
+      - backend/internal/vpn/clientconfig.go
+      - backend/internal/vpn/clientconfig_test.go
+      - backend/docker-compose.yml
+    outcome:
+      config-marker: 60.2-no-quic-outbounds
+      oom-events: 0
+      previous-oom-events: 103218
+    related-incidents:
+      - 2026-05-13-libbox-1.13.6-oom-wrong-call
+
+  - id: phase-1.b-dpi-filter
+    title: DPI-aware config — strip de-direct for RU/BY clients
+    status: done
+    layer: backend
+    builds: [60.3]
+    completed: 2026-05-13
+    rationale: |
+      Even after Phase 1.A, urltest cycle still probed dead de-direct-de
+      every 15s — 5s context-deadline-exceeded per cycle = user
+      perceives "hangs every 15s". DE OVH (162.19.242.30) ASN-blocked
+      from all observed RU/BY mobile carriers + most home ISPs.
+    artifacts:
+      - backend/internal/vpn/clientconfig.go
+      - backend/internal/api/mobile/config.go
+      - backend/internal/vpn/engine.go
+    outcome:
+      config-marker: 60.3-dpi-aware-config
+      dead-probes-per-min: 0
+      previous-dead-probes-per-min: 4
+
+  - id: phase-1.c-adaptive-cadence
+    title: Adaptive probe cadence on cellular (TunnelStallProbe profile)
+    status: done
+    layer: ios
+    builds: [61]
+    completed: 2026-05-13
+    rationale: |
+      Default TunnelStallProbe params (threshold=2, interval=15s) gave
+      ~30s from throttle to fallback. On cellular shorten to threshold=1,
+      interval=5s → fallback in <10s.
+    artifacts:
+      - clients/apple/PacketTunnel/TunnelStallProbe.swift
+      - clients/apple/PacketTunnel/ExtensionPlatformInterface.swift
+      - clients/apple/PacketTunnel/ExtensionProvider.swift
+    outcome:
+      fallback-latency-ms: 9
+      previous-fallback-latency-ms: 21000
+      field-verified: true
+      evidence-log: "user share 2026-05-13 23:33 LTE"
+    notes: |
+      Architecture nuance: NWPathMonitor.pathUpdateHandler fires multiple
+      times on a stable cellular path (route refresh, neighbor discovery,
+      BSSID flap). Initial fear of race condition (probe injected after
+      first pathUpdate) was unfounded — second callback always lands.
+
+  - id: phase-1.c-polish-log
+    title: Phase 1.C log quality — apply(_:) dedupe + recovery event
+    status: done
+    layer: ios
+    builds: [62]
+    completed: 2026-05-13
+    rationale: |
+      Build 61 emitted "cellular profile applied" on every pathUpdate
+      (5-10 lines/min on stable cellular). Log read as heartbeat, not
+      narrative. Also: counter silently zeroed on probe recovery between
+      degraded probes — invisible to log reader.
+    artifacts:
+      - clients/apple/PacketTunnel/TunnelStallProbe.swift
+      - clients/apple/PacketTunnel/ExtensionPlatformInterface.swift
+    changes:
+      - Replace applyCellularProfile/applyWiFiProfile with single apply(_:)
+      - Profile enum with stallThreshold/probeInterval computed properties
+      - Log transitions only ("profile X → Y") with "initial" marker on first
+      - Log "probe recovered after N degraded — counter reset" event
+      - start() logs profile + first-probe delay for startup context
+
+  - id: phase-1.d-penalty-score
+    title: Penalty score for throttled outbound (iOS-only)
+    status: planned
+    layer: ios
+    rationale: |
+      User still sees ~5-7s pauses every ~90s — throttle → fallback →
+      urltest re-elects same throttled outbound (small probe passes,
+      bulk-throttle DPI signature only trips on real flows).
+    plan: |
+      After STALL streak fires:
+      1. Capture currently-active outbound via LibboxCommandClient.
+      2. Persist per-outbound "do not re-select until T" map (Swift-side).
+      3. selectOutbound(group, name) to pin first non-penalised member,
+         bypassing urltest re-probe.
+      4. 60s decay → resume normal urltest cycle.
+    tradeoffs:
+      - "Pro: breaks throttle→fallback→same-outbound loop"
+      - "Con: if all members throttled, fallback prefers least-recent"
+      - "Con: overrides urltest RTT-optimal selection for cooldown window"
+    estimated-effort: 0.5 day
+    target-build: 63
+
+  - id: phase-1.e-server-side-rotation
+    title: Periodic upstream connection rotation in fork
+    status: deferred
+    layer: fork
+    rationale: |
+      Throttle clock resets per-flow. Tearing down + re-dialing the
+      upstream VLESS Reality every ~75s would keep flows short-lived,
+      DPI sees fresh small flows instead of one long bulk.
+    risks:
+      - Heavy on memory (reconnect allocates uTLS + Reality handshake state)
+      - 50 MB jetsam cap might push us back to OOM territory
+    pre-work: heap-instrument-during-forced-reconnect
+
+  - id: phase-1-smart-group
+    title: Cherry-pick full mihomo Smart group (LightGBM + MAD)
+    status: planned
+    layer: fork
+    rationale: |
+      mihomo's Smart group is the v2 of adaptive selection — LightGBM
+      scoring + MAD anomaly detection + ASN feature. Don't reinvent.
+    estimated-effort: 2-3 days
+    blocked-by: phase-1.d-penalty-score  # validate the cheaper fix first
+
+  - id: phase-2-anti-correlation
+    title: Anti-correlation + state machine (probe-mimic)
+    status: planned
+    layer: fork
+    rationale: |
+      DPI distinguishes probe from user traffic. Replace generate_204
+      with our own 4-32 KB randomised payload so probes can't be
+      passed-through specifically.
+    blocked-by: phase-1-smart-group
+
+  - id: phase-3-lte-hard-rules-happy-eyeballs
+    title: Happy Eyeballs v2 (RFC 8305) + LTE hard rules
+    status: planned
+    layer: ios
+    rationale: |
+      Race-dial 2 leaves with CAD=250ms on cold start. On cellular hard-
+      disable UDP leaves entirely (NAT-rebinding kills them).
+    notes: |
+      Partial — Phase 1.A already disables UDP at config level. This
+      would be a finer-grained NWPath-aware client filter.
+
+  # Vertical-specific (non-smart-selection) ongoing work lives below.
+  # Add new phases under the appropriate header.
+
+  # ─── App Store launch ──────────────────────────────────────────────────────
+  # See archive/2026-05-pre-yaml/ROADMAP.md § Launch Checklist for LAUNCH-01..NN
+  # backlog. Will migrate when launch work resumes.

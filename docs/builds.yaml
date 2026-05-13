@@ -1,0 +1,118 @@
+# Per-build release log — every TestFlight upload.
+# Schema: docs/SCHEMA.md § builds.yaml
+#
+# One entry per build number. Append at the end; never re-order.
+# Cross-reference phases via phase ids from plan.yaml.
+
+builds:
+  - number: 62
+    version: "1.0.26"
+    date: 2026-05-13
+    track: testflight-internal
+    asc-build-id: 06ecd6af-cee8-41b4-b4d4-3a8afea37cb2
+    phases: [phase-1.c-polish-log]
+    archive-path: /tmp/MadFrogVPN-build62.xcarchive
+    field-verified: false
+    notes: |
+      Log quality refactor of Phase 1.C — single apply(_:) with dedupe,
+      Profile enum with computed properties, profile-transition log
+      format, recovery event, startup context. Same libbox as 60/61.
+
+  - number: 61
+    version: "1.0.26"
+    date: 2026-05-13
+    track: testflight-internal
+    asc-build-id: f030e477-3029-4930-adfa-72cbeb8d45da
+    phases: [phase-1.c-adaptive-cadence]
+    archive-path: /tmp/MadFrogVPN-build61.xcarchive
+    field-verified: true
+    evidence: |
+      User log 2026-05-13 23:33 LTE: profile transition + degraded #1 →
+      STALL streak → urlTest in 9 ms (was ~21 s on build 60).
+    notes: |
+      Adaptive probe cadence on cellular: threshold=1/interval=5s vs
+      default 2/15. Libbox identical to 60.
+
+  - number: 60
+    version: "1.0.26"
+    date: 2026-05-13
+    track: testflight-internal,app-store-attached
+    asc-build-id: 02a8c590-51da-429a-87b6-860147c991c2
+    phases:
+      - phase-1.9-libbox-revert     # reverted call, see incident
+      - phase-1-first-write-callback # cherry-picked onto v1.13.5
+    archive-path: /tmp/MadFrogVPN-build60.xcarchive
+    field-verified: true            # OOM still present (incident)
+    notes: |
+      libbox rebuilt from v1.13.5 + first-write callback patch. 44 MB.
+      Backend deployed 60.2-no-quic-outbounds first, then 60.3-dpi-aware-config.
+      Attached to v1.0.26 App Store submission (currently WAITING_FOR_REVIEW).
+
+  - number: 59
+    version: "1.0.26"
+    date: 2026-05-13
+    track: testflight-internal
+    asc-build-id: 0bfbc062-55c8-4352-8c29-821467e3d882
+    phases: [phase-1.6-app-review-siwa-fix]
+    field-verified: true
+    notes: |
+      Native SwiftUI SignInWithAppleButton replaces UIKit AppleAuthCoordinator
+      (broken on iOS 26 multi-scene anchor lookup).
+
+  - number: 58
+    version: "1.0.26"
+    date: 2026-05-13
+    track: testflight-internal
+    asc-build-id: 39d6840e-c450-4b53-96e4-c05524d8636c
+    phases: [phase-1.7-routing-mode-ux]
+    field-verified: true
+    field-issue: 2026-05-13-libbox-1.13.6-oom-wrong-call
+    notes: |
+      Routing mode UX (default .ruDirect, rename to "Только блоки").
+      Carried libbox v1.13.6 OOM regression.
+
+  - number: 57
+    version: "1.0.26"
+    date: 2026-05-13
+    track: testflight-internal
+    asc-build-id: b9fe63a5-bd20-4524-ae03-21fb33539b37
+    phases: [phase-1.5-throughput-time-threshold]
+    field-verified: true
+    field-issue: 2026-05-13-libbox-1.13.6-oom-wrong-call
+    notes: |
+      TunnelStallProbe throughput-time threshold (catches DPI throttle).
+      Carried libbox v1.13.6 OOM regression.
+
+  - number: 56
+    version: "1.0.26"
+    date: 2026-05-13
+    track: testflight-internal
+    asc-build-id: 213eaeb9-c7fa-478a-9953-d9ee0028ce8b
+    phases:
+      - phase-0-universal-nl-hint
+      - phase-0.1-telegram-direct-routing  # reverted
+      - phase-1-first-write-callback        # first ship, on v1.13.6
+    field-verified: true
+    field-issue: 2026-05-13-libbox-1.13.6-oom-wrong-call
+    notes: |
+      First build of the Smart-selection rollout. Configured for libbox
+      v1.13.6 (later reverted in build 60). Telegram direct routing
+      reverted in c953ce4.
+
+  - number: 55
+    version: "1.0.26"
+    date: 2026-05-13
+    track: testflight-internal
+    asc-build-id: 86e4b6f9-ea50-4a41-99bd-a25aa7f35a14
+    phases: []                        # baseline before Phase 0
+    field-verified: true
+    notes: |
+      Last known-good baseline before the Phase 0+ rollout. Used as
+      reference for "config 44 outbounds inflation already present" —
+      the Smart-selection work didn't introduce the OOM, the OOM was
+      already latent here, just not triggered.
+
+  # ─── Pre-build-55 history not migrated.
+  # See archive/2026-05-pre-yaml/release-notes/ for builds 31-35.
+  # Gap: builds 36-54 are not documented in release-notes/, only in
+  # git log. Backfill is a separate task; not blocking.

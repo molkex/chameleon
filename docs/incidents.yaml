@@ -1,0 +1,154 @@
+# Field-failures + post-mortems.
+# Schema: docs/SCHEMA.md § incidents.yaml
+#
+# Add an incident when something breaks in production AND root cause
+# isn't immediately obvious from the code. The point isn't blame —
+# it's so future-you doesn't re-debug the same misdirection.
+
+incidents:
+  - id: 2026-05-13-libbox-1.13.6-oom-wrong-call
+    date: 2026-05-13
+    severity: blocker
+    title: libbox v1.13.6 OOM-killer storm — misdiagnosed as base regression
+    builds-affected: [56, 57, 58, 60]
+    detected-via: field-log
+    symptoms:
+      - sing-box internal oom-killer fires ~100-500x/sec
+      - "memory pressure: critical, usage: 40-43 MiB"
+      - "all TG/Speedtest connections die on each oom-killer reset"
+      - "extension auto-restart by iOS jetsam after ~30s"
+    initial-hypothesis: |
+      sing-box base version regression v1.13.5 → v1.13.6 caused memory
+      growth on iOS NetworkExtension. Suspected sagernet/sing v0.8.4
+      "Iovec(Cap()) → Iovec(FreeLen())" change in copy_direct_posix.go.
+    initial-hypothesis-outcome: wrong
+    investigation: |
+      Diff between sing-box v1.13.5 and v1.13.6: 3 commits, 2 in code we
+      don't ship (naive padding excluded at build, version bump). Only
+      load-bearing change: sagernet/sing v0.8.3 → v0.8.4, single-line
+      diff. For freshly-created buffers (the hot path here), Cap() ==
+      FreeLen() — change is provably no-op.
+
+      Real cause emerged after Phase 1.9 revert FAILED (build 60 OOMed
+      identically to 58). Config audit on build 60 init log: 44 outbounds
+      initialised at tunnel start (9 selectors, 5 urltest groups, 10 leaves
+      including 4 QUIC). Each VLESS Reality leaf ~1-2 MiB heap (uTLS +
+      Reality state); each QUIC leaf ~2-3 MiB (BBR congestion state).
+      Approximate baseline ~30 MiB cold; ~12 MiB room before 42 MiB
+      GOMEMLIMIT trip, easily eaten by user traffic.
+    root-cause: |
+      Config inflation: 4 QUIC outbounds reserved ~10 MiB of Go heap
+      while reliably dead on cellular (NAT-rebinding) — net 10 MiB
+      wasted at all times. Plus dead de-direct-de leaf burning urltest
+      cycles. Phase 1.A removed QUIC ⇒ 0 OOM events. Phase 1.B removed
+      dead de-direct ⇒ urltest no longer spends 5s/cycle on dead probe.
+    fixed-by:
+      - phase-1.a-quic-suppress
+      - phase-1.b-dpi-filter
+    lessons:
+      - Don't roll back the base version when a build fails — first isolate.
+      - Field-log heap numbers (40-43 MiB usage) were the smoking gun;
+        I anchored on the version diff instead of asking "what is the
+        config doing differently".
+      - QUIC outbounds that reliably timeout still cost Go heap. UDP
+        outbound is not "free" just because it's not transferring data.
+
+  - id: 2026-05-13-dpi-de-direct-russian-asns
+    date: 2026-05-13
+    severity: major
+    title: de-direct-de (OVH 162.19.242.30) unreachable from RU/BY mobile carriers
+    builds-affected: [55, 56, 57, 58, 59, 60, 60.2]   # fixed in 60.3
+    detected-via: field-log
+    symptoms:
+      - "outbound de-direct-de unavailable: context deadline exceeded (repeats every 15s)"
+      - urltest cycle wastes 5s per cycle on dead probe
+      - "user perceives VPN as 'hangs every 15 seconds'"
+    root-cause: |
+      OVH AS16276 ranges ASN-blocked by every observed RU/BY mobile
+      carrier (МТС, МегаФон, Билайн, Yota; A1, life:) and most home ISPs
+      (Ростелеком, ЭР-Телеком). Phase 0 hint reordered urltest but kept
+      the dead leaf in the pool — urltest re-probes everything every cycle.
+    fixed-by:
+      - phase-1.b-dpi-filter
+    lessons:
+      - "Reorder ≠ remove. Cold-start hint doesn't help mid-session re-probes."
+      - "When a leaf is universally dead for a class of users, strip it from their config server-side — not just demote it."
+
+  - id: 2026-05-13-build-61-noisy-log
+    date: 2026-05-13
+    severity: cosmetic
+    title: TunnelStallProbe spammed "cellular profile applied" on every pathUpdate
+    builds-affected: [61]
+    detected-via: field-log
+    symptoms:
+      - "5-10 'cellular profile applied' lines per minute on stable cellular"
+      - Log reads as heartbeat, not narrative — hard to spot real events
+    investigation: |
+      NWPath.pathUpdateHandler fires repeatedly on a stable cellular
+      uplink (route refresh, neighbor discovery, BSSID flap). My
+      applyCellularProfile() / applyWiFiProfile() pair emitted a log
+      line every call, regardless of whether the profile actually changed.
+    root-cause: |
+      Stateless apply methods + no dedup at log boundary.
+    fixed-by:
+      - phase-1.c-polish-log
+    lessons:
+      - When wiring a method to a high-frequency callback, treat the call
+        as a state-change candidate, not a state-confirmation request.
+      - Log should be a narrative of events, not a heartbeat.
+
+  - id: 2026-05-13-build-61-suspected-race
+    date: 2026-05-13
+    severity: cosmetic
+    title: Suspected race — probe injected after first pathUpdate (NOT a real bug)
+    builds-affected: [61]
+    detected-via: code-review
+    symptoms:
+      - startSingBox() starts NWPathMonitor BEFORE startStallProbe() injects probe
+      - First pathUpdate could fire with stallProbe == nil
+    investigation: |
+      Initial reading: race condition would silently swallow the first
+      profile selection. Field-log inspection of build 61 showed
+      "cellular profile applied" emitted at 23:33:05 — 5 seconds after
+      tunnel start, well after the first pathUpdate would've fired.
+    root-cause: |
+      Not actually a bug. iOS fires pathUpdateHandler many times per
+      minute on a stable uplink (5+ in 22 s of build 61 startup field
+      log). The second callback always catches a populated weak ref.
+    fixed-by: []   # nothing to fix
+    lessons:
+      - "Don't assume a high-frequency callback is one-shot. iOS path monitoring is noisy by design."
+      - "Profile early before refactoring for a hypothesised race."
+
+  # ─── Pre-2026-05-13 incidents (migrated from TROUBLESHOOTING.md) ──────────
+  # Keep ids stable when migrating to preserve cross-file references.
+
+  - id: 2026-04-24-de-ovh-blocked-on-ru-lte
+    date: 2026-04-24
+    severity: major
+    title: DE (OVH Frankfurt) blocked at ASN level by RU mobile carriers
+    builds-affected: [pre-55]
+    detected-via: field-log
+    symptoms:
+      - VLESS (TCP:443), H2 (UDP:443), TUIC (UDP:8443) all dead from RU LTE
+      - NL (Timeweb 147.45.252.234) works on same network
+      - DE works on Wi-Fi
+    initial-hypothesis: |
+      DE selected in UI, but exit IP showed NL.
+    initial-hypothesis-outcome: wrong
+    investigation: |
+      Side effect of OOM-reset libbox debug (commit 48a93b9, build 30):
+      after OOM Auto urltest re-evaluated and fell to NL; whoer.net saw
+      NL exit. Real issue was carrier-level ASN block.
+    root-cause: |
+      RU mobile carriers ASN-block OVH AS16276 ranges. TCP SYN to
+      162.19.242.30 dropped or RST'd at AS boundary. UDP same.
+      NL Timeweb AS9123 not yet on block-lists.
+    fixed-by:
+      - "isNLServer() sort.SliceStable in clientconfig.go (Phase 0 ancestor)"
+      - "isRURegion check in APIClient.swift"
+    related-phases:
+      - phase-0-universal-nl-hint
+      - phase-1.b-dpi-filter
+    lessons:
+      - "Geo of exit IP at whoer ≠ what user picked. Always trust outbound selector log over external visible IP."

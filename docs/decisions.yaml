@@ -1,0 +1,114 @@
+# Architecture Decision Records (ADR).
+# Schema: docs/SCHEMA.md § decisions.yaml
+#
+# Add an entry when a non-obvious tradeoff was made. The point is the
+# WHY, not the WHAT (the code shows what). When superseded, set status
+# and link superseded-by — don't delete.
+
+decisions:
+  - id: ADR-001-fork-singbox
+    date: 2026-04-23
+    status: accepted
+    title: Maintain a permanent sing-box fork
+    context: |
+      Upstream sing-box rejected smart-outbound selection (issue #2061
+      "Advanced automatic node selection") as "not planned". We need
+      first-write callback (data-plane health), mihomo Smart group
+      (LightGBM scoring), and BBR telemetry — none upstream-mergeable.
+    decision: |
+      Maintain v1.13.5-madfrog branch in sing-box-fork repo with periodic
+      upstream rebases. Cherry-pick mihomo patches as needed.
+    consequences:
+      - Pay rebase cost on each upstream release
+      - libbox.xcframework must be rebuilt locally (~494 MB git-ignored)
+      - One Go module replace directive in chameleon's go.mod
+    alternatives-rejected:
+      - "Live-patch upstream binary — too fragile, breaks on every release"
+      - "Use mihomo directly — wrong sing-box API surface; massive switch cost"
+
+  - id: ADR-002-yaml-first-docs
+    date: 2026-05-13
+    status: accepted
+    title: YAML-first knowledge base, markdown only as human navigator
+    context: |
+      Project knowledge had drifted across ROADMAP.md, SMART_SELECTION_PLAN.md,
+      TROUBLESHOOTING.md, release-notes/, and yaml mirrors. Same facts in
+      multiple places; cross-references rot; agents/humans can't tell where
+      canonical truth lives.
+    decision: |
+      docs/ contains:
+        - INDEX.md (single human navigator, ~50 lines)
+        - {state,plan,incidents,decisions,builds}.yaml (canonical)
+        - architecture/ subfolder with components.yaml + topology link
+      Old MDs go to docs/archive/2026-05-pre-yaml/ with README explaining
+      what moved where. New facts go to YAML only.
+    consequences:
+      - "+30-40% token efficiency on knowledge loads"
+      - Cross-file `id` references catchable by validator
+      - Markdown lovers must read INDEX or YAML directly
+    alternatives-rejected:
+      - "Auto-generate MD from YAML — extra build step, drift risk"
+      - "Markdown-first with YAML mirror — failed mode we're moving away from"
+
+  - id: ADR-003-libbox-pin-v1.13.5
+    date: 2026-05-13
+    status: accepted
+    title: Pin libbox to sing-box v1.13.5 base, cherry-pick callback only
+    context: |
+      Builds 56-58 shipped libbox from v1.13.6 fork HEAD; OOM-killer
+      storm on iOS NE. Initial diagnosis blamed v1.13.5 → v1.13.6 base
+      regression, prompting Phase 1.9 revert. Subsequent root-cause work
+      (incident 2026-05-13-libbox-1.13.6-oom-wrong-call) showed the base
+      diff is no-op. Real cause was config inflation.
+    decision: |
+      Despite v1.13.6 not being the actual culprit, keep v1.13.5-madfrog
+      as the canonical fork branch for now. No urgency to roll forward
+      until we have a concrete reason (a v1.13.6+ feature we need).
+      LibboxVersionGuardTests will fail if someone rebuilds against a
+      newer base without updating the test pin.
+    consequences:
+      - Miss upstream v1.13.6+ bugfixes until next deliberate rebase
+      - "Defensive: regression risk on rebase quantified via the pin test"
+    alternatives-rejected:
+      - "Roll back to even older v1.13.5 unmodified — loses first-write callback"
+      - "Track upstream main — too risky without per-rebase memory bench"
+
+  - id: ADR-004-server-side-geo-filter-over-client
+    date: 2026-05-13
+    status: accepted
+    title: DPI-aware filter lives in backend (geoip), not client (NWPath)
+    context: |
+      Phase 1.B (strip de-direct for RU/BY clients) could've lived in
+      iOS extension (filter outbounds on cellular detection) or backend
+      (filter based on request IP geoip).
+    decision: |
+      Backend, via `ClientConfigOpts.ClientCountryCode` resolved from
+      `geoip.Lookup(c.RealIP())` with 1s timeout + safe-empty fallback.
+    consequences:
+      - "Pro: also covers RU users on Wi-Fi (NWPath says wifi, but ISP DPI same as cellular)"
+      - "Pro: server has full geo signal; iOS only has network-type bool"
+      - "Con: depends on ip-api.com free tier (45 req/min) — mitigated by 24h cache + 1s timeout + safe-empty fallback"
+    alternatives-rejected:
+      - "Client-side NWPath.isExpensive — misses RU home Wi-Fi DPI"
+      - "Per-server `unreachable_from_ru` DB column — needs migration + admin UI"
+
+  - id: ADR-005-quic-toggle-via-env
+    date: 2026-05-13
+    status: accepted
+    title: Toggle QUIC outbound emission via env flag, not code constant
+    context: |
+      Phase 1.A needed to suppress h2/tuic outbounds. We could've
+      hard-deleted the generation code, or feature-flagged in code.
+    decision: |
+      Read CHAMELEON_DISABLE_QUIC_OUTBOUNDS from env at config-generation
+      time. Default off — zero behaviour change unless explicit
+      docker-compose env sets it. Function reads env per-call so tests
+      can flip via t.Setenv.
+    consequences:
+      - Instant rollback via docker-compose edit + restart, no rebuild
+      - QUIC outbounds stay in code for future re-enablement (e.g. on
+        nodes where UDP works)
+      - "Slight per-call cost of os.Getenv — negligible"
+    alternatives-rejected:
+      - "Hard-delete code — burns future optionality"
+      - "Build-time constant — needs full Go build to flip"

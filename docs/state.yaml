@@ -1,0 +1,88 @@
+# Current operational truth — what's deployed where right now.
+# Schema: docs/SCHEMA.md § state.yaml
+# Update with EVERY production change (deploy / TestFlight upload / fork rebuild).
+
+last-updated: 2026-05-13
+last-updated-by: claude
+
+prod:
+  backend:
+    version-marker: 60.3-dpi-aware-config
+    nodes:
+      - id: de
+        host: 162.19.242.30
+        provider: OVH Frankfurt
+        role: primary vpn node + api backend
+      - id: nl
+        host: 147.45.252.234
+        provider: Timeweb
+        role: secondary vpn node
+    deployed: 2026-05-13
+    env-flags:
+      CHAMELEON_DISABLE_QUIC_OUTBOUNDS: "true"   # Phase 1.A
+    # Server-side singbox runs OUTSIDE docker-compose. Normal `./deploy.sh all`
+    # never touches it — VPN connections survive backend recreate.
+
+  ios:
+    marketing-version: "1.0.26"
+    current-build: 62
+    track: testflight-internal
+    asc-build-id: 06ecd6af-cee8-41b4-b4d4-3a8afea37cb2
+    uploaded: 2026-05-13
+    field-verified: false                        # pending user test of build 62
+    previous-builds-in-testflight: [61, 60, 59, 58, 57, 56, 55]
+    libbox:
+      source: sing-box v1.13.5 + first-write callback cherry-pick
+      binary-size-mb: 44
+      git-ignored: true                           # ~494 MB xcframework, rebuild via fork
+
+  fork:
+    repo: github.com/molkex/sing-box-fork (private)
+    branch: v1.13.5-madfrog
+    base-tag: v1.13.5
+    cherry-picks:
+      - feat(group/urltest)/firstwrite-callback   # mihomo-pattern data-plane health
+    pushed-to-origin: false                       # 2 commits local-only
+
+  chameleon-repo:
+    branch: claude/naughty-golick-e7f6a5
+    pushed-to-origin: true
+    head: 3e044b3                                  # plus build 62 commit not yet here
+    unpushed-commits: 0                           # update on every push
+
+  app-store:
+    version: "1.0.26"
+    state: WAITING_FOR_REVIEW
+    submission-id: 1481e218-7a74-4fa7-b434-ac5bf1d5dec1
+    attached-build: 60
+    submitted: 2026-05-13
+
+known-issues:
+  - id: throttle-cycle-90s
+    severity: major
+    description: |
+      nl-via-msk through MSK relay throttles around 90 s of bulk flow.
+      TunnelStallProbe detects (Phase 1.C), fallback fires in ~9 ms,
+      but urltest re-elects the same throttled outbound seconds later
+      because the small re-probe passes. User perceives ~5-7 s pauses
+      every ~90 s.
+    next-action: phase-1.d-penalty-score
+    workaround: none
+
+  - id: ios-extension-cache
+    severity: minor
+    description: |
+      iOS may keep an old PacketTunnel extension binary cached even after
+      main-app TestFlight update. Symptom: build N+1 installed in
+      Settings, but field log shows build N behaviour. Toggling
+      Settings → VPN → MadFrog off/on or reinstalling fixes it.
+    next-action: document-in-troubleshooting
+
+  - id: simulator-app-group-entitlement
+    severity: minor
+    description: |
+      iOS Simulator can't acquire `group.com.madfrog.vpn` App Group
+      entitlement without a real provisioning profile. xcodebuild test
+      crashes on Constants.swift line 74. Pre-existing, unrelated to
+      tunnel code.
+    next-action: use-on-device-testflight-for-tests
