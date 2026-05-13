@@ -225,6 +225,138 @@ Test guard (build 60+, `LibboxVersionGuardTests`):
 
 166/166 iOS XCTests green (was 164, +2 guards).
 
+### Phase 1.A — Suppress QUIC outbounds (✅ done, marker 60.2-no-quic-outbounds)
+
+Field log 2026-05-13 21:55 (TestFlight build 60, user on RU LTE) showed the
+v1.13.5 revert did NOT fix the OOM-killer storm:
+
+```
+[21:55:27] singbox oom-killer firing 100x/sec at 43 MiB usage
+[21:55:28] resetting network → all TG connections die
+[21:55:54] extension auto-restart by iOS jetsam
+```
+
+Re-investigation: between v1.13.5 (build 55, last known-good) and v1.13.6
+(builds 56-58, OOM regression) the only upstream change is `sagernet/sing`
+v0.8.3→v0.8.4, which contains a single line diff in `copy_direct_posix.go`
+(`Iovec(Cap())` → `Iovec(FreeLen())`). For freshly-created buffers
+`Cap()==FreeLen()`, so this change is provably no-op in our hot path.
+**The libbox revert (Phase 1.9) was the wrong call** — wasted a TestFlight
+cycle. Root cause sits elsewhere.
+
+Config audit (build 60 init log) reveals **44 outbounds** initialised at
+tunnel start: 9 selectors, 5 urltest groups, 10 leaves (`de-direct-de`,
+`de-h2-de`, `de-tuic-de`, `nl-direct-nl2`, `nl-h2-nl2`, `nl-tuic-nl2`,
+`de-via-msk`, `nl-via-msk`, `ru-spb-de`, `ru-spb-nl`). The four QUIC leaves
+(`*-h2-*`, `*-tuic-*`) **reliably time out on RU LTE** (`outbound nl-tuic-nl2
+unavailable: timeout: no recent network activity`) yet still cost ~2-3 MiB
+each on Go heap — BBR congestion state + uTLS handshake state. ~10 MiB of
+permanently dead allocations against the 50 MB iOS NE jetsam cap.
+
+Fix: env flag `CHAMELEON_DISABLE_QUIC_OUTBOUNDS=true` in
+`backend/docker-compose.yml`, read in `clientconfig.go` per-call so tests
+can flip via `t.Setenv`. Suppresses h2/tuic emission in mobile client
+config. Default off (zero behaviour change on non-cellular nodes).
+
+Verified by field log after re-deploy:
+- 0 oom-killer events (was 103218 in prior 4-minute run)
+- 6 leaves init instead of 10, no `outbound/hysteria2` or `outbound/tuic`
+  init lines
+- TG works for first ~90 s on LTE before DPI throttle kicks in
+  (separate problem, addressed in Phase 1.B)
+
+### Phase 1.B — DPI-aware config filter (✅ done, marker 60.3-dpi-aware-config)
+
+After Phase 1.A removed OOM, user reported "то грузит, то не грузит" on LTE
+— some pages load, some hang. Field log diagnosis:
+
+```
+[22:16:44] outbound de-direct-de unavailable: read tcp ...→162.19.242.30:443:
+            use of closed network connection
+[22:17:08] outbound de-direct-de unavailable: context deadline exceeded
+[22:17:23] outbound de-direct-de unavailable: context deadline exceeded
+[22:17:38] outbound de-direct-de unavailable: context deadline exceeded
+```
+
+The Auto urltest cycle probes ALL leaves every 15 s including the dead
+`de-direct-de`. Every probe waits 5 seconds for the OVH 162.19.242.30 TCP
+timeout. Net effect: one third of every 15-second urltest cycle is
+spent stuck on a dead probe. User perceives this as "VPN hangs every 15 s".
+
+Root cause: DE OVH Frankfurt (162.19.242.30) is ASN-blocked from RU/BY
+mobile carriers (МТС/МегаФон/Билайн/Yota and A1/life: in Belarus). NL
+Timeweb (147.45.252.234) is reachable but throttled — usable as fallback.
+Phase 0 hint `nl-direct-nl2` only re-orders the list; it does not remove
+the dead leaf, so urltest keeps probing it.
+
+Fix:
+- Wire `ClientConfigOpts.ClientCountryCode` end-to-end (engine.go → config.go).
+- `mobile/config.go::resolveClientCountry(c)` calls `geoip.Lookup(c.RealIP())`
+  capped at 1 s — slow upstream (free ip-api.com, 45 req/min) can never
+  block /config; safe-empty on miss.
+- `clientconfig.go::clientNeedsDPIBypass(opts)` checks the country against
+  `dpiBlockedDirectCountries{RU, BY}`.
+- In the standard-exits loop: if `suppressDEDirect && cc == "DE"`, skip the
+  whole iteration (no leaf, no autoLegs append). H2/TUIC blocks below are
+  still gated by Phase 1.A flag — both stripped in concert for RU clients.
+- NL direct stays (throttled but reachable). The `de-via-msk` chain stays
+  (intended DE exit path from inside the DPI envelope).
+
+Safe-fallback contract: empty `ClientCountryCode` (geoip down, IP private,
+or timeout) means "ship full config". No outbound is stripped without
+positive geographic identification.
+
+5 new tests cover RU→no-de-direct, BY→no-de-direct, US→full, empty→full,
+and case-insensitive normalisation. Full backend suite (vpn/api/auth/...)
+green.
+
+CF→nginx→Echo pipeline already gives the real client IP via
+`CF-Connecting-IP` header (see `backend/nginx.conf:39`, commit b7f09c2 for
+the XFF-spoof fix that made this trustworthy).
+
+Pending field verification after user reconnects on LTE (force-quit
+required to trigger `silentConfigUpdate`).
+
+### Phase 1.C — Adaptive probe cadence (planned, requires iOS rebuild)
+
+Following Phase 1.B, the dead-probe waste is gone, but `nl-via-msk`
+(through MSK relay 217.198.5.52:2097) still gets DPI-throttled around 90
+seconds in (probe 502 ms → 391 ms → 439 ms → **5601 ms THROTTLED**).
+TunnelStallProbe DOES catch this (`probe THROTTLED(5601ms)` → `probe
+degraded #1`) but needs `stallThreshold=2` consecutive degraded probes
+before firing `invokeFallback()` — at 15 s interval that's 30 s before
+re-probe kicks in.
+
+Plan (when user OKs iOS rebuild → build 61):
+- Detect `NWPath.isExpensive` (cellular) in `ExtensionProvider.swift`.
+- On cellular: `stallThreshold=1` (single degraded probe → fallback) and
+  `probeInterval=5` (faster cycle).
+- On Wi-Fi: keep current 2/15 (avoid over-triggering on transient blips).
+- Trade-off: ~3× probe traffic on cellular = ~96 KB / 5 min × 5 = ~480 KB
+  vs ~160 KB. Negligible.
+
+No fork changes. Pure iOS, low risk. Requires xcodebuild upload to ASC
+(30 min) and one TestFlight cycle.
+
+### Phase 1.D — Penalty-score recently-throttled outbound (planned)
+
+The current `nudgeUrltestGroups()` fallback calls `client.urlTest(group)`
+which re-probes ALL members equally. If the throttled outbound passes a
+fresh small probe (DPI may have eased after the wait), it gets re-elected
+and the user is back in the throttled state within seconds.
+
+Plan (deferred — needs Clash API extension):
+- After `invokeFallback()`, mark the currently-active outbound with a
+  60-second penalty score via Clash API.
+- urltest member-selection biased: penalised outbound only chosen if no
+  other healthy member exists.
+- Penalty decays linearly to zero over 60 s.
+
+Requires Clash API addition (mihomo has this — `proxies/:name/delay`
+exposes the score, but penalty injection is missing). Either upstream PR
+or fork-only Clash extension. Not blocking — Phase 1.C alone may close the
+loop adequately.
+
 ### Phase 1 — Cherry-pick mihomo Smart (planned, 2-3 days)
 
 **What:** In our fork `singbox-with-userapi`:
