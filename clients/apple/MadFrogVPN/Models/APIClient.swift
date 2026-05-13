@@ -578,19 +578,42 @@ class APIClient {
             "token": token,
             "device_id": deviceId,
         ])
-        request.timeoutInterval = 6
+        request.timeoutInterval = 20
 
-        let (data, response) = try await dataWithFallback(for: applyTelemetry(to: request))
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            let code = (response as? HTTPURLResponse)?.statusCode ?? 0
-            throw APIError.serverError(code)
+        // Same reasoning as signInWithApple/signInWithGoogle: a transport-
+        // mangled 4xx from a fallback leg (HTTP:80 with Host=<IP>, direct-IP
+        // with a torn-down TLS handshake, etc.) can win the hedged race over
+        // primary's correct 200 and make a valid magic-link look "invalid"
+        // to the user. Auth handshakes go straight through.
+        do {
+            let (data, response) = try await session.data(for: applyTelemetry(to: request))
+            guard let http = response as? HTTPURLResponse else {
+                throw APIError.networkError("No response")
+            }
+            if http.statusCode == 401 { throw APIError.unauthorized }
+            guard http.statusCode == 200 else {
+                throw APIError.serverError(http.statusCode)
+            }
+            return try JSONDecoder().decode(AuthResult.self, from: data)
+        } catch let error as APIError {
+            throw error
+        } catch let error as DecodingError {
+            throw error
+        } catch {
+            throw APIError.networkError(error.localizedDescription)
         }
-        return try JSONDecoder().decode(AuthResult.self, from: data)
     }
 
     // MARK: - Token Refresh
 
     /// Exchange refresh token for a new access token.
+    ///
+    /// Routes through `dataWithFallback` (same as `/config`) so a user on a
+    /// network where Cloudflare → primary host is blocked (RU LTE, throttled
+    /// CDN edges) can still refresh their access token via a direct backend
+    /// IP. Previously this used only `session.data(for:)`, so a primary-host
+    /// outage silently fell through to `reRegisterDevice()` and the user
+    /// lost their subscription tier by getting a fresh anonymous account.
     func refreshAccessToken(_ refreshToken: String) async throws -> String {
         guard let url = URL(string: "\(AppConstants.baseURL)/api/mobile/auth/refresh") else {
             throw APIError.networkError("Invalid URL")
@@ -601,7 +624,7 @@ class APIClient {
         request.httpBody = try JSONSerialization.data(withJSONObject: ["refresh_token": refreshToken])
         request.timeoutInterval = 10
 
-        let (data, response) = try await session.data(for: applyTelemetry(to: request))
+        let (data, response) = try await dataWithFallback(for: applyTelemetry(to: request))
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             throw APIError.unauthorized
         }

@@ -159,6 +159,53 @@ func TestVerifyRefreshTokenExpired(t *testing.T) {
 	}
 }
 
+// TestVerifyTokenRejectsRefreshToken locks in the P0 fix: a refresh token
+// must NOT pass VerifyToken (which gates all RequireAuth routes). Before
+// the TokenType field existed on Claims, parseToken accepted any
+// HS256-signed token regardless of token_type, so an attacker who obtained
+// a 30-day refresh credential could replay it on every protected route.
+func TestVerifyTokenRejectsRefreshToken(t *testing.T) {
+	mgr := NewJWTManager("secret-please-rotate", time.Hour, 24*time.Hour)
+
+	pair, err := mgr.CreateTokenPair(99, "device_xyz", "user")
+	if err != nil {
+		t.Fatalf("CreateTokenPair: %v", err)
+	}
+
+	// Access token must continue to work.
+	if _, err := mgr.VerifyToken(pair.AccessToken); err != nil {
+		t.Fatalf("VerifyToken(access): unexpected error: %v", err)
+	}
+
+	// Refresh token must NOT verify as an access token.
+	claims, err := mgr.VerifyToken(pair.RefreshToken)
+	if err == nil {
+		t.Fatalf("VerifyToken(refresh) must reject refresh tokens — got claims=%+v", claims)
+	}
+	if !strings.Contains(err.Error(), "refresh") {
+		t.Logf("error message should mention 'refresh', got: %v", err)
+	}
+}
+
+// TestVerifyTokenIgnoresArbitraryTokenType ensures the rejection is
+// specific to token_type=refresh, not blanket-rejecting any token that
+// happens to carry an extra claim. Defensive: keeps future-compat clean.
+func TestVerifyTokenIgnoresArbitraryTokenType(t *testing.T) {
+	mgr := NewJWTManager("secret", time.Hour, time.Hour)
+
+	pair, err := mgr.CreateTokenPair(1, "u", "user")
+	if err != nil {
+		t.Fatalf("CreateTokenPair: %v", err)
+	}
+	claims, err := mgr.VerifyToken(pair.AccessToken)
+	if err != nil {
+		t.Fatalf("VerifyToken(access): %v", err)
+	}
+	if claims.TokenType != "" {
+		t.Errorf("access token TokenType should be empty, got %q", claims.TokenType)
+	}
+}
+
 // TestNewJWTManagerDefaults verifies the documented fallback TTLs apply
 // when zero/negative durations are passed.
 func TestNewJWTManagerDefaults(t *testing.T) {

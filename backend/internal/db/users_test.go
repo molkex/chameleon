@@ -240,6 +240,122 @@ func TestUpsertUserByVPNUUIDUpdateExisting(t *testing.T) {
 	}
 }
 
+// TestUpsertUserByVPNUUIDSubscriptionExpiryMonotonic pins the P0 cluster-sync
+// invariant: subscription_expiry is monotonic across nodes.
+//
+// Scenario: NL has a row whose subscription_expiry is 90 days in the future
+// (a real paid Year subscription). DE pushes an updated copy of the same
+// row whose subscription_expiry is only 3 days out (Apple sign-in trial
+// extension on a new device). The push's updated_at is newer (the trial
+// extension touched updated_at last), so the WHERE clause allows the
+// UPDATE. Without GREATEST() the paid expiry would be silently overwritten
+// with the trial expiry. With GREATEST() the paid expiry survives.
+func TestUpsertUserByVPNUUIDSubscriptionExpiryMonotonic(t *testing.T) {
+	database := startTestDB(t)
+	ctx := context.Background()
+
+	uuid := "ddddeeee-3333-4444-8555-666677778888"
+	t0 := time.Now().UTC().Add(-time.Hour)
+	t1 := t0.Add(30 * time.Minute)
+
+	paidExpiry := time.Now().UTC().Add(90 * 24 * time.Hour) // 3 months out
+	trialExpiry := time.Now().UTC().Add(3 * 24 * time.Hour) // 3 days out
+
+	// Local row already has a paid subscription.
+	local := &User{
+		VPNUsername:        ptr("device_paiduser"),
+		VPNUUID:            ptr(uuid),
+		VPNShortID:         ptr(""),
+		IsActive:           true,
+		SubscriptionExpiry: &paidExpiry,
+		CreatedAt:          t0,
+		UpdatedAt:          t0,
+	}
+	if _, err := database.UpsertUserByVPNUUID(ctx, local); err != nil {
+		t.Fatalf("local insert: %v", err)
+	}
+
+	// Cluster sync pushes a copy of the row whose updated_at is newer but
+	// subscription_expiry was set to a short trial. Without GREATEST this
+	// would strip paid access from the user.
+	pushed := &User{
+		VPNUsername:        ptr("device_paiduser"),
+		VPNUUID:            ptr(uuid),
+		VPNShortID:         ptr(""),
+		IsActive:           true,
+		SubscriptionExpiry: &trialExpiry,
+		CreatedAt:          t0,
+		UpdatedAt:          t1,
+	}
+	if _, err := database.UpsertUserByVPNUUID(ctx, pushed); err != nil {
+		t.Fatalf("cluster push: %v", err)
+	}
+
+	got, err := database.FindUserByVPNUUID(ctx, uuid)
+	if err != nil || got == nil {
+		t.Fatalf("FindUserByVPNUUID: err=%v, got=%v", err, got)
+	}
+	if got.SubscriptionExpiry == nil {
+		t.Fatalf("subscription_expiry is nil; expected paid expiry %v", paidExpiry)
+	}
+	// The paid expiry must survive — within a second of the original value.
+	delta := got.SubscriptionExpiry.Sub(paidExpiry).Abs()
+	if delta > time.Second {
+		t.Fatalf("subscription_expiry regressed: got %v, want ≈ %v (paid). Trial value %v should NOT have won.",
+			*got.SubscriptionExpiry, paidExpiry, trialExpiry)
+	}
+}
+
+// TestUpsertUserByVPNUUIDSubscriptionExpiryAdvances is the symmetric guard:
+// when the pushed copy genuinely has a LATER expiry (real renewal), it MUST
+// be applied. Otherwise GREATEST would be a one-way ratchet that ignores
+// legitimate renewals replicated from another node.
+func TestUpsertUserByVPNUUIDSubscriptionExpiryAdvances(t *testing.T) {
+	database := startTestDB(t)
+	ctx := context.Background()
+
+	uuid := "ddddeeee-4444-4444-8555-666677778889"
+	t0 := time.Now().UTC().Add(-time.Hour)
+	t1 := t0.Add(30 * time.Minute)
+
+	current := time.Now().UTC().Add(30 * 24 * time.Hour) // 1 month
+	renewed := time.Now().UTC().Add(395 * 24 * time.Hour) // 1 year + month after renewal
+
+	if _, err := database.UpsertUserByVPNUUID(ctx, &User{
+		VPNUsername:        ptr("device_advances"),
+		VPNUUID:            ptr(uuid),
+		VPNShortID:         ptr(""),
+		IsActive:           true,
+		SubscriptionExpiry: &current,
+		CreatedAt:          t0,
+		UpdatedAt:          t0,
+	}); err != nil {
+		t.Fatalf("initial: %v", err)
+	}
+
+	if _, err := database.UpsertUserByVPNUUID(ctx, &User{
+		VPNUsername:        ptr("device_advances"),
+		VPNUUID:            ptr(uuid),
+		VPNShortID:         ptr(""),
+		IsActive:           true,
+		SubscriptionExpiry: &renewed,
+		CreatedAt:          t0,
+		UpdatedAt:          t1,
+	}); err != nil {
+		t.Fatalf("renewal: %v", err)
+	}
+
+	got, err := database.FindUserByVPNUUID(ctx, uuid)
+	if err != nil || got == nil {
+		t.Fatalf("FindUserByVPNUUID: err=%v, got=%v", err, got)
+	}
+	delta := got.SubscriptionExpiry.Sub(renewed).Abs()
+	if delta > time.Second {
+		t.Fatalf("renewal did not advance subscription_expiry: got %v, want %v",
+			*got.SubscriptionExpiry, renewed)
+	}
+}
+
 // TestUpsertUserByVPNUUIDVPNUsernameConflict reproduces the SQLSTATE-23505
 // path that cluster/errors.go isDuplicateVPNUsername filters out.
 //

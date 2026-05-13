@@ -638,7 +638,14 @@ func (db *DB) UpsertUserByVPNUUID(ctx context.Context, u *User) (bool, error) {
 			username = EXCLUDED.username,
 			full_name = EXCLUDED.full_name,
 			is_active = EXCLUDED.is_active,
-			subscription_expiry = EXCLUDED.subscription_expiry,
+			-- subscription_expiry MUST be monotonic across cluster nodes:
+			-- if DE pushes a row whose updated_at is newer because of a
+			-- 3-day trial extension at Apple sign-in, but the local row
+			-- already has a paid subscription stretching months ahead,
+			-- we keep the later expiry. Otherwise federated sync would
+			-- silently strip paying users back to a trial. (Symmetric on
+			-- the NL → DE direction.)
+			subscription_expiry = GREATEST(users.subscription_expiry, EXCLUDED.subscription_expiry),
 			vpn_username = EXCLUDED.vpn_username,
 			vpn_short_id = EXCLUDED.vpn_short_id,
 			auth_provider = EXCLUDED.auth_provider,

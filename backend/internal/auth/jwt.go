@@ -16,10 +16,17 @@ const (
 )
 
 // Claims represents JWT token claims for an authenticated user.
+//
+// TokenType is populated only on refresh tokens (value: "refresh"); access
+// tokens leave it empty. parseToken() reads it so VerifyToken can reject a
+// refresh token presented as an access token — a confused-deputy attack
+// that would otherwise let a 30-day refresh credential bypass the 24-hour
+// access TTL on every RequireAuth-protected route.
 type Claims struct {
-	UserID   int64  `json:"user_id"`
-	Username string `json:"username"`
-	Role     string `json:"role,omitempty"`
+	UserID    int64  `json:"user_id"`
+	Username  string `json:"username"`
+	Role      string `json:"role,omitempty"`
+	TokenType string `json:"token_type,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -143,7 +150,9 @@ func (j *JWTManager) VerifyRefreshToken(tokenString string) (*Claims, error) {
 	}, nil
 }
 
-// parseToken is the internal parser for access tokens.
+// parseToken is the internal parser for access tokens. It rejects any token
+// carrying token_type=refresh — otherwise a 30-day refresh credential could
+// be presented as a Bearer access token on every RequireAuth route.
 func (j *JWTManager) parseToken(tokenString string) (*Claims, error) {
 	claims := &Claims{}
 	token, err := jwt.ParseWithClaims(tokenString, claims, j.keyFunc,
@@ -155,6 +164,9 @@ func (j *JWTManager) parseToken(tokenString string) (*Claims, error) {
 	}
 	if !token.Valid {
 		return nil, fmt.Errorf("auth: token is not valid")
+	}
+	if claims.TokenType == tokenTypeRefresh {
+		return nil, fmt.Errorf("auth: refresh token cannot be used as access token")
 	}
 
 	return claims, nil
