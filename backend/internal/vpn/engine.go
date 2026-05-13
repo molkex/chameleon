@@ -67,6 +67,21 @@ type ClientConfigOpts struct {
 	// Unknown leaf tags are silently ignored (back-compat: backend can ship
 	// a hint for a leaf that's been renamed/removed without breaking config).
 	RecommendedFirst string
+
+	// ClientCountryCode is the ISO-3166 alpha-2 code of the client request's
+	// origin country (e.g. "RU", "BY", "US"), resolved via geoip.Lookup at
+	// the API layer. Empty when geoip is unavailable, hits timeout, or the IP
+	// is private/loopback — handlers must treat empty as "unknown geo, ship
+	// the full config" (safe fallback, never strips outbounds without
+	// positive identification).
+	//
+	// Drives DPI-aware filtering in clientconfig.go: for clients in
+	// known-blocking jurisdictions (RU/BY), DE OVH direct outbounds are
+	// suppressed because they're reliably dead from those ASNs (logs from
+	// 2026-05-13 show de-direct-de at 162.19.242.30 returning context
+	// deadline exceeded on every probe, while wasting 5s per urltest cycle
+	// that the user perceives as "VPN hangs").
+	ClientCountryCode string
 }
 
 // EngineConfig holds VPN server configuration.

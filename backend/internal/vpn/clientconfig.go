@@ -24,7 +24,7 @@ const (
 	// emitted the config currently in their cache. BUMP THIS on any
 	// behavioural change to clientconfig.go (new flag, new outbound, new
 	// rule). Format: "<build>.<patch>-<short-tag>" e.g. "40.2-chain-fix".
-	configBuildMarker = "60.2-no-quic-outbounds"
+	configBuildMarker = "60.3-dpi-aware-config"
 )
 
 // disableQUICOutbounds reports whether Hysteria2/TUIC leaf outbounds should
@@ -35,6 +35,42 @@ const (
 // Read per-call so tests can flip the env via t.Setenv.
 func disableQUICOutbounds() bool {
 	return strings.EqualFold(strings.TrimSpace(os.Getenv("CHAMELEON_DISABLE_QUIC_OUTBOUNDS")), "true")
+}
+
+// dpiBlockedDirectCountries lists ISO-3166 alpha-2 codes whose mobile and
+// home ISPs consistently DPI-block or ASN-blackhole direct VLESS Reality
+// connections to specific upstream hosts (specifically: DE OVH Frankfurt
+// 162.19.242.30, the de-direct-de outbound). Clients in these jurisdictions
+// receive a config WITHOUT de-direct-* leaves — Auto urltest stops wasting
+// 5 seconds per cycle probing a leaf that always returns "context deadline
+// exceeded", and the user perceives the VPN as continuously responsive
+// rather than "hangs every 15s for 5s".
+//
+// Sourced from field logs (2026-04-23 onward): de-direct-de fails for ALL
+// observed RU+BY mobile carriers (МТС, МегаФон, Билайн, Yota; A1, life:) on
+// LTE/4G/5G, and for most RU home ISPs (Ростелеком, ЭР-Телеком). NL Timeweb
+// (nl-direct-nl2 at 147.45.252.234) is throttled but reachable from the
+// same networks — left in the config and selected over de-direct via the
+// Phase 0 hint mechanism.
+//
+// Extension path: add a country here once positive field evidence accrues
+// that direct-DE is universally dead. CN/IR/etc. likely belong here but
+// haven't been confirmed first-hand.
+var dpiBlockedDirectCountries = map[string]bool{
+	"RU": true,
+	"BY": true,
+}
+
+// clientNeedsDPIBypass reports whether opts.ClientCountryCode names a
+// jurisdiction where DE OVH direct connections are known-dead. The empty
+// string ("unknown geo") returns false — safe fallback that ships the full
+// config rather than risking a false-positive strip.
+func clientNeedsDPIBypass(opts ClientConfigOpts) bool {
+	cc := strings.ToUpper(strings.TrimSpace(opts.ClientCountryCode))
+	if cc == "" {
+		return false
+	}
+	return dpiBlockedDirectCountries[cc]
 }
 
 // pinRecommendedFirst returns a copy of leaves with `hint` moved to index 0
@@ -190,6 +226,16 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 	}
 
 	// --- Standard direct exits (VLESS Reality + optional H2/TUIC) ---
+	// DPI-aware filter (build 60.3): when the client originates from a known
+	// DPI-blocking jurisdiction (RU/BY), suppress de-direct-* generation
+	// entirely. de-direct-de at 162.19.242.30 (OVH Frankfurt) is ASN-blocked
+	// by every observed RU/BY ISP — keeping it in the urltest pool wastes
+	// 5 seconds per cycle on a probe that always fails with "context
+	// deadline exceeded". NL direct stays (Timeweb is reachable but
+	// throttled; usable as fallback). The chain leaf de-via-msk via the
+	// MSK relay remains untouched — it provides the DE exit path from
+	// inside the DPI envelope.
+	suppressDEDirect := clientNeedsDPIBypass(opts)
 	for _, srv := range standardExits {
 		cc := strings.ToUpper(srv.CountryCode)
 		if cc == "" {
@@ -205,6 +251,16 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 		pub := srv.RealityPublicKey
 		if pub == "" {
 			pub = engineCfg.Reality.PublicKey
+		}
+
+		if suppressDEDirect && cc == "DE" {
+			// Drop the direct DE VLESS leaf for clients we know can't reach
+			// OVH Frankfurt. Note: H2/TUIC blocks below are still gated by
+			// disableQUICOutbounds() — they would have been emitted with
+			// the same dead-IP problem. The chain (de-via-msk) is rendered
+			// in the separate `for _, ch := range chains` loop and is the
+			// intended DE exit path for these clients.
+			continue
 		}
 
 		vlessTag := fmt.Sprintf("%s-direct-%s", strings.ToLower(cc), srv.Key)

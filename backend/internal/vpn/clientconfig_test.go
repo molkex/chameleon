@@ -494,6 +494,76 @@ func TestHysteria2AndTUICOmittedWhenPortsZero(t *testing.T) {
 	}
 }
 
+// TestDPIBypassDropsDEDirectForRU — clients identified by geoip as
+// originating from RU receive a config without the de-direct-de leaf.
+// Field logs from 2026-05-13 confirm de-direct-de at 162.19.242.30 is
+// universally ASN-blocked from RU mobile carriers, yet kept in the urltest
+// pool it costs ~5 seconds per cycle on a "context deadline exceeded"
+// probe — perceived by users as the VPN hanging every 15 seconds.
+func TestDPIBypassDropsDEDirectForRU(t *testing.T) {
+	cfg := parseGeneratedWithOpts(t, ClientConfigOpts{ClientCountryCode: "RU"})
+
+	if outboundByTag(cfg, "de-direct-de") != nil {
+		t.Error("de-direct-de emitted for RU client — should be suppressed by DPI bypass")
+	}
+	// Suppression is DE-only: other DE leaves (chain via MSK relay) and all
+	// NL leaves remain in the config.
+	for _, mustKeep := range []string{"nl-direct-nl2", "de-via-msk", "nl-via-msk", "ru-spb-de", "ru-spb-nl"} {
+		if outboundByTag(cfg, mustKeep) == nil {
+			t.Errorf("leaf %q stripped from RU config — DPI bypass should only target de-direct-*", mustKeep)
+		}
+	}
+	// Auto urltest must not reference the dropped leaf either, otherwise
+	// sing-box errors at startup with "outbound not found".
+	for _, m := range outboundMembers(cfg, "Auto") {
+		if m == "de-direct-de" {
+			t.Error("Auto urltest still references de-direct-de after DPI bypass")
+		}
+	}
+}
+
+// TestDPIBypassDropsDEDirectForBY mirrors the RU case for Belarus.
+// Same DPI infrastructure, same observed outcome on de-direct-de.
+func TestDPIBypassDropsDEDirectForBY(t *testing.T) {
+	cfg := parseGeneratedWithOpts(t, ClientConfigOpts{ClientCountryCode: "BY"})
+	if outboundByTag(cfg, "de-direct-de") != nil {
+		t.Error("de-direct-de emitted for BY client — should be suppressed by DPI bypass")
+	}
+}
+
+// TestDPIBypassInactiveForNonBlockedCountry — US clients (and any
+// non-listed jurisdiction) get the full config including de-direct-de.
+// Guards against the filter accidentally widening to all clients.
+func TestDPIBypassInactiveForNonBlockedCountry(t *testing.T) {
+	cfg := parseGeneratedWithOpts(t, ClientConfigOpts{ClientCountryCode: "US"})
+	if outboundByTag(cfg, "de-direct-de") == nil {
+		t.Error("de-direct-de missing for US client — DPI filter must not apply outside blocked list")
+	}
+}
+
+// TestDPIBypassInactiveForEmptyCountry — when geoip lookup fails (timeout,
+// upstream down, private IP) the country comes back empty and clientconfig
+// MUST ship the full config. Safe-fallback contract: no outbound is ever
+// stripped without positive geographic identification.
+func TestDPIBypassInactiveForEmptyCountry(t *testing.T) {
+	cfg := parseGeneratedWithOpts(t, ClientConfigOpts{ClientCountryCode: ""})
+	if outboundByTag(cfg, "de-direct-de") == nil {
+		t.Error("de-direct-de missing when ClientCountryCode is empty — empty must equal 'no filter'")
+	}
+}
+
+// TestDPIBypassCountryCodeNormalisedCaseInsensitive — country codes from
+// geoip can arrive lower-case ("ru") depending on the upstream; the filter
+// must normalise so "ru" / "Ru" / "RU" all match.
+func TestDPIBypassCountryCodeNormalisedCaseInsensitive(t *testing.T) {
+	for _, code := range []string{"ru", "Ru", " RU "} {
+		cfg := parseGeneratedWithOpts(t, ClientConfigOpts{ClientCountryCode: code})
+		if outboundByTag(cfg, "de-direct-de") != nil {
+			t.Errorf("de-direct-de emitted for ClientCountryCode=%q — case/whitespace normalisation broken", code)
+		}
+	}
+}
+
 // TestDisableQUICOutboundsEnvSuppressesH2AndTUIC — when
 // CHAMELEON_DISABLE_QUIC_OUTBOUNDS=true is set, no hysteria2 / tuic leaves
 // are emitted regardless of server-row port columns. This is the memory-

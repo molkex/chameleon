@@ -144,8 +144,18 @@ func (h *Handler) GetConfig(c echo.Context) error {
 	// doesn't look RU, ignored if the recommended leaf isn't configured.
 	hint := resolveOutboundHintForRequest(c, h.GeoIP, serverEntries, chainEntries)
 
+	// Build-60.3: resolve the client's country from their request IP, so we
+	// can strip outbounds that are known-dead for their jurisdiction (DE OVH
+	// direct on RU/BY networks). 1-second cap keeps a slow/down ip-api.com
+	// from delaying every /config response — on timeout or any other miss
+	// the country comes back empty, which clientconfig.go treats as "ship
+	// the full config" (safe fallback, never strips outbounds without
+	// positive identification).
+	clientCountry := h.resolveClientCountry(c)
+
 	configJSON, err := h.VPN.GenerateClientConfigWithOpts(vpnUser, serverEntries, chainEntries, vpn.ClientConfigOpts{
-		RecommendedFirst: hint,
+		RecommendedFirst:  hint,
+		ClientCountryCode: clientCountry,
 	})
 	if err != nil {
 		h.Logger.Error("vpn: generate client config", zap.Error(err), zap.Int64("user_id", user.ID))
@@ -209,6 +219,29 @@ func firstValue(s string, max int) string {
 		s = s[:max]
 	}
 	return s
+}
+
+// resolveClientCountry returns the ISO-3166 alpha-2 code of the client's
+// origin country (e.g. "RU", "US") for DPI-aware config filtering. Uses
+// the geoip.Resolver wired in routes.go and capped at 1 second so a slow
+// or down upstream (free ip-api.com tier, 45 req/min) can never block the
+// /config response.
+//
+// Returns "" on any miss — geoip disabled, IP private/loopback, timeout,
+// upstream error, or empty country. Callers (clientconfig.go) treat empty
+// as "unknown geo, ship the full config" — strictly safe-fallback: no
+// outbound is ever stripped without positive geographic identification.
+func (h *Handler) resolveClientCountry(c echo.Context) string {
+	if h.GeoIP == nil {
+		return ""
+	}
+	ip := c.RealIP()
+	if ip == "" {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(c.Request().Context(), 1*time.Second)
+	defer cancel()
+	return h.GeoIP.Lookup(ctx, ip).Country
 }
 
 // GetConfigLegacy handles GET /sub/:token/:mode for subscription link compatibility.
@@ -300,13 +333,16 @@ func (h *Handler) GetConfigLegacy(c echo.Context) error {
 
 	// Same cold-start hint as /api/mobile/config — see GetConfig for rationale.
 	hint := resolveOutboundHintForRequest(c, h.GeoIP, serverEntries, chainEntries)
+	// Same DPI-aware geo filtering as /api/mobile/config — see GetConfig.
+	clientCountry := h.resolveClientCountry(c)
 
 	configJSON, err := h.VPN.GenerateClientConfigWithOpts(vpn.VPNUser{
 		Username: *user.VPNUsername,
 		UUID:     *user.VPNUUID,
 		ShortID:  shortID,
 	}, serverEntries, chainEntries, vpn.ClientConfigOpts{
-		RecommendedFirst: hint,
+		RecommendedFirst:  hint,
+		ClientCountryCode: clientCountry,
 	})
 	if err != nil {
 		return c.String(http.StatusInternalServerError, "config generation failed")
