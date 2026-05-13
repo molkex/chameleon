@@ -42,7 +42,8 @@ prod:
     base-tag: v1.13.5
     cherry-picks:
       - feat(group/urltest)/firstwrite-callback   # mihomo-pattern data-plane health
-    pushed-to-origin: false                       # 2 commits local-only
+    pushed-to-origin: true                        # pushed 2026-05-14
+    remote-branch: origin/v1.13.5-madfrog
 
   chameleon-repo:
     branch: claude/naughty-golick-e7f6a5
