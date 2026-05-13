@@ -14,6 +14,13 @@ final class ExtensionPlatformInterface: NSObject, @unchecked Sendable {
     /// detector only exists while sing-box is alive — no point
     /// retaining 30 s of stale events across reconnects.
     weak var realStallDetector: RealTrafficStallDetector?
+    /// Build 61 (Phase 1.C): retunable health probe whose cadence flips
+    /// with the active uplink. We hold a weak ref so handlePathUpdate
+    /// can switch the profile when iOS reports the path is expensive
+    /// (= cellular). ExtensionProvider injects this when sing-box starts;
+    /// nil window before first start and after stop is fine — the
+    /// dispatch is a no-op.
+    weak var stallProbe: TunnelStallProbe?
     weak var tunnel: NEPacketTunnelProvider?
     private var pathMonitor: NWPathMonitor?
     private var interfaceListener: LibboxInterfaceUpdateListenerProtocol?
@@ -274,6 +281,21 @@ extension ExtensionPlatformInterface: LibboxPlatformInterfaceProtocol {
             isExpensive: path.isExpensive,
             isConstrained: path.isConstrained
         )
+
+        // Build 61 (Phase 1.C): retune the stall probe for the active
+        // uplink. `isExpensive` is the canonical NWPath signal for
+        // cellular (Apple flags carriers as expensive). Field log
+        // 2026-05-13 22:17 LTE: nl-via-msk slid from 502 ms healthy to
+        // 5601 ms THROTTLED in ~90 s, but with default 2/15 s probe
+        // params the fallback didn't fire before the user gave up.
+        // Cellular profile: threshold=1 / interval=5 s — fallback in
+        // <10 s. Wi-Fi profile: keep 2/15 (avoid false positives on
+        // transient handover blips).
+        if path.isExpensive {
+            stallProbe?.applyCellularProfile()
+        } else {
+            stallProbe?.applyWiFiProfile()
+        }
 
         // Force iOS to re-evaluate tunnel on network change (WiFi↔LTE)
         // Only reassert when switching between interfaces with connectivity,

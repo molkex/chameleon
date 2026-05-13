@@ -276,12 +276,18 @@ open class ExtensionProvider: NEPacketTunnelProvider {
 
         let probe = TunnelStallProbe()
         stallProbe = probe
+        // Build 61 (Phase 1.C): hand the probe to the platform interface
+        // so NWPathMonitor can flip its profile (cellular vs wifi) as the
+        // uplink changes mid-session. Weak ref — the probe's own lifetime
+        // is bounded by `stopStallProbe()` below.
+        platformInterface?.stallProbe = probe
         probe.start()
     }
 
     private func stopStallProbe() {
         stallProbe?.stop()
         stallProbe = nil
+        platformInterface?.stallProbe = nil
         platformInterface?.realStallDetector = nil
         realStallDetector = nil
     }

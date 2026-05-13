@@ -111,16 +111,50 @@ final class TunnelStallProbe {
 
     // MARK: - State
 
-    private let config: Config
+    /// Mutable so applyCellularProfile() / applyWiFiProfile() can retune
+    /// cadence and threshold in response to NWPathMonitor signals from
+    /// ExtensionPlatformInterface (build 61, Phase 1.C). The probe loop
+    /// reads `config.probeInterval` per-iteration, so a mid-flight swap
+    /// takes effect on the very next tick (no restart required).
+    private var config: Config
     private var task: Task<Void, Never>?
     private var consecutiveFailures = 0
     private var lastFallbackAt: Date?
     private var fallbacksInLastHour: [Date] = []
 
+    /// Test-only accessor for the current config snapshot — used by
+    /// `TunnelStallProbeProfileTests` to assert that profile switches
+    /// actually mutate the tuneables. Not for production callers.
+    var currentConfigForTesting: Config { config }
+
     // MARK: - Lifecycle
 
     init(config: Config = Config()) {
         self.config = config
+    }
+
+    // MARK: - Network-aware profile switching (Phase 1.C, build 61)
+
+    /// Tighten cadence + threshold for cellular paths. Rationale (field
+    /// log 2026-05-13 22:17 LTE): nl-via-msk goes from 502 ms healthy to
+    /// 5601 ms THROTTLED in ~90 seconds. Default 2/15 s gives the user
+    /// up to 30 s of throttle before fallback fires. On cellular we
+    /// shorten to a single degraded probe at 5 s intervals — fallback
+    /// in <10 s. The faster cycle costs ~3× probe traffic (~480 KB / 5
+    /// min instead of ~160 KB) which is negligible.
+    func applyCellularProfile() {
+        config.stallThreshold = 1
+        config.probeInterval = 5
+        TunnelFileLogger.log("TunnelStallProbe: cellular profile applied (threshold=1, interval=5s)", category: "tunnel-probe")
+    }
+
+    /// Restore Wi-Fi-friendly defaults. Wider hysteresis avoids
+    /// false-positive fallbacks on transient blips (LTE→Wi-Fi handover,
+    /// CGNAT pings).
+    func applyWiFiProfile() {
+        config.stallThreshold = 2
+        config.probeInterval = 15
+        TunnelFileLogger.log("TunnelStallProbe: wifi profile applied (threshold=2, interval=15s)", category: "tunnel-probe")
     }
 
     func start() {
