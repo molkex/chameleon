@@ -452,6 +452,17 @@ class APIClient {
     // MARK: - Apple Sign In
 
     /// Sign in with Apple — trial or return existing account.
+    ///
+    /// IMPORTANT: this path does NOT use `dataWithFallback`. The hedged race
+    /// occasionally elects a transport-mangled 4xx (e.g. an HTTP:80 fallback
+    /// leg or a direct-IP leg whose Host header doesn't match the backend
+    /// vhost) over the primary's correct 200, which surfaces in the UI as
+    /// "Sign in failed (400)". Apple Review hit exactly that on build 53
+    /// (May 12 2026, reviewer IP 75.164.164.127, iPhone 17 Pro Max).
+    ///
+    /// For an auth handshake, correctness beats redundancy: the user can
+    /// retry, but they cannot recover from a silently-failed sign-in. We
+    /// therefore go straight at the primary host with a generous timeout.
     func signInWithApple(identityToken: String) async throws -> AuthResult {
         let deviceId = PlatformDevice.identifier
         guard let url = URL(string: "\(AppConstants.baseURL)/api/mobile/auth/apple") else {
@@ -464,23 +475,36 @@ class APIClient {
             "identity_token": identityToken,
             "device_id": deviceId,
         ])
-        // 6s per attempt + fallback chain. Previously 20s with no fallback
-        // meant users on high-latency cellular or DPI-throttled networks
-        // saw "infinite spinner" on Apple sign-in.
-        request.timeoutInterval = 6
+        request.timeoutInterval = 20
 
-        let (data, response) = try await dataWithFallback(for: applyTelemetry(to: request))
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            let code = (response as? HTTPURLResponse)?.statusCode ?? 0
-            throw APIError.serverError(code)
+        do {
+            let (data, response) = try await session.data(for: applyTelemetry(to: request))
+            guard let http = response as? HTTPURLResponse else {
+                throw APIError.networkError("No response")
+            }
+            if http.statusCode == 401 { throw APIError.unauthorized }
+            guard http.statusCode == 200 else {
+                throw APIError.serverError(http.statusCode)
+            }
+            return try JSONDecoder().decode(AuthResult.self, from: data)
+        } catch let error as APIError {
+            throw error
+        } catch let error as DecodingError {
+            // Bubble up decode error explicitly so AppState can show a
+            // distinct message instead of a generic "network error".
+            throw error
+        } catch {
+            throw APIError.networkError(error.localizedDescription)
         }
-        return try JSONDecoder().decode(AuthResult.self, from: data)
     }
 
     // MARK: - Google Sign In
 
     /// Sign in with Google — trial or return existing account.
     /// `idToken` is the ID token returned by GoogleSignIn SDK.
+    ///
+    /// Same reasoning as signInWithApple — bypass the hedged race so a
+    /// transport-mangled 4xx from a fallback leg can't shadow primary's 200.
     func signInWithGoogle(idToken: String) async throws -> AuthResult {
         let deviceId = PlatformDevice.identifier
         guard let url = URL(string: "\(AppConstants.baseURL)/api/mobile/auth/google") else {
@@ -493,14 +517,25 @@ class APIClient {
             "id_token": idToken,
             "device_id": deviceId,
         ])
-        request.timeoutInterval = 6
+        request.timeoutInterval = 20
 
-        let (data, response) = try await dataWithFallback(for: applyTelemetry(to: request))
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            let code = (response as? HTTPURLResponse)?.statusCode ?? 0
-            throw APIError.serverError(code)
+        do {
+            let (data, response) = try await session.data(for: applyTelemetry(to: request))
+            guard let http = response as? HTTPURLResponse else {
+                throw APIError.networkError("No response")
+            }
+            if http.statusCode == 401 { throw APIError.unauthorized }
+            guard http.statusCode == 200 else {
+                throw APIError.serverError(http.statusCode)
+            }
+            return try JSONDecoder().decode(AuthResult.self, from: data)
+        } catch let error as APIError {
+            throw error
+        } catch let error as DecodingError {
+            throw error
+        } catch {
+            throw APIError.networkError(error.localizedDescription)
         }
-        return try JSONDecoder().decode(AuthResult.self, from: data)
     }
 
     // MARK: - Magic Link
