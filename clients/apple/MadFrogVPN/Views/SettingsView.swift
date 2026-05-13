@@ -64,10 +64,16 @@ struct SettingsView: View {
                                 // Segmented pill — 3 options in one row. Custom
                                 // rendering so it adopts the theme accent and
                                 // matches the rest of Settings.
+                                // Build 58 (2026-05-13): reorder so .ruDirect (Split-tunnel)
+                                // sits in the middle as the visual default. Smart mode is
+                                // pushed to the right because it surprisingly leaves most
+                                // apps unprotected on cellular (carrier-level throttling
+                                // bypasses the VPN entirely in that mode) — field log
+                                // 5:48 PM was a user mis-picking it.
                                 HStack(spacing: 0) {
-                                    routingSegment(.smart,    label: L10n.Settings.routingModeSmart)
                                     routingSegment(.ruDirect, label: L10n.Settings.routingModeRuDirect)
                                     routingSegment(.fullVPN,  label: L10n.Settings.routingModeFullVPN)
+                                    routingSegment(.smart,    label: L10n.Settings.routingModeSmart)
                                 }
                                 .padding(3)
                                 .background(theme.background.opacity(0.6),

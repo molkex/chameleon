@@ -13,14 +13,37 @@ final class RoutingModeTests: XCTestCase {
 
     func testRawValueMappingFallsBackToDefaultForGarbage() {
         // RawRepresentable returns nil for unknown values; the call site is
-        // expected to use `?? .default` (RoutingMode.default = .fullVPN).
+        // expected to use `?? .default`.
         XCTAssertNil(RoutingMode(rawValue: "garbage"))
         XCTAssertNil(RoutingMode(rawValue: ""))
         XCTAssertNil(RoutingMode(rawValue: "SMART"))   // case-sensitive
         XCTAssertNil(RoutingMode(rawValue: "ruDirect")) // missing hyphen
 
         let resolved = RoutingMode(rawValue: "garbage") ?? .default
-        XCTAssertEqual(resolved, .fullVPN, "default mode must be .fullVPN")
+        // Build 58 (2026-05-13): default changed .fullVPN → .ruDirect.
+        // Field log 5:48 PM showed users picking "Умный" expecting it to be
+        // optimal — actually it bypasses VPN for most apps, breaking Telegram
+        // and Speedtest on cellular where carriers throttle direct flows.
+        // .ruDirect (split-tunnel) is the balanced default: .ru sites stay
+        // fast (direct), everything else gets the VPN's protection.
+        XCTAssertEqual(resolved, .ruDirect, "default mode must be .ruDirect for new users")
+    }
+
+    // MARK: - Recommendation surface
+
+    /// Build 58: explicit `recommended` static accessor so UI can surface
+    /// a "рекомендуем" badge next to the right segment. Same value as
+    /// `default` today; kept separate so we can A/B them independently
+    /// later (e.g. recommend ruDirect while default-on-install stays
+    /// fullVPN for travellers).
+    func testRecommendedModeIsRuDirect() {
+        XCTAssertEqual(RoutingMode.recommended, .ruDirect)
+    }
+
+    func testDefaultEqualsRecommendedForNow() {
+        // We tie default to recommended on build 58. Diverge only when we
+        // have data that justifies a split.
+        XCTAssertEqual(RoutingMode.default, RoutingMode.recommended)
     }
 
     func testCaseIterableCoversThreeModes() {

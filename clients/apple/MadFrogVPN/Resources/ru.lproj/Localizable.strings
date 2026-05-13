@@ -186,10 +186,10 @@
 "settings.section.appearance"    = "Оформление";
 "settings.section.routing"       = "Маршрутизация";
 "settings.routing_mode"          = "Режим";
-"settings.routing_mode.smart"          = "Умный";
-"settings.routing_mode.smart.hint"     = "Через VPN идут только недоступные сайты. Остальное — напрямую. Максимальная экономия трафика.";
-"settings.routing_mode.ru_direct"      = "Сплит-туннель";
-"settings.routing_mode.ru_direct.hint" = "Локальные ресурсы — напрямую, остальные — через VPN. Классический split tunneling.";
+"settings.routing_mode.smart"          = "Только блоки";
+"settings.routing_mode.smart.hint"     = "Через VPN идут только заблокированные РКН сайты. Telegram, Speedtest, YouTube и прочее — напрямую через оператора. На мобильном интернете это часто медленно: оператор режет нешифрованный трафик. Включайте только если уверены что direct у вас работает.";
+"settings.routing_mode.ru_direct"      = "Сплит-туннель (рекомендуем)";
+"settings.routing_mode.ru_direct.hint" = "Российские сайты — напрямую (быстро), всё остальное (Telegram, медиа, мессенджеры, иностранные сайты) — через VPN. Лучший выбор для большинства сценариев.";
 "settings.routing_mode.full_vpn"       = "Всё через VPN";
 "settings.routing_mode.full_vpn.hint"  = "Весь трафик через VPN (кроме платёжных и официальных сервисов). Для поездок и публичных Wi-Fi.";
 "settings.section.account"       = "Аккаунт";

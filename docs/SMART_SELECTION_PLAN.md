@@ -112,6 +112,46 @@ with per-flow adaptive selection that works equally for all users.
 
 9 new tests + 1 updated. `go test ./... && go vet ./...` clean.
 
+### Phase 1.5 — Throughput-time threshold in TunnelStallProbe (✅ done, build 57)
+
+Field log 2026-05-13 5:48 PM (LTE) showed build 56 with first-write
+callback STILL missing the failure mode: 32 KB probe body arrived in
+1.3-1.6 seconds (= 20-25 KB/s) — Speedtest timed out, Telegram media
+stalled. No singbox errors, so first-write callback never fired. Throttle
+is a separate class of failure from kill.
+
+`Shared/TunnelProbeOutcome.swift` (new) — pure `(statusOK, bytes, elapsedMs)
+→ .healthy | .throttled | .failed` classifier with default rules
+(16 KB min body, 1000 ms max elapsed = ≥ 32 KB/s floor). 9 XCTest cases
+cover field-log thresholds and edge cases (exactly-at-threshold,
+partial-body, http-failure). `PacketTunnel/TunnelStallProbe.swift`
+re-enables active fallback for degraded outcomes (build-44 had disabled
+it on the assumption RealTrafficStallDetector — singbox-log parser —
+would catch stalls; that worked for kill but is blind to throttle since
+no errors appear in singbox logs under throttle).
+
+### Phase 1.7 — Routing mode UX (✅ done, build 58)
+
+Field log 2026-05-13 6:13 PM (LTE) showed user manually selecting
+"Умный" then complaining Speedtest/Telegram don't work. Root cause:
+"Умный" sounds like "smart = best behavior", but actually means "only
+RKN-blocked sites through VPN, everything else direct". On cellular
+where carriers throttle direct flows, this leaves Telegram, Speedtest,
+YouTube etc. exposed to the throttle. Build 57 was working correctly;
+the user just had the wrong mode picked.
+
+Fix surface:
+- `RoutingMode.default` changed `.fullVPN → .ruDirect` for new users.
+- New `RoutingMode.recommended = .ruDirect` for UI badge.
+- Smart mode label "Умный" → "Только блоки" (RU) / "Smart" → "Blocks only"
+  (EN). Hint rewritten to WARN about cellular throttle leaving most apps
+  exposed when picked.
+- `Сплит-туннель` label gets `(рекомендуем)` suffix.
+- SettingsView reorders segments: `[ruDirect, fullVPN, smart]` — pushing
+  smart to the right of the segmented picker (least prominent).
+- Tests: `testRecommendedModeIsRuDirect`, `testDefaultEqualsRecommendedForNow`,
+  updated `testRawValueMappingFallsBackToDefaultForGarbage`.
+
 ### Phase 1 — Cherry-pick mihomo Smart (planned, 2-3 days)
 
 **What:** In our fork `singbox-with-userapi`:
