@@ -9,7 +9,7 @@ builds:
     version: "1.0.26"
     date: 2026-05-14
     track: testflight-internal
-    asc-build-id: pending                    # backfill after ASC processing
+    asc-build-id: 1d35c027-5595-4bc5-bf0e-2e3d0a5f32b4
     phases: [phase-1.d-penalty-score]
     archive-path: /tmp/MadFrogVPN-build63.xcarchive
     field-verified: false
