@@ -111,21 +111,64 @@ final class TunnelStallProbe {
 
     // MARK: - State
 
-    /// Mutable so applyCellularProfile() / applyWiFiProfile() can retune
-    /// cadence and threshold in response to NWPathMonitor signals from
-    /// ExtensionPlatformInterface (build 61, Phase 1.C). The probe loop
-    /// reads `config.probeInterval` per-iteration, so a mid-flight swap
-    /// takes effect on the very next tick (no restart required).
+    /// Mutable so apply(_:) can retune cadence + threshold in response to
+    /// NWPathMonitor signals from ExtensionPlatformInterface (Phase 1.C).
+    /// The probe loop reads `config.probeInterval` per-iteration, so a
+    /// mid-flight swap takes effect on the very next tick (no restart).
     private var config: Config
     private var task: Task<Void, Never>?
     private var consecutiveFailures = 0
     private var lastFallbackAt: Date?
     private var fallbacksInLastHour: [Date] = []
+    /// Build 62: tracked profile state so we log only on *transition*,
+    /// not on every pathUpdate. iOS fires pathUpdateHandler many times
+    /// per minute on a stable cellular path (route refresh, neighbor
+    /// discovery, BSSID flap on Wi-Fi), and re-emitting the same line
+    /// turned the log into noise. `currentProfile == nil` only before
+    /// the first apply, so the very first profile selection is always
+    /// logged with an explicit "(initial)" marker.
+    private var currentProfile: Profile?
 
     /// Test-only accessor for the current config snapshot — used by
     /// `TunnelStallProbeProfileTests` to assert that profile switches
     /// actually mutate the tuneables. Not for production callers.
     var currentConfigForTesting: Config { config }
+
+    /// Lookup the active profile (post-`apply(_:)`). Used by tests to
+    /// assert no-op vs transition behaviour.
+    var currentProfileForTesting: Profile? { currentProfile }
+
+    // MARK: - Profile (Phase 1.C)
+
+    /// Probe profile = tuneable preset selected by network-type signal.
+    /// `Profile` lives on the type (not as a free enum) so callers from
+    /// other files reference it as `TunnelStallProbe.Profile`.
+    enum Profile: String, Equatable {
+        /// `NWPath.isExpensive == false`. Wider hysteresis — 2 consecutive
+        /// degraded probes at 15 s intervals before fallback. Avoids
+        /// false-positive switches on transient Wi-Fi handover blips.
+        case wifi
+        /// `NWPath.isExpensive == true`. Tight hysteresis — 1 degraded
+        /// probe at 5 s intervals before fallback. Field log 2026-05-13
+        /// 22:17 LTE: nl-via-msk healthy 502 ms → THROTTLED 5601 ms in
+        /// ~90 seconds. Default 2/15 left the user staring at a hang for
+        /// 30 s before recovery; this profile recovers in <10 s.
+        /// Cost: ~3× probe traffic, ~480 KB / 5 min — negligible.
+        case cellular
+
+        var stallThreshold: Int {
+            switch self {
+            case .wifi: return 2
+            case .cellular: return 1
+            }
+        }
+        var probeInterval: TimeInterval {
+            switch self {
+            case .wifi: return 15
+            case .cellular: return 5
+            }
+        }
+    }
 
     // MARK: - Lifecycle
 
@@ -133,33 +176,32 @@ final class TunnelStallProbe {
         self.config = config
     }
 
-    // MARK: - Network-aware profile switching (Phase 1.C, build 61)
-
-    /// Tighten cadence + threshold for cellular paths. Rationale (field
-    /// log 2026-05-13 22:17 LTE): nl-via-msk goes from 502 ms healthy to
-    /// 5601 ms THROTTLED in ~90 seconds. Default 2/15 s gives the user
-    /// up to 30 s of throttle before fallback fires. On cellular we
-    /// shorten to a single degraded probe at 5 s intervals — fallback
-    /// in <10 s. The faster cycle costs ~3× probe traffic (~480 KB / 5
-    /// min instead of ~160 KB) which is negligible.
-    func applyCellularProfile() {
-        config.stallThreshold = 1
-        config.probeInterval = 5
-        TunnelFileLogger.log("TunnelStallProbe: cellular profile applied (threshold=1, interval=5s)", category: "tunnel-probe")
-    }
-
-    /// Restore Wi-Fi-friendly defaults. Wider hysteresis avoids
-    /// false-positive fallbacks on transient blips (LTE→Wi-Fi handover,
-    /// CGNAT pings).
-    func applyWiFiProfile() {
-        config.stallThreshold = 2
-        config.probeInterval = 15
-        TunnelFileLogger.log("TunnelStallProbe: wifi profile applied (threshold=2, interval=15s)", category: "tunnel-probe")
+    /// Apply the named probe profile. No-op if already on that profile —
+    /// `pathUpdateHandler` re-fires many times on a stable uplink, so we
+    /// dedupe at the log boundary. Transitions emit one line in the form
+    /// `profile <from> → <to> (threshold=N, interval=Ms)` so the field log
+    /// reads like a narrative: each line is an event, not a heartbeat.
+    func apply(_ profile: Profile) {
+        if currentProfile == profile {
+            return
+        }
+        let from = currentProfile?.rawValue ?? "initial"
+        currentProfile = profile
+        config.stallThreshold = profile.stallThreshold
+        config.probeInterval = profile.probeInterval
+        TunnelFileLogger.log(
+            "TunnelStallProbe: profile \(from) → \(profile.rawValue) (threshold=\(profile.stallThreshold), interval=\(Int(profile.probeInterval))s)",
+            category: "tunnel-probe"
+        )
     }
 
     func start() {
         guard task == nil else { return }
-        TunnelFileLogger.log("TunnelStallProbe: start interval=\(Int(config.probeInterval))s threshold=\(config.stallThreshold)", category: "tunnel-probe")
+        let profileLabel = currentProfile?.rawValue ?? "default"
+        TunnelFileLogger.log(
+            "TunnelStallProbe: start profile=\(profileLabel) threshold=\(config.stallThreshold) interval=\(Int(config.probeInterval))s firstProbeIn=\(Int(config.firstProbeDelay))s",
+            category: "tunnel-probe"
+        )
         task = Task { [weak self] in
             await self?.runLoop()
         }
@@ -223,6 +265,15 @@ final class TunnelStallProbe {
         // designed. Cost: ~1 line / 15 s = trivial.
         TunnelFileLogger.log("TunnelStallProbe: probe \(outcomeLabel) body=\(bytes)B elapsed=\(elapsedMs)ms", category: "tunnel-probe")
         if !outcome.isDegraded {
+            if consecutiveFailures > 0 {
+                // Build 62: explicit recovery event. Tells the field log
+                // reader "the path self-healed after N degraded probes,
+                // no fallback was needed" — without this line we'd see
+                // degraded #1 ... degraded #2 ... and then mysteriously
+                // never reach the STALL streak, because the OK probe
+                // silently reset the counter.
+                TunnelFileLogger.log("TunnelStallProbe: probe recovered after \(consecutiveFailures) degraded — counter reset", category: "tunnel-probe")
+            }
             consecutiveFailures = 0
             return
         }

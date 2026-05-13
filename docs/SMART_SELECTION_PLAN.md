@@ -317,7 +317,7 @@ the XFF-spoof fix that made this trustworthy).
 Pending field verification after user reconnects on LTE (force-quit
 required to trigger `silentConfigUpdate`).
 
-### Phase 1.C — Adaptive probe cadence (✅ code merged, awaiting build 61)
+### Phase 1.C — Adaptive probe cadence (✅ shipped + field-verified, build 61/62)
 
 Following Phase 1.B, the dead-probe waste is gone, but `nl-via-msk`
 (through MSK relay 217.198.5.52:2097) still gets DPI-throttled around 90
@@ -358,24 +358,123 @@ Pending: bump `clients/apple/project.yml::CURRENT_PROJECT_VERSION` from
 confirms Phase 1.B (60.3-dpi-aware-config) made a visible difference —
 no point shipping Phase 1.C if 1.B alone closed the UX gap.
 
-### Phase 1.D — Penalty-score recently-throttled outbound (planned)
+**Build 61 field log 2026-05-13 23:33 LTE (verified):**
+```
+23:33:00.101  [network] pathUpdate: status=satisfied, iface=pdp_ip0(2), expensive=true
+23:33:05.239  [tunnel-probe] cellular profile applied (threshold=1, interval=5s)
+23:33:06.158  [tunnel-probe] probe OK body=32768B elapsed=454ms
+23:33:13.157  [tunnel-probe] probe THROTTLED(1735ms) body=32768B elapsed=1735ms
+              [tunnel-probe] probe degraded #1 (THROTTLED(1735ms))   ← #1, not #2
+              [tunnel-probe] STALL streak — invoking fallback        ← immediate
+23:33:13.166  [tunnel-probe] urlTest('Auto') OK                       ← 9 ms later
+```
 
-The current `nudgeUrltestGroups()` fallback calls `client.urlTest(group)`
-which re-probes ALL members equally. If the throttled outbound passes a
-fresh small probe (DPI may have eased after the wait), it gets re-elected
-and the user is back in the throttled state within seconds.
+Fallback latency from THROTTLED detection to urlTest re-probe = **9 ms**
+(versus ~21 s on build 60). Phase 1.C objective achieved. The remaining
+"то грузит то не грузит" the user observed is the underlying DPI throttle
+through MSK relay (separate root cause, addressed in Phase 1.D).
 
-Plan (deferred — needs Clash API extension):
-- After `invokeFallback()`, mark the currently-active outbound with a
-  60-second penalty score via Clash API.
-- urltest member-selection biased: penalised outbound only chosen if no
-  other healthy member exists.
-- Penalty decays linearly to zero over 60 s.
+**Architecture nuance discovered while debugging build 61:** I initially
+suspected a race condition — `startSingBox()` starts
+`NWPathMonitor.pathUpdateHandler` (via PlatformInterface) before
+`startStallProbe()` injects the weak ref into the platform interface,
+so the very first pathUpdate fires with `stallProbe == nil`. **This is
+benign**: iOS fires `pathUpdateHandler` repeatedly on a stable uplink
+(field log shows 5+ pathUpdate lines within 22 s of start — route
+refresh, neighbor discovery, BSSID flap), so the second callback always
+catches a populated weak ref. The side effect was log spam (5–10
+"cellular profile applied" lines per minute), addressed in build 62 with
+`apply(_:)` log-on-change-only.
 
-Requires Clash API addition (mihomo has this — `proxies/:name/delay`
-exposes the score, but penalty injection is missing). Either upstream PR
-or fork-only Clash extension. Not blocking — Phase 1.C alone may close the
-loop adequately.
+### Phase 1.C polish — log quality (✅ build 62)
+
+Field log 2026-05-13 23:33 worked but flagged a noise problem:
+`cellular profile applied` was emitted on **every** pathUpdate (10+
+times per minute on a stable cellular connection) even though the
+profile was unchanged. Triage:
+
+1. Replace `applyCellularProfile()` / `applyWiFiProfile()` pair with a
+   single `apply(_ profile: Profile)` method that early-returns if the
+   profile hasn't actually changed. Internal `currentProfile: Profile?`
+   tracks state across calls.
+2. Transition log line is now `profile <from> → <to> (threshold=N,
+   interval=Ms)` — reads like an event, not a heartbeat. First
+   application after start logs `profile initial → cellular ...` so the
+   reader can tell "this was the very first profile" from "we just
+   re-confirmed the same profile" without inferring it from timestamps.
+3. `start()` now logs the starting profile + first-probe delay so the
+   reader has full context for the upcoming probe cycle.
+4. `tickIfEligible()` emits an explicit `probe recovered after N
+   degraded — counter reset` line when a healthy probe lands after a
+   degraded streak. Previously the counter silently zeroed; logs showed
+   `degraded #1 ... degraded #2` and then mysteriously never reached
+   `STALL streak` — the OK probe in between was invisible.
+
+`Profile` is an enum (`.wifi` / `.cellular`) with `stallThreshold` and
+`probeInterval` computed properties, so adding new profiles later (e.g.
+`.ethernet` for tethered Mac) is one case statement, not a parallel
+pair of `apply*Profile()` functions.
+
+### Phase 1.D — Penalty-score recently-throttled outbound (NEXT)
+
+Phase 1.C closed the THROTTLE→fallback latency to ~9 ms in field test —
+but the user still experiences a few-seconds pause every ~90 s because:
+
+1. nl-via-msk is the active leg, DPI starts throttling around 90 s.
+2. `TunnelStallProbe` fires `STALL streak — invoking fallback` and
+   nudges every urltest group via `LibboxCommandClient.urlTest(group)`.
+3. sing-box urltest re-probes ALL members. The throttled outbound
+   responds to the small probe (DPI may briefly ease, or the probe
+   payload is too small to trip the bulk-throttle signature).
+4. urltest picks the same throttled outbound again (or oscillates
+   between de-via-msk and nl-via-msk both throttled).
+5. User sees throttle ⇒ fallback ⇒ same outbound ⇒ throttle again
+   within seconds.
+
+**Plan:**
+- After `STALL streak — invoking fallback`, capture the currently-active
+  outbound tag via `LibboxCommandClient.GetGroupItems` (we already have
+  this read access for `active leg` log lines).
+- Persist a per-outbound "do not re-select until time T" map in the
+  PacketTunnel process (Swift-side, since Clash API exposes selectors
+  but not penalty injection).
+- On fallback, set `T = now + 60 s` for the throttled outbound and
+  immediately call `client.selectOutbound(group, name)` on each
+  urltest group with the *first non-penalised* member — this bypasses
+  urltest's re-probe and pins the alternate leaf for the cooldown.
+- After 60 s, clear the penalty entry; urltest resumes normal cycle.
+
+Tradeoffs:
+- **Pro:** breaks the throttle→fallback→same-outbound loop. User sees
+  a single 1-second pause and stable connection after.
+- **Con:** if every member is throttled, the penalty map prefers the
+  least-recently-throttled. Worst case = same UX as today, never worse.
+- **Con:** we override urltest's elect — if our pin lands on a
+  genuinely slower-but-not-throttled leg, RTT-optimal selection takes
+  a 60 s vacation. Acceptable cost.
+
+Implementation lives in iOS only — no fork or backend changes. Builds 63+.
+
+### Phase 1.E — Server-side request rotation (research)
+
+Even with Phase 1.D the user will hit a throttle every ~90 s on every
+leg in sequence: nl-via-msk → de-via-msk → ru-spb-* → back to nl-via-msk
+after their 60 s penalties expire. The throttle clock resets per-flow
+(per TCP connection to the relay), so the long-term workaround is to
+*shorten* each flow.
+
+Idea: in our sing-box fork, periodically tear down and re-dial the
+upstream VLESS Reality connection every ~75 s (just before the
+observed throttle window). DPI sees fresh small flows, not one
+long bulk flow. mihomo's `urltest` already supports `idle-timeout`
+which could be repurposed.
+
+Risk: heavy on memory (every reconnect re-allocates uTLS state +
+Reality handshake state). On iOS 50 MB jetsam cap this might push us
+back into OOM territory. Research phase: instrument heap during forced
+reconnect cycle, see if RSS slope flattens after GC.
+
+Not scheduled. Documented so future-us has the breadcrumb.
 
 ### Phase 1 — Cherry-pick mihomo Smart (planned, 2-3 days)
 

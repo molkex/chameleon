@@ -284,18 +284,17 @@ extension ExtensionPlatformInterface: LibboxPlatformInterfaceProtocol {
 
         // Build 61 (Phase 1.C): retune the stall probe for the active
         // uplink. `isExpensive` is the canonical NWPath signal for
-        // cellular (Apple flags carriers as expensive). Field log
-        // 2026-05-13 22:17 LTE: nl-via-msk slid from 502 ms healthy to
-        // 5601 ms THROTTLED in ~90 s, but with default 2/15 s probe
-        // params the fallback didn't fire before the user gave up.
-        // Cellular profile: threshold=1 / interval=5 s — fallback in
-        // <10 s. Wi-Fi profile: keep 2/15 (avoid false positives on
-        // transient handover blips).
-        if path.isExpensive {
-            stallProbe?.applyCellularProfile()
-        } else {
-            stallProbe?.applyWiFiProfile()
-        }
+        // cellular (Apple flags carriers as expensive — includes tethered
+        // hotspots). Field log 2026-05-13 22:17 LTE: nl-via-msk slid from
+        // 502 ms healthy to 5601 ms THROTTLED in ~90 s, but with default
+        // 2/15 probe params the fallback didn't fire before the user gave
+        // up. Cellular: threshold=1 / interval=5s ⇒ fallback in <10 s.
+        // Wi-Fi: 2/15 (avoid false positives on transient handover blips).
+        //
+        // Build 62: pathUpdateHandler fires many times per minute on a
+        // stable cellular path (route refresh, neighbor discovery); the
+        // probe's `apply(_:)` dedupes — only state transitions are logged.
+        stallProbe?.apply(path.isExpensive ? .cellular : .wifi)
 
         // Force iOS to re-evaluate tunnel on network change (WiFi↔LTE)
         // Only reassert when switching between interfaces with connectivity,
