@@ -130,6 +130,38 @@ it on the assumption RealTrafficStallDetector — singbox-log parser —
 would catch stalls; that worked for kill but is blind to throttle since
 no errors appear in singbox logs under throttle).
 
+### Phase 1.6 — App Review re-fix (✅ done, build 59 / 60)
+
+App Review v1.0.26 reject 2026-05-13:
+- **Guideline 2.1(a) Performance — App Completeness**: "Continue with
+  Apple" did nothing on iPad Air 11" M3 / iPhone 17 Pro Max under
+  iPadOS/iOS 26.5. Build 53 had moved away from SwiftUI
+  `SignInWithAppleButton` to a UIKit `AppleAuthCoordinator` with explicit
+  scene/window anchor lookup — our manual `connectedScenes` walk doesn't
+  reliably find an anchor on iOS 26's multi-scene plumbing, so the
+  system auth sheet never presented and no delegate callback fired.
+- **Guideline 2.3.12 Performance — Accurate Metadata**: "What's New"
+  text "Initial release" flagged as nondescript / placeholder.
+
+Build 59 fix:
+- Reverted to Apple's native SwiftUI `SignInWithAppleButton`. Apple's
+  component handles iOS 26 scene wiring internally.
+- Modal `.alert()` for SIWA errors (replaces the easy-to-miss red
+  capsule). Reviewer can't miss a future error.
+- `TunnelFileLogger.log` breadcrumbs at every SIWA step
+  (tap → onRequest → onCompletion → credential / error).
+- `.accessibilityIdentifier("onboarding.continue_with_apple")` for
+  future UITests.
+- `AppleAuthCoordinator.swift` kept in-tree but unused (safe to delete
+  in a follow-up).
+- L10n: new `onboarding.signin_failed.title` (RU "Ошибка входа" / EN
+  "Sign-in error").
+
+Build 60 followup — libbox memory regression fix (see Phase 1.9 below).
+
+Resolution Center reply sent to App Review on 2026-05-13 19:47 explaining
+both fixes. v1.0.26 (build 60) resubmitted, status "Waiting for Review".
+
 ### Phase 1.7 — Routing mode UX (✅ done, build 58)
 
 Field log 2026-05-13 6:13 PM (LTE) showed user manually selecting
@@ -151,6 +183,47 @@ Fix surface:
   smart to the right of the segmented picker (least prominent).
 - Tests: `testRecommendedModeIsRuDirect`, `testDefaultEqualsRecommendedForNow`,
   updated `testRawValueMappingFallsBackToDefaultForGarbage`.
+
+### Phase 1.9 — Libbox memory regression (✅ done, build 60)
+
+Field log 2026-05-13 19:43 (TestFlight build 58, user on cellular):
+
+```
+[19:42] sing-box restart (oom-killer auto)
+[19:42] memory 28MB/21MB avail
+[19:43] phys=48MB ... avail=1MB
+[19:43-19:44] singbox oom-killer firing every ~20ms:
+              "memory pressure: critical, usage: 47 MiB, resetting network"
+```
+
+User: "не грузит телегу вообще". Memory grew 28MB → 48MB in 60s of
+Telegram traffic, internal singbox oom-killer reset the network ~500x/sec
+to stay under iOS NE 50MB jetsam, killing every TG connection on each
+reset.
+
+Root cause: builds 56-58 shipped `Libbox.xcframework` built from sing-box
+v1.13.6 (our fork HEAD). Production build 55 had v1.13.5. v1.13.6 has a
+memory regression vs v1.13.5 under iOS NE's tight cap.
+
+Build 60 fix:
+- Reset fork branch to upstream `v1.13.5` tag.
+- Cherry-picked first-write callback commit (`212010e`) onto v1.13.5 —
+  applied cleanly, no conflicts. Phase 1 data-plane health preserved.
+- Kept build tag exclusions (`with_tailscale`, `with_naive_outbound`,
+  `with_dhcp` dropped — required for 50MB cap regardless of version).
+- iOS-arm64 binary 44MB, byte-equivalent to production build 55 size.
+  Slice Info.plist patched with `CFBundleShortVersionString=1.13.5`,
+  `io.nekohasekai.libbox`.
+
+Test guard (build 60+, `LibboxVersionGuardTests`):
+- `testLibboxIsPinnedToExpectedVersion` — fails if `LibboxVersion()`
+  doesn't start with `1.13.5`. Would have caught the 56-58 regression
+  pre-TestFlight. Bump `expectedSingboxBase` only after on-device memory
+  bench (RSS < ~35MB under TG/Safari load).
+- `testLibboxVersionIsNotEmpty` — defensive, catches a broken gomobile
+  bind wiring that would return empty version.
+
+166/166 iOS XCTests green (was 164, +2 guards).
 
 ### Phase 1 — Cherry-pick mihomo Smart (planned, 2-3 days)
 
