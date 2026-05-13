@@ -5,6 +5,24 @@
 # Cross-reference phases via phase ids from plan.yaml.
 
 builds:
+  - number: 63
+    version: "1.0.26"
+    date: 2026-05-14
+    track: testflight-internal
+    asc-build-id: pending                    # backfill after ASC processing
+    phases: [phase-1.d-penalty-score]
+    archive-path: /tmp/MadFrogVPN-build63.xcarchive
+    field-verified: false
+    notes: |
+      Phase 1.D — penalty-aware fallback inside extension. Adds
+      OutboundPenaltyStore (Shared/) + OutboundGroupTracker
+      (PacketTunnel/, persistent CommandClient subscribed to group feed).
+      TunnelStallProbe.nudgeUrltestGroups rewritten to penalise the
+      currently-selected outbound on STALL streak and selectOutbound
+      to pin a non-penalised peer — bypasses urltest's small-probe
+      re-election that put the throttled leaf back in service.
+      Libbox unchanged from build 60.
+
   - number: 62
     version: "1.0.26"
     date: 2026-05-13

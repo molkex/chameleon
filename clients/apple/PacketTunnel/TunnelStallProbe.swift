@@ -129,6 +129,21 @@ final class TunnelStallProbe {
     /// logged with an explicit "(initial)" marker.
     private var currentProfile: Profile?
 
+    /// Build 63 (Phase 1.D). Persistent CommandClient subscribed to the
+    /// outbound-group feed so the fallback path can read "what's
+    /// currently selected per group" synchronously instead of firing
+    /// blind `urlTest(group)` calls. nil if Libbox refused to give us a
+    /// client — fallback degrades to the old nudge.
+    private let groupTracker = OutboundGroupTracker()
+
+    /// Build 63 (Phase 1.D). Per-outbound penalty record. When a fallback
+    /// fires, the currently-selected outbound of each touched group gets
+    /// a 60 s "do not re-elect" mark. The probe then pins the first
+    /// non-penalised member via `selectOutbound`, bypassing urltest's
+    /// small-probe re-election that would otherwise put the throttled
+    /// leaf right back in service.
+    private let penaltyStore = OutboundPenaltyStore()
+
     /// Test-only accessor for the current config snapshot — used by
     /// `TunnelStallProbeProfileTests` to assert that profile switches
     /// actually mutate the tuneables. Not for production callers.
@@ -137,6 +152,9 @@ final class TunnelStallProbe {
     /// Lookup the active profile (post-`apply(_:)`). Used by tests to
     /// assert no-op vs transition behaviour.
     var currentProfileForTesting: Profile? { currentProfile }
+
+    /// Test/diagnostic accessor for the penalty store.
+    var penaltyStoreForTesting: OutboundPenaltyStore { penaltyStore }
 
     // MARK: - Profile (Phase 1.C)
 
@@ -202,6 +220,11 @@ final class TunnelStallProbe {
             "TunnelStallProbe: start profile=\(profileLabel) threshold=\(config.stallThreshold) interval=\(Int(config.probeInterval))s firstProbeIn=\(Int(config.firstProbeDelay))s",
             category: "tunnel-probe"
         )
+        // Build 63: start subscribing to groups in the background so by the
+        // time the first STALL streak fires (≥10 s in), `groupTracker` has
+        // already received writeGroups events and the fallback can pick a
+        // non-penalised alternative synchronously.
+        groupTracker.start()
         task = Task { [weak self] in
             await self?.runLoop()
         }
@@ -211,6 +234,8 @@ final class TunnelStallProbe {
         task?.cancel()
         task = nil
         consecutiveFailures = 0
+        groupTracker.stop()
+        penaltyStore.reset()
         TunnelFileLogger.log("TunnelStallProbe: stop", category: "tunnel-probe")
     }
 
@@ -368,12 +393,27 @@ final class TunnelStallProbe {
         nudgeUrltestGroups()
     }
 
-    /// Force sing-box to re-probe every urltest group immediately. Best
-    /// effort: failures are logged but don't block the fallback flag.
-    /// Implementation intentionally creates a short-lived CommandClient
-    /// each time — the connection lives <1s.
+    /// Build 63 (Phase 1.D). Penalty-aware fallback. For each urltest
+    /// group we touch:
+    ///
+    ///   1. Read the currently-selected outbound from `groupTracker`.
+    ///   2. Penalise it for 60 s — so on the next throttle cycle (and
+    ///      any subsequent urltest auto-re-elections during the window)
+    ///      this leaf is skipped.
+    ///   3. Pick the first non-penalised member of the same group and
+    ///      `selectOutbound` to pin it. This bypasses urltest's small-
+    ///      probe re-election that would otherwise put the throttled
+    ///      leaf back in service.
+    ///   4. If the tracker has no snapshot yet (very-early STALL before
+    ///      the first writeGroups event landed) OR every member is
+    ///      penalised, fall back to the legacy `urlTest(group)` nudge —
+    ///      something is better than nothing.
+    ///
+    /// Field log: every decision emits one line, e.g.
+    ///   "TunnelStallProbe: penalise 'Auto'.'nl-via-msk' (was selected)"
+    ///   "TunnelStallProbe: selectOutbound 'Auto' → 'de-via-msk' (alt of penalised 'nl-via-msk')"
     private func nudgeUrltestGroups() {
-        let handler = NudgeHandler()
+        let handler = TransientCommandHandler()
         let options = LibboxCommandClientOptions()
         options.statusInterval = Int64(NSEC_PER_SEC)
 
@@ -392,37 +432,56 @@ final class TunnelStallProbe {
         defer { try? client.disconnect() }
 
         for group in config.urltestGroupTags {
+            let selected = groupTracker.selected(in: group)
+            let members = groupTracker.members(in: group)
+
+            // Path A: we know what's currently active and have its peers
+            // → do the penalty-aware switch.
+            if let selected, !selected.isEmpty, !members.isEmpty {
+                penaltyStore.penalise(selected)
+                TunnelFileLogger.log("TunnelStallProbe: penalise '\(group)'.'\(selected)' (was selected, 60s)", category: "tunnel-probe")
+                let candidates = members.filter { $0 != selected }
+                if let alternative = penaltyStore.firstNonPenalised(among: candidates) {
+                    do {
+                        try client.selectOutbound(group, outboundTag: alternative)
+                        TunnelFileLogger.log("TunnelStallProbe: selectOutbound '\(group)' → '\(alternative)' (alt of penalised '\(selected)')", category: "tunnel-probe")
+                        continue
+                    } catch {
+                        TunnelFileLogger.log("TunnelStallProbe: selectOutbound '\(group)' → '\(alternative)' FAILED (\(error.localizedDescription)) — falling through to urlTest", category: "tunnel-probe")
+                    }
+                } else {
+                    TunnelFileLogger.log("TunnelStallProbe: every '\(group)' member penalised — falling through to urlTest", category: "tunnel-probe")
+                }
+            }
+
+            // Path B: no tracker snapshot or no non-penalised alternative
+            // → original behaviour: just re-probe. urltest might re-elect
+            // the same throttled leaf, but at least we're not stuck.
             do {
                 try client.urlTest(group)
-                TunnelFileLogger.log("TunnelStallProbe: urlTest('\(group)') OK", category: "tunnel-probe")
+                TunnelFileLogger.log("TunnelStallProbe: urlTest('\(group)') OK (no tracker data or all penalised)", category: "tunnel-probe")
             } catch {
                 TunnelFileLogger.log("TunnelStallProbe: urlTest('\(group)') FAILED \(error.localizedDescription)", category: "tunnel-probe")
             }
         }
 
-        // Build-42: removed `client.closeConnections()` here. Field log
-        // 2026-04-27 12:20 showed it killed working NL traffic after the
-        // build-41 outer urltest correctly fell back to `_nl_leaves`,
-        // causing a self-inflicted ~53 s blackout. The build-40
-        // `interrupt_exist_connections=true` flag on every urltest +
-        // selector already does surgical cleanup whenever sing-box
-        // re-elects an outbound, so the global close was redundant on
-        // top of being destructive. Real fallback (when probe says
-        // throttled-but-handshaked) flows through:
-        //   1. urlTest() above forces sing-box to re-probe — but won't
-        //      help if all leaves "look healthy" to its HEAD probe.
-        //   2. UserDefaults timestamp signal → main app foreground →
-        //      AppState.performFallbackForCurrentLeg() pins a specific
-        //      leaf via Clash API. THAT is the authoritative fallback.
+        // Build-42 historical note: removed `client.closeConnections()`
+        // here. Field log 2026-04-27 12:20 showed it killed working NL
+        // traffic after the build-41 outer urltest correctly fell back
+        // to `_nl_leaves`, causing a self-inflicted ~53 s blackout.
+        // sing-box's per-group `interrupt_exist_connections=true` already
+        // does surgical cleanup whenever an outbound is re-elected.
     }
 }
 
 // MARK: - LibboxCommandClient handler stub
 
-/// Minimal LibboxCommandClientHandlerProtocol implementation — the nudge
-/// flow only calls send-side commands (`urlTest`, `closeConnections`) and
-/// disconnects, so we don't need to react to any server callbacks.
-private final class NudgeHandler: NSObject, LibboxCommandClientHandlerProtocol, @unchecked Sendable {
+/// Transient handler used by the per-fallback short-lived CommandClient
+/// inside `nudgeUrltestGroups`. We only call send-side commands
+/// (`urlTest`, `selectOutbound`) and disconnect — nothing in the
+/// server-push stream matters here. The long-lived group subscriber
+/// lives in `OutboundGroupTracker`, separate handler instance.
+private final class TransientCommandHandler: NSObject, LibboxCommandClientHandlerProtocol, @unchecked Sendable {
     func connected() {}
     func disconnected(_ message: String?) {}
     func setDefaultLogLevel(_ level: Int32) {}

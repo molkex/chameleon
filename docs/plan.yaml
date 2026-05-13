@@ -223,25 +223,56 @@ phases:
 
   - id: phase-1.d-penalty-score
     title: Penalty score for throttled outbound (iOS-only)
-    status: planned
+    status: done
     layer: ios
+    builds: [63]
+    completed: 2026-05-14
     rationale: |
       User still sees ~5-7s pauses every ~90s — throttle → fallback →
       urltest re-elects same throttled outbound (small probe passes,
       bulk-throttle DPI signature only trips on real flows).
-    plan: |
-      After STALL streak fires:
-      1. Capture currently-active outbound via LibboxCommandClient.
-      2. Persist per-outbound "do not re-select until T" map (Swift-side).
-      3. selectOutbound(group, name) to pin first non-penalised member,
-         bypassing urltest re-probe.
-      4. 60s decay → resume normal urltest cycle.
+    artifacts:
+      - clients/apple/Shared/OutboundPenaltyStore.swift
+      - clients/apple/PacketTunnel/OutboundGroupTracker.swift
+      - clients/apple/PacketTunnel/TunnelStallProbe.swift
+      - clients/apple/Tests/UnitTests/OutboundPenaltyStoreTests.swift
+    implementation: |
+      Architecture finding mid-design: main app's existing
+      `performFallbackForCurrentLeg` cascade (deadLeavesInCurrentCascade
+      + PathPicker) ALREADY does the right thing — but only when the
+      main app is in foreground. When user is in Telegram, the extension
+      fires STALL streak via UserDefaults flag, but AppState
+      `handleExtensionStallSignalIfAny()` doesn't run until next
+      scene-phase=active. So the penalty logic had to live inside the
+      extension, not main app.
+
+      OutboundGroupTracker (PacketTunnel/): persistent
+      LibboxCommandClient subscribed to LibboxCommandGroup. Maintains
+      thread-safe snapshot of `selected` + `members` per group via
+      writeGroups handler.
+
+      OutboundPenaltyStore (Shared/): in-memory map
+      `outboundTag → expiry: Date`. 60s default window, refuses to
+      shorten existing penalty, sweeps expired on every read.
+
+      TunnelStallProbe.nudgeUrltestGroups() rewritten:
+      - For each urltest group: read selected via tracker, penalise it
+        for 60s, find first non-penalised peer, selectOutbound to pin.
+      - If tracker has no data (pre-first writeGroups) OR every member
+        is penalised → fall through to old urlTest() nudge.
+      - tracker.start() in probe.start(); tracker.stop() +
+        penaltyStore.reset() in probe.stop().
     tradeoffs:
       - "Pro: breaks throttle→fallback→same-outbound loop"
+      - "Pro: works while main app suspended (user in TG / other app)"
+      - "Con: persistent CommandClient in extension = small extra mem"
       - "Con: if all members throttled, fallback prefers least-recent"
-      - "Con: overrides urltest RTT-optimal selection for cooldown window"
-    estimated-effort: 0.5 day
-    target-build: 63
+    tests:
+      - "OutboundPenaltyStoreTests (9 cases): penalty/expiry/no-shorten"
+      - "OutboundGroupTracker tested only via on-device install — needs Libbox"
+    field-verified: false                    # awaiting user test
+    follow-up:
+      - phase-1-smart-group   # validate cheap fix first (this), then escalate
 
   - id: phase-1.e-server-side-rotation
     title: Periodic upstream connection rotation in fork

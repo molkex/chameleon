@@ -25,12 +25,12 @@ prod:
 
   ios:
     marketing-version: "1.0.26"
-    current-build: 62
+    current-build: 63
     track: testflight-internal
-    asc-build-id: 06ecd6af-cee8-41b4-b4d4-3a8afea37cb2
-    uploaded: 2026-05-13
-    field-verified: false                        # pending user test of build 62
-    previous-builds-in-testflight: [61, 60, 59, 58, 57, 56, 55]
+    asc-build-id: pending                        # backfill after ASC processing
+    uploaded: 2026-05-14
+    field-verified: false                        # pending user test of build 63
+    previous-builds-in-testflight: [62, 61, 60, 59, 58, 57, 56, 55]
     libbox:
       source: sing-box v1.13.5 + first-write callback cherry-pick
       binary-size-mb: 44
@@ -63,12 +63,14 @@ known-issues:
     severity: major
     description: |
       nl-via-msk through MSK relay throttles around 90 s of bulk flow.
-      TunnelStallProbe detects (Phase 1.C), fallback fires in ~9 ms,
-      but urltest re-elects the same throttled outbound seconds later
-      because the small re-probe passes. User perceives ~5-7 s pauses
-      every ~90 s.
-    next-action: phase-1.d-penalty-score
+      TunnelStallProbe detects (Phase 1.C), fallback fires in ~9 ms.
+      Build 60-62: urltest re-elected the same throttled outbound
+      because the small re-probe passes. Build 63 adds penalty-aware
+      fallback (Phase 1.D) — currently-selected outbound is penalised
+      60s and a non-penalised peer is pinned via selectOutbound.
+    next-action: verify build 63 in field
     workaround: none
+    expected-fix: phase-1.d-penalty-score (build 63)
 
   - id: ios-extension-cache
     severity: minor
