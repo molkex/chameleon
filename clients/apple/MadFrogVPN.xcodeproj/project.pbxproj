@@ -166,6 +166,7 @@
 		C2276920921D18807541AF7C /* UniformTypeIdentifiers.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9E3E0B15FC93A31007046BA1 /* UniformTypeIdentifiers.framework */; };
 		C40B67C0BBCEDFEE24159E85 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 52F25CA4945E63F7C3CB0355 /* PrivacyInfo.xcprivacy */; };
 		C4967670CBC9B506176AAA06 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEBE74F9DD0282A5EA7B00DE /* APIClient.swift */; };
+		C5713B480CA32F3724FFE0C8 /* LibboxVersionGuardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01751E1A6040543F6D01B530 /* LibboxVersionGuardTests.swift */; };
 		C6A4EEA1E20EC436598B19AA /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 137C78C1838DB59BBA29DB42 /* Assets.xcassets */; };
 		C6AF80BEEEDDF6223C295DD5 /* TunnelFileLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBF8B42392C0D194798D2667 /* TunnelFileLogger.swift */; };
 		C7E3D59FFCDB47DD245F2449 /* PingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 233EE0ACC559229ABE75CF28 /* PingService.swift */; };
@@ -278,6 +279,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		01751E1A6040543F6D01B530 /* LibboxVersionGuardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibboxVersionGuardTests.swift; sourceTree = "<group>"; };
 		04FC8CF248986C535F825CAB /* VPNManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VPNManager.swift; sourceTree = "<group>"; };
 		056A5CFAAD6E085B3A0ACF9A /* RunBlocking.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunBlocking.swift; sourceTree = "<group>"; };
 		08E7733F68F4037C68291994 /* ExtensionPlatformInterface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionPlatformInterface.swift; sourceTree = "<group>"; };
@@ -461,6 +463,7 @@
 				FF66055FD7D08B8EB5770BAF /* KeychainHelperTests.swift */,
 				AB7094B60F4AA1E18FDEBCE5 /* LastWorkingLegStoreTests.swift */,
 				FD40F85317EC15AD9DC28123 /* LeafRankingStoreTests.swift */,
+				01751E1A6040543F6D01B530 /* LibboxVersionGuardTests.swift */,
 				C4747B2349F04A8B6F61387F /* MigrationLeafToCountryTests.swift */,
 				73394ADFC3E4785BF545DA45 /* PathPickerTests.swift */,
 				B114B8A077748A71A618058A /* PingServiceTests.swift */,
@@ -994,6 +997,7 @@
 				C9076459425BD8F9966B4CEE /* KeychainHelperTests.swift in Sources */,
 				80A9B8892DB1DFCEC991BE4C /* LastWorkingLegStoreTests.swift in Sources */,
 				6796802AABB7434354F3280B /* LeafRankingStoreTests.swift in Sources */,
+				C5713B480CA32F3724FFE0C8 /* LibboxVersionGuardTests.swift in Sources */,
 				7DF0EBCB21BB2660769E7006 /* MigrationLeafToCountryTests.swift in Sources */,
 				6C3065FFDF35061CFF1DC075 /* PathPickerTests.swift in Sources */,
 				905E0BB257310FDDB4781269 /* PingServiceTests.swift in Sources */,
