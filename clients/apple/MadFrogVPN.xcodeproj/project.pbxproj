@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		00E8CC66B486F5AB297A52AE /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6378A272B7EFCCF1FBCDFBFE /* KeychainHelper.swift */; };
+		0260B8435922643E95471DAF /* TunnelProbeOutcomeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB2B174E1652DA9F54F1A90 /* TunnelProbeOutcomeTests.swift */; };
 		030161ACB3667CD2C0B7B723 /* PlatformViewExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11EBC90E3AED9A381EEA7F2F /* PlatformViewExtensions.swift */; };
 		036CD2D91F90C3AD5CCB20E3 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = CCCD550DC6BC4C053791BDB4 /* GoogleSignIn */; };
 		03D46FF6FD8EF369819CAAEC /* PlatformViewExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11EBC90E3AED9A381EEA7F2F /* PlatformViewExtensions.swift */; };
@@ -43,6 +44,7 @@
 		2CEDA8E694E511285D131084 /* LegRaceProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F3382ABA99A753C80BA61E9 /* LegRaceProbe.swift */; };
 		2D02A6B04E2703020780C0F2 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1256FD7DB2FC529473E9686 /* OnboardingView.swift */; };
 		2D78D7E45E3FF0EA553C2F9B /* NetworkFingerprint.swift in Sources */ = {isa = PBXBuildFile; fileRef = D74E8F46235E55DCBC83A95C /* NetworkFingerprint.swift */; };
+		2D84D6D53C7D701DFF45414F /* TunnelProbeOutcome.swift in Sources */ = {isa = PBXBuildFile; fileRef = F16C0880F82481558275DBDE /* TunnelProbeOutcome.swift */; };
 		2E1CB7753B41A628424FF069 /* PacketTunnelMac.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5B0DF204F6C9DA8DCF48C6FE /* PacketTunnelMac.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		2E82DC5CF4FE6D02321F8F78 /* libbsm.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 432EBE9FD5522D30F574115F /* libbsm.tbd */; };
 		2EF3464C5030C3F45CC4B7C0 /* DirectConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = D289D2F79D83BFBA207A4C15 /* DirectConnection.swift */; };
@@ -51,6 +53,7 @@
 		33422A6321F8D75EA134DBD7 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 9559017B879500FA2F899634 /* PrivacyInfo.xcprivacy */; };
 		348F2960A052562610557B1A /* ConfigStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FC0F827BBF3A30F2EDE9AB3 /* ConfigStore.swift */; };
 		354BC28159DBF91924401A75 /* Products.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 44EE43ED9CEC25421113C6A9 /* Products.storekit */; };
+		35C1D4B3D289E5725DED223A /* TunnelProbeOutcome.swift in Sources */ = {isa = PBXBuildFile; fileRef = F16C0880F82481558275DBDE /* TunnelProbeOutcome.swift */; };
 		380227CC676ADAB5C1030C5F /* VPNPermissionPrimerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27C5C9C45F3855532EB54D77 /* VPNPermissionPrimerView.swift */; };
 		3AF0A8290A7215D2EF09A649 /* RoutingMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7486DEC72FBB5DD5338F158 /* RoutingMode.swift */; };
 		3BF98D7ADE7ABDDECE5AE129 /* PaywallRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFB204D1606673779D65246 /* PaywallRouter.swift */; };
@@ -89,6 +92,7 @@
 		737444102A7A75DB8692E648 /* RoutingMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7486DEC72FBB5DD5338F158 /* RoutingMode.swift */; };
 		74B8FB1F0BBCA68D8ECE3F26 /* PacketTunnelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C3AA0F75FD43492C173B8C4 /* PacketTunnelProvider.swift */; };
 		760F21B10CA8DDD0C31D1379 /* GoogleAuthCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85938B035247DB5D54633361 /* GoogleAuthCoordinator.swift */; };
+		76F3F028A2E3F95DDD860DBE /* TunnelProbeOutcome.swift in Sources */ = {isa = PBXBuildFile; fileRef = F16C0880F82481558275DBDE /* TunnelProbeOutcome.swift */; };
 		771D7D152382CD54123F1A34 /* SingBoxConfigPatcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B0F8A49025B0790BD2D4EC7 /* SingBoxConfigPatcherTests.swift */; };
 		784370B2D90EDC4B68A5B75C /* Libbox.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C18C942EF28864C26636822B /* Libbox.xcframework */; };
 		7C73E2608B0041FD1CABB1B0 /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9165FAC1D21DF4F01B68654F /* PaywallView.swift */; };
@@ -194,6 +198,7 @@
 		E99FC7119377C8BAED207807 /* AppleAuthCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A2105C436C4E871B1CFB916 /* AppleAuthCoordinator.swift */; };
 		EB087C443D026C56DB4CEC2F /* VPNManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04FC8CF248986C535F825CAB /* VPNManager.swift */; };
 		EB519AA99D0A4BC7475737BA /* LastWorkingLegStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDCBB9F4E8DCDA4AC3C58517 /* LastWorkingLegStore.swift */; };
+		EBA08FF6A92D35DE4B4A955D /* TunnelProbeOutcome.swift in Sources */ = {isa = PBXBuildFile; fileRef = F16C0880F82481558275DBDE /* TunnelProbeOutcome.swift */; };
 		ED2932322BA67C98F3937409 /* SubscriptionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C254991A86781B863F8BA92C /* SubscriptionManager.swift */; };
 		EE042CF563179D081005D9EE /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33A809CDAD52A1FB3A57D0A1 /* Constants.swift */; };
 		EE90271EC8C8EF0A80F23C19 /* TunnelFileLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBF8B42392C0D194798D2667 /* TunnelFileLogger.swift */; };
@@ -358,8 +363,10 @@
 		E8EF3541F56531E6A2C1EA76 /* MenuBarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarContent.swift; sourceTree = "<group>"; };
 		E95E9718D8CE81EE4E41BE02 /* MainViewCalm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewCalm.swift; sourceTree = "<group>"; };
 		E9C795586D98E530507B81D4 /* ru */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ru; path = ru.lproj/Localizable.strings; sourceTree = "<group>"; };
+		EAB2B174E1652DA9F54F1A90 /* TunnelProbeOutcomeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunnelProbeOutcomeTests.swift; sourceTree = "<group>"; };
 		EAC879DEDEBE9302A8936940 /* RealTrafficStallDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealTrafficStallDetector.swift; sourceTree = "<group>"; };
 		F0CB7FDF9EA71B70EF8E2BB5 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
+		F16C0880F82481558275DBDE /* TunnelProbeOutcome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunnelProbeOutcome.swift; sourceTree = "<group>"; };
 		F48680996CDA6DA1906F2747 /* L10n.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = L10n.swift; sourceTree = "<group>"; };
 		F4EBA8BF2FC663C0650E1255 /* AccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountView.swift; sourceTree = "<group>"; };
 		F64AFDF15C8A5F646A1C431B /* MainViewNeon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewNeon.swift; sourceTree = "<group>"; };
@@ -463,6 +470,7 @@
 				4B0F8A49025B0790BD2D4EC7 /* SingBoxConfigPatcherTests.swift */,
 				9B07C7F761E8467D5C74E4CD /* StringUtilsTests.swift */,
 				850D3937870EEB29F3CD7BD9 /* TrafficHealthMonitorTests.swift */,
+				EAB2B174E1652DA9F54F1A90 /* TunnelProbeOutcomeTests.swift */,
 			);
 			path = UnitTests;
 			sourceTree = "<group>";
@@ -525,6 +533,7 @@
 				056A5CFAAD6E085B3A0ACF9A /* RunBlocking.swift */,
 				D231623164FE9FECAD770789 /* StringUtils.swift */,
 				DBF8B42392C0D194798D2667 /* TunnelFileLogger.swift */,
+				F16C0880F82481558275DBDE /* TunnelProbeOutcome.swift */,
 				3FAD3B24D159F45CC620C90E /* Networking */,
 			);
 			path = Shared;
@@ -882,6 +891,7 @@
 				11AAD0CBBD52EE06355ACA56 /* ThemePickerView.swift in Sources */,
 				8AEFE40F991011124CAE96AC /* TrafficHealthMonitor.swift in Sources */,
 				C6AF80BEEEDDF6223C295DD5 /* TunnelFileLogger.swift in Sources */,
+				EBA08FF6A92D35DE4B4A955D /* TunnelProbeOutcome.swift in Sources */,
 				D15236DEDA6726380031CE01 /* VPNErrorMapper.swift in Sources */,
 				83C2376AD12AE7EA471F5DDD /* VPNManager.swift in Sources */,
 				1D7A1AED654382067A0BF4F0 /* VPNPermissionPrimerView.swift in Sources */,
@@ -913,6 +923,7 @@
 				DE887C6682FB3DEA7FE8E77F /* SingBoxConfigPatcher.swift in Sources */,
 				27118EF86F80BE16990516DF /* StringUtils.swift in Sources */,
 				EFA86C5445E58B8E7F2BA366 /* TunnelFileLogger.swift in Sources */,
+				2D84D6D53C7D701DFF45414F /* TunnelProbeOutcome.swift in Sources */,
 				1ECE818E32C061BDDF6B9B58 /* TunnelStallProbe.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -967,6 +978,7 @@
 				BC0EB19FC3432F56C64386DD /* ThemePickerView.swift in Sources */,
 				8F75A2437F55A299C19D3960 /* TrafficHealthMonitor.swift in Sources */,
 				EE90271EC8C8EF0A80F23C19 /* TunnelFileLogger.swift in Sources */,
+				76F3F028A2E3F95DDD860DBE /* TunnelProbeOutcome.swift in Sources */,
 				0D6FD98F17D51EA831F22DB9 /* VPNErrorMapper.swift in Sources */,
 				EB087C443D026C56DB4CEC2F /* VPNManager.swift in Sources */,
 				380227CC676ADAB5C1030C5F /* VPNPermissionPrimerView.swift in Sources */,
@@ -991,6 +1003,7 @@
 				771D7D152382CD54123F1A34 /* SingBoxConfigPatcherTests.swift in Sources */,
 				88554DBB410CBE11723FF7F3 /* StringUtilsTests.swift in Sources */,
 				B12BD63053EC36D717193BCE /* TrafficHealthMonitorTests.swift in Sources */,
+				0260B8435922643E95471DAF /* TunnelProbeOutcomeTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1018,6 +1031,7 @@
 				8707A01FC388AEEF2BBB77E8 /* SingBoxConfigPatcher.swift in Sources */,
 				4CF54096E6FFB7697C033D25 /* StringUtils.swift in Sources */,
 				CBB2232BC6F0A99DF2328F4E /* TunnelFileLogger.swift in Sources */,
+				35C1D4B3D289E5725DED223A /* TunnelProbeOutcome.swift in Sources */,
 				2B7F76187D6350C135133CFF /* TunnelStallProbe.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1260,7 +1274,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 56;
+				CURRENT_PROJECT_VERSION = 57;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = 99W3C374T2;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -1337,7 +1351,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 56;
+				CURRENT_PROJECT_VERSION = 57;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = 99W3C374T2;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;

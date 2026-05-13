@@ -83,8 +83,22 @@ final class TunnelStallProbe {
         /// to actually receive most of the 32 KB body. 16 KB is half the
         /// payload — enough to confirm the path can sustain real traffic.
         var minProbeBodyBytes: Int = 16 * 1024
+        /// Build 57 (2026-05-13): time-budget for a healthy probe. Field log
+        /// 5:48 PM LTE showed the 32 KB body completing in 1.3-1.6 seconds
+        /// (= 20-25 KB/s) while Speedtest timed out and Telegram media
+        /// stalled. Build 42-56 only checked bytes-received; this elapsed
+        /// budget catches DPI throttle that lets bulk through slowly.
+        /// 1000 ms / 32 KB = 32 KB/s floor — well below any healthy leg
+        /// (worst observed healthy: 396 ms / 32 KB = 83 KB/s).
+        var maxProbeElapsedMs: Int = 1000
         var cooldownAfterFallback: TimeInterval = 120
         var maxFallbacksPerHour: Int = 5
+        /// Build 57: re-enable active fallback. Build-44 disabled this and
+        /// delegated to RealTrafficStallDetector. That worked for kill
+        /// scenarios (real-traffic errors visible in singbox log) but is
+        /// blind to throttle (no errors logged — just slow). The throttle-
+        /// aware probe needs to drive switches itself.
+        var activeFallbackEnabled: Bool = true
 
         /// Names of urltest groups to nudge via `LibboxCommandClient.urlTest`
         /// when stall fires. Sing-box's group tags are the human-facing
@@ -155,32 +169,51 @@ final class TunnelStallProbe {
         }
 
         let started = Date()
-        let (ok, bytes) = await probeWithBytes()
+        let (httpOK, bytes) = await probeWithBytes()
         let elapsedMs = Int(Date().timeIntervalSince(started) * 1000)
+        let rules = TunnelProbeOutcomeRules(
+            minBodyBytes: config.minProbeBodyBytes,
+            maxElapsedMs: config.maxProbeElapsedMs
+        )
+        let outcome = rules.evaluate(statusOK: httpOK, bytesReceived: bytes, elapsedMs: elapsedMs)
+        let outcomeLabel: String
+        switch outcome {
+        case .healthy: outcomeLabel = "OK"
+        case .throttled(let ms): outcomeLabel = "THROTTLED(\(ms)ms)"
+        case .failed(let reason): outcomeLabel = "FAIL(\(reason))"
+        }
         // Build-43: log every probe tick with body size + elapsed, regardless
         // of OK/fail. Without this, a 4-minute log buffer truncated past the
         // first STALL window (sing-box is too verbose); we lost ~3 minutes of
         // probe history and could not tell whether build 42 was working as
         // designed. Cost: ~1 line / 15 s = trivial.
-        TunnelFileLogger.log("TunnelStallProbe: probe \(ok ? "OK" : "FAIL") body=\(bytes)B elapsed=\(elapsedMs)ms", category: "tunnel-probe")
-        if ok {
+        TunnelFileLogger.log("TunnelStallProbe: probe \(outcomeLabel) body=\(bytes)B elapsed=\(elapsedMs)ms", category: "tunnel-probe")
+        if !outcome.isDegraded {
             consecutiveFailures = 0
             return
         }
         consecutiveFailures += 1
-        TunnelFileLogger.log("TunnelStallProbe: probe FAIL #\(consecutiveFailures)", category: "tunnel-probe")
-        // Build-44: TunnelStallProbe is now PASSIVE DIAGNOSTIC only.
-        // RealTrafficStallDetector (parses sing-box logs for real
-        // dial timeouts) is the authoritative stall signal — synthetic
-        // probes proved unreliable on RU LTE (false-OK while real
-        // traffic was timing out, field log 2026-04-27 15:14). We keep
-        // the heartbeat above for visibility ("is api.madfrog reachable
-        // via current outbound at all?") but no longer trigger
-        // fallback from here. invokeFallback() body is left as no-op
-        // to avoid double-signalling shared defaults from two sources.
+        TunnelFileLogger.log("TunnelStallProbe: probe degraded #\(consecutiveFailures) (\(outcomeLabel))", category: "tunnel-probe")
+        // Build 57 (2026-05-13): re-enable active fallback. Build-44 made
+        // this passive on the assumption RealTrafficStallDetector (which
+        // parses singbox logs for `connection: open ... timeout`) would
+        // catch real stalls. That works for KILL scenarios but is BLIND
+        // to THROTTLE — DPI throttle delivers full data slowly, no errors
+        // in the singbox log. Field log 2026-05-13 5:48 PM confirmed:
+        // 32 KB in 1654 ms, no singbox errors, but Speedtest failed and
+        // Telegram media stalled. So the throttle-aware probe owns the
+        // signal for this class of failure.
         if consecutiveFailures >= config.stallThreshold {
             consecutiveFailures = 0
-            TunnelFileLogger.log("TunnelStallProbe: synthetic-probe FAIL streak (build-44 passive — no fallback fired; RealTrafficStallDetector owns the signal)", category: "tunnel-probe")
+            if config.activeFallbackEnabled {
+                let now = Date()
+                lastFallbackAt = now
+                fallbacksInLastHour.append(now)
+                TunnelFileLogger.log("TunnelStallProbe: STALL streak — invoking fallback (\(outcomeLabel))", category: "tunnel-probe")
+                invokeFallback(at: now)
+            } else {
+                TunnelFileLogger.log("TunnelStallProbe: STALL streak — fallback disabled in config", category: "tunnel-probe")
+            }
         }
     }
 
