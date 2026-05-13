@@ -317,7 +317,7 @@ the XFF-spoof fix that made this trustworthy).
 Pending field verification after user reconnects on LTE (force-quit
 required to trigger `silentConfigUpdate`).
 
-### Phase 1.C — Adaptive probe cadence (planned, requires iOS rebuild)
+### Phase 1.C — Adaptive probe cadence (✅ code merged, awaiting build 61)
 
 Following Phase 1.B, the dead-probe waste is gone, but `nl-via-msk`
 (through MSK relay 217.198.5.52:2097) still gets DPI-throttled around 90
@@ -327,16 +327,36 @@ degraded #1`) but needs `stallThreshold=2` consecutive degraded probes
 before firing `invokeFallback()` — at 15 s interval that's 30 s before
 re-probe kicks in.
 
-Plan (when user OKs iOS rebuild → build 61):
-- Detect `NWPath.isExpensive` (cellular) in `ExtensionProvider.swift`.
-- On cellular: `stallThreshold=1` (single degraded probe → fallback) and
-  `probeInterval=5` (faster cycle).
-- On Wi-Fi: keep current 2/15 (avoid over-triggering on transient blips).
-- Trade-off: ~3× probe traffic on cellular = ~96 KB / 5 min × 5 = ~480 KB
-  vs ~160 KB. Negligible.
+Implementation (commit 6005fa5):
+- `TunnelStallProbe.applyCellularProfile()` → `stallThreshold=1`,
+  `probeInterval=5s`. Single degraded probe + 5 s cadence ⇒ fallback
+  within ~10 s of throttle onset.
+- `TunnelStallProbe.applyWiFiProfile()` → restore defaults 2/15.
+- `config` is now `var` (not `let`) so the loop reads
+  `config.probeInterval` per-iteration — mid-flight profile swap takes
+  effect on the very next tick, no probe restart.
+- `ExtensionPlatformInterface` gains `weak var stallProbe` and dispatches
+  the profile swap inside the existing `handlePathUpdate` based on
+  `NWPath.isExpensive` (Apple's canonical cellular flag — covers carriers
+  and tethered hotspots).
+- `ExtensionProvider.startStallProbe()` injects the weak ref on tunnel
+  start; `stopStallProbe()` clears it on tunnel stop.
 
-No fork changes. Pure iOS, low risk. Requires xcodebuild upload to ASC
-(30 min) and one TestFlight cycle.
+Build verification: PacketTunnel target compiles clean on iOS Simulator
+SDK. Unit tests not currently runnable on sim (App Group entitlement
+unavailable without real provisioning — pre-existing gating, unrelated
+to this change). Authoritative verification path: install via TestFlight,
+flip Wi-Fi/cellular, check log lines:
+
+```
+TunnelStallProbe: cellular profile applied (threshold=1, interval=5s)
+TunnelStallProbe: wifi profile applied (threshold=2, interval=15s)
+```
+
+Pending: bump `clients/apple/project.yml::CURRENT_PROJECT_VERSION` from
+60 to 61 and `xcodebuild -exportArchive` upload. Deferred until user
+confirms Phase 1.B (60.3-dpi-aware-config) made a visible difference —
+no point shipping Phase 1.C if 1.B alone closed the UX gap.
 
 ### Phase 1.D — Penalty-score recently-throttled outbound (planned)
 
