@@ -3,6 +3,7 @@ package vpn
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 )
@@ -23,8 +24,18 @@ const (
 	// emitted the config currently in their cache. BUMP THIS on any
 	// behavioural change to clientconfig.go (new flag, new outbound, new
 	// rule). Format: "<build>.<patch>-<short-tag>" e.g. "40.2-chain-fix".
-	configBuildMarker = "56.1-universal-nl-hint"
+	configBuildMarker = "60.2-no-quic-outbounds"
 )
+
+// disableQUICOutbounds reports whether Hysteria2/TUIC leaf outbounds should
+// be suppressed. Toggle via CHAMELEON_DISABLE_QUIC_OUTBOUNDS=true on
+// cellular-heavy nodes where UDP outbounds reliably time out yet still
+// occupy ~2-3 MiB each of Go heap (BBR congestion state + uTLS handshake
+// state) — material against the iOS NetworkExtension's 50 MB jetsam cap.
+// Read per-call so tests can flip the env via t.Setenv.
+func disableQUICOutbounds() bool {
+	return strings.EqualFold(strings.TrimSpace(os.Getenv("CHAMELEON_DISABLE_QUIC_OUTBOUNDS")), "true")
+}
 
 // pinRecommendedFirst returns a copy of leaves with `hint` moved to index 0
 // if present, otherwise the input is returned unchanged. Unknown hints (leaf
@@ -200,7 +211,7 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 		allLeafOutbounds = append(allLeafOutbounds, makeVless(vlessTag, srv.Host, srv.Port, pub, sni, defaultShortID))
 		autoLegs = append(autoLegs, vlessTag)
 
-		if srv.Hysteria2Port > 0 {
+		if !disableQUICOutbounds() && srv.Hysteria2Port > 0 {
 			h2Tag := fmt.Sprintf("%s-h2-%s", strings.ToLower(cc), srv.Key)
 			allLeafOutbounds = append(allLeafOutbounds, clientOutbound{
 				Type:       "hysteria2",
@@ -216,7 +227,7 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 			})
 			autoLegs = append(autoLegs, h2Tag)
 		}
-		if srv.TUICPort > 0 {
+		if !disableQUICOutbounds() && srv.TUICPort > 0 {
 			tuicTag := fmt.Sprintf("%s-tuic-%s", strings.ToLower(cc), srv.Key)
 			allLeafOutbounds = append(allLeafOutbounds, clientOutbound{
 				Type:              "tuic",

@@ -37,6 +37,11 @@ services:
       - GOOGLE_IOS_CLIENT_ID=${GOOGLE_IOS_CLIENT_ID}
       - CHAMELEON_PROVIDERS_ENCRYPTION_KEY=${CHAMELEON_PROVIDERS_ENCRYPTION_KEY}
       - CHAMELEON_MSK_USER_API_SECRET=${CHAMELEON_MSK_USER_API_SECRET}
+      # Suppress Hysteria2/TUIC outbound emission in mobile client config.
+      # On cellular networks these UDP outbounds reliably time out yet still
+      # cost ~2-3 MiB each on iOS NE heap (BBR + uTLS state) — material vs
+      # the 50 MB jetsam cap. See clientconfig.go disableQUICOutbounds().
+      - CHAMELEON_DISABLE_QUIC_OUTBOUNDS=true
     deploy:
       resources:
         limits:

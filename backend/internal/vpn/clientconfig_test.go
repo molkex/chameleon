@@ -3,6 +3,7 @@ package vpn
 import (
 	"encoding/json"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -490,6 +491,52 @@ func TestHysteria2AndTUICOmittedWhenPortsZero(t *testing.T) {
 	// NL still has them.
 	if outboundByTag(cfg, "nl-h2-nl2") == nil {
 		t.Error("nl-h2-nl2 missing — NL h2 shouldn't have been affected")
+	}
+}
+
+// TestDisableQUICOutboundsEnvSuppressesH2AndTUIC — when
+// CHAMELEON_DISABLE_QUIC_OUTBOUNDS=true is set, no hysteria2 / tuic leaves
+// are emitted regardless of server-row port columns. This is the memory-
+// saving flag for cellular-heavy nodes where QUIC outbounds reliably time
+// out yet still occupy ~2-3 MiB each of Go heap.
+func TestDisableQUICOutboundsEnvSuppressesH2AndTUIC(t *testing.T) {
+	t.Setenv("CHAMELEON_DISABLE_QUIC_OUTBOUNDS", "true")
+	cfg := parseGenerated(t)
+
+	for _, tag := range []string{"de-h2-de", "de-tuic-de", "nl-h2-nl2", "nl-tuic-nl2"} {
+		if outboundByTag(cfg, tag) != nil {
+			t.Errorf("leaf %q emitted despite CHAMELEON_DISABLE_QUIC_OUTBOUNDS=true", tag)
+		}
+	}
+
+	// VLESS leaves + relay chains must still be present — only QUIC is suppressed.
+	for _, tag := range []string{"de-direct-de", "nl-direct-nl2", "de-via-msk", "nl-via-msk"} {
+		if outboundByTag(cfg, tag) == nil {
+			t.Errorf("non-QUIC leaf %q missing — flag should only affect h2/tuic", tag)
+		}
+	}
+
+	// Auto urltest members must not contain any QUIC leaves either.
+	members := outboundMembers(cfg, "Auto")
+	for _, m := range members {
+		if strings.Contains(m, "-h2-") || strings.Contains(m, "-tuic-") {
+			t.Errorf("Auto urltest still references QUIC leaf %q after flag set", m)
+		}
+	}
+}
+
+// TestDisableQUICOutboundsEnvOffKeepsQUIC — sanity check: the flag is
+// strictly opt-in. Without the env var (or with any value != "true") QUIC
+// leaves are emitted as before. Guards against accidentally flipping
+// default behaviour during refactors.
+func TestDisableQUICOutboundsEnvOffKeepsQUIC(t *testing.T) {
+	t.Setenv("CHAMELEON_DISABLE_QUIC_OUTBOUNDS", "")
+	cfg := parseGenerated(t)
+
+	for _, tag := range []string{"de-h2-de", "de-tuic-de", "nl-h2-nl2", "nl-tuic-nl2"} {
+		if outboundByTag(cfg, tag) == nil {
+			t.Errorf("QUIC leaf %q missing with flag unset — default behaviour regressed", tag)
+		}
 	}
 }
 
