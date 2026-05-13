@@ -101,12 +101,36 @@ final class TunnelStallProbe {
         var activeFallbackEnabled: Bool = true
 
         /// Names of urltest groups to nudge via `LibboxCommandClient.urlTest`
-        /// when stall fires. Sing-box's group tags are the human-facing
-        /// labels we generate in `backend/internal/vpn/clientconfig.go`.
-        /// Build-41 added nested urltest groups (`_de_leaves`, `_nl_leaves`)
-        /// for cross-country fallback — we nudge the user-visible OUTER
-        /// groups, sing-box recurses into the inner ones automatically.
+        /// when stall fires AND Phase 1.D path can't pin a Proxy leaf.
+        /// Sing-box's group tags are the human-facing labels we generate
+        /// in `backend/internal/vpn/clientconfig.go`. Build-41 added
+        /// nested urltest groups (`_de_leaves`, `_nl_leaves`) for cross-
+        /// country fallback — we nudge the user-visible OUTER groups,
+        /// sing-box recurses into the inner ones automatically.
         var urltestGroupTags: [String] = ["Auto", "🇩🇪 Германия", "🇳🇱 Нидерланды"]
+
+        /// Build 64 (Phase 1.D fix). The single top-level SELECTOR that
+        /// owns every leaf + every country urltest + Auto. sing-box only
+        /// honours `selectOutbound` on selectors (not urltest groups —
+        /// they pick automatically by RTT). When fallback fires we
+        /// penalise the currently-active leaf and pin Proxy to an
+        /// alternative leaf via selectOutbound — bypassing urltest's
+        /// small-probe re-election. A 60 s revert task then restores
+        /// Proxy to its original selection so urltest resumes.
+        var proxySelectorTag: String = "Proxy"
+
+        /// Build 64 (Phase 1.D fix). When Proxy.selected names an
+        /// urltest group (Auto / country), we follow the chain to find
+        /// the actual active leaf — that's what we penalise.
+        /// Lookup order matters: outer urltests first, inner second.
+        var urltestGroupChain: [String] = [
+            "Auto", "🇩🇪 Германия", "🇳🇱 Нидерланды", "_de_leaves", "_nl_leaves",
+        ]
+
+        /// Build 64. Window after which we revert Proxy back to its
+        /// pre-penalty selection so urltest resumes its normal RTT
+        /// elect cycle. Matches OutboundPenaltyStore.defaultWindow.
+        var penaltyRevertWindow: TimeInterval = 60
     }
 
     // MARK: - State
@@ -393,25 +417,36 @@ final class TunnelStallProbe {
         nudgeUrltestGroups()
     }
 
-    /// Build 63 (Phase 1.D). Penalty-aware fallback. For each urltest
-    /// group we touch:
+    /// Build 64 (Phase 1.D fixed). Penalty-aware fallback that actually
+    /// works inside sing-box's group model.
     ///
-    ///   1. Read the currently-selected outbound from `groupTracker`.
-    ///   2. Penalise it for 60 s — so on the next throttle cycle (and
-    ///      any subsequent urltest auto-re-elections during the window)
-    ///      this leaf is skipped.
-    ///   3. Pick the first non-penalised member of the same group and
-    ///      `selectOutbound` to pin it. This bypasses urltest's small-
-    ///      probe re-election that would otherwise put the throttled
-    ///      leaf back in service.
-    ///   4. If the tracker has no snapshot yet (very-early STALL before
-    ///      the first writeGroups event landed) OR every member is
-    ///      penalised, fall back to the legacy `urlTest(group)` nudge —
-    ///      something is better than nothing.
+    /// Field log on build 63 (00:28:19 LTE) caught the design bug:
+    /// `selectOutbound('Auto', 'de-via-msk')` returned
+    /// "rpc error: outbound is not a selector: Auto". sing-box only
+    /// honours `selectOutbound` on `type: "selector"` groups; `urltest`
+    /// groups pick by RTT automatically and reject manual pins.
     ///
-    /// Field log: every decision emits one line, e.g.
-    ///   "TunnelStallProbe: penalise 'Auto'.'nl-via-msk' (was selected)"
-    ///   "TunnelStallProbe: selectOutbound 'Auto' → 'de-via-msk' (alt of penalised 'nl-via-msk')"
+    /// New algorithm:
+    ///   1. Walk the urltest tree starting at Proxy.selected → if it
+    ///      names an urltest, recurse into that urltest's selected — and
+    ///      so on until we land on an actual leaf (vless/hysteria2/
+    ///      direct/...). That leaf is the one DPI just throttled.
+    ///   2. Penalise the leaf in OutboundPenaltyStore (60 s).
+    ///   3. Find an alternative leaf among Proxy's direct members. Skip
+    ///      urltests (they're containers) and the penalty list.
+    ///   4. `selectOutbound("Proxy", alternative)` — Proxy is the
+    ///      single TOP-LEVEL selector in the config, so this works.
+    ///      Side effect: Proxy is now pinned to the alternative leaf;
+    ///      Auto urltest is bypassed for the next 60 s.
+    ///   5. Spawn a revert Task that restores `selectOutbound("Proxy",
+    ///      originalProxySelection)` after 60 s so urltest resumes its
+    ///      normal cycle. If DPI throttle has lifted on the original
+    ///      leaf by then, urltest auto-recovers.
+    ///
+    /// Path B (legacy `urlTest(group)`) still fires for the urltest
+    /// groups themselves — forces sing-box to re-probe internal members
+    /// in case the pinned alternative also degrades, but Proxy-level pin
+    /// takes precedence at the routing layer.
     private func nudgeUrltestGroups() {
         let handler = TransientCommandHandler()
         let options = LibboxCommandClientOptions()
@@ -431,46 +466,109 @@ final class TunnelStallProbe {
 
         defer { try? client.disconnect() }
 
-        for group in config.urltestGroupTags {
-            let selected = groupTracker.selected(in: group)
-            let members = groupTracker.members(in: group)
+        // Step 1+2: walk Proxy.selected through any urltest layers to
+        // find the actual active leaf, then penalise it.
+        let proxySelected = groupTracker.selected(in: config.proxySelectorTag)
+        let proxyMembers = groupTracker.members(in: config.proxySelectorTag)
+        let activeLeaf = resolveActiveLeaf(startingFrom: proxySelected)
 
-            // Path A: we know what's currently active and have its peers
-            // → do the penalty-aware switch.
-            if let selected, !selected.isEmpty, !members.isEmpty {
-                penaltyStore.penalise(selected)
-                TunnelFileLogger.log("TunnelStallProbe: penalise '\(group)'.'\(selected)' (was selected, 60s)", category: "tunnel-probe")
-                let candidates = members.filter { $0 != selected }
-                if let alternative = penaltyStore.firstNonPenalised(among: candidates) {
-                    do {
-                        try client.selectOutbound(group, outboundTag: alternative)
-                        TunnelFileLogger.log("TunnelStallProbe: selectOutbound '\(group)' → '\(alternative)' (alt of penalised '\(selected)')", category: "tunnel-probe")
-                        continue
-                    } catch {
-                        TunnelFileLogger.log("TunnelStallProbe: selectOutbound '\(group)' → '\(alternative)' FAILED (\(error.localizedDescription)) — falling through to urlTest", category: "tunnel-probe")
-                    }
-                } else {
-                    TunnelFileLogger.log("TunnelStallProbe: every '\(group)' member penalised — falling through to urlTest", category: "tunnel-probe")
-                }
+        if let activeLeaf, !activeLeaf.isEmpty {
+            penaltyStore.penalise(activeLeaf)
+            TunnelFileLogger.log("TunnelStallProbe: penalise '\(activeLeaf)' (active leaf walked from Proxy.selected='\(proxySelected ?? "?")', 60s)", category: "tunnel-probe")
+        } else {
+            TunnelFileLogger.log("TunnelStallProbe: no active leaf resolved (tracker empty?) — fallback degrades to urlTest only", category: "tunnel-probe")
+        }
+
+        // Step 3+4: pick a non-penalised leaf among Proxy's direct
+        // members (skip urltest containers — they aren't leaves).
+        if !proxyMembers.isEmpty, let originalSelection = proxySelected, !originalSelection.isEmpty {
+            let leafCandidates = proxyMembers.filter { member in
+                // Drop urltest containers (Auto + country groups + _xx_leaves)
+                // — they're not leaves; selectOutbound on them is fine but
+                // doesn't break the throttle loop because Auto would then
+                // urltest-elect right back to the same leaf.
+                !config.urltestGroupChain.contains(member)
             }
+            if let alternative = penaltyStore.firstNonPenalised(among: leafCandidates), alternative != activeLeaf {
+                do {
+                    try client.selectOutbound(config.proxySelectorTag, outboundTag: alternative)
+                    TunnelFileLogger.log("TunnelStallProbe: selectOutbound '\(config.proxySelectorTag)' → '\(alternative)' (alt of penalised '\(activeLeaf ?? "?")', was '\(originalSelection)')", category: "tunnel-probe")
+                    // Step 5: schedule revert so Proxy returns to its
+                    // original (urltest) selection after the penalty
+                    // window. urltest then re-elects naturally.
+                    scheduleProxyRevert(toOriginal: originalSelection, after: config.penaltyRevertWindow)
+                } catch {
+                    TunnelFileLogger.log("TunnelStallProbe: selectOutbound '\(config.proxySelectorTag)' → '\(alternative)' FAILED (\(error.localizedDescription))", category: "tunnel-probe")
+                }
+            } else {
+                TunnelFileLogger.log("TunnelStallProbe: no non-penalised Proxy leaf alternative available (members=\(leafCandidates.count))", category: "tunnel-probe")
+            }
+        }
 
-            // Path B: no tracker snapshot or no non-penalised alternative
-            // → original behaviour: just re-probe. urltest might re-elect
-            // the same throttled leaf, but at least we're not stuck.
+        // Step "Path B": always re-nudge urltest groups so internal
+        // sing-box state stays fresh. Even when Proxy is pinned to a
+        // specific leaf, the urltest groups behind Proxy keep ranking
+        // by RTT; nudging keeps that ranking current for when revert
+        // hands control back.
+        for group in config.urltestGroupTags {
             do {
                 try client.urlTest(group)
-                TunnelFileLogger.log("TunnelStallProbe: urlTest('\(group)') OK (no tracker data or all penalised)", category: "tunnel-probe")
+                TunnelFileLogger.log("TunnelStallProbe: urlTest('\(group)') OK (re-rank urltest internal pool)", category: "tunnel-probe")
             } catch {
                 TunnelFileLogger.log("TunnelStallProbe: urlTest('\(group)') FAILED \(error.localizedDescription)", category: "tunnel-probe")
             }
         }
+    }
 
-        // Build-42 historical note: removed `client.closeConnections()`
-        // here. Field log 2026-04-27 12:20 showed it killed working NL
-        // traffic after the build-41 outer urltest correctly fell back
-        // to `_nl_leaves`, causing a self-inflicted ~53 s blackout.
-        // sing-box's per-group `interrupt_exist_connections=true` already
-        // does surgical cleanup whenever an outbound is re-elected.
+    /// Resolve the actual leaf tag from a starting group name by walking
+    /// any urltest layers downward. Returns nil if the tracker has no
+    /// data or if we hit an unknown group.
+    private func resolveActiveLeaf(startingFrom start: String?) -> String? {
+        guard var cursor = start, !cursor.isEmpty else { return nil }
+        var seen: Set<String> = []
+        // Bound the walk: at most 4 hops (Proxy → country urltest →
+        // _cc_leaves urltest → leaf), plus paranoia margin.
+        for _ in 0..<6 {
+            if seen.contains(cursor) {
+                // Cycle detected (shouldn't happen in our config but be defensive)
+                return nil
+            }
+            seen.insert(cursor)
+            // If the cursor names a known urltest, descend.
+            if config.urltestGroupChain.contains(cursor) {
+                guard let next = groupTracker.selected(in: cursor), !next.isEmpty else {
+                    return nil
+                }
+                cursor = next
+                continue
+            }
+            // Cursor is a leaf (or a selector — same outcome here).
+            return cursor
+        }
+        return nil
+    }
+
+    /// Spawn a one-shot Task that restores the Proxy selector to its
+    /// pre-penalty selection. Idempotent — if multiple fallbacks fire
+    /// in quick succession, each schedules its own revert; the last one
+    /// to fire wins. selectOutbound is cheap so this is fine.
+    private func scheduleProxyRevert(toOriginal originalSelection: String, after seconds: TimeInterval) {
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(seconds))
+            guard let self else { return }
+            let handler = TransientCommandHandler()
+            let options = LibboxCommandClientOptions()
+            options.statusInterval = Int64(NSEC_PER_SEC)
+            guard let client = LibboxNewCommandClient(handler, options) else { return }
+            do {
+                try client.connect()
+                defer { try? client.disconnect() }
+                try client.selectOutbound(self.config.proxySelectorTag, outboundTag: originalSelection)
+                TunnelFileLogger.log("TunnelStallProbe: revert '\(self.config.proxySelectorTag)' → '\(originalSelection)' (penalty window elapsed)", category: "tunnel-probe")
+            } catch {
+                TunnelFileLogger.log("TunnelStallProbe: revert to '\(originalSelection)' FAILED (\(error.localizedDescription))", category: "tunnel-probe")
+            }
+        }
     }
 }
 

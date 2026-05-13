@@ -5,6 +5,24 @@
 # Cross-reference phases via phase ids from plan.yaml.
 
 builds:
+  - number: 64
+    version: "1.0.26"
+    date: 2026-05-14
+    track: testflight-internal
+    asc-build-id: pending                    # backfill after ASC processing
+    phases: [phase-1.d-penalty-score]
+    archive-path: /tmp/MadFrogVPN-build64.xcarchive
+    field-verified: false
+    notes: |
+      Phase 1.D fix. Build 63 had design bug: selectOutbound on Auto
+      (an urltest group) returned "outbound is not a selector". sing-box
+      only allows selectOutbound on `type: "selector"`. Build 64
+      retargets the selectOutbound call to the top-level Proxy
+      selector (which owns every leaf + every urltest), walks the
+      urltest tree via groupTracker to find the actual active leaf for
+      penalty, and schedules a 60 s revert task that restores Proxy's
+      original selection so urltest resumes.
+
   - number: 63
     version: "1.0.26"
     date: 2026-05-14

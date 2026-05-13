@@ -225,7 +225,7 @@ phases:
     title: Penalty score for throttled outbound (iOS-only)
     status: done
     layer: ios
-    builds: [63]
+    builds: [63, 64]                # 63 had selectOutbound-on-urltest bug, 64 fixes
     completed: 2026-05-14
     rationale: |
       User still sees ~5-7s pauses every ~90s — throttle → fallback →

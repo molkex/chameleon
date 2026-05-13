@@ -120,6 +120,34 @@ incidents:
       - "Don't assume a high-frequency callback is one-shot. iOS path monitoring is noisy by design."
       - "Profile early before refactoring for a hypothesised race."
 
+  - id: 2026-05-14-build-63-selectoutbound-urltest
+    date: 2026-05-14
+    severity: major
+    title: Phase 1.D shipped with selectOutbound on urltest group — RPC error
+    builds-affected: [63]
+    detected-via: field-log
+    symptoms:
+      - "selectOutbound 'Auto' → 'de-via-msk' FAILED (rpc error: code = Unknown desc = outbound is not a selector: Auto)"
+      - Penalty store recorded penalties, but fallback degraded to legacy urlTest()
+      - User saw "вроде все работало, но сервер все ровно обновился" (= urltest re-elected, not pinned)
+    investigation: |
+      I designed Phase 1.D against `urltestGroupTags: ["Auto", "🇩🇪 Германия", "🇳🇱 Нидерланды"]` —
+      assumed sing-box treats group selection uniformly across `type: "selector"`
+      and `type: "urltest"`. It doesn't: urltest groups pick by RTT
+      automatically and reject manual `selectOutbound`. Got the RPC
+      error in field log on first STALL streak (build 63 LTE 00:28:19).
+    root-cause: |
+      Wrong target group. The config's only `type: "selector"` at the top
+      level is **Proxy**, which owns: Auto urltest + country urltests +
+      individual leaves + whitelist group. selectOutbound on Proxy works
+      because it's a selector; on Auto fails because it's urltest.
+    fixed-by:
+      - phase-1.d-penalty-score   # build 64
+    lessons:
+      - "sing-box group types are NOT interchangeable for selectOutbound. Only selectors accept pin; urltests pick by RTT and reject."
+      - "Read sing-box source / log error verbatim before assuming API symmetry."
+      - "Field log is the unit test. The simulator never exercises the actual sing-box CommandClient surface — bugs hide until on-device."
+
   # ─── Pre-2026-05-13 incidents (migrated from TROUBLESHOOTING.md) ──────────
   # Keep ids stable when migrating to preserve cross-file references.
 
