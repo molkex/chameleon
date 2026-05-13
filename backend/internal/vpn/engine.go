@@ -44,6 +44,29 @@ type Engine interface {
 
 	// GenerateClientConfig creates a sing-box client config JSON for iOS/macOS.
 	GenerateClientConfig(user VPNUser, servers []ServerEntry, chains []ChainedEntry) ([]byte, error)
+
+	// GenerateClientConfigWithOpts is the same as GenerateClientConfig but
+	// accepts per-request hints (e.g. RecommendedFirst derived from the
+	// caller's geo). Callers that don't have hints can use GenerateClientConfig
+	// (which is equivalent to passing an empty ClientConfigOpts).
+	GenerateClientConfigWithOpts(user VPNUser, servers []ServerEntry, chains []ChainedEntry, opts ClientConfigOpts) ([]byte, error)
+}
+
+// ClientConfigOpts carries per-request hints into client config generation.
+// All fields are optional; zero-value yields the same config as the legacy
+// GenerateClientConfig method.
+type ClientConfigOpts struct {
+	// RecommendedFirst is a leaf tag (e.g. "nl-direct-nl2") that should be
+	// placed FIRST in the Auto urltest group and in the inner country group
+	// of the same country. urltest with tolerance=0 picks lowest-RTT, but on
+	// first probe with no history it sticks to the first member — so leaf
+	// order directly controls cold-start preference. Backend derives this
+	// from the request IP's geo/ASN: e.g. RU users get "nl-direct-nl2" since
+	// DE OVH is widely DPI-blocked from RU networks. Empty = no hint.
+	//
+	// Unknown leaf tags are silently ignored (back-compat: backend can ship
+	// a hint for a leaf that's been renamed/removed without breaking config).
+	RecommendedFirst string
 }
 
 // EngineConfig holds VPN server configuration.

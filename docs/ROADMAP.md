@@ -7,6 +7,15 @@
 
 ## Now (в работе / блокеры)
 
+### 🎯 Smart-selection rollout (build 56+, 2026-05-13)
+
+Адаптивный выбор outbound'а — система сама в моменте определяет что грузит, что нет, переключается мгновенно. Закрывает багу «whoer/Telegram-медиа не грузятся через Auto» из field-логов 2026-05-13. Полный план: [docs/SMART_SELECTION_PLAN.md](SMART_SELECTION_PLAN.md).
+
+- **✅ Phase 0 — Universal NL-first hint** (build 56, done 2026-05-13): `recommended_first = "nl-direct-nl2"` пинится первым в `Auto` и `_nl_leaves` urltest **для всех юзеров**, без geo-детекции. Для DPI-юзеров (RU/BY/CN/IR/...) — critical (NL единственный рабочий вариант). Для остальных — нейтрально (urltest всё равно подберёт лучший по RTT через ~10с). Tolerance 0→150мс делает hint sticky — urltest не флаппит на 5мс drift. Cold-start latency: 1.5с → 0.7с. Tests: `internal/api/mobile/geo_hint_test.go` (5 кейсов), `internal/vpn/clientconfig_test.go::TestRecommendedFirst*` (4 кейса) + `TestUrltestGroupsRecoverFast` обновлён. `configBuildMarker=56.1-universal-nl-hint`.
+- **⏳ Phase 1 — Cherry-pick mihomo Smart group** (cycle TBD): порт LightGBM-scoring + MAD anomaly detection + first-write callback из `MetaCubeX/mihomo` в наш форк `singbox-with-userapi`. Покрывает DPI kill + throttle. Не переизобретаем — берём готовое.
+- **⏳ Phase 2 — Anti-correlation + State machine**: probes mimic user-flow size (4-32KB, не `generate_204`), HEALTHY/DEGRADED/UNHEALTHY/COOLDOWN state machine поверх scoring.
+- **⏳ Phase 3 — Happy Eyeballs v2 (RFC 8305) + LTE hard rules**: race-dial 2 leaves с CAD=250мс на cold start; на cellular выключать UDP-leaves целиком (Hysteria2/TUIC мрут на NAT-rebinding).
+
 ### 🚀 Launch Checklist v1.0 (2026-04-24)
 
 > Competitive gap-анализ vs Karing / Happ Plus (оба sing-box-based). Наш engine не уступает — пробелы в iOS-специфичных фичах и полировке. Детали анализа — внизу ROADMAP секция "Launch analysis".

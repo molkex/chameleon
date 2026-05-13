@@ -23,8 +23,33 @@ const (
 	// emitted the config currently in their cache. BUMP THIS on any
 	// behavioural change to clientconfig.go (new flag, new outbound, new
 	// rule). Format: "<build>.<patch>-<short-tag>" e.g. "40.2-chain-fix".
-	configBuildMarker = "41.0-country-fallback"
+	configBuildMarker = "56.1-universal-nl-hint"
 )
+
+// pinRecommendedFirst returns a copy of leaves with `hint` moved to index 0
+// if present, otherwise the input is returned unchanged. Unknown hints (leaf
+// not in the slice) are silently ignored — back-compat guarantee for cases
+// where backend ships a hint for a leaf that's been removed/renamed.
+func pinRecommendedFirst(leaves []string, hint string) []string {
+	if hint == "" {
+		return leaves
+	}
+	idx := -1
+	for i, tag := range leaves {
+		if tag == hint {
+			idx = i
+			break
+		}
+	}
+	if idx <= 0 {
+		return leaves // not found, or already first — nothing to do
+	}
+	out := make([]string, 0, len(leaves))
+	out = append(out, leaves[idx])
+	out = append(out, leaves[:idx]...)
+	out = append(out, leaves[idx+1:]...)
+	return out
+}
 
 // legSortKey returns a comparable string that orders leaf tags within a
 // country urltest: direct first, then chain (via-*), then h2/tuic. Keeps
@@ -98,7 +123,7 @@ func countryDisplay(cc string) string {
 // projected into a single dedicated selector "🇷🇺 Россия (обход белых списков)"
 // (constant defined below). They're excluded from standard leaves — whitelist
 // bypass is a narrow manual-only option, never an auto pick.
-func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []ServerEntry, chains []ChainedEntry) ([]byte, error) {
+func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []ServerEntry, chains []ChainedEntry, opts ClientConfigOpts) ([]byte, error) {
 	// Split servers by role + category:
 	//   standardExits    — role='exit', category='standard'          → country groups + Auto
 	//   whitelistExits   — role='exit', category='whitelist_bypass'  → isolated group
@@ -291,6 +316,15 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 		return legSortKey(sortedLeaves[i]) < legSortKey(sortedLeaves[j])
 	})
 
+	// Apply RecommendedFirst hint (build 56+): if backend supplied a hint and
+	// the leaf exists in our list, pin it to position 0. urltest with
+	// tolerance=0 picks lowest-RTT on each probe, but on the very first probe
+	// cycle (no history yet) it falls back to the first member listed — so
+	// leaf ordering directly controls cold-start outbound preference. The
+	// hint is derived from geo/ASN (e.g. RU users → "nl-direct-nl2" since DE
+	// OVH is widely DPI-blocked from RU networks).
+	sortedLeaves = pinRecommendedFirst(sortedLeaves, opts.RecommendedFirst)
+
 	// Probe target: small, globally reliable, deterministic 204 response.
 	// Same target sing-box's own examples and most popular GUIs use.
 	const urltestProbeURL = "https://www.gstatic.com/generate_204"
@@ -314,7 +348,18 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 	// to de-via-msk. With interrupt=true, sing-box closes inbound conns
 	// routed through old outbound on switch — Safari pipelines auto-recreate.
 	const urltestInterval = "10s"
-	const urltestTolerance = 0
+	// Build-56 (2026-05-13): tolerance 0 → 150ms. Pre-build-56 we ran
+	// tolerance=0 to pseudo-load-balance — any latency improvement caused a
+	// reselect. In practice this caused frequent thrash between near-equal
+	// leaves (e.g. de-direct 136ms vs nl-direct 143ms is 5% drift, well
+	// within network noise) and constantly killed user TCP sessions via
+	// interrupt_exist_connections. Worse, on RU networks the lower-RTT
+	// probe (DE) was the DPI-blocked one — urltest kept picking it on
+	// every probe cycle because the gstatic 204 still passed. With
+	// tolerance=150 the cold-start RecommendedFirst hint (see geo_hint.go
+	// / pinRecommendedFirst) becomes sticky: NL stays selected unless DE
+	// is dramatically faster, which it almost never is in DPI markets.
+	const urltestTolerance = 150
 
 	autoUrltest := clientOutbound{
 		Type:                      "urltest",
@@ -338,6 +383,20 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 			continue
 		}
 		leavesByCountry[cc] = append(leavesByCountry[cc], leaf)
+	}
+	// Apply RecommendedFirst inside the matching country bucket too — the
+	// user who manually picks "🇳🇱 Нидерланды" gets the same cold-start
+	// preference as the Auto user. sortedLeaves was already pinned above, so
+	// the bucket inherits the order from iteration; this pin is a defensive
+	// no-op for the matching country and a no-op for others (the hint leaf
+	// isn't in their bucket so pinRecommendedFirst returns unchanged).
+	if opts.RecommendedFirst != "" {
+		hintCC := countryCodeFromTag(opts.RecommendedFirst)
+		if hintCC != "" {
+			if leaves, ok := leavesByCountry[hintCC]; ok {
+				leavesByCountry[hintCC] = pinRecommendedFirst(leaves, opts.RecommendedFirst)
+			}
+		}
 	}
 	// Stable iteration order so JSON output is reproducible.
 	var countryCodes []string

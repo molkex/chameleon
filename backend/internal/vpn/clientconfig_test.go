@@ -92,12 +92,19 @@ func fixture() (EngineConfig, VPNUser, []ServerEntry, []ChainedEntry) {
 	return engine, user, servers, chains
 }
 
-// parseGenerated renders the fixture through generateClientConfig and
-// returns the parsed JSON. Test helpers below query this shape.
+// parseGenerated renders the fixture through generateClientConfig with default
+// (empty) opts and returns the parsed JSON. Test helpers below query this shape.
 func parseGenerated(t *testing.T) map[string]any {
 	t.Helper()
+	return parseGeneratedWithOpts(t, ClientConfigOpts{})
+}
+
+// parseGeneratedWithOpts renders the fixture with explicit ClientConfigOpts —
+// used by tests that exercise per-request hints (RecommendedFirst, etc.).
+func parseGeneratedWithOpts(t *testing.T, opts ClientConfigOpts) map[string]any {
+	t.Helper()
 	engine, user, servers, chains := fixture()
-	raw, err := generateClientConfig(engine, user, servers, chains)
+	raw, err := generateClientConfig(engine, user, servers, chains, opts)
 	if err != nil {
 		t.Fatalf("generateClientConfig: %v", err)
 	}
@@ -248,12 +255,18 @@ func TestUrltestGroupsRecoverFast(t *testing.T) {
 		if iv, _ := g["interval"].(string); iv != "10s" {
 			t.Errorf("group %q interval=%q, want %q", tag, iv, "10s")
 		}
-		// Tolerance is encoded as JSON number; absent (omitempty when 0)
-		// or 0 — both are acceptable.
-		if tol, ok := g["tolerance"]; ok {
-			if n, _ := tol.(float64); n != 0 {
-				t.Errorf("group %q tolerance=%v, want 0 (or omitted)", tag, n)
-			}
+		// Build-56: tolerance was 0 (pseudo-load-balance, see TestRecommendedFirst*
+		// for cold-start hint context), now 150ms. tolerance=0 caused thrashing
+		// between near-equal leaves and made the RecommendedFirst hint useless
+		// after first probe — urltest would reselect on every 5ms RTT drift,
+		// frequently landing back on DPI-blocked DE on RU networks.
+		tol, ok := g["tolerance"]
+		if !ok {
+			t.Errorf("group %q missing tolerance — must be 150ms (build 56)", tag)
+			continue
+		}
+		if n, _ := tol.(float64); n != 150 {
+			t.Errorf("group %q tolerance=%v, want 150 (build 56)", tag, n)
 		}
 		// Build-40: interrupt_exist_connections MUST be true on urltest
 		// groups, else stuck TCP sockets through dead outbound persist 75s+.
@@ -460,7 +473,7 @@ func TestHysteria2AndTUICOmittedWhenPortsZero(t *testing.T) {
 			servers[i].TUICPort = 0
 		}
 	}
-	raw, err := generateClientConfig(engine, user, servers, chains)
+	raw, err := generateClientConfig(engine, user, servers, chains, ClientConfigOpts{})
 	if err != nil {
 		t.Fatalf("generateClientConfig: %v", err)
 	}
@@ -511,4 +524,93 @@ func startsWith(s, prefix string) bool {
 		return false
 	}
 	return s[:len(prefix)] == prefix
+}
+
+// TestRecommendedFirstReordersAutoLeaves asserts that when ClientConfigOpts.
+// RecommendedFirst is set to a known leaf tag, that leaf appears first in the
+// Auto urltest group. urltest with tolerance=0 picks the lowest-RTT outbound,
+// but on a tie (and on the very first probe before any history) it sticks to
+// the first member in the list — so ordering directly controls cold-start
+// outbound preference. The hint is a per-request signal from the backend's
+// geo logic: e.g. RU users tend to get blocked on DE OVH, so we steer them
+// to NL Timeweb on connect. Without the hint, the urltest probes all leaves
+// equally and may pick a leaf the user's ISP/DPI breaks.
+func TestRecommendedFirstReordersAutoLeaves(t *testing.T) {
+	cfg := parseGeneratedWithOpts(t, ClientConfigOpts{RecommendedFirst: "nl-direct-nl2"})
+	members := outboundMembers(cfg, "Auto")
+	if len(members) == 0 {
+		t.Fatal("Auto urltest has no members")
+	}
+	if members[0] != "nl-direct-nl2" {
+		t.Errorf("Auto[0]=%q, want first member = RecommendedFirst leaf %q; full list: %v",
+			members[0], "nl-direct-nl2", members)
+	}
+	// All other leaves must still be present (no leaf is dropped by the hint).
+	for _, leaf := range []string{"de-direct-de", "de-h2-de", "de-tuic-de", "de-via-msk",
+		"nl-direct-nl2", "nl-h2-nl2", "nl-tuic-nl2", "nl-via-msk"} {
+		if !slices.Contains(members, leaf) {
+			t.Errorf("Auto missing leaf %q after RecommendedFirst applied; got %v", leaf, members)
+		}
+	}
+}
+
+// TestRecommendedFirstReordersInnerCountryGroup asserts that the hint also
+// influences the per-country inner urltest (_<cc>_leaves) when the hinted
+// leaf belongs to that country. A user who picks "🇳🇱 Нидерланды" manually
+// still benefits from cold-start preference — the inner urltest tries the
+// hinted nl-* leaf first. This matches the Auto behaviour symmetrically and
+// avoids the bug where Auto goes through nl-direct but country-picker goes
+// through nl-h2 first because the hint was forgotten.
+func TestRecommendedFirstReordersInnerCountryGroup(t *testing.T) {
+	cfg := parseGeneratedWithOpts(t, ClientConfigOpts{RecommendedFirst: "nl-direct-nl2"})
+	nlInner := outboundMembers(cfg, "_nl_leaves")
+	if len(nlInner) == 0 {
+		t.Fatal("_nl_leaves urltest has no members")
+	}
+	if nlInner[0] != "nl-direct-nl2" {
+		t.Errorf("_nl_leaves[0]=%q, want %q; full list: %v",
+			nlInner[0], "nl-direct-nl2", nlInner)
+	}
+	// _de_leaves must NOT be polluted by an NL hint — it keeps its default order.
+	deInner := outboundMembers(cfg, "_de_leaves")
+	for _, leaf := range deInner {
+		if !startsWith(leaf, "de-") {
+			t.Errorf("_de_leaves contains non-DE leaf %q after NL hint; got %v", leaf, deInner)
+		}
+	}
+}
+
+// TestRecommendedFirstIgnoredIfUnknown asserts that a hint referring to a
+// non-existent leaf is silently ignored — config still generates, and Auto
+// falls back to legSortKey ordering. This guards against config corruption
+// if the backend ships a hint for a leaf that's been removed/renamed.
+func TestRecommendedFirstIgnoredIfUnknown(t *testing.T) {
+	cfg := parseGeneratedWithOpts(t, ClientConfigOpts{RecommendedFirst: "ghost-leaf-does-not-exist"})
+	members := outboundMembers(cfg, "Auto")
+	if len(members) == 0 {
+		t.Fatal("Auto urltest has no members with unknown hint")
+	}
+	// First leaf should match the default legSortKey ordering (-direct- leaves
+	// sort first, see legSortKey). Either de-direct-de or nl-direct-nl2 — both
+	// are -direct- and alpha-stable, de comes first alphabetically.
+	if members[0] != "de-direct-de" {
+		t.Errorf("Auto[0]=%q with unknown hint, want legSortKey default %q; full list: %v",
+			members[0], "de-direct-de", members)
+	}
+}
+
+// TestRecommendedFirstEmptyKeepsDefaultOrder asserts that empty opts preserve
+// the pre-existing legSortKey ordering — back-compat guarantee for callers
+// that don't yet plumb the hint.
+func TestRecommendedFirstEmptyKeepsDefaultOrder(t *testing.T) {
+	cfg := parseGeneratedWithOpts(t, ClientConfigOpts{})
+	members := outboundMembers(cfg, "Auto")
+	if len(members) == 0 {
+		t.Fatal("Auto urltest has no members")
+	}
+	// Default order: legSortKey puts -direct- first, then alpha-stable by tag.
+	if members[0] != "de-direct-de" {
+		t.Errorf("Auto[0]=%q with empty opts, want legSortKey default %q; full list: %v",
+			members[0], "de-direct-de", members)
+	}
 }

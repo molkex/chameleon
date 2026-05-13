@@ -136,7 +136,17 @@ func (h *Handler) GetConfig(c echo.Context) error {
 		ShortID:  shortID,
 	}
 
-	configJSON, err := h.VPN.GenerateClientConfig(vpnUser, serverEntries, chainEntries)
+	// Build-56: derive a cold-start hint from the request signals (timezone,
+	// Accept-Language, optional geoip lookup). For RU users we steer Auto
+	// urltest to nl-direct-nl2 first, since DE OVH is widely DPI-blocked
+	// from RU networks (logs show "use of closed network connection" within
+	// seconds on real traffic). Hint is best-effort: empty if the user
+	// doesn't look RU, ignored if the recommended leaf isn't configured.
+	hint := resolveOutboundHintForRequest(c, h.GeoIP, serverEntries, chainEntries)
+
+	configJSON, err := h.VPN.GenerateClientConfigWithOpts(vpnUser, serverEntries, chainEntries, vpn.ClientConfigOpts{
+		RecommendedFirst: hint,
+	})
 	if err != nil {
 		h.Logger.Error("vpn: generate client config", zap.Error(err), zap.Int64("user_id", user.ID))
 		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
@@ -288,11 +298,16 @@ func (h *Handler) GetConfigLegacy(c echo.Context) error {
 		shortID = *user.VPNShortID
 	}
 
-	configJSON, err := h.VPN.GenerateClientConfig(vpn.VPNUser{
+	// Same cold-start hint as /api/mobile/config — see GetConfig for rationale.
+	hint := resolveOutboundHintForRequest(c, h.GeoIP, serverEntries, chainEntries)
+
+	configJSON, err := h.VPN.GenerateClientConfigWithOpts(vpn.VPNUser{
 		Username: *user.VPNUsername,
 		UUID:     *user.VPNUUID,
 		ShortID:  shortID,
-	}, serverEntries, chainEntries)
+	}, serverEntries, chainEntries, vpn.ClientConfigOpts{
+		RecommendedFirst: hint,
+	})
 	if err != nil {
 		return c.String(http.StatusInternalServerError, "config generation failed")
 	}
