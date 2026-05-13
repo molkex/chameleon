@@ -87,6 +87,7 @@ enum L10n {
         static let featureNoLogs  = LKey("onboarding.feature.no_logs")
         static let featureServers = LKey("onboarding.feature.servers")
         static let signInFailed   = LKey("onboarding.signin_failed")
+        static let signInFailedTitle = LKey("onboarding.signin_failed.title")
         static let anonFailed     = LKey("onboarding.anon_failed")
         static let continueWithoutAccount = LKey("onboarding.continue_no_account")
         static let signInWithApple    = LKey("onboarding.sign_in_with_apple")

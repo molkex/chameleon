@@ -137,6 +137,20 @@ struct OnboardingView: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: app.errorMessage != nil)
+        // Build 59 (2026-05-13): prominent system alert for auth errors.
+        // The red capsule above is supplementary — App Review reported "no
+        // action took place" on iPad Air M3 (build 51/55), and a tiny capsule
+        // at the top of the screen is easy to miss. A modal alert blocks the
+        // UI until acknowledged, so even a quick reviewer sees the diagnostic.
+        .alert(
+            L10n.Onboarding.signInFailedTitle,
+            isPresented: Binding(
+                get: { app.errorMessage != nil },
+                set: { if !$0 { app.errorMessage = nil } }
+            ),
+            actions: { Button("OK") { app.errorMessage = nil } },
+            message: { Text(app.errorMessage ?? "") }
+        )
         .sheet(isPresented: $showTerms) {
             NavigationStack {
                 LegalView(title: L10n.Legal.termsTitle, body: L10n.Legal.termsBody)
@@ -256,32 +270,67 @@ struct OnboardingView: View {
 
     // MARK: - Apple sign-in button
 
-    /// White, rounded "Continue with Apple" button styled per Apple HIG.
-    /// Tapping routes through AppleAuthCoordinator (UIKit-backed) which
-    /// presents the system auth sheet with an explicit anchor — required
-    /// for reliability on iPad in iPhone-compatibility mode.
+    /// Native SwiftUI `SignInWithAppleButton` (build 59 fix, 2026-05-13).
+    ///
+    /// History of failures:
+    ///   - Build ≤49: SwiftUI button with auto anchor — App Review (build 51)
+    ///     reported "no action took place" on iPad Air M3.
+    ///   - Build 53: switched to UIKit `AppleAuthCoordinator` with explicit
+    ///     scene/window anchor lookup. App Review still reports the same
+    ///     bug on iPad Air 11" M3 and iPhone 17 Pro Max under iPadOS/iOS 26.5.
+    ///   - Build 59 (this): back to native `SignInWithAppleButton` because
+    ///     Apple's component handles iOS 26 multi-scene/anchor plumbing
+    ///     internally (which our explicit `connectedScenes` lookup can't
+    ///     reliably do on every device + OS combination). We also gate it
+    ///     behind `isAuthInFlight` so SwiftUI's identity-based view diff
+    ///     doesn't fire it twice on rapid taps.
+    ///
+    /// Breadcrumbs to TunnelFileLogger let us trace what happened on the
+    /// reviewer's device if this build still fails — they show up in iOS
+    /// log archives even when the app is suspended.
     private var appleSignInButton: some View {
-        Button {
-            guard !isAuthInFlight else { return }
-            isAuthInFlight = true
-            hapticLight()
-            Task {
-                await AppleAuthCoordinator.signIn(into: app)
+        SignInWithAppleButton(.signIn) { request in
+            TunnelFileLogger.log("SIWA: onRequest fired", category: "auth")
+            request.requestedScopes = [.fullName, .email]
+        } onCompletion: { result in
+            TunnelFileLogger.log("SIWA: onCompletion fired (result=\(result))", category: "auth")
+            switch result {
+            case .success(let auth):
+                if let credential = auth.credential as? ASAuthorizationAppleIDCredential {
+                    TunnelFileLogger.log("SIWA: got AppleIDCredential, calling app.signInWithApple", category: "auth")
+                    Task { @MainActor in
+                        await app.signInWithApple(credential: credential)
+                        isAuthInFlight = false
+                    }
+                } else {
+                    TunnelFileLogger.log("SIWA: success but credential is not AppleIDCredential — \(type(of: auth.credential))", category: "auth")
+                    app.errorMessage = String(localized: "onboarding.signin_failed")
+                    isAuthInFlight = false
+                }
+            case .failure(let error):
+                let nsErr = error as NSError
+                if nsErr.code == ASAuthorizationError.canceled.rawValue {
+                    TunnelFileLogger.log("SIWA: user canceled (silent)", category: "auth")
+                } else {
+                    TunnelFileLogger.log("SIWA: failed — code=\(nsErr.code) domain=\(nsErr.domain) desc=\(nsErr.localizedDescription)", category: "auth")
+                    app.errorMessage = String(localized: "onboarding.signin_failed")
+                }
                 isAuthInFlight = false
             }
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "applelogo")
-                    .font(.system(size: 18, weight: .medium))
-                Text(L10n.Onboarding.signInWithApple)
-                    .font(.system(size: 17, weight: .semibold))
-            }
-            .foregroundStyle(Color.black)
-            .frame(maxWidth: .infinity)
-            .frame(height: 52)
-            .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .signInWithAppleButtonStyle(.white)
+        .frame(height: 52)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .accessibilityIdentifier("onboarding.continue_with_apple")
+        .simultaneousGesture(TapGesture().onEnded {
+            // Single-flight gate + breadcrumb. SignInWithAppleButton handles
+            // its own tap, but this records the user actually tapped — so if
+            // onRequest never fires we can see in logs the tap was registered
+            // (rules out "button wasn't pressed").
+            TunnelFileLogger.log("SIWA: tap registered (isAuthInFlight was \(isAuthInFlight))", category: "auth")
+            hapticLight()
+            if !isAuthInFlight { isAuthInFlight = true }
+        })
     }
 
     private var termsButton: some View {

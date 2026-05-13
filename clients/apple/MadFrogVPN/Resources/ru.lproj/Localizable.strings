@@ -68,6 +68,7 @@
 "onboarding.feature.no_logs"     = "Не храним логи";
 "onboarding.feature.servers"     = "Быстрые надёжные серверы";
 "onboarding.signin_failed"       = "Не удалось войти. Попробуйте ещё раз.";
+"onboarding.signin_failed.title" = "Ошибка входа";
 "onboarding.anon_failed"         = "Не удалось начать пробный период. Проверьте подключение и повторите.";
 "onboarding.continue_no_account" = "Продолжить как гость";
 "onboarding.sign_in_with_apple"  = "Продолжить с Apple";

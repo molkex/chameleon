@@ -68,6 +68,7 @@
 "onboarding.feature.no_logs"     = "No logs policy";
 "onboarding.feature.servers"     = "Fast & reliable servers";
 "onboarding.signin_failed"       = "Sign in failed. Please try again.";
+"onboarding.signin_failed.title" = "Sign-in error";
 "onboarding.anon_failed"         = "Could not start a trial. Check your connection and try again.";
 "onboarding.continue_no_account" = "Continue as guest";
 "onboarding.sign_in_with_apple"  = "Continue with Apple";
