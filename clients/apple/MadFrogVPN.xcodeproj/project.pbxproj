@@ -13,6 +13,7 @@
 		036CD2D91F90C3AD5CCB20E3 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = CCCD550DC6BC4C053791BDB4 /* GoogleSignIn */; };
 		03D46FF6FD8EF369819CAAEC /* PlatformViewExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11EBC90E3AED9A381EEA7F2F /* PlatformViewExtensions.swift */; };
 		0488AB077CE7FECAF0AEE10E /* Libbox.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = C18C942EF28864C26636822B /* Libbox.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		065B24478256EB6D3332D40F /* VPNAppShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3581AEB0D233C7D72531C988 /* VPNAppShortcuts.swift */; };
 		0905809D3DA321CCF9C46ECD /* VPNStatusLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = C864885FEBAC617DF6024FB8 /* VPNStatusLogic.swift */; };
 		0BC8C5012360A5EB8E0E0FEF /* SystemConfiguration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CBA31374948F1B482110AB8A /* SystemConfiguration.framework */; };
 		0D1C6850D02A8D8BF86B2314 /* NetworkingDecisionLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82631CF494BD3C14A05BDF96 /* NetworkingDecisionLogic.swift */; };
@@ -272,6 +273,7 @@
 		EC367BBCECC8788B573C6D32 /* TunnelConfigSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 413DC4FEA8485BA34FED76A4 /* TunnelConfigSource.swift */; };
 		ED2932322BA67C98F3937409 /* SubscriptionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C254991A86781B863F8BA92C /* SubscriptionManager.swift */; };
 		EE042CF563179D081005D9EE /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33A809CDAD52A1FB3A57D0A1 /* Constants.swift */; };
+		EE0C8F51BB4F02AE03000ABA /* VPNAppShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3581AEB0D233C7D72531C988 /* VPNAppShortcuts.swift */; };
 		EE90271EC8C8EF0A80F23C19 /* TunnelFileLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBF8B42392C0D194798D2667 /* TunnelFileLogger.swift */; };
 		EEFDDC33749D552A10183539 /* ExtensionProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12590681176DC24ED028641E /* ExtensionProvider.swift */; };
 		EF5E827749DD0C1EA3B794CF /* PathPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F0B078C63922A356A8633EF /* PathPicker.swift */; };
@@ -383,6 +385,7 @@
 		309988BC023B66A61A71333A /* DisconnectNotifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisconnectNotifierTests.swift; sourceTree = "<group>"; };
 		31BA223EF19A5BDE5145B520 /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
 		33A809CDAD52A1FB3A57D0A1 /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
+		3581AEB0D233C7D72531C988 /* VPNAppShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VPNAppShortcuts.swift; sourceTree = "<group>"; };
 		3B77B8C83804315DF2505934 /* TunnelStallProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunnelStallProbe.swift; sourceTree = "<group>"; };
 		3C3AA0F75FD43492C173B8C4 /* PacketTunnelProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelProvider.swift; sourceTree = "<group>"; };
 		3C86B933890A16DB4069C1A5 /* DebugLogsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugLogsView.swift; sourceTree = "<group>"; };
@@ -733,6 +736,7 @@
 				8C0143BDF66872F26920B09B /* Theme.swift */,
 				12B28AD4A0F0B61B1CCA267A /* ThemeManager.swift */,
 				B0F1E53A2387E8AB9E727CD9 /* TrafficHealthMonitor.swift */,
+				3581AEB0D233C7D72531C988 /* VPNAppShortcuts.swift */,
 				E683952FD2B39BA18604AB73 /* VPNErrorMapper.swift */,
 				04FC8CF248986C535F825CAB /* VPNManager.swift */,
 			);
@@ -1102,6 +1106,7 @@
 				5169D1AF41AB81BBEE5CF952 /* TunnelConfigSource.swift in Sources */,
 				C6AF80BEEEDDF6223C295DD5 /* TunnelFileLogger.swift in Sources */,
 				EBA08FF6A92D35DE4B4A955D /* TunnelProbeOutcome.swift in Sources */,
+				EE0C8F51BB4F02AE03000ABA /* VPNAppShortcuts.swift in Sources */,
 				5E36E43A7AA47ECD03D80336 /* VPNControlIntents.swift in Sources */,
 				D15236DEDA6726380031CE01 /* VPNErrorMapper.swift in Sources */,
 				83C2376AD12AE7EA471F5DDD /* VPNManager.swift in Sources */,
@@ -1212,6 +1217,7 @@
 				EC367BBCECC8788B573C6D32 /* TunnelConfigSource.swift in Sources */,
 				EE90271EC8C8EF0A80F23C19 /* TunnelFileLogger.swift in Sources */,
 				76F3F028A2E3F95DDD860DBE /* TunnelProbeOutcome.swift in Sources */,
+				065B24478256EB6D3332D40F /* VPNAppShortcuts.swift in Sources */,
 				1BE4297D7868C7B87C68DA96 /* VPNControlIntents.swift in Sources */,
 				0D6FD98F17D51EA831F22DB9 /* VPNErrorMapper.swift in Sources */,
 				EB087C443D026C56DB4CEC2F /* VPNManager.swift in Sources */,
@@ -1583,7 +1589,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 72;
+				CURRENT_PROJECT_VERSION = 73;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = 99W3C374T2;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -1660,7 +1666,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 72;
+				CURRENT_PROJECT_VERSION = 73;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = 99W3C374T2;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
