@@ -151,7 +151,37 @@ incidents:
       v1.0.26, created reviewSubmission 0280c9a8-da5c-40e6-bfd3-
       52ccb683456d + its reviewSubmissionItem, submitted →
       WAITING_FOR_REVIEW.
-    status: mitigated   # build 74 uploaded + resubmitted (0280c9a8 WAITING_FOR_REVIEW); awaiting App Review verdict
+    verification: |
+      What was verified (2026-05-15, off-device — no real iPhone in
+      the loop):
+      - COMPILES: `xcodebuild -scheme MadFrogVPN -destination
+        generic/platform=iOS -configuration Release build` →
+        ** BUILD SUCCEEDED ** on the tree containing 63e8918.
+      - BINARY CONTAINS THE FIX: `strings` on the archived binary
+        /tmp/MadFrogVPN-build74.xcarchive (CFBundleVersion 74,
+        1.0.26 — the exact archive uploaded as ASC build e9a91d4d)
+        finds the log string "signInAnonymous: /config 403" ×2 — that
+        string only exists in commit 63e8918. The binary in review
+        provably carries the fix.
+      - 403 CHAIN PROVEN AT CODE LEVEL, both sides:
+        backend config.go:49-50 — expired SubscriptionExpiry →
+        http.StatusForbidden (403); iOS APIResponseLogic.classify —
+        non-200/non-401 → .serverError(403); fetchConfig — .serverError(c)
+        → throw APIError.serverError(c); build-74 signInAnonymous —
+        `catch APIError.serverError(403)`. The catch pattern matches
+        exactly what the backend emits.
+      - LIVE API HAPPY PATH: POST /api/mobile/auth/register (fresh
+        device_id) → 200 + access_token + is_new:true; GET
+        /api/v1/mobile/config (Bearer) → 200, valid 13.5 KB sing-box
+        config, X-Expire in the future; re-register same device_id →
+        200 (idempotent).
+      NOT verified (needs a real device + a real expired account —
+      neither manufacturable here): the on-device tap of "Continue as
+      guest" landing on the paywall, and a live 403 from a genuinely
+      expired account (a fresh API account always gets an active
+      trial). The simulator can't run the app (App Group entitlement
+      crash). User to smoke-test on a real iPhone.
+    status: mitigated   # build 74 uploaded + resubmitted (0280c9a8 WAITING_FOR_REVIEW); compiles + binary-contains-fix + 403-chain verified off-device; awaiting App Review verdict
     lessons:
       - "Keep error handling SYMMETRIC across sign-in paths. signInWithApple and signInAnonymous both call fetchAndSaveConfig() → /config; both must treat a 403 (no active subscription) the same way — route to the paywall, never a hard error."
       - "Backend asymmetry has client consequences: `AppleSignIn` extends expired trials, `Register` does not. A device_id re-bound to an Apple account can therefore come back from `Register` with an expired sub — the guest path must tolerate that."
