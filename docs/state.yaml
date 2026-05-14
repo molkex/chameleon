@@ -25,12 +25,12 @@ prod:
 
   ios:
     marketing-version: "1.0.26"
-    current-build: 66
+    current-build: 67
     track: testflight-internal
-    asc-build-id: ee20a77a-ad73-458f-8a38-c3ea7d1baecf
+    asc-build-id: pending
     uploaded: 2026-05-14
     field-verified: false                        # pending user test of build 64
-    previous-builds-in-testflight: [65, 64, 63, 62, 61, 60, 59, 58, 57, 56, 55]
+    previous-builds-in-testflight: [66, 65, 64, 63, 62, 61, 60, 59, 58, 57, 56, 55]
     libbox:
       source: sing-box v1.13.5 + first-write callback cherry-pick
       binary-size-mb: 44

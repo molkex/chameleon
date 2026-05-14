@@ -210,6 +210,8 @@
 "settings.debug_logs"            = "Debug logs";
 "settings.auto_recover"          = "Auto-recover";
 "settings.auto_recover.hint"     = "If the chosen server stops responding, automatically pick a working one so traffic keeps flowing.";
+"settings.auto_connect"          = "Auto-connect";
+"settings.auto_connect.hint"     = "Keep the VPN on automatically — it reconnects after network changes or interruptions. Turning the VPN off in the app or in iOS Settings still stops it.";
 
 /* ===== Recovery toasts ===== */
 "recovery.switched_to_auto"      = "%@ unreachable — switched to Auto";

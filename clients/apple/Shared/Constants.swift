@@ -125,6 +125,14 @@ enum AppConstants {
     // Auto-recover from server failures (TrafficHealthMonitor).
     // Default ON. User can disable from Settings → Diagnostics.
     static let autoRecoverEnabledKey = "autoRecoverEnabled"
+    /// launch-06: user preference — keep the VPN on automatically (iOS
+    /// Connect-On-Demand). Default OFF (opt-in). When ON, a successful
+    /// connect installs an unconditional NEOnDemandRuleConnect so the
+    /// tunnel re-establishes after network changes / crashes. An explicit
+    /// in-app or iOS-Settings disconnect still clears On-Demand (handled
+    /// in VPNManager.disconnect + the userStoppedVPN path), so the user
+    /// can always truly turn it off.
+    static let autoConnectEnabledKey = "autoConnectEnabled"
 
     /// Build-39: PacketTunnel extension writes a Date.timeIntervalSince1970
     /// here when its TunnelStallProbe detects a stall (2 consecutive captive-

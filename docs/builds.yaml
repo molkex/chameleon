@@ -5,6 +5,22 @@
 # Cross-reference phases via phase ids from plan.yaml.
 
 builds:
+  - number: 67
+    version: "1.0.26"
+    date: 2026-05-14
+    track: testflight-internal
+    asc-build-id: pending
+    phases: [launch-06-auto-connect-untrusted-wifi]
+    archive-path: /tmp/MadFrogVPN-build67.xcarchive
+    field-verified: false
+    notes: |
+      launch-06 — Auto-connect via iOS Connect-On-Demand. New opt-in
+      Settings toggle; VPNManager.setOnDemand installs an unconditional
+      NEOnDemandRuleConnect. On-Demand was previously fully suppressed —
+      this adds the enable path. Explicit in-app / iOS-Settings stop still
+      clears On-Demand (re-arms on next manual connect). iOS-only, libbox
+      unchanged from build 60.
+
   - number: 66
     version: "1.0.26"
     date: 2026-05-14

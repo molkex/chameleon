@@ -245,6 +245,8 @@ enum L10n {
         static let debugLogs       = LKey("settings.debug_logs")
         static let autoRecover     = LKey("settings.auto_recover")
         static let autoRecoverHint = LKey("settings.auto_recover.hint")
+        static let autoConnect     = LKey("settings.auto_connect")
+        static let autoConnectHint = LKey("settings.auto_connect.hint")
     }
 
     enum Recovery {

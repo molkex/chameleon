@@ -1459,6 +1459,23 @@ class AppState {
         }
     }
 
+    // MARK: - Auto-connect (launch-06)
+
+    /// Persist the Auto-connect preference and apply it live. If the tunnel
+    /// is currently up, On-Demand is installed/cleared immediately so the
+    /// toggle takes effect without waiting for the next connect. If the
+    /// tunnel is down, the preference is just stored — it's applied on the
+    /// next successful connect via handleStatus() .connected.
+    func setAutoConnectEnabled(_ enabled: Bool) {
+        configStore.autoConnectEnabled = enabled
+        TunnelFileLogger.log("auto-connect toggled: \(enabled)", category: "ui")
+        let isLive = vpnManager.status == .connected || vpnManager.status == .connecting
+        guard isLive else { return }
+        Task { [weak self] in
+            await self?.vpnManager.setOnDemand(enabled: enabled)
+        }
+    }
+
     // MARK: - Status
 
     private func startObservingVPNStatus() {
@@ -1498,6 +1515,13 @@ class AppState {
             // user has just seen the VPN work, so "we'll tell you if it
             // drops" is a natural, well-timed ask. Idempotent.
             DisconnectNotifier.requestAuthorizationIfNeeded()
+            // launch-06: apply the Auto-connect preference now that the
+            // tunnel is up. setOnDemand is idempotent — the repeated
+            // .connected emits this case can fire won't cause extra saves.
+            Task { [weak self] in
+                guard let self else { return }
+                await self.vpnManager.setOnDemand(enabled: self.configStore.autoConnectEnabled)
+            }
             // Re-apply the user's routing mode AND server selection after a
             // (re)connect. commandClient takes a moment to bind after connect()
             // above — defer one hop so selectOutbound has a live socket to talk

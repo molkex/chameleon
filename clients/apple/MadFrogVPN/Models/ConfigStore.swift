@@ -116,6 +116,23 @@ class ConfigStore {
         set { sharedDefaults?.set(newValue, forKey: AppConstants.autoRecoverEnabledKey) }
     }
 
+    // MARK: - Auto-connect Preference (launch-06)
+
+    /// Whether the VPN should stay on automatically via iOS Connect-On-
+    /// Demand. Default OFF — auto-connect is opt-in: defaulting it ON would
+    /// surprise the user with a VPN that re-enables itself after they turn
+    /// it off. When ON, VPNManager installs an unconditional On-Demand
+    /// Connect rule on the next successful connect.
+    var autoConnectEnabled: Bool {
+        get {
+            guard let raw = sharedDefaults?.object(forKey: AppConstants.autoConnectEnabledKey) else {
+                return false
+            }
+            return (raw as? Bool) ?? false
+        }
+        set { sharedDefaults?.set(newValue, forKey: AppConstants.autoConnectEnabledKey) }
+    }
+
     // MARK: - Config Save/Load
 
     func saveConfig(_ jsonString: String) throws {

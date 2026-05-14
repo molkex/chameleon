@@ -114,6 +114,34 @@ struct SettingsView: View {
                                     .labelsHidden()
                                     .tint(theme.accent)
                                 }
+
+                                // launch-06: keep the VPN on via iOS
+                                // Connect-On-Demand. AppState.setAutoConnectEnabled
+                                // persists the pref and, if the tunnel is live,
+                                // installs/clears the On-Demand rule immediately.
+                                Divider()
+                                    .background(theme.textSecondary.opacity(0.15))
+                                HStack(spacing: 14) {
+                                    iconCircle("bolt.horizontal.circle")
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(L10n.Settings.autoConnect)
+                                            .font(theme.font(size: 16, weight: .medium))
+                                            .foregroundStyle(theme.textPrimary)
+                                        Text(L10n.Settings.autoConnectHint)
+                                            .font(theme.font(size: 12))
+                                            .foregroundStyle(theme.textSecondary)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                    Spacer()
+                                    Toggle("", isOn: Binding(
+                                        get: { app.configStore.autoConnectEnabled },
+                                        set: { newValue in
+                                            app.setAutoConnectEnabled(newValue)
+                                        }
+                                    ))
+                                    .labelsHidden()
+                                    .tint(theme.accent)
+                                }
                             }
                             .padding(16)
                         }

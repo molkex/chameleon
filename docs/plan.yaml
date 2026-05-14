@@ -457,13 +457,46 @@ phases:
     estimated-effort: 0.5 day
 
   - id: launch-06-auto-connect-untrusted-wifi
-    title: Auto-connect on untrusted Wi-Fi (NEOnDemandRule SSIDMatch)
-    status: planned
+    title: Auto-connect via iOS Connect-On-Demand
+    status: done
     layer: ios
+    builds: [67]
+    completed: 2026-05-14
     rationale: |
-      Industry standard. Without it the user pays but toggles manually
-      every time.
-    estimated-effort: 0.5 day
+      Industry standard — without it the user pays but toggles manually
+      every time. On-Demand was previously entirely SUPPRESSED in the
+      codebase (connect/disconnect/createManager all force it off); the
+      defensive userStoppedVPN + disableOnDemand machinery existed but
+      there was no enable path.
+    artifacts:
+      - clients/apple/Shared/Constants.swift
+      - clients/apple/MadFrogVPN/Models/ConfigStore.swift
+      - clients/apple/MadFrogVPN/Models/VPNManager.swift
+      - clients/apple/MadFrogVPN/Models/AppState.swift
+      - clients/apple/MadFrogVPN/Models/L10n.swift
+      - clients/apple/MadFrogVPN/Views/SettingsView.swift
+      - clients/apple/MadFrogVPN/Resources/{en,ru}.lproj/Localizable.strings
+    implementation: |
+      ConfigStore.autoConnectEnabled — opt-in pref (default OFF; ON by
+      default would surprise a user with a VPN that re-enables itself).
+      VPNManager.setOnDemand(enabled:) — installs/clears a single
+      unconditional NEOnDemandRuleConnect + isOnDemandEnabled, idempotent
+      (no save round-trip when already in the requested state).
+      AppState.handleStatus() .connected applies the pref on every
+      successful connect; AppState.setAutoConnectEnabled(_:) persists +
+      applies live when the tunnel is already up.
+      The un-disableable-from-Settings footgun of an unconditional Connect
+      rule is neutralised by the pre-existing disconnect() + userStoppedVPN
+      → disableOnDemand() paths: an explicit in-app or iOS-Settings stop
+      clears On-Demand, which re-arms on the next manual connect.
+    scope-decision: |
+      Shipped the unconditional auto-connect (the 95% case — "keep the VPN
+      on"). The original title mentioned SSIDMatch trusted-network
+      exceptions; that needs CLLocationManager authorization (you can't
+      read the current SSID on modern iOS without it) plus a trusted-
+      networks management UI — a separate permission flow, deferred to
+      launch-08 polish.
+    notes: iOS-only, no backend change. Build 67.
 
   - id: launch-07-disconnect-notification
     title: Disconnect notification (UNUserNotificationCenter + NEProviderStopReason)

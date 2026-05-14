@@ -104,6 +104,41 @@ class VPNManager {
         }
     }
 
+    /// launch-06: install or clear iOS Connect-On-Demand.
+    ///
+    /// When `enabled`, sets a single unconditional `NEOnDemandRuleConnect`
+    /// so iOS re-establishes the tunnel after network changes or an
+    /// extension crash — the user's "Auto-connect" preference.
+    ///
+    /// The well-known footgun (an unconditional Connect rule makes the VPN
+    /// un-disableable from iOS Settings) is neutralised elsewhere:
+    /// `disconnect()` clears `isOnDemandEnabled` on an explicit in-app
+    /// stop, and the `userStoppedVPN` → `disableOnDemand()` path clears it
+    /// when the user flips the VPN off in iOS Settings. On-Demand re-arms
+    /// on the next manual connect. Net effect: auto-reconnect on the 95%
+    /// path, but an explicit stop always truly stops.
+    ///
+    /// No-op (no save round-trip) when the manager is already in the
+    /// requested state — safe to call on every connect / toggle.
+    func setOnDemand(enabled: Bool) async {
+        guard let m = manager else { return }
+        let rulesMatch = enabled
+            ? (m.onDemandRules?.count == 1 && m.onDemandRules?.first is NEOnDemandRuleConnect)
+            : (m.onDemandRules?.isEmpty ?? true)
+        if m.isOnDemandEnabled == enabled && rulesMatch {
+            return
+        }
+        m.onDemandRules = enabled ? [NEOnDemandRuleConnect()] : []
+        m.isOnDemandEnabled = enabled
+        do {
+            try await m.saveToPreferences()
+            TunnelFileLogger.log("vpnManager.setOnDemand: enabled=\(enabled)", category: "ui")
+        } catch {
+            Self.logger.error("setOnDemand(\(enabled)) failed: \(error.localizedDescription)")
+            TunnelFileLogger.log("vpnManager.setOnDemand: FAILED enabled=\(enabled) — \(error.localizedDescription)", category: "ui")
+        }
+    }
+
     func disconnect() {
         userInitiatedDisconnect = true
         // Disable On Demand so iOS doesn't auto-reconnect after explicit disconnect
