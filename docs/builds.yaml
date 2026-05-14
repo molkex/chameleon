@@ -9,7 +9,7 @@ builds:
     version: "1.0.26"
     date: 2026-05-14
     track: testflight-internal
-    asc-build-id: pending
+    asc-build-id: ee20a77a-ad73-458f-8a38-c3ea7d1baecf
     phases: [launch-07-disconnect-notification]
     archive-path: /tmp/MadFrogVPN-build66.xcarchive
     field-verified: false
