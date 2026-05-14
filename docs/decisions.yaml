@@ -153,6 +153,60 @@ decisions:
       - "TelemetryDeck — privacy-friendly but oriented at analytics signals, weaker crash-diagnostic story"
       - "No crash reporting — flying blind on 5%+ of production crashes is not acceptable for a paid app"
 
+  - id: ADR-008-widget-toggle-in-extension-process
+    date: 2026-05-14
+    status: accepted
+    title: Widget VPN toggle runs in the extension process; tunnel publishes widget state
+    context: |
+      launch-04b adds a Control Center toggle + an interactive
+      Home-Screen button. Two design questions: (1) where does the
+      toggle's AppIntent run — open the app, or act in-process? (2) who
+      keeps the widget's displayed state fresh, given the toggle can
+      fire while the main app is suspended?
+    decision: |
+      (1) ToggleVPNIntent runs IN the widget-extension process and
+      drives NETunnelProviderManager directly: connect via
+      startTunnel(options: nil) (the PacketTunnel extension falls back
+      to the App-Group-persisted config), disconnect via
+      stopVPNTunnel(). The widget target carries the
+      packet-tunnel-provider Network Extension entitlement
+      (NETWORK_EXTENSIONS capability enabled on the bundle ID via the
+      ASC API — no portal step).
+      (2) ExtensionProvider is the source of truth for the widget's
+      connected/disconnected signal — publishWidgetState() writes
+      vpnConnectedAtKey + reloads timelines on every start/stop. On top
+      of that, ToggleVPNIntent writes the just-requested state
+      OPTIMISTICALLY so the UI flips the instant the user taps; the
+      extension then confirms or corrects it.
+    rationale: |
+      "Open the app to toggle" was rejected outright — the field
+      complaint that triggered this work was literally "tapping the
+      widget just opens the app". A real in-place toggle needs the
+      intent to act in-process.
+      The app CANNOT own the widget-state signal: it isn't running when
+      the user toggles from the widget or from iOS Settings, so its
+      handleStatus() never fires (this was the build-69 bug, incident
+      2026-05-14-widget-toggle-no-visual-update). The packet-tunnel
+      provider is the ONE process guaranteed to run on any VPN state
+      change — so it owns the signal. The app's handleStatus() still
+      writes the same key; harmless and consistent.
+      The optimistic write exists because the extension's
+      reloadAllTimelines() is iOS-budget-throttled and, on connect, the
+      authoritative key isn't written until sing-box is up (~0.4 s) —
+      too late for the timeline reload WidgetKit fires right after the
+      intent. Writing the intended state in the intent makes that
+      reload instant; the extension remains the corrector.
+    consequences:
+      - "Pro: true in-place toggle — no app launch on the warm path"
+      - "Pro: widget stays correct no matter who flips the VPN (app / widget / iOS Settings)"
+      - "Con: widget target now needs the NE entitlement — one more capability to keep on the bundle ID, and the intent links NetworkExtension"
+      - "Con: optimistic write can briefly show a state the tunnel doesn't reach (failed connect) — bounded: ExtensionProvider's failure path clears it within seconds"
+      - "Cold case unhandled head-less: no installed VPN profile → the intent throws (creating a profile needs the one-time iOS permission prompt, which only the app can show)"
+    alternatives-rejected:
+      - "openAppWhenRun on the intent — defeats the whole point; the complaint was that the widget opens the app"
+      - "App-only state ownership — the build-69 bug: app is suspended on a widget toggle, widget never repaints until next app open"
+      - "Extension-only reload, no optimistic write — build-70 state: correct but laggy, reloadAllTimelines() from an extension is throttled"
+
   - id: ADR-005-quic-toggle-via-env
     date: 2026-05-13
     status: accepted

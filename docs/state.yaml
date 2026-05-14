@@ -65,7 +65,7 @@ prod:
   chameleon-repo:
     branch: claude/naughty-golick-e7f6a5
     pushed-to-origin: true
-    head: 996b23d                                  # launch-04b build 71; app-store build-swap commit follows next
+    head: b543509                                  # app-store build-swap; architecture/ADR backfill commit follows next
     unpushed-commits: 0                           # update on every push
 
   app-store:

@@ -72,6 +72,46 @@ components:
       NEPacketTunnelProvider subclass. Spawns sing-box (via Libbox),
       gRPC server for stats, TunnelStallProbe, RealTrafficStallDetector,
       memory watchdog. Wires platform-interface callback channel.
+      launch-04b: also publishes widget state — `publishWidgetState()`
+      writes `vpnConnectedAtKey` to the App Group + reloads widget
+      timelines on every tunnel start/stop/failure. It's the one
+      process that always runs on a VPN state change (the app may be
+      suspended when the user toggles from the widget / iOS Settings).
+    contracts:
+      - publishWidgetState is iOS-only (#if os(iOS)); PacketTunnelMac
+        is untouched. Links WidgetKit.framework on the iOS target only.
+
+  - id: ios-widget-extension
+    layer: ios
+    path: clients/apple/MadFrogWidget/
+    responsibility: |
+      WidgetKit app-extension (bundle com.madfrog.vpn.widget).
+        - StatusWidget (launch-04) — read-only VPN status for Home
+          Screen (systemSmall) + Lock Screen (accessory* families).
+          systemSmall's shield is an interactive toggle Button; small +
+          rectangular show a live uptime timer.
+        - MadFrogControlWidget (launch-04b, iOS 18+) — Control Center
+          ControlWidgetToggle.
+      Both render from `WidgetVPNSnapshot` (Shared/) and toggle via
+      `ToggleVPNIntent` (Shared/VPNControlIntents.swift). The intent
+      runs in THIS extension's process and drives NETunnelProviderManager
+      directly (start/stopVPNTunnel) — hence the packet-tunnel-provider
+      Network Extension entitlement on the widget target.
+    consumes:
+      - app-group:vpnConnectedAtKey      # connected state + uptime
+      - app-group:selectedServerTagKey   # server label
+      - app-group:startOptionsKey        # persisted config — startTunnel(options:nil) path
+    contracts:
+      - WidgetVPNSnapshot.read() never crashes — App-Group-unreachable
+        falls back to a disconnected snapshot.
+      - ToggleVPNIntent connects with startTunnel(options: nil); the
+        PacketTunnel extension falls back to the App-Group-persisted
+        config, so no backend round-trip / app launch on the warm path.
+      - The intent writes the requested state to the App Group
+        optimistically (instant UI), then ExtensionProvider confirms or
+        corrects it on the real tunnel outcome — see ADR-008.
+      - No installed VPN profile → ToggleVPNIntent throws (can't create
+        a profile head-less — needs the one-time iOS permission prompt).
 
   - id: ios-platform-interface
     layer: ios
