@@ -74,7 +74,7 @@ prod:
   chameleon-repo:
     branch: claude/naughty-golick-e7f6a5
     pushed-to-origin: true
-    head: 8112e4d                                  # launch-05 docs; App-Store-round-2 doc commit follows next
+    head: 97e033c                                  # App Store round-2 docs; this state.yaml fix follows next
     unpushed-commits: 0                           # update on every push
 
   app-store:

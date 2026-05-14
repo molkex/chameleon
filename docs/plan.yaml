@@ -593,6 +593,21 @@ phases:
       third action instead.
     estimated-effort: 0.5 day
 
+  - id: launch-05b-switch-server-intent
+    title: Switch-server Shortcuts / AppIntent
+    status: planned
+    layer: ios
+    depends-on: launch-05-shortcuts-appintents
+    rationale: |
+      The deferred third Shortcuts verb — "connect to server X". Split
+      out of launch-05 because `selectServer` lives on the @MainActor
+      @Observable AppState (chain resolution, cascade state, a live
+      CommandClient); a headless AppIntent has no AppState instance, so
+      driving it cleanly needs either an AppState-free server-selection
+      path or on-device verification of one. A half-working switch is
+      worse than none (same reasoning as the launch-04 -> 04b split).
+    estimated-effort: 0.5-1 day
+
   - id: launch-06-auto-connect-untrusted-wifi
     title: Auto-connect via iOS Connect-On-Demand
     status: done
