@@ -66,8 +66,8 @@ known-issues:
       which can't route to TG media CDN 91.105.192.0/22. Backend 60.4
       adds geoip-telegram route rule pinning TG traffic at _telegram_route
       (DE-capable leg). Awaiting field verification.
-    next-action: verify backend 60.4 in field
-    expected-fix: phase-1.f-telegram-route (backend 60.4)
+    status-update: RESOLVED 2026-05-14 — backend 60.5, field log shows 118 TG CDN conns via de-via-msk
+    next-action: none
 
   - id: throttle-cycle-90s
     severity: major
@@ -78,9 +78,8 @@ known-issues:
       because the small re-probe passes. Build 63 adds penalty-aware
       fallback (Phase 1.D) — currently-selected outbound is penalised
       60s and a non-penalised peer is pinned via selectOutbound.
-    next-action: verify build 63 in field
-    workaround: none
-    expected-fix: phase-1.d-penalty-score (build 63)
+    status-update: MITIGATED 2026-05-14 — build 64 penalty fallback verified (penalise+selectOutbound+revert). Throttle still occurs ~every 2min but switch is instant. Full fix = phase-1.e or phase-1-smart-group.
+    next-action: none
 
   - id: ios-extension-cache
     severity: minor

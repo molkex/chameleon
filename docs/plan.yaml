@@ -270,7 +270,7 @@ phases:
     tests:
       - "OutboundPenaltyStoreTests (9 cases): penalty/expiry/no-shorten"
       - "OutboundGroupTracker tested only via on-device install — needs Libbox"
-    field-verified: false                    # awaiting user test
+    field-verified: true                     # log 2026-05-14 12:54+12:56: penalise+selectOutbound+revert all fired
     follow-up:
       - phase-1-smart-group   # validate cheap fix first (this), then escalate
 
@@ -302,7 +302,7 @@ phases:
         a missing group would fail sing-box config parse).
     outcome:
       config-marker: 60.5-telegram-route-fix
-      field-verified: false                  # awaiting user test
+      field-verified: true                   # log 2026-05-14: 118 TG CDN conns via de-via-msk, _telegram_route 355-400ms
     related-incidents:
       - 2026-05-14-nl-timeweb-telegram-cdn-unreachable
       - 2026-05-14-geoip-telegram-404-broke-connect
