@@ -9,7 +9,7 @@ builds:
     version: "1.0.26"
     date: 2026-05-14
     track: testflight-internal
-    asc-build-id: pending
+    asc-build-id: 44578388-c829-49b9-8527-e10d077223b6
     phases: [launch-03-crash-reporting]
     archive-path: /tmp/MadFrogVPN-build65.xcarchive
     field-verified: false
