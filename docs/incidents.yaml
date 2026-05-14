@@ -140,15 +140,24 @@ incidents:
       app at the subscription screen) instead of surfacing
       "onboarding.anon_failed". build 74 archived + uploaded to ASC
       (build id e9a91d4d-fdc7-46d2-adf5-77c9a45b9008), VALID.
-      Replied to App Review on the live (un-canceled) reviewSubmission
-      82ab2364 thread explaining the fix, then attached build 74 and
-      resubmitted v1.0.26.
-    status: mitigated   # build 74 uploaded + resubmitted; awaiting App Review verdict
+      Resubmit sequence (order matters — see lessons): (1) replied to
+      App Review on the 82ab2364 Resolution Center thread explaining
+      the fix — the reply is preserved in the message history; (2) the
+      ASC API would not let the appStoreVersion join a new
+      reviewSubmission while 82ab2364 still held it (STATE_ERROR.ITEM_
+      PART_OF_ANOTHER_SUBMISSION) and the rejected reviewSubmissionItem
+      could not be DELETEd ("Item was already submitted"), so 82ab2364
+      had to be canceled to free the version; (3) attached build 74 to
+      v1.0.26, created reviewSubmission 0280c9a8-da5c-40e6-bfd3-
+      52ccb683456d + its reviewSubmissionItem, submitted →
+      WAITING_FOR_REVIEW.
+    status: mitigated   # build 74 uploaded + resubmitted (0280c9a8 WAITING_FOR_REVIEW); awaiting App Review verdict
     lessons:
       - "Keep error handling SYMMETRIC across sign-in paths. signInWithApple and signInAnonymous both call fetchAndSaveConfig() → /config; both must treat a 403 (no active subscription) the same way — route to the paywall, never a hard error."
       - "Backend asymmetry has client consequences: `AppleSignIn` extends expired trials, `Register` does not. A device_id re-bound to an Apple account can therefore come back from `Register` with an expired sub — the guest path must tolerate that."
       - "App Review reuses the same device across rounds. State the previous round left on the backend (re-bound device_id, consumed trial) is part of the next round's test conditions — repro with a device_id that has history, not just a fresh one."
       - "Closing one App Review flag often surfaces the next. Budget for it — don't assume a single resubmit after a fix is the last one."
+      - "Resubmit order: REPLY on the rejected submission's thread FIRST (the message persists in history), THEN cancel it. A rejected reviewSubmission still 'owns' the appStoreVersion — the version cannot be added to a new reviewSubmission, and the rejected reviewSubmissionItem cannot be DELETEd ('Item was already submitted'). Canceling the old submission is the only way to free the version. Full sequence: reply -> cancel -> attach build -> new reviewSubmission + item -> submit."
 
   - id: 2026-05-14-widget-toggle-no-visual-update
     date: 2026-05-14

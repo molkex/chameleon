@@ -30,8 +30,11 @@ builds:
       like `signInWithApple`: sets subscriptionExpire = nil and lands
       the user in the app at the subscription screen. iOS-only, libbox
       unchanged from build 60. project.yml CURRENT_PROJECT_VERSION
-      73→74. Attached to v1.0.26 and resubmitted; replied to App Review
-      on the live (un-canceled) reviewSubmission 82ab2364 thread first.
+      73→74. Resubmit: replied to App Review on the 82ab2364 thread
+      first, then canceled 82ab2364 (it still held the appStoreVersion
+      — couldn't add the version to a new submission otherwise),
+      attached build 74, created reviewSubmission 0280c9a8-da5c-40e6-
+      bfd3-52ccb683456d and submitted → WAITING_FOR_REVIEW.
 
   - number: 73
     version: "1.0.26"

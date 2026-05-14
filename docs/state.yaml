@@ -79,27 +79,28 @@ prod:
   chameleon-repo:
     branch: claude/naughty-golick-e7f6a5
     pushed-to-origin: true
-    head: 97e033c                                  # App Store round-2 docs; this state.yaml fix follows next
+    head: 43d0d04                                  # App Store round-3 docs; the round-4 resubmit docs commit follows next
     unpushed-commits: 0                           # update on every push
 
   app-store:
     version: "1.0.26"
-    state: REJECTED                                # round 3: 82ab2364 rejected on a NEW 2.1a (guest sign-in); build 74 fix uploaded, reply sent + resubmit in progress
-    submission-id: 82ab2364-cede-4217-b548-d94ea4f89346   # round-3 rejected submission — NOT canceled; replied on its Resolution Center thread. New submission for build 74 pending.
-    attached-build: 72                             # → 74 once the new reviewSubmission is created
-    submitted: 2026-05-14
-    # 2026-05-15 — round 3 verdict on reviewSubmission 82ab2364:
-    # SIWA 2.1a was NOT raised (build-72 fix held) and 2.3.12 was NOT
-    # raised (the App Review Notes approach worked). A NEW Guideline
-    # 2.1(a) issue was raised instead: "Continue as guest" showed an
-    # error message. Root cause = asymmetric error handling between
-    # signInWithApple (caught /config 403 → paywall) and signInAnonymous
-    # (blunt catch → hard error), exposed when a device_id had been
-    # re-bound to an Apple account whose trial expired. Fixed in build
-    # 74 (commit 63e8918). Replied to App Review on the live (un-
-    # canceled) 82ab2364 thread, then attaching build 74 + creating a
-    # new reviewSubmission. See incident 2026-05-15-app-review-guest-
-    # signin-error.
+    state: WAITING_FOR_REVIEW
+    submission-id: 0280c9a8-da5c-40e6-bfd3-52ccb683456d   # build 74 resubmit (round 4) — submitted 2026-05-15
+    attached-build: 74
+    submitted: 2026-05-15
+    # 2026-05-15 — round 4: build 74 resubmitted (reviewSubmission
+    # 0280c9a8). Round-3 verdict on 82ab2364 was: SIWA 2.1a NOT raised
+    # (build-72 fix held), 2.3.12 NOT raised (App Review Notes approach
+    # worked) — but a NEW Guideline 2.1(a) issue: "Continue as guest"
+    # showed an error message. Root cause = asymmetric error handling
+    # between signInWithApple (caught /config 403 → paywall) and
+    # signInAnonymous (blunt catch → hard error), exposed when a
+    # device_id had been re-bound to an Apple account whose trial
+    # expired. Fixed in build 74 (commit 63e8918). Replied to App
+    # Review on the 82ab2364 thread FIRST (reply preserved in the
+    # message history), THEN canceled 82ab2364 to free the version,
+    # attached build 74, created reviewSubmission 0280c9a8 and
+    # submitted. See incident 2026-05-15-app-review-guest-signin-error.
     # 2026-05-14 — round 2: SIWA (2.1a) fix in build 72 PASSED App
     # Review (tested iPhone 17 Pro Max + iPad Air M3) — the week-long
     # blocker is closed. build 72 was re-rejected on 2.3.12 ALONE: the
@@ -114,7 +115,8 @@ prod:
     # Submission history: build 60 (1481e218) canceled -> build 71
     # (48eecb25, REJECTED 2.1a) canceled -> build 72 (55f7cc73, 2.1a
     # PASSED / REJECTED 2.3.12) canceled -> build 72 (82ab2364, REJECTED
-    # 2.1a guest sign-in) -> build 74 (new submission, pending).
+    # 2.1a guest sign-in; replied, then canceled) -> build 74
+    # (0280c9a8, WAITING_FOR_REVIEW, current).
 
 known-issues:
   - id: telegram-media-slow
