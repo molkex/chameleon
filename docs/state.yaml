@@ -65,15 +65,19 @@ prod:
   chameleon-repo:
     branch: claude/naughty-golick-e7f6a5
     pushed-to-origin: true
-    head: 3d874e7                                  # launch-04b build 71 widget-polish commit follows next
+    head: 996b23d                                  # launch-04b build 71; app-store build-swap commit follows next
     unpushed-commits: 0                           # update on every push
 
   app-store:
     version: "1.0.26"
     state: WAITING_FOR_REVIEW
-    submission-id: 1481e218-7a74-4fa7-b434-ac5bf1d5dec1
-    attached-build: 60
-    submitted: 2026-05-13
+    submission-id: 48eecb25-44d3-410f-b266-13c6396020ce
+    attached-build: 71                             # was 60 — swapped 2026-05-14
+    submitted: 2026-05-14
+    # 2026-05-14 — the build-60 reviewSubmission (1481e218-…) was
+    # canceled and re-created against build 71 so the App Store gets
+    # the widgets (launch-04 + 04b) and every fix in builds 61-71,
+    # not the 2-day-stale build 60. Lost queue position; worth it.
 
 known-issues:
   - id: telegram-media-slow
