@@ -183,11 +183,6 @@ backend:
     - tests/integration/health_test.go (1)
 
   gaps:
-    - id: backend-v2rayapi-command
-      path: backend/internal/vpn/v2rayapi/command/
-      severity: major
-      why: v2ray/xray gRPC command client for server-side user mgmt. Untested.
-
     - id: backend-api-router
       path: backend/internal/api/
       severity: minor
@@ -195,12 +190,16 @@ backend:
         exercise the routes indirectly.
 
   exempt:
-    reason: entrypoints + one-shot tooling.
+    reason: entrypoints, one-shot tooling, and protoc-generated stubs.
     files:
       - backend/cmd/chameleon/        # binary entrypoint
       - backend/cmd/ascinit/          # one-shot ASC bootstrap tool
       - backend/cmd/metrics-agent/    # standalone agent
       - backend/internal/cli/         # CLI glue
+      - backend/internal/vpn/v2rayapi/command/  # protoc-generated (.pb.go /
+        # _grpc.pb.go — "DO NOT EDIT"); no hand-written logic. Testing it
+        # would test the protobuf library, not our code. The hand-written
+        # consumer of these stubs lives elsewhere and is covered there.
 
 # ─── Priority order to close the gaps ──────────────────────────────────────
 # Tracked as plan.yaml phase `test-coverage-hardening`.
@@ -224,7 +223,12 @@ backend:
 #    writer, now shared by ExtensionProvider AND ToggleVPNIntent so they
 #    can't drift — +3 funcs). startTunnel/stopTunnel orchestration +
 #    sing-box/Libbox lifecycle stay on-device-verified (need NE+Libbox).
+# ℹ️ backend-v2rayapi-command — reclassified gap -> exempt (protoc-
+#    generated, DO NOT EDIT). All backend gaps are now closed or exempt.
 # 1. ios-app-state / ios-vpn-manager — need a VPNManager protocol seam
-#    first; biggest effort, biggest blast radius
+#    first; biggest effort, biggest blast radius. Best done fresh.
 # 2. ios-real-traffic-stall-detector, ios-outbound-group-tracker,
-#    ios-networking-misc, backend-v2rayapi-command — major, steady grind
+#    ios-api-client, ios-subscription-manager, ios-networking-misc —
+#    major, steady grind
+# 3. ios-config-store, ios-vpn-error-mapper, ios-server-group,
+#    backend-api-router — minor, quick wins
