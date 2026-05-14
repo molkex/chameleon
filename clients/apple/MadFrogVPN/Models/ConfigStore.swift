@@ -6,8 +6,13 @@ import Libbox
 class ConfigStore {
     private let sharedDefaults: UserDefaults?
 
-    init() {
-        let suite = UserDefaults(suiteName: AppConstants.appGroupID)
+    /// `defaults` is injectable purely so unit tests can pass an isolated
+    /// `UserDefaults(suiteName:)` instead of touching the real App Group
+    /// container. Production call sites pass nothing — the default argument
+    /// reproduces the original `UserDefaults(suiteName: appGroupID)` line
+    /// verbatim, so shipping behaviour is unchanged.
+    init(defaults: UserDefaults? = UserDefaults(suiteName: AppConstants.appGroupID)) {
+        let suite = defaults
         self.sharedDefaults = suite
         if suite == nil {
             // App Group not configured in entitlements — every read returns

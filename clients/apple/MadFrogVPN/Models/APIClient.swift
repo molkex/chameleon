@@ -167,10 +167,7 @@ class APIClient {
         }
 
         let method = request.httpMethod ?? "GET"
-        let path: String = {
-            if let q = url.query, !q.isEmpty { return "\(url.path)?\(q)" }
-            return url.path.isEmpty ? "/" : url.path
-        }()
+        let path = APIResponseLogic.requestPath(path: url.path, query: url.query)
 
         // Build-36: idempotency key for mutating methods. The same key flows
         // to every hedged leg (primary, direct-IP, http:80) via the shared
@@ -178,7 +175,10 @@ class APIClient {
         // arrivals from the race into one logical effect.
         var augmentedRequest = request
         var idempotencyKey: String?
-        if method != "GET" && method != "HEAD" && request.value(forHTTPHeaderField: "Idempotency-Key") == nil {
+        if APIResponseLogic.shouldAttachIdempotencyKey(
+            method: method,
+            existingKey: request.value(forHTTPHeaderField: "Idempotency-Key")
+        ) {
             let key = UUID().uuidString
             augmentedRequest.setValue(key, forHTTPHeaderField: "Idempotency-Key")
             idempotencyKey = key
@@ -201,7 +201,7 @@ class APIClient {
                 do {
                     let (data, response) = try await session.data(for: augmentedRequest)
                     let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
-                    if let http = response as? HTTPURLResponse, http.statusCode >= 500 {
+                    if let http = response as? HTTPURLResponse, APIResponseLogic.legShouldBeDiscarded(status: http.statusCode) {
                         AppLogger.network.info("race.primary.done rejected status=\(http.statusCode, privacy: .public) elapsed=\(ms, privacy: .public)ms")
                         return nil
                     }
@@ -222,9 +222,7 @@ class APIClient {
             // users skip the DE legs entirely. Primary Cloudflare leg + NL +
             // SPB relay still race so a working path keeps working.
             let isRURegion = Locale.current.region?.identifier == "RU"
-            let raceIPs = isRURegion
-                ? AppConfig.directBackendIPs.filter { $0 != "162.19.242.30" }
-                : AppConfig.directBackendIPs
+            let raceIPs = APIResponseLogic.raceIPs(allIPs: AppConfig.directBackendIPs, isRURegion: isRURegion)
             if isRURegion {
                 AppLogger.network.info("race.region ru=true skipped=DE")
             }
@@ -236,7 +234,7 @@ class APIClient {
             for (i, ip) in raceIPs.enumerated() {
                 let legIndex = 1 + i
                 group.addTask {
-                    let staggerMs = legIndex * 250
+                    let staggerMs = APIResponseLogic.staggerMilliseconds(legIndex: legIndex)
                     try? await Task.sleep(for: .milliseconds(staggerMs))
                     if Task.isCancelled { return nil }
                     AppLogger.network.info("race.direct.start ip=\(ip, privacy: .public) delay=\(staggerMs, privacy: .public)ms elapsed=\(Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000, privacy: .public)ms")
@@ -248,7 +246,7 @@ class APIClient {
                             timeout: 6
                         )
                         let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
-                        if meta.status >= 500 {
+                        if APIResponseLogic.legShouldBeDiscarded(status: meta.status) {
                             AppLogger.network.info("race.direct.done ip=\(ip, privacy: .public) rejected status=\(meta.status, privacy: .public) elapsed=\(ms, privacy: .public)ms")
                             return nil
                         }
@@ -277,13 +275,13 @@ class APIClient {
             // parallel above; an unauthenticated leg here just adds another
             // chance for the response to come back fast.
             let isAuthenticated = request.value(forHTTPHeaderField: "Authorization") != nil
-            if !isAuthenticated {
+            if APIResponseLogic.shouldRunHTTPFallback(isAuthenticated: isAuthenticated) {
             // HTTP legs continue the hedge ladder after direct legs.
-            let httpStartIndex = 1 + raceIPs.count
+            let httpStartIndex = APIResponseLogic.httpLegStartIndex(raceIPCount: raceIPs.count)
             for (i, ip) in raceIPs.enumerated() {
                 let legIndex = httpStartIndex + i
                 group.addTask { [fallbackSession] in
-                    let staggerMs = legIndex * 250
+                    let staggerMs = APIResponseLogic.staggerMilliseconds(legIndex: legIndex)
                     try? await Task.sleep(for: .milliseconds(staggerMs))
                     if Task.isCancelled { return nil }
                     AppLogger.network.info("race.http.start ip=\(ip, privacy: .public) delay=\(staggerMs, privacy: .public)ms elapsed=\(Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000, privacy: .public)ms")
@@ -300,7 +298,7 @@ class APIClient {
                         let (data, response) = try await fallbackSession.data(for: httpReq)
                         let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
                         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-                        if status >= 500 {
+                        if APIResponseLogic.legShouldBeDiscarded(status: status) {
                             AppLogger.network.info("race.http.done ip=\(ip, privacy: .public) rejected status=\(status, privacy: .public) elapsed=\(ms, privacy: .public)ms")
                             return nil
                         }
@@ -354,9 +352,10 @@ class APIClient {
             guard let http = response as? HTTPURLResponse else {
                 throw APIError.networkError("No response")
             }
-            if http.statusCode == 401 { throw APIError.unauthorized }
-            guard http.statusCode == 200 || http.statusCode == 201 else {
-                throw APIError.serverError(http.statusCode)
+            switch APIResponseLogic.classify(status: http.statusCode, successCodes: [200, 201]) {
+            case .ok: break
+            case .unauthorized: throw APIError.unauthorized
+            case .serverError(let c), .special(let c): throw APIError.serverError(c)
             }
             return try JSONDecoder().decode(AuthResult.self, from: data)
         } catch let error as APIError {
@@ -386,15 +385,16 @@ class APIClient {
                 throw APIError.networkError("No response")
             }
 
-            switch http.statusCode {
-            case 200:
+            switch APIResponseLogic.classifyActivateCode(status: http.statusCode) {
+            case .ok:
                 let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
                 guard let username = json["username"] as? String, !username.isEmpty else {
                     throw APIError.noConfig
                 }
                 return username
-            case 404: throw APIError.invalidCode
-            default: throw APIError.serverError(http.statusCode)
+            case .special(404): throw APIError.invalidCode
+            case .unauthorized: throw APIError.unauthorized
+            case .serverError(let c), .special(let c): throw APIError.serverError(c)
             }
         } catch let error as APIError {
             throw error
@@ -429,15 +429,16 @@ class APIClient {
             guard let http = response as? HTTPURLResponse else {
                 throw APIError.networkError("No response")
             }
-            if http.statusCode == 401 { throw APIError.unauthorized }
-            guard http.statusCode == 200 else {
-                throw APIError.serverError(http.statusCode)
+            switch APIResponseLogic.classify(status: http.statusCode) {
+            case .ok: break
+            case .unauthorized: throw APIError.unauthorized
+            case .serverError(let c), .special(let c): throw APIError.serverError(c)
             }
             guard let config = String(data: data, encoding: .utf8), !config.isEmpty else {
                 throw APIError.noConfig
             }
             // Reject error responses disguised as 200 OK
-            if config.contains("\"error\"") && !config.contains("\"outbounds\"") {
+            if APIResponseLogic.configBodyIsDisguisedError(config) {
                 throw APIError.serverError(404)
             }
             let expire = Int(http.value(forHTTPHeaderField: "X-Expire") ?? "0") ?? 0
@@ -482,9 +483,10 @@ class APIClient {
             guard let http = response as? HTTPURLResponse else {
                 throw APIError.networkError("No response")
             }
-            if http.statusCode == 401 { throw APIError.unauthorized }
-            guard http.statusCode == 200 else {
-                throw APIError.serverError(http.statusCode)
+            switch APIResponseLogic.classify(status: http.statusCode) {
+            case .ok: break
+            case .unauthorized: throw APIError.unauthorized
+            case .serverError(let c), .special(let c): throw APIError.serverError(c)
             }
             return try JSONDecoder().decode(AuthResult.self, from: data)
         } catch let error as APIError {
@@ -524,9 +526,10 @@ class APIClient {
             guard let http = response as? HTTPURLResponse else {
                 throw APIError.networkError("No response")
             }
-            if http.statusCode == 401 { throw APIError.unauthorized }
-            guard http.statusCode == 200 else {
-                throw APIError.serverError(http.statusCode)
+            switch APIResponseLogic.classify(status: http.statusCode) {
+            case .ok: break
+            case .unauthorized: throw APIError.unauthorized
+            case .serverError(let c), .special(let c): throw APIError.serverError(c)
             }
             return try JSONDecoder().decode(AuthResult.self, from: data)
         } catch let error as APIError {
@@ -558,10 +561,10 @@ class APIClient {
         guard let http = response as? HTTPURLResponse else {
             throw APIError.networkError("No response")
         }
-        switch http.statusCode {
-        case 204, 200: return
-        case 429: throw APIError.serverError(429)
-        default:   throw APIError.serverError(http.statusCode)
+        switch APIResponseLogic.classifyMagicLinkRequest(status: http.statusCode) {
+        case .ok: return
+        case .special(let c), .serverError(let c): throw APIError.serverError(c)
+        case .unauthorized: throw APIError.unauthorized
         }
     }
 
@@ -590,9 +593,10 @@ class APIClient {
             guard let http = response as? HTTPURLResponse else {
                 throw APIError.networkError("No response")
             }
-            if http.statusCode == 401 { throw APIError.unauthorized }
-            guard http.statusCode == 200 else {
-                throw APIError.serverError(http.statusCode)
+            switch APIResponseLogic.classify(status: http.statusCode) {
+            case .ok: break
+            case .unauthorized: throw APIError.unauthorized
+            case .serverError(let c), .special(let c): throw APIError.serverError(c)
             }
             return try JSONDecoder().decode(AuthResult.self, from: data)
         } catch let error as APIError {
@@ -672,9 +676,10 @@ class APIClient {
         guard let http = response as? HTTPURLResponse else {
             throw APIError.networkError("No response")
         }
-        if http.statusCode == 401 { throw APIError.unauthorized }
-        guard http.statusCode == 204 || http.statusCode == 200 else {
-            throw APIError.serverError(http.statusCode)
+        switch APIResponseLogic.classify(status: http.statusCode, successCodes: [200, 204]) {
+        case .ok: break
+        case .unauthorized: throw APIError.unauthorized
+        case .serverError(let c), .special(let c): throw APIError.serverError(c)
         }
     }
 
@@ -777,9 +782,10 @@ class APIClient {
         guard let http = response as? HTTPURLResponse else {
             throw APIError.networkError("No response")
         }
-        if http.statusCode == 401 { throw APIError.unauthorized }
-        guard http.statusCode == 200 else {
-            throw APIError.serverError(http.statusCode)
+        switch APIResponseLogic.classify(status: http.statusCode) {
+        case .ok: break
+        case .unauthorized: throw APIError.unauthorized
+        case .serverError(let c), .special(let c): throw APIError.serverError(c)
         }
         return try JSONDecoder().decode(PaymentInitiateResult.self, from: data)
     }
@@ -797,9 +803,10 @@ class APIClient {
         guard let http = response as? HTTPURLResponse else {
             throw APIError.networkError("No response")
         }
-        if http.statusCode == 401 { throw APIError.unauthorized }
-        guard http.statusCode == 200 else {
-            throw APIError.serverError(http.statusCode)
+        switch APIResponseLogic.classify(status: http.statusCode) {
+        case .ok: break
+        case .unauthorized: throw APIError.unauthorized
+        case .serverError(let c), .special(let c): throw APIError.serverError(c)
         }
         return try JSONDecoder().decode(PaymentStatus.self, from: data)
     }
@@ -824,9 +831,10 @@ class APIClient {
             guard let http = response as? HTTPURLResponse else {
                 throw APIError.networkError("No response")
             }
-            if http.statusCode == 401 { throw APIError.unauthorized }
-            guard http.statusCode == 200 else {
-                throw APIError.serverError(http.statusCode)
+            switch APIResponseLogic.classify(status: http.statusCode) {
+            case .ok: break
+            case .unauthorized: throw APIError.unauthorized
+            case .serverError(let c), .special(let c): throw APIError.serverError(c)
             }
             return try JSONDecoder().decode(SubscriptionVerification.self, from: data)
         } catch let error as APIError {

@@ -18,6 +18,7 @@
 		0D1C6850D02A8D8BF86B2314 /* NetworkingDecisionLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82631CF494BD3C14A05BDF96 /* NetworkingDecisionLogic.swift */; };
 		0D6FD98F17D51EA831F22DB9 /* VPNErrorMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = E683952FD2B39BA18604AB73 /* VPNErrorMapper.swift */; };
 		0DDB5DC948A26D0AFA8D43A7 /* VPNControlIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DAE6BD983F80C55AB4D1F5F /* VPNControlIntents.swift */; };
+		0EA028C8AC2D577A26D84B5C /* SubscriptionEntitlementLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = C713313D13CC0DF4A86B4677 /* SubscriptionEntitlementLogic.swift */; };
 		0EBA362331D54BBEFC487615 /* PacketTunnelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C3AA0F75FD43492C173B8C4 /* PacketTunnelProvider.swift */; };
 		0FC9AE84FD306E56C652B4A5 /* Products.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 44EE43ED9CEC25421113C6A9 /* Products.storekit */; };
 		106123C14FB6D8563F89EEF7 /* MainViewNeon.swift in Sources */ = {isa = PBXBuildFile; fileRef = F64AFDF15C8A5F646A1C431B /* MainViewNeon.swift */; };
@@ -27,6 +28,7 @@
 		13082BC2A19418CDE5ED74CC /* PathPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F0B078C63922A356A8633EF /* PathPicker.swift */; };
 		136B8B8F928829558DB588E7 /* ApplicationServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 84CA81E1B48C9260C55A6012 /* ApplicationServices.framework */; };
 		1490A46A95F989F91F8E712D /* TunnelConfigSourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E285C5FF4B2D647D4C31750 /* TunnelConfigSourceTests.swift */; };
+		1546958B758FB22F25A5DCDA /* ServerGroupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A172E7C8041F0A66F68C2FB7 /* ServerGroupTests.swift */; };
 		15F0055BE26CD23F6D87A21C /* OutboundGroupLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 825992FB65BB9F3F4BAB56C1 /* OutboundGroupLogic.swift */; };
 		17B4D7844403A6DDB8F9CE93 /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9165FAC1D21DF4F01B68654F /* PaywallView.swift */; };
 		188DDEDF138FC6DCF2243C47 /* CoreLocation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 872DE7900BBC5982BA0688E8 /* CoreLocation.framework */; };
@@ -48,6 +50,7 @@
 		24AF754CC3500A6D8402BA19 /* ApplicationServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 84CA81E1B48C9260C55A6012 /* ApplicationServices.framework */; };
 		257EBD7478C60BBF3249C4D4 /* MadFrogControlWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 162DBA8410559B43321EB197 /* MadFrogControlWidget.swift */; };
 		261212D46EC86F9A53C2DA59 /* VPNStatusLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = C864885FEBAC617DF6024FB8 /* VPNStatusLogic.swift */; };
+		267C5E8CAA7B0DFCFAADF7CF /* APIResponseLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3B26C8C22AECCAF32FC3C92 /* APIResponseLogic.swift */; };
 		2694D50EBC372C14A9F1FA9A /* CrashDiagnosticReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E79E78931D813F33B5C86772 /* CrashDiagnosticReporter.swift */; };
 		27118EF86F80BE16990516DF /* StringUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = D231623164FE9FECAD770789 /* StringUtils.swift */; };
 		29395303030F6B15D4E0F443 /* ServerTagShapeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA66DA58C2FEC081307F44D9 /* ServerTagShapeTests.swift */; };
@@ -77,6 +80,7 @@
 		3AF0A8290A7215D2EF09A649 /* RoutingMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7486DEC72FBB5DD5338F158 /* RoutingMode.swift */; };
 		3BF98D7ADE7ABDDECE5AE129 /* PaywallRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFB204D1606673779D65246 /* PaywallRouter.swift */; };
 		3E4CEA517362B9201ED91C6E /* ExtensionProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12590681176DC24ED028641E /* ExtensionProvider.swift */; };
+		3F35C66260DDA3020AF8BC67 /* APIResponseLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3B26C8C22AECCAF32FC3C92 /* APIResponseLogic.swift */; };
 		3F7F812CF4EBD00E9969B70B /* libresolv.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = C4C20C0AE163F2C1F4C77012 /* libresolv.tbd */; };
 		40C58E68B8DA8FBA4BA6A098 /* DisconnectNotifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50BEFF992FDC4FB3E393F2B7 /* DisconnectNotifier.swift */; };
 		428F9F8E315586B54AD70049 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6378A272B7EFCCF1FBCDFBFE /* KeychainHelper.swift */; };
@@ -112,6 +116,7 @@
 		643AE758B52A7183919C40F7 /* OutboundGroupLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 825992FB65BB9F3F4BAB56C1 /* OutboundGroupLogic.swift */; };
 		65DA59A2CDC30F2588EF80ED /* StatusWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7E6B6FE7A966818AE262F20 /* StatusWidget.swift */; };
 		6796802AABB7434354F3280B /* LeafRankingStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD40F85317EC15AD9DC28123 /* LeafRankingStoreTests.swift */; };
+		6821ABFC3182E789FFD0E622 /* VPNErrorMapperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DD3DD0BEEC00D38AAAC99B2 /* VPNErrorMapperTests.swift */; };
 		69AEB563FDC45078FE981CB5 /* CrashDiagnosticReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E79E78931D813F33B5C86772 /* CrashDiagnosticReporter.swift */; };
 		6A8DE20C7A5B339770CC4E77 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0CB7FDF9EA71B70EF8E2BB5 /* MainView.swift */; };
 		6B44D4AE2C892A6DB3116CF4 /* L10n.swift in Sources */ = {isa = PBXBuildFile; fileRef = F48680996CDA6DA1906F2747 /* L10n.swift */; };
@@ -148,6 +153,7 @@
 		818BF0849C7EDBF7651897E8 /* ProxyChainResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D718F38ECFF87F89796E9233 /* ProxyChainResolverTests.swift */; };
 		824854237AB1EDCDFA58B97E /* GoogleAuthCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85938B035247DB5D54633361 /* GoogleAuthCoordinator.swift */; };
 		8333F0BE2A23FE058C73B841 /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCCF7452218980C7681CEDA6 /* Haptics.swift */; };
+		837342AB79028EE006AA9D94 /* APIResponseLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65A4034421AECCC7D046D6AC /* APIResponseLogicTests.swift */; };
 		83A8F949616EDA373081F7BC /* RoutingMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7486DEC72FBB5DD5338F158 /* RoutingMode.swift */; };
 		83C2376AD12AE7EA471F5DDD /* VPNManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04FC8CF248986C535F825CAB /* VPNManager.swift */; };
 		84989A41436A64D9E3293095 /* PlatformMainApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 157CE480F9510B6FCF6A5C00 /* PlatformMainApp.swift */; };
@@ -174,6 +180,7 @@
 		942A96B073B8A5480C18FD7B /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C0143BDF66872F26920B09B /* Theme.swift */; };
 		95A885652F1BDCEB59C6F071 /* LegRaceProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F3382ABA99A753C80BA61E9 /* LegRaceProbe.swift */; };
 		96DEF159E7D3E0FE7B610E47 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31BA223EF19A5BDE5145B520 /* Logger.swift */; };
+		97349E09F72AC570AF8FF336 /* SubscriptionEntitlementLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AC354ADCC4B909FC0EEB79B /* SubscriptionEntitlementLogicTests.swift */; };
 		9795D390116C1BCDC7DABE82 /* UniformTypeIdentifiers.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9E3E0B15FC93A31007046BA1 /* UniformTypeIdentifiers.framework */; };
 		985F11BF81858006CB7E9363 /* CrashDiagnosticReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E79E78931D813F33B5C86772 /* CrashDiagnosticReporter.swift */; };
 		988C3827DE54CCD7D736BEA4 /* DirectConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = D289D2F79D83BFBA207A4C15 /* DirectConnection.swift */; };
@@ -181,6 +188,7 @@
 		9AB874F30E33334B32A64AA5 /* ConfigSanitizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 828C4AEC2AEC8A2EEB92717E /* ConfigSanitizerTests.swift */; };
 		9B6D01AD9F7B235A613C075B /* ConfigSanitizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E043C787773D9E89FA561E25 /* ConfigSanitizer.swift */; };
 		9C4DED194A1F4979B4B81A6E /* TunnelConfigSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 413DC4FEA8485BA34FED76A4 /* TunnelConfigSource.swift */; };
+		9C9C855B36429547201A9D96 /* ConfigStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F73A6CF675A0DE0A5CC0184 /* ConfigStoreTests.swift */; };
 		9DB53C28F97A127499F8AD92 /* NetworkFingerprint.swift in Sources */ = {isa = PBXBuildFile; fileRef = D74E8F46235E55DCBC83A95C /* NetworkFingerprint.swift */; };
 		9DF87570ABBB4BC7145DBC71 /* OutboundGroupTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1F6C7650A9DBA9120681CC2 /* OutboundGroupTracker.swift */; };
 		9FCFD6325D149E8B5D5BF09D /* WidgetVPNSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DF255FC3085B56FF435958B /* WidgetVPNSnapshot.swift */; };
@@ -197,6 +205,7 @@
 		AF2008FBFCD6A201C00555AB /* PlatformViewExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11EBC90E3AED9A381EEA7F2F /* PlatformViewExtensions.swift */; };
 		AF79047229CBAA922C7F9003 /* OutboundPenaltyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3CC9D3B6EA0A7AA5E0F8F2D /* OutboundPenaltyStore.swift */; };
 		B12BD63053EC36D717193BCE /* TrafficHealthMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 850D3937870EEB29F3CD7BD9 /* TrafficHealthMonitorTests.swift */; };
+		B3F3C532B9CC3AB584252E79 /* SubscriptionEntitlementLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = C713313D13CC0DF4A86B4677 /* SubscriptionEntitlementLogic.swift */; };
 		B47890D763FC848171491E96 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 16E41091FB71C918EFBEF6B9 /* Localizable.strings */; };
 		B4BC57638FD8E1DCB4944B0E /* NetworkFingerprint.swift in Sources */ = {isa = PBXBuildFile; fileRef = D74E8F46235E55DCBC83A95C /* NetworkFingerprint.swift */; };
 		B5436C52407C154AA274BB10 /* PlatformViewExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11EBC90E3AED9A381EEA7F2F /* PlatformViewExtensions.swift */; };
@@ -355,6 +364,8 @@
 		04FC8CF248986C535F825CAB /* VPNManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VPNManager.swift; sourceTree = "<group>"; };
 		056A5CFAAD6E085B3A0ACF9A /* RunBlocking.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunBlocking.swift; sourceTree = "<group>"; };
 		08E7733F68F4037C68291994 /* ExtensionPlatformInterface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionPlatformInterface.swift; sourceTree = "<group>"; };
+		0AC354ADCC4B909FC0EEB79B /* SubscriptionEntitlementLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionEntitlementLogicTests.swift; sourceTree = "<group>"; };
+		0DD3DD0BEEC00D38AAAC99B2 /* VPNErrorMapperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VPNErrorMapperTests.swift; sourceTree = "<group>"; };
 		10BD15210071B0020419A583 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		11EBC90E3AED9A381EEA7F2F /* PlatformViewExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformViewExtensions.swift; sourceTree = "<group>"; };
 		12590681176DC24ED028641E /* ExtensionProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionProvider.swift; sourceTree = "<group>"; };
@@ -385,6 +396,7 @@
 		44EE43ED9CEC25421113C6A9 /* Products.storekit */ = {isa = PBXFileReference; path = Products.storekit; sourceTree = "<group>"; };
 		4629A3D97C50D11AEB64CE33 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
 		4B0F8A49025B0790BD2D4EC7 /* SingBoxConfigPatcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SingBoxConfigPatcherTests.swift; sourceTree = "<group>"; };
+		4F73A6CF675A0DE0A5CC0184 /* ConfigStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigStoreTests.swift; sourceTree = "<group>"; };
 		50BEFF992FDC4FB3E393F2B7 /* DisconnectNotifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisconnectNotifier.swift; sourceTree = "<group>"; };
 		52344FF5242831B7B85784C2 /* UserNotifications.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UserNotifications.framework; path = System/Library/Frameworks/UserNotifications.framework; sourceTree = SDKROOT; };
 		52F25CA4945E63F7C3CB0355 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
@@ -395,6 +407,7 @@
 		60E77ADEA1CE787C940AA0BE /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		6378A272B7EFCCF1FBCDFBFE /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
 		63D44CCDFB75CAF34F8A4F3C /* MadFrogVPNMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MadFrogVPNMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		65A4034421AECCC7D046D6AC /* APIResponseLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIResponseLogicTests.swift; sourceTree = "<group>"; };
 		6DF255FC3085B56FF435958B /* WidgetVPNSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetVPNSnapshot.swift; sourceTree = "<group>"; };
 		6E9AFD2A355C211435AA5EB0 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		6EA1C04CBF00045661691673 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
@@ -426,7 +439,9 @@
 		9BFE7E8B5C268A8B4E1F44C8 /* SingBoxConfigPatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SingBoxConfigPatcher.swift; sourceTree = "<group>"; };
 		9DAE6BD983F80C55AB4D1F5F /* VPNControlIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VPNControlIntents.swift; sourceTree = "<group>"; };
 		9E3E0B15FC93A31007046BA1 /* UniformTypeIdentifiers.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UniformTypeIdentifiers.framework; path = System/Library/Frameworks/UniformTypeIdentifiers.framework; sourceTree = SDKROOT; };
+		A172E7C8041F0A66F68C2FB7 /* ServerGroupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerGroupTests.swift; sourceTree = "<group>"; };
 		A277436F03DA5DC7F780FCD5 /* WidgetVPNSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetVPNSnapshotTests.swift; sourceTree = "<group>"; };
+		A3B26C8C22AECCAF32FC3C92 /* APIResponseLogic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIResponseLogic.swift; sourceTree = "<group>"; };
 		A630BB5B9993A8152A622ED3 /* CoreWLAN.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreWLAN.framework; path = System/Library/Frameworks/CoreWLAN.framework; sourceTree = SDKROOT; };
 		AAFB204D1606673779D65246 /* PaywallRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallRouter.swift; sourceTree = "<group>"; };
 		AB7094B60F4AA1E18FDEBCE5 /* LastWorkingLegStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LastWorkingLegStoreTests.swift; sourceTree = "<group>"; };
@@ -443,6 +458,7 @@
 		C2782F0253DCD456F2722BCC /* MadFrogVPNApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MadFrogVPNApp.swift; sourceTree = "<group>"; };
 		C4747B2349F04A8B6F61387F /* MigrationLeafToCountryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigrationLeafToCountryTests.swift; sourceTree = "<group>"; };
 		C4C20C0AE163F2C1F4C77012 /* libresolv.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libresolv.tbd; path = usr/lib/libresolv.tbd; sourceTree = SDKROOT; };
+		C713313D13CC0DF4A86B4677 /* SubscriptionEntitlementLogic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionEntitlementLogic.swift; sourceTree = "<group>"; };
 		C7486DEC72FBB5DD5338F158 /* RoutingMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutingMode.swift; sourceTree = "<group>"; };
 		C864885FEBAC617DF6024FB8 /* VPNStatusLogic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VPNStatusLogic.swift; sourceTree = "<group>"; };
 		CBA31374948F1B482110AB8A /* SystemConfiguration.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SystemConfiguration.framework; path = System/Library/Frameworks/SystemConfiguration.framework; sourceTree = SDKROOT; };
@@ -572,8 +588,10 @@
 		0BA838F6BE69322440DCDB5D /* UnitTests */ = {
 			isa = PBXGroup;
 			children = (
+				65A4034421AECCC7D046D6AC /* APIResponseLogicTests.swift */,
 				D106E43A19472CB42F54A8E8 /* AppStateLogicTests.swift */,
 				828C4AEC2AEC8A2EEB92717E /* ConfigSanitizerTests.swift */,
+				4F73A6CF675A0DE0A5CC0184 /* ConfigStoreTests.swift */,
 				AC5CB710888B42ABEA9DB82D /* CrashDiagnosticReporterTests.swift */,
 				7498310EA5B97752C7DE5569 /* DirectConnectionTests.swift */,
 				309988BC023B66A61A71333A /* DisconnectNotifierTests.swift */,
@@ -590,13 +608,16 @@
 				D718F38ECFF87F89796E9233 /* ProxyChainResolverTests.swift */,
 				DC1617510DE2BFEF206F4E80 /* RealTrafficStallLogicTests.swift */,
 				911405BB4A76493BB81F7FD7 /* RoutingModeTests.swift */,
+				A172E7C8041F0A66F68C2FB7 /* ServerGroupTests.swift */,
 				FA66DA58C2FEC081307F44D9 /* ServerTagShapeTests.swift */,
 				4B0F8A49025B0790BD2D4EC7 /* SingBoxConfigPatcherTests.swift */,
 				9B07C7F761E8467D5C74E4CD /* StringUtilsTests.swift */,
+				0AC354ADCC4B909FC0EEB79B /* SubscriptionEntitlementLogicTests.swift */,
 				850D3937870EEB29F3CD7BD9 /* TrafficHealthMonitorTests.swift */,
 				3E285C5FF4B2D647D4C31750 /* TunnelConfigSourceTests.swift */,
 				EAB2B174E1652DA9F54F1A90 /* TunnelProbeOutcomeTests.swift */,
 				FB855E1269A733A271C6230F /* VPNControlIntentsTests.swift */,
+				0DD3DD0BEEC00D38AAAC99B2 /* VPNErrorMapperTests.swift */,
 				81C6EFCD5398523CD54CD1EC /* VPNManagerLogicTests.swift */,
 				A277436F03DA5DC7F780FCD5 /* WidgetVPNSnapshotTests.swift */,
 			);
@@ -695,6 +716,7 @@
 			isa = PBXGroup;
 			children = (
 				FEBE74F9DD0282A5EA7B00DE /* APIClient.swift */,
+				A3B26C8C22AECCAF32FC3C92 /* APIResponseLogic.swift */,
 				2A2105C436C4E871B1CFB916 /* AppleAuthCoordinator.swift */,
 				6EA1C04CBF00045661691673 /* AppState.swift */,
 				3E4759379DDD3262CA6B47A9 /* CommandClient.swift */,
@@ -706,6 +728,7 @@
 				233EE0ACC559229ABE75CF28 /* PingService.swift */,
 				157CE480F9510B6FCF6A5C00 /* PlatformMainApp.swift */,
 				DF2F273346C080E186A4A490 /* ServerGroup.swift */,
+				C713313D13CC0DF4A86B4677 /* SubscriptionEntitlementLogic.swift */,
 				C254991A86781B863F8BA92C /* SubscriptionManager.swift */,
 				8C0143BDF66872F26920B09B /* Theme.swift */,
 				12B28AD4A0F0B61B1CCA267A /* ThemeManager.swift */,
@@ -1024,6 +1047,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A6F4C7DE3D8BA428F4C7274E /* APIClient.swift in Sources */,
+				3F35C66260DDA3020AF8BC67 /* APIResponseLogic.swift in Sources */,
 				810BCB5D9294C89E73DD3930 /* AccountView.swift in Sources */,
 				B77BC729E2F213EC14220EE7 /* AppState.swift in Sources */,
 				8E14DDF4A3DED8C5DD74F8A3 /* AppleAuthCoordinator.swift in Sources */,
@@ -1069,6 +1093,7 @@
 				5A8A995059761260CFE9F257 /* SettingsView.swift in Sources */,
 				934A48D7A3E16EF72051A39D /* SingBoxConfigPatcher.swift in Sources */,
 				55972B317CA20A3BB89BD209 /* StringUtils.swift in Sources */,
+				0EA028C8AC2D577A26D84B5C /* SubscriptionEntitlementLogic.swift in Sources */,
 				ED2932322BA67C98F3937409 /* SubscriptionManager.swift in Sources */,
 				942A96B073B8A5480C18FD7B /* Theme.swift in Sources */,
 				DE990DCFB1EDE9CF6D509867 /* ThemeManager.swift in Sources */,
@@ -1132,6 +1157,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C4967670CBC9B506176AAA06 /* APIClient.swift in Sources */,
+				267C5E8CAA7B0DFCFAADF7CF /* APIResponseLogic.swift in Sources */,
 				BDF2B0388311B0C69188B3E4 /* AccountView.swift in Sources */,
 				A58383CFF190561236D7F7B7 /* AppState.swift in Sources */,
 				E99FC7119377C8BAED207807 /* AppleAuthCoordinator.swift in Sources */,
@@ -1177,6 +1203,7 @@
 				F7C46ACBB730167749B891B7 /* SettingsView.swift in Sources */,
 				8C50FBC490B8B107D281C129 /* SingBoxConfigPatcher.swift in Sources */,
 				1F68F876A67C5D653E37D340 /* StringUtils.swift in Sources */,
+				B3F3C532B9CC3AB584252E79 /* SubscriptionEntitlementLogic.swift in Sources */,
 				5284A2E0344730B0592F5215 /* SubscriptionManager.swift in Sources */,
 				B988B34E1D31DA0B7F335675 /* Theme.swift in Sources */,
 				BACEC61FEE678594868C78AF /* ThemeManager.swift in Sources */,
@@ -1212,8 +1239,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				837342AB79028EE006AA9D94 /* APIResponseLogicTests.swift in Sources */,
 				43C1529E0ECC29BBF2088EEB /* AppStateLogicTests.swift in Sources */,
 				9AB874F30E33334B32A64AA5 /* ConfigSanitizerTests.swift in Sources */,
+				9C9C855B36429547201A9D96 /* ConfigStoreTests.swift in Sources */,
 				383623A550C0B17C4F54CC20 /* CrashDiagnosticReporterTests.swift in Sources */,
 				2F83A360DA763B1FD07970CD /* DirectConnectionTests.swift in Sources */,
 				C58057A931009CE17264DA4D /* DisconnectNotifierTests.swift in Sources */,
@@ -1230,13 +1259,16 @@
 				818BF0849C7EDBF7651897E8 /* ProxyChainResolverTests.swift in Sources */,
 				4F82996DF2EEC42E134C3167 /* RealTrafficStallLogicTests.swift in Sources */,
 				71544D80CE087259EC1D47FC /* RoutingModeTests.swift in Sources */,
+				1546958B758FB22F25A5DCDA /* ServerGroupTests.swift in Sources */,
 				29395303030F6B15D4E0F443 /* ServerTagShapeTests.swift in Sources */,
 				771D7D152382CD54123F1A34 /* SingBoxConfigPatcherTests.swift in Sources */,
 				88554DBB410CBE11723FF7F3 /* StringUtilsTests.swift in Sources */,
+				97349E09F72AC570AF8FF336 /* SubscriptionEntitlementLogicTests.swift in Sources */,
 				B12BD63053EC36D717193BCE /* TrafficHealthMonitorTests.swift in Sources */,
 				1490A46A95F989F91F8E712D /* TunnelConfigSourceTests.swift in Sources */,
 				0260B8435922643E95471DAF /* TunnelProbeOutcomeTests.swift in Sources */,
 				5743D3F671377954BC1018CD /* VPNControlIntentsTests.swift in Sources */,
+				6821ABFC3182E789FFD0E622 /* VPNErrorMapperTests.swift in Sources */,
 				A4888BD08B28E6FC143097DB /* VPNManagerLogicTests.swift in Sources */,
 				8FC4856161C029FC93573066 /* WidgetVPNSnapshotTests.swift in Sources */,
 			);

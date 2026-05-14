@@ -80,11 +80,11 @@ final class SubscriptionManager {
             let fetched = try await Product.products(for: Self.allProductIDs)
             let order = Self.allProductIDs
             products = fetched.sorted { lhs, rhs in
-                (order.firstIndex(of: lhs.id) ?? .max) < (order.firstIndex(of: rhs.id) ?? .max)
+                SubscriptionEntitlementLogic.productIsOrderedBefore(lhs.id, rhs.id, order: order)
             }
             AppLogger.app.info("SubscriptionManager: loaded \(fetched.count)/\(Self.allProductIDs.count) products")
-            if fetched.count < Self.allProductIDs.count {
-                let missing = Set(Self.allProductIDs).subtracting(fetched.map(\.id))
+            if !SubscriptionEntitlementLogic.didLoadFullCatalog(expectedCount: Self.allProductIDs.count, fetchedCount: fetched.count) {
+                let missing = SubscriptionEntitlementLogic.missingProductIDs(expected: Self.allProductIDs, fetched: fetched.map(\.id))
                 AppLogger.app.warning("SubscriptionManager: missing products \(missing.joined(separator: ", "))")
             }
         } catch {
@@ -185,21 +185,23 @@ final class SubscriptionManager {
     // MARK: - Internal Helpers
 
     private func syncTransactionToBackend(_ transaction: Transaction, jws: String) async throws {
-        guard Self.allProductIDs.contains(transaction.productID) else { return }
+        guard SubscriptionEntitlementLogic.isOwnProduct(transaction.productID, ownProductIDs: Self.allProductIDs) else { return }
         let verified = try await syncToBackend(jws)
         backendExpiryUnix = verified.subscriptionExpiry
         AppLogger.app.info("SubscriptionManager: backend verified \(verified.productId) expiry=\(verified.subscriptionExpiry) already=\(verified.alreadyApplied)")
     }
 
     private func updatePremiumStatus() async {
+        let now = Date()
         var hasActive = false
         for await result in Transaction.currentEntitlements {
-            guard case .verified(let transaction) = result,
-                  Self.allProductIDs.contains(transaction.productID),
-                  transaction.revocationDate == nil else { continue }
-            if let expiry = transaction.expirationDate {
-                if expiry > Date() { hasActive = true }
-            } else {
+            guard case .verified(let transaction) = result else { continue }
+            if SubscriptionEntitlementLogic.isOwnProduct(transaction.productID, ownProductIDs: Self.allProductIDs),
+               SubscriptionEntitlementLogic.entitlementIsActive(
+                   revocationDate: transaction.revocationDate,
+                   expirationDate: transaction.expirationDate,
+                   now: now
+               ) {
                 hasActive = true
             }
         }
