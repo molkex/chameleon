@@ -278,7 +278,7 @@ phases:
     title: Telegram media routed through TG-capable leg (geoip-telegram rule-set)
     status: done
     layer: backend
-    builds: [60.4]
+    builds: [60.4, 60.5]   # 60.4 had a 404 rule-set URL, 60.5 fixed
     completed: 2026-05-14
     rationale: |
       Field test 2026-05-14: user reported TG media slow. Root cause
@@ -301,10 +301,11 @@ phases:
       - Omitted entirely when no DE leaves exist (route rule pointing at
         a missing group would fail sing-box config parse).
     outcome:
-      config-marker: 60.4-telegram-route
+      config-marker: 60.5-telegram-route-fix
       field-verified: false                  # awaiting user test
     related-incidents:
       - 2026-05-14-nl-timeweb-telegram-cdn-unreachable
+      - 2026-05-14-geoip-telegram-404-broke-connect
     follow-up:
       - phase-1.g-per-server-reachability
 

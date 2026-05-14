@@ -183,6 +183,36 @@ incidents:
       - "When a user says 'X is slow', measure the actual path X takes — don't assume it's our server's bandwidth."
       - "geoip rule-sets (SagerNet maintained) beat hardcoded CIDR lists — Telegram IP ranges drift; the rule-set auto-updates every 168h."
 
+  - id: 2026-05-14-geoip-telegram-404-broke-connect
+    date: 2026-05-14
+    severity: blocker
+    title: Phase 1.F shipped a 404 rule-set URL — sing-box refused to start
+    builds-affected: [60.4]
+    detected-via: user-report
+    symptoms:
+      - "User: 'не подключается'"
+      - "tunnel ERROR: sing-box start failed: initialize rule-set[2]: geoip-telegram: unexpected status: 404 Not Found"
+      - VPN would not start AT ALL — worse than the slow-TG problem it was fixing
+    initial-hypothesis: |
+      none — error message was unambiguous.
+    root-cause: |
+      I assumed SagerNet/sing-geoip publishes a per-service geoip-telegram.srs
+      rule-set, by analogy with the geoip-ru.srs we already use. It does not —
+      sing-geoip ships ONLY country sets. The URL 404'd. sing-box treats a
+      remote rule-set fetch failure as fatal at config init, so the whole
+      tunnel refused to start. I deployed 60.4 without curl-checking the URL.
+    fix: |
+      Build 60.5: switched to MetaCubeX/meta-rules-dat `sing` branch
+      (geo/geoip/telegram.srs) — that repo DOES maintain per-service geoip
+      sets as sing-box .srs binaries. Verified before deploy: HTTP 200,
+      valid SRS\x02 magic, decodes to 12 CIDR blocks incl 91.105.192.0/23.
+    fixed-by:
+      - phase-1.f-telegram-route   # build 60.5
+    lessons:
+      - "ALWAYS curl-check a remote rule-set / asset URL before putting it in a config that ships. A 404 here is a total-outage P0, not a degradation."
+      - "Don't assume two maintainers (SagerNet vs MetaCubeX) have parallel file layouts. sing-geoip = countries only; meta-rules-dat = countries + services."
+      - "sing-box treats remote rule-set fetch failure as FATAL at init — there is no graceful degradation. Budget for that risk in every rule-set add."
+
   # ─── Pre-2026-05-13 incidents (migrated from TROUBLESHOOTING.md) ──────────
   # Keep ids stable when migrating to preserve cross-file references.
 

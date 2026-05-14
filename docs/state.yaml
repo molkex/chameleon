@@ -7,7 +7,7 @@ last-updated-by: claude
 
 prod:
   backend:
-    version-marker: 60.4-telegram-route
+    version-marker: 60.5-telegram-route-fix
     nodes:
       - id: de
         host: 162.19.242.30

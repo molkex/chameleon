@@ -30,7 +30,7 @@ const (
 	// emitted the config currently in their cache. BUMP THIS on any
 	// behavioural change to clientconfig.go (new flag, new outbound, new
 	// rule). Format: "<build>.<patch>-<short-tag>" e.g. "40.2-chain-fix".
-	configBuildMarker = "60.4-telegram-route"
+	configBuildMarker = "60.5-telegram-route-fix"
 )
 
 // disableQUICOutbounds reports whether Hysteria2/TUIC leaf outbounds should
@@ -750,11 +750,18 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 	// telegramRouteGroup is nil (no DE leaves) — TG then falls through
 	// to normal routing.
 	if telegramRouteGroup != nil {
+		// IP-based Telegram rule-set. SagerNet/sing-geoip ships only
+		// country sets (no per-service) — verified 404 on
+		// geoip-telegram.srs there (incident 2026-05-14-geoip-telegram-404).
+		// MetaCubeX/meta-rules-dat `sing` branch maintains a per-service
+		// geoip set that IS published as a sing-box .srs binary. IP-based
+		// (not geosite/domain) because TG media connects by raw IP —
+		// field log shows 91.105.192.100:443 with no sniffable domain.
 		routeRuleSets = append(routeRuleSets, clientRuleSet{
 			Tag:            "geoip-telegram",
 			Type:           "remote",
 			Format:         "binary",
-			URL:            "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-telegram.srs",
+			URL:            "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/telegram.srs",
 			DownloadDetour: "direct",
 			UpdateInterval: "168h",
 		})
