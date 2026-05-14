@@ -24,13 +24,13 @@ import Libbox
 ///      bypassing urltest's small-probe re-election.
 final class OutboundGroupTracker: @unchecked Sendable {
 
-    struct Snapshot: Sendable {
-        let selected: String     // active outbound tag in the group
-        let members: [String]    // ordered member tags
-    }
+    /// Back-compat alias — the pure snapshot model now lives in
+    /// `Shared/OutboundGroupLogic.swift` (so it's unit-testable without
+    /// this PacketTunnel target).
+    typealias Snapshot = OutboundGroupSnapshot.Group
 
     private let queue = DispatchQueue(label: "outbound.group.tracker", attributes: [])
-    private var snapshots: [String: Snapshot] = [:]    // groupTag → snapshot
+    private var snapshot: OutboundGroupSnapshot = .empty    // groupTag → group
 
     private let handler: TrackerHandler
     private var client: LibboxCommandClient?
@@ -63,24 +63,26 @@ final class OutboundGroupTracker: @unchecked Sendable {
     func stop() {
         try? client?.disconnect()
         client = nil
-        queue.sync { snapshots.removeAll() }
+        queue.sync { snapshot = .empty }
     }
 
     func selected(in groupTag: String) -> String? {
-        queue.sync { snapshots[groupTag]?.selected }
+        queue.sync { snapshot.selected(in: groupTag) }
     }
 
     func members(in groupTag: String) -> [String] {
-        queue.sync { snapshots[groupTag]?.members ?? [] }
+        queue.sync { snapshot.members(in: groupTag) }
     }
 
     /// Test/diagnostic accessor — full snapshot.
     func allGroups() -> [String: Snapshot] {
-        queue.sync { snapshots }
+        queue.sync { snapshot.groups }
     }
 
     fileprivate func ingest(_ message: any LibboxOutboundGroupIteratorProtocol) {
-        var fresh: [String: Snapshot] = [:]
+        // Bridge the libbox iterator into plain primitives, then let the
+        // pure `OutboundGroupSnapshot.build` do the transform.
+        var rawGroups: [RawOutboundGroup] = []
         while message.hasNext() {
             guard let group = message.next() else { break }
             var members: [String] = []
@@ -89,9 +91,10 @@ final class OutboundGroupTracker: @unchecked Sendable {
                     if let item = iter.next() { members.append(item.tag) }
                 }
             }
-            fresh[group.tag] = Snapshot(selected: group.selected, members: members)
+            rawGroups.append(RawOutboundGroup(tag: group.tag, selected: group.selected, members: members))
         }
-        queue.sync { snapshots = fresh }
+        let fresh = OutboundGroupSnapshot.build(from: rawGroups)
+        queue.sync { snapshot = fresh }
     }
 }
 

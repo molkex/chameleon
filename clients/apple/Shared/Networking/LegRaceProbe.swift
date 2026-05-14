@@ -51,13 +51,18 @@ struct LegRaceProbe {
     /// it still works, matching the perceived UX of "warm reconnect ≤ 1s".
     func race(candidates: [Candidate], preferred: String? = nil) async -> Result {
         let start = Date()
-        guard !candidates.isEmpty else {
+        // Pure planning (ordering / fast-path / empty cases) lives in
+        // `LegRacePlan` so it's unit-testable; this method keeps the
+        // socket probing.
+        let step = LegRacePlan.firstStep(candidateTags: candidates.map(\.tag), preferred: preferred)
+        guard step != .noCandidates else {
             return Result(winnerTag: nil, probedTags: [], elapsedSeconds: 0)
         }
 
         // Fast path — try the remembered leg first with a tight timeout.
-        if let preferred, let preferredCand = candidates.first(where: { $0.tag == preferred }) {
-            if await probe(preferredCand, timeout: 1.2) {
+        if case .tryPreferredFirst(let tag, let timeout) = step,
+           let preferredCand = candidates.first(where: { $0.tag == tag }) {
+            if await probe(preferredCand, timeout: timeout) {
                 return Result(
                     winnerTag: preferredCand.tag,
                     probedTags: [preferredCand.tag],
@@ -66,7 +71,9 @@ struct LegRaceProbe {
             }
         }
 
-        // Full race over remaining candidates.
+        // Full race over remaining candidates — every candidate whose
+        // tag isn't `preferred`, in original order (mirrors
+        // `LegRacePlan.poolAfterPreferredMiss`).
         let pool = candidates.filter { $0.tag != preferred }
         guard !pool.isEmpty else {
             return Result(winnerTag: nil, probedTags: candidates.map(\.tag), elapsedSeconds: Date().timeIntervalSince(start))

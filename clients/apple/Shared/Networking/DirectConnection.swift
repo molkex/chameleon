@@ -239,7 +239,10 @@ enum DirectConnection {
 
     // MARK: - HTTP framing
 
-    private static func buildRequest(
+    /// Build a raw HTTP/1.1 request. Pure (no I/O) — `internal` so the
+    /// unit-test target can pin the framing (Host/Connection/encoding
+    /// header handling, body length, header dedup) without a socket.
+    static func buildRequest(
         method: String, path: String, host: String,
         headers: [String: String], body: Data?
     ) -> Data {
@@ -294,7 +297,10 @@ enum DirectConnection {
         return HeaderPeek(bodyStartOffset: range.upperBound, contentLength: length)
     }
 
-    private static func parseHTTPResponse(_ raw: Data) throws -> (Data, HTTPResponseMeta) {
+    /// Parse a raw HTTP/1.1 response buffer into `(body, meta)`. Pure
+    /// (no I/O) — `internal` so the unit-test target can pin status-line
+    /// parsing, header splitting and the malformed-response throws.
+    static func parseHTTPResponse(_ raw: Data) throws -> (Data, HTTPResponseMeta) {
         guard let splitRange = raw.range(of: Data("\r\n\r\n".utf8)) else {
             throw URLError(.badServerResponse)
         }

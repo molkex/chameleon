@@ -21,19 +21,16 @@ enum NetworkFingerprint {
     /// nothing identifiable is available.
     static func current() async -> String? {
         guard let path = await snapshotPath() else { return nil }
-        if path.usesInterfaceType(NWInterface.InterfaceType.wifi) {
-            if let ssid = await wifiSSID() {
-                return "wifi:\(ssid)"
-            }
-            return "wifi:unknown"
-        }
-        if path.usesInterfaceType(NWInterface.InterfaceType.cellular) {
-            return "cellular"
-        }
-        if path.usesInterfaceType(NWInterface.InterfaceType.wiredEthernet) {
-            return "ethernet"
-        }
-        return nil
+        let usesWifi = path.usesInterfaceType(NWInterface.InterfaceType.wifi)
+        // SSID lookup is the one async leg — only do it on a WiFi path,
+        // matching the original short-circuit.
+        let ssid = usesWifi ? await wifiSSID() : nil
+        return NetworkFingerprintLogic.fingerprint(
+            usesWifi: usesWifi,
+            wifiSSID: ssid,
+            usesCellular: path.usesInterfaceType(NWInterface.InterfaceType.cellular),
+            usesWiredEthernet: path.usesInterfaceType(NWInterface.InterfaceType.wiredEthernet)
+        )
     }
 
     /// One-shot NWPath snapshot. NWPathMonitor delivers continuously; we

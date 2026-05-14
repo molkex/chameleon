@@ -100,19 +100,13 @@ final class RealTrafficStallDetector {
 
     // MARK: - Event types
 
-    /// One observation parsed from a sing-box log line. Kept primitive
-    /// (no Libbox refs) so the ring buffer doesn't pin Go-side memory.
-    private struct DialAttempt {
-        let timestamp: Date
-        let outbound: String      // e.g. "de-direct-de"
-        let destination: String   // host:port or ip:port
-        let isTimeout: Bool       // true = timeout / deadline / TLS handshake
-    }
-
-    private struct ConnectionClose {
-        let timestamp: Date
-        let downloadBytes: Int64
-    }
+    /// One observation parsed from a sing-box log line. The pure parsing
+    /// + windowing + STALL formula live in `RealTrafficStallLogic`
+    /// (under Shared/, so they're unit-testable); this detector owns the
+    /// queue, ring buffers, cooldown / per-hour bookkeeping and the
+    /// `onStall` callback.
+    private typealias DialAttempt = RealTrafficStallLogic.DialAttempt
+    private typealias ConnectionClose = RealTrafficStallLogic.ConnectionClose
 
     // MARK: - State
 
@@ -178,12 +172,8 @@ final class RealTrafficStallDetector {
         // square brackets that previously fooled the bracket-pair
         // outbound parser. Anchoring on "using outbound/" sidesteps
         // that entirely.
-        if message.contains("connection: open connection to ") &&
-           (message.contains(": i/o timeout") ||
-            message.contains(": operation timed out") ||
-            message.contains(": context deadline exceeded") ||
-            message.contains(": TLS handshake timeout")) {
-            if let dial = Self.parseUserDialFailure(from: message, at: now) {
+        if RealTrafficStallLogic.isUserDialFailureLine(message) {
+            if let dial = RealTrafficStallLogic.parseUserDialFailure(from: message, at: now) {
                 addDialAttempt(dial)
                 evaluateIfDue(at: now)
             }
@@ -195,8 +185,8 @@ final class RealTrafficStallDetector {
         // on the leaf line itself. We use these to bound the failure
         // ratio denominator (so a tunnel that sees both successes and
         // failures isn't flagged as STALL).
-        if message.contains(": outbound connection to ") {
-            if let success = Self.parseDialSuccess(from: message, at: now) {
+        if RealTrafficStallLogic.isDialSuccessLine(message) {
+            if let success = RealTrafficStallLogic.parseDialSuccess(from: message, at: now) {
                 addDialAttempt(success)
                 evaluateIfDue(at: now)
             }
@@ -217,100 +207,22 @@ final class RealTrafficStallDetector {
         // threshold naturally.
     }
 
-    // MARK: - Parsing
-
-    /// Extract `(outbound, userDestination, isTimeout)` from a real
-    /// user-dial-failure log message. Returns nil if the message isn't
-    /// the right shape. Build-44.1: anchors on string fragments instead
-    /// of bracket pairs — sing-box sprinkles ANSI escapes and
-    /// connection-id markers (e.g. `[[38;5;101m1915784021[0m 2m7s]`)
-    /// throughout, which means the FIRST `[` is rarely the outbound
-    /// tag's opening bracket. Anchoring on `using outbound/` is
-    /// unambiguous.
-    private static func parseUserDialFailure(from message: String, at now: Date) -> DialAttempt? {
-        // 1. Outbound: locate "using outbound/<type>[<tag>]:"
-        guard let usingRange = message.range(of: "using outbound/") else { return nil }
-        let afterUsing = message[usingRange.upperBound...]
-        guard let bracketStart = afterUsing.firstIndex(of: "["),
-              let bracketEnd = afterUsing[bracketStart...].firstIndex(of: "]"),
-              bracketStart < bracketEnd else { return nil }
-        let outbound = String(afterUsing[afterUsing.index(after: bracketStart)..<bracketEnd])
-
-        // 2. User destination: "open connection to <DEST>:<PORT>"
-        var destination = ""
-        if let toRange = message.range(of: "open connection to ") {
-            let after = message[toRange.upperBound...]
-            // Take everything up to the next " " — that's the host:port
-            // (or IP:port). We strip the port at the end so distinct
-            // destinations are by host, not host:port (different ports
-            // on the same host shouldn't dominate the counter).
-            let hostPort = after.prefix { $0 != " " }
-            if let lastColon = hostPort.lastIndex(of: ":") {
-                destination = String(hostPort[..<lastColon])
-            } else {
-                destination = String(hostPort)
-            }
-        }
-
-        // We've already filtered to timeout-bearing messages in process(),
-        // so this is always a timeout failure — but assert via marker.
-        let isTimeout = message.contains("i/o timeout") ||
-                        message.contains("operation timed out") ||
-                        message.contains("context deadline exceeded") ||
-                        message.contains("TLS handshake timeout")
-
-        return DialAttempt(timestamp: now, outbound: outbound, destination: destination, isTimeout: isTimeout)
-    }
-
-    /// Extract `(outbound, destination)` from a successful dial log
-    /// line. Marks isTimeout=false. Used to bound the failure ratio.
-    /// Build-44.1: anchor on `outbound/<type>[` substring instead of
-    /// the first `[` (ANSI escapes contain stray brackets).
-    private static func parseDialSuccess(from message: String, at now: Date) -> DialAttempt? {
-        guard let typeRange = message.range(of: "outbound/") else { return nil }
-        let afterType = message[typeRange.upperBound...]
-        guard let bracketStart = afterType.firstIndex(of: "["),
-              let bracketEnd = afterType[bracketStart...].firstIndex(of: "]"),
-              bracketStart < bracketEnd else { return nil }
-        let outbound = String(afterType[afterType.index(after: bracketStart)..<bracketEnd])
-
-        // Skip urltest probe targets — those are NOT user traffic, they
-        // are sing-box's own probe (`outbound/urltest[...]: outbound
-        // connection to www.gstatic.com:443`). If we counted them as
-        // "successful user dials" the ratio would never reach 60% even
-        // during real outage because probe successes pad the
-        // denominator. Real user dials come from leaf outbound types
-        // (vless/hysteria2/tuic), never from urltest groups.
-        if message.contains("outbound/urltest[") {
-            return nil
-        }
-
-        var destination = ""
-        if let toRange = message.range(of: "outbound connection to ") {
-            let after = message[toRange.upperBound...]
-            let hostPort = after.prefix { $0 != " " && $0 != "\n" && $0 != "\t" }
-            if let lastColon = hostPort.lastIndex(of: ":") {
-                destination = String(hostPort[..<lastColon])
-            } else {
-                destination = String(hostPort)
-            }
-        }
-
-        return DialAttempt(timestamp: now, outbound: outbound, destination: destination, isTimeout: false)
-    }
-
     // MARK: - State updates (queue-confined)
 
     private func addDialAttempt(_ event: DialAttempt) {
         // Drop expired before insert so the buffer is always bounded.
-        let cutoff = event.timestamp.addingTimeInterval(-config.windowSeconds)
-        dialEvents.removeAll { $0.timestamp < cutoff }
+        dialEvents = RealTrafficStallLogic.pruned(
+            dialEvents, windowSeconds: config.windowSeconds,
+            referenceDate: event.timestamp, timestamp: { $0.timestamp }
+        )
         dialEvents.append(event)
     }
 
     private func addCloseEvent(_ event: ConnectionClose) {
-        let cutoff = event.timestamp.addingTimeInterval(-config.windowSeconds)
-        closeEvents.removeAll { $0.timestamp < cutoff }
+        closeEvents = RealTrafficStallLogic.pruned(
+            closeEvents, windowSeconds: config.windowSeconds,
+            referenceDate: event.timestamp, timestamp: { $0.timestamp }
+        )
         closeEvents.append(event)
     }
 
@@ -336,37 +248,34 @@ final class RealTrafficStallDetector {
             return
         }
 
-        let cutoff = now.addingTimeInterval(-config.windowSeconds)
-        let recentDials = dialEvents.filter { $0.timestamp >= cutoff }
-        let recentCloses = closeEvents.filter { $0.timestamp >= cutoff }
+        let recentDials = RealTrafficStallLogic.pruned(
+            dialEvents, windowSeconds: config.windowSeconds,
+            referenceDate: now, timestamp: { $0.timestamp }
+        )
+        let recentCloses = RealTrafficStallLogic.pruned(
+            closeEvents, windowSeconds: config.windowSeconds,
+            referenceDate: now, timestamp: { $0.timestamp }
+        )
 
-        let attempts = recentDials.count
-        guard attempts >= config.minAttempts else { return }
-
-        let timeoutDials = recentDials.filter { $0.isTimeout }
-        let timeouts = timeoutDials.count
-        guard timeouts >= config.minTimeouts else { return }
-
-        let rate = Double(timeouts) / Double(attempts)
-        guard rate >= config.minTimeoutRate else { return }
-
-        var distinctDests = Set<String>()
-        for dial in timeoutDials where !dial.destination.isEmpty {
-            distinctDests.insert(dial.destination)
-        }
-        guard distinctDests.count >= config.minDistinctDestinations else { return }
-
-        // Suppress if there's been ANY meaningful download in window.
-        let hasMeaningfulDownload = recentCloses.contains { $0.downloadBytes >= config.meaningfulDownloadBytes }
-        if hasMeaningfulDownload {
-            return
-        }
+        let thresholds = RealTrafficStallLogic.Thresholds(
+            minAttempts: config.minAttempts,
+            minTimeouts: config.minTimeouts,
+            minTimeoutRate: config.minTimeoutRate,
+            minDistinctDestinations: config.minDistinctDestinations,
+            meaningfulDownloadBytes: config.meaningfulDownloadBytes
+        )
+        let decision = RealTrafficStallLogic.evaluate(
+            recentDials: recentDials, recentCloses: recentCloses, thresholds: thresholds
+        )
+        guard decision == .stall else { return }
 
         // All criteria met — fire STALL.
         lastFallbackAt = now
         fallbacksInLastHour.append(now)
+        let timeouts = recentDials.filter { $0.isTimeout }.count
+        let rate = recentDials.isEmpty ? 0 : Double(timeouts) / Double(recentDials.count)
         TunnelFileLogger.log(
-            "RealTrafficStallDetector: STALL attempts=\(attempts) timeouts=\(timeouts) rate=\(String(format: "%.2f", rate)) distinctDests=\(distinctDests.count) closesWithDownload=\(recentCloses.count)",
+            "RealTrafficStallDetector: STALL attempts=\(recentDials.count) timeouts=\(timeouts) rate=\(String(format: "%.2f", rate)) closesWithDownload=\(recentCloses.count)",
             category: "real-stall"
         )
         onStall(now)
