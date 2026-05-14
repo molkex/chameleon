@@ -5,6 +5,27 @@
 # Cross-reference phases via phase ids from plan.yaml.
 
 builds:
+  - number: 69
+    version: "1.0.26"
+    date: 2026-05-14
+    track: testflight-internal
+    asc-build-id: b4b009ce-ac68-44d2-834d-a015c331d650
+    phases: [launch-04b-control-widget]
+    archive-path: /tmp/MadFrogVPN-build69.xcarchive
+    field-verified: false
+    notes: |
+      launch-04b — interactive widgets. New iOS-18 Control Center toggle
+      (MadFrogControlWidget) + the Home-Screen StatusWidget's shield
+      became a Button(intent:). Both drive ToggleVPNIntent
+      (SetValueIntent, Shared/), which runs in the widget-extension
+      process and calls NETunnelProviderManager start/stopVPNTunnel
+      directly — startTunnel(options: nil) so the extension uses the
+      App-Group-persisted config (no app launch, no backend fetch on the
+      warm path). Widget target gained the packet-tunnel-provider
+      Network Extension entitlement; NETWORK_EXTENSIONS capability
+      enabled on com.madfrog.vpn.widget via ASC API (no portal step).
+      iOS-only, libbox unchanged from build 60.
+
   - number: 68
     version: "1.0.26"
     date: 2026-05-14

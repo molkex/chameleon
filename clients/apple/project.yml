@@ -18,7 +18,7 @@ settings:
   base:
     SWIFT_VERSION: "5.10"
     MARKETING_VERSION: "1.0.26"
-    CURRENT_PROJECT_VERSION: "68"
+    CURRENT_PROJECT_VERSION: "69"
     DEVELOPMENT_TEAM: "99W3C374T2"
     TARGETED_DEVICE_FAMILY: "1"
 
@@ -58,10 +58,12 @@ targets:
       - package: GoogleSignIn
         product: GoogleSignInSwift
 
-  # launch-04: read-only VPN status widget (Home Screen + Lock Screen).
-  # Lean target — pulls only Constants.swift + WidgetVPNSnapshot.swift
-  # from Shared/, not the whole folder (the rest imports MetricKit /
-  # NetworkExtension / Libbox, none of which a widget needs).
+  # launch-04: VPN status widget (Home Screen + Lock Screen).
+  # launch-04b: + Control Center toggle + interactive widget button.
+  # Lean target — pulls only the three Shared/ files it needs, not the
+  # whole folder (the rest imports MetricKit / Libbox, none of which a
+  # widget needs). VPNControlIntents.swift imports NetworkExtension —
+  # that's intentional: the toggle intent runs in this process.
   MadFrogWidget:
     type: app-extension
     platform: iOS
@@ -71,6 +73,7 @@ targets:
           - "**/.DS_Store"
       - path: Shared/Constants.swift
       - path: Shared/WidgetVPNSnapshot.swift
+      - path: Shared/VPNControlIntents.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.madfrog.vpn.widget

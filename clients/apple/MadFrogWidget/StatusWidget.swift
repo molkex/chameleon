@@ -1,10 +1,14 @@
+import AppIntents
 import WidgetKit
 import SwiftUI
 
-/// launch-04: read-only VPN status widget.
+/// launch-04: VPN status widget.
 ///
 /// Supported families:
-///   - systemSmall      — Home Screen tile: shield + status + server
+///   - systemSmall      — Home Screen tile: shield + status + server.
+///     launch-04b: the shield is an interactive `Button(intent:)` —
+///     tapping it toggles the VPN in place; tapping elsewhere on the
+///     tile still opens the app (the default widget tap).
 ///   - accessoryCircular — Lock Screen: filled/outline shield
 ///   - accessoryRectangular — Lock Screen: shield + status + server
 ///   - accessoryInline  — Lock Screen inline: "MadFrog: Protected"
@@ -89,9 +93,15 @@ struct StatusWidgetView: View {
 
     private var smallView: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Image(systemName: shieldSymbol)
-                .font(.system(size: 32, weight: .semibold))
-                .foregroundStyle(tint)
+            // launch-04b: the shield is an interactive toggle. The
+            // intent runs in the widget extension and drives the VPN
+            // directly — no app launch. value: !connected = "flip it".
+            Button(intent: ToggleVPNIntent(value: !snapshot.connected)) {
+                Image(systemName: shieldSymbol)
+                    .font(.system(size: 32, weight: .semibold))
+                    .foregroundStyle(tint)
+            }
+            .buttonStyle(.plain)
             Spacer(minLength: 0)
             Text(snapshot.statusText)
                 .font(.headline)

@@ -31,18 +31,19 @@ prod:
 
   ios:
     marketing-version: "1.0.26"
-    current-build: 68                              # last UPLOADED build
+    current-build: 69                              # last UPLOADED build
     track: testflight-internal
-    asc-build-id: 9290c7f9-5c6f-4788-97e8-9a67f201f428
+    asc-build-id: b4b009ce-ac68-44d2-834d-a015c331d650
     uploaded: 2026-05-14
-    field-verified: false                        # builds 65-68 (launch-03/06/07/04) not yet field-tested; 60-64 were
-    previous-builds-in-testflight: [67, 66, 65, 64, 63, 62, 61, 60, 59, 58, 57, 56, 55]
-    # build 68 = launch-04 Home/Lock-Screen status widget. The new
-    # com.madfrog.vpn.widget bundle ID's App-Groups provisioning wall
-    # (incident 2026-05-14-widget-bundle-id-provisioning-wall) was
-    # cleared by linking group.com.madfrog.vpn via the developer.apple.com
-    # portal; archive -> export -> upload then ran head-less. Linked to
-    # Internal Testers group 19b338f9-82fa-4371-ae21-bea225d94076.
+    field-verified: false                        # builds 65-69 (launch-03/06/07/04/04b) not yet field-tested; 60-64 were
+    previous-builds-in-testflight: [68, 67, 66, 65, 64, 63, 62, 61, 60, 59, 58, 57, 56, 55]
+    # build 69 = launch-04b — interactive widgets: iOS-18 Control Center
+    # toggle + interactive Home-Screen shield button. ToggleVPNIntent
+    # runs in the widget-extension process; NETWORK_EXTENSIONS capability
+    # was enabled on com.madfrog.vpn.widget via ASC API (no portal step,
+    # unlike launch-04's App Group group-linkage). Linked to Internal
+    # Testers group 19b338f9-82fa-4371-ae21-bea225d94076.
+    # build 68 = launch-04 read-only Home/Lock-Screen status widget.
     libbox:
       source: sing-box v1.13.5 + first-write callback cherry-pick
       binary-size-mb: 44
@@ -60,7 +61,7 @@ prod:
   chameleon-repo:
     branch: claude/naughty-golick-e7f6a5
     pushed-to-origin: true
-    head: b7ec765                                  # launch-04 build 68 docs backfill follows in next commit
+    head: b943f56                                  # launch-04b build 69 commit follows next
     unpushed-commits: 0                           # update on every push
 
   app-store:

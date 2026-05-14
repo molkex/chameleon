@@ -1,16 +1,23 @@
 import WidgetKit
 import SwiftUI
 
-/// launch-04: the WidgetKit extension entry point. One widget for now —
-/// a read-only VPN status glance for the Home Screen and Lock Screen.
+/// The WidgetKit extension entry point.
 ///
-/// The interactive toggle (Home Screen AppIntent button + iOS-18
-/// ControlWidget for Control Center) is launch-04b — deferred because
-/// driving NEVPNManager from a widget-extension process needs on-device
-/// verification, and a half-working toggle is worse than none.
+/// - launch-04  — `StatusWidget`: read-only VPN status glance for the
+///   Home Screen and Lock Screen.
+/// - launch-04b — `MadFrogControlWidget`: an iOS-18 Control Center
+///   toggle that connects/disconnects in place. `StatusWidget`'s
+///   systemSmall tile also gained an interactive toggle button.
+///   Both drive `ToggleVPNIntent`, which runs in this extension's
+///   process (hence the packet-tunnel-provider entitlement on the
+///   widget target) and starts the tunnel with the App-Group-persisted
+///   config — no app launch, no backend round-trip on the warm path.
 @main
 struct MadFrogWidgetBundle: WidgetBundle {
     var body: some Widget {
         StatusWidget()
+        if #available(iOS 18.0, *) {
+            MadFrogControlWidget()
+        }
     }
 }

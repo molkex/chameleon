@@ -482,16 +482,53 @@ phases:
       - launch-04b-control-widget   # iOS-18 ControlWidget toggle, deferred
 
   - id: launch-04b-control-widget
-    title: iOS-18 ControlWidget toggle + Home Screen AppIntent button
-    status: planned
+    title: iOS-18 ControlWidget toggle + interactive Home Screen button
+    status: done
     layer: ios
+    builds: [69]
     rationale: |
       The interactive half of widgets — a real connect/disconnect toggle
-      in Control Center (iOS 18 ControlWidget) and an AppIntent-backed
-      Home Screen button. Split from launch-04 because driving
+      in Control Center (iOS 18 ControlWidget) and an interactive button
+      on the Home Screen tile. Split from launch-04 because driving
       NEVPNManager from a widget-extension process needs on-device
       verification, and a half-working toggle is worse than none.
     depends-on: launch-04-widgets
+    artifacts:
+      - clients/apple/Shared/VPNControlIntents.swift
+      - clients/apple/MadFrogWidget/MadFrogControlWidget.swift
+      - clients/apple/MadFrogWidget/MadFrogWidgetBundle.swift
+      - clients/apple/MadFrogWidget/StatusWidget.swift
+      - clients/apple/MadFrogWidget/MadFrogWidget.entitlements
+      - clients/apple/project.yml
+      - clients/apple/Tests/UnitTests/VPNControlIntentsTests.swift
+    implementation: |
+      ToggleVPNIntent (SetValueIntent, Shared/) runs in the widget-
+      extension process and drives NETunnelProviderManager directly:
+      on -> startTunnel(options: nil), off -> stopVPNTunnel(). The
+      "options: nil" path is the key — the PacketTunnel extension falls
+      back to the App-Group-persisted config, so the warm path needs no
+      backend round-trip and no app launch. The one cold case (no
+      profile installed) returns .needsApp -> throws a localized error.
+      MadFrogControlWidget (ControlWidget, iOS 18+) backs a
+      ControlWidgetToggle with a ControlValueProvider reading
+      WidgetVPNSnapshot. StatusWidget's systemSmall shield became a
+      Button(intent:) — tapping it toggles in place, tapping elsewhere
+      still opens the app. The widget target gained the
+      packet-tunnel-provider Network Extension entitlement; the
+      NETWORK_EXTENSIONS capability was enabled on the
+      com.madfrog.vpn.widget bundle ID via the ASC API (no portal step
+      — unlike the App Group group-linkage in launch-04).
+    tests: |
+      VPNControlIntentsTests (5 cases): vpnControlPlan decision table
+      (no-manager -> needsApp regardless of direction; with-manager ->
+      start/stop), ToggleVPNIntent value round-trip, non-empty error
+      messages. perform()'s NE calls are on-device-verified. All
+      targets compile; test target compiles (build-for-testing).
+    shipped: |
+      2026-05-14 — build 69 in TestFlight Internal (asc-build-id
+      b4b009ce-ac68-44d2-834d-a015c331d650). field-verified: false —
+      needs on-device check: Control Center toggle connects/disconnects
+      without opening the app; Home Screen shield button toggles.
     estimated-effort: 0.5-1 day
 
   - id: launch-05-shortcuts-appintents
