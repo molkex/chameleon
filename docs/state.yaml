@@ -31,12 +31,16 @@ prod:
 
   ios:
     marketing-version: "1.0.26"
-    current-build: 72                              # last UPLOADED build
-    track: app-store                               # build 72 submitted to App Store review
-    asc-build-id: 58189b41-aef7-4387-8b8c-2e672362e9e3
+    current-build: 73                              # last UPLOADED build (TestFlight Internal)
+    track: testflight-internal                     # build 73 = TestFlight only; the App Store has build 72 (see app-store: below)
+    asc-build-id: 47e6e145-050d-4c46-aea8-d1184e291065
     uploaded: 2026-05-14
-    field-verified: false                        # builds 65-72 not yet field-tested; 60-64 were. build 72's SIWA fix is UNVERIFIED on device — see incident 2026-05-14-app-review-siwa-unresponsive
-    previous-builds-in-testflight: [71, 70, 69, 68, 67, 66, 65, 64, 63, 62, 61, 60, 59, 58, 57, 56, 55]
+    field-verified: false                        # builds 65-73 not yet field-tested; 60-64 were. build 72's SIWA fix is UNVERIFIED on device — see incident 2026-05-14-app-review-siwa-unresponsive
+    previous-builds-in-testflight: [72, 71, 70, 69, 68, 67, 66, 65, 64, 63, 62, 61, 60, 59, 58, 57, 56, 55]
+    # build 73 = launch-05 — Shortcuts / AppIntents: ConnectVPNIntent,
+    # DisconnectVPNIntent, VPNStatusIntent + VPNAppShortcuts provider.
+    # TestFlight only — deliberately NOT swapped into the App Store
+    # submission (build 72 is mid-review).
     # build 72 = App Review reject fix — Guideline 2.1(a) "Sign in with
     # Apple button unresponsive" (v1.0.26 rejected ~4x for this since
     # build 51). Removed the `.simultaneousGesture` that swallowed the
@@ -70,12 +74,12 @@ prod:
   chameleon-repo:
     branch: claude/naughty-golick-e7f6a5
     pushed-to-origin: true
-    head: 9ad929a                                  # test-coverage-hardening agent passes; doc-sync commit follows next
+    head: a80dca4                                  # launch-05 Shortcuts/AppIntents (build 73); doc-sync commit follows next
     unpushed-commits: 0                           # update on every push
 
   app-store:
     version: "1.0.26"
-    state: WAITING_FOR_REVIEW
+    state: IN_REVIEW                               # Apple actively reviewing build 72 as of 2026-05-14 evening
     submission-id: 55f7cc73-20b2-4bed-8a1c-68411303e15d
     attached-build: 72
     submitted: 2026-05-14

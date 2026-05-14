@@ -7,6 +7,26 @@
 # (Builds 36-54 are not migrated; see archive/2026-05-pre-yaml/.)
 
 builds:
+  - number: 73
+    version: "1.0.26"
+    date: 2026-05-14
+    track: testflight-internal   # TestFlight only — build 72 is the one in App Store review
+    asc-build-id: 47e6e145-050d-4c46-aea8-d1184e291065
+    phases: [launch-05-shortcuts-appintents]
+    archive-path: /tmp/MadFrogVPN-build73.xcarchive
+    field-verified: false
+    notes: |
+      launch-05 — Shortcuts / AppIntents. Three AppIntents
+      (ConnectVPNIntent, DisconnectVPNIntent, VPNStatusIntent) + a
+      VPNAppShortcuts AppShortcutsProvider with bilingual en+ru phrases.
+      The start/stop body was extracted from ToggleVPNIntent.perform()
+      into VPNControl.perform(_:managers:) — behaviour-preserving; all
+      three intents + the launch-04b toggle share one code path. "Switch
+      server" deferred to launch-05b (needs the @MainActor AppState
+      flow — can't run headless). Deliberately NOT swapped into the App
+      Store submission: build 72 stays in review. iOS-only, libbox
+      unchanged from build 60.
+
   - number: 72
     version: "1.0.26"
     date: 2026-05-14

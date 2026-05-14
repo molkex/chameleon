@@ -553,11 +553,44 @@ phases:
     estimated-effort: 0.5-1 day
 
   - id: launch-05-shortcuts-appintents
-    title: Shortcuts App integration (AppIntent — connect/disconnect/switch)
-    status: planned
+    title: Shortcuts App integration (AppIntent — connect/disconnect/status)
+    status: done
+    completed: 2026-05-14
     layer: ios
+    builds: [73]
     rationale: |
       Users automate "connect when opening Instagram" etc. Min 3 actions.
+    artifacts:
+      - clients/apple/Shared/VPNControlIntents.swift
+      - clients/apple/MadFrogVPN/Models/VPNAppShortcuts.swift
+      - clients/apple/Tests/UnitTests/VPNControlIntentsTests.swift
+    implementation: |
+      Three AppIntents + an AppShortcutsProvider (VPNAppShortcuts, main
+      app target — Shortcuts/Spotlight discovery is app-level), bilingual
+      en+ru invocation phrases:
+        - ConnectVPNIntent / DisconnectVPNIntent — discrete verbs.
+        - VPNStatusIntent — read-only, returns connected + server name
+          from WidgetVPNSnapshot.read() (no NE side effects).
+      The start/stop body was lifted verbatim out of
+      ToggleVPNIntent.perform() into `VPNControl.perform(_:managers:)` —
+      pure extract-method, all three intents + the launch-04b toggle now
+      drive the VPN through one code path. Reuses vpnControlPlan /
+      VPNControlError / the optimistic WidgetVPNSnapshot.write.
+    tests: |
+      VPNControlIntentsTests +7 (12 total): Connect/Disconnect → plan
+      routing, discrete-verb parity with the toggle, VPNStatusIntent
+      dialog over the snapshot (incl. Auto fallback), provider registers
+      exactly 3 actions, every shortcut carries phrases.
+    follow-up:
+      - launch-05b-switch-server-intent   # deferred — see notes
+    notes: |
+      "Switch server" deferred to launch-05b: selectServer lives on the
+      @MainActor @Observable AppState (chain resolution, cascade state,
+      live CommandClient) — a headless intent has no AppState instance
+      and reconstructing that flow needs on-device verification. A
+      half-working switch is worse than none (same call as the
+      launch-04 -> 04b split). Shipped VPNStatusIntent as the clean
+      third action instead.
     estimated-effort: 0.5 day
 
   - id: launch-06-auto-connect-untrusted-wifi
