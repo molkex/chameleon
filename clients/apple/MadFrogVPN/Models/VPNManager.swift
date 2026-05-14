@@ -59,15 +59,10 @@ class VPNManager {
         // On Demand with an unconditional Connect rule prevents the user from
         // disabling VPN via iOS Settings (iOS re-enables it immediately).
         if let m = manager {
-            var needsSave = false
-            if !m.isEnabled {
-                m.isEnabled = true
-                needsSave = true
-            }
-            if m.isOnDemandEnabled {
-                m.isOnDemandEnabled = false
-                needsSave = true
-            }
+            let adjustment = connectProfileAdjustment(isEnabled: m.isEnabled, isOnDemandEnabled: m.isOnDemandEnabled)
+            m.isEnabled = adjustment.isEnabled
+            m.isOnDemandEnabled = adjustment.isOnDemandEnabled
+            let needsSave = adjustment.needsSave
             TunnelFileLogger.log("vpnManager.connect: enabled=\(m.isEnabled) onDemand=\(m.isOnDemandEnabled) needsSave=\(needsSave)", category: "ui")
             if needsSave {
                 TunnelFileLogger.log("vpnManager.connect: awaiting saveToPreferences", category: "ui")
@@ -125,7 +120,7 @@ class VPNManager {
         let rulesMatch = enabled
             ? (m.onDemandRules?.count == 1 && m.onDemandRules?.first is NEOnDemandRuleConnect)
             : (m.onDemandRules?.isEmpty ?? true)
-        if m.isOnDemandEnabled == enabled && rulesMatch {
+        if !onDemandSaveNeeded(currentEnabled: m.isOnDemandEnabled, currentRulesMatchDesired: rulesMatch, desiredEnabled: enabled) {
             return
         }
         m.onDemandRules = enabled ? [NEOnDemandRuleConnect()] : []
@@ -190,6 +185,31 @@ class VPNManager {
         case failed
         case timedOut
         case permissionDenied
+
+        /// Map from the pure `ConnectOutcomeKind` produced by
+        /// `connectOutcome(for:sawConnecting:pastStartupGrace:)`. Total,
+        /// 1:1 — the two enums are deliberately the same shape; the kind
+        /// type just lives in `Shared/` so it's testable without
+        /// `@MainActor`-isolated `VPNManager`.
+        init(_ kind: ConnectOutcomeKind) {
+            switch kind {
+            case .connected: self = .connected
+            case .failed: self = .failed
+            case .timedOut: self = .timedOut
+            case .permissionDenied: self = .permissionDenied
+            }
+        }
+
+        /// Reverse of `init(_:)` — lets callers route on the pure
+        /// `Shared/` decision helpers (e.g. `shouldSilentlyRetryConnect`).
+        var kind: ConnectOutcomeKind {
+            switch self {
+            case .connected: return .connected
+            case .failed: return .failed
+            case .timedOut: return .timedOut
+            case .permissionDenied: return .permissionDenied
+            }
+        }
     }
 
     /// Wait until the tunnel reports `.connected`. Polls the @Observable
@@ -206,20 +226,15 @@ class VPNManager {
         let startupGrace = ContinuousClock.now + .seconds(3)
 
         while ContinuousClock.now < deadline {
-            switch status {
-            case .connected:
-                return .connected
-            case .connecting, .reasserting:
+            if status == .connecting || status == .reasserting {
                 sawConnecting = true
-            case .disconnecting:
-                return .failed
-            case .invalid:
-                return .permissionDenied
-            case .disconnected:
-                if sawConnecting { return .failed }
-                if ContinuousClock.now >= startupGrace { return .timedOut }
-            @unknown default:
-                break
+            }
+            if let kind = connectOutcome(
+                for: status,
+                sawConnecting: sawConnecting,
+                pastStartupGrace: ContinuousClock.now >= startupGrace
+            ) {
+                return ConnectOutcome(kind)
             }
             try? await Task.sleep(for: .milliseconds(200))
         }

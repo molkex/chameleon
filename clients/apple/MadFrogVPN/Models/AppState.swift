@@ -805,11 +805,16 @@ class AppState {
     /// Once the user has confirmed the primer, `toggleVPN()` is called.
     /// Subsequent taps go straight to `toggleVPN()`.
     func requestToggle() async {
-        if !vpnManager.isConnected && !vpnManager.hasInstalledProfile {
+        switch toggleEntryDecision(
+            isConnected: vpnManager.isConnected,
+            hasInstalledProfile: vpnManager.hasInstalledProfile
+        ) {
+        case .showPrimer:
             showPermissionPrimer = true
             return
+        case .toggle:
+            await toggleVPN()
         }
-        await toggleVPN()
     }
 
     /// Called by the primer's Continue button to proceed with the actual
@@ -827,7 +832,7 @@ class AppState {
     /// Worst-case latency before a real error: ~40s.
     private func awaitConnectionWithSilentRetry(config: String?) async -> VPNManager.ConnectOutcome {
         let first = await vpnManager.waitUntilConnected(timeout: .seconds(18))
-        guard case .timedOut = first else { return first }
+        guard shouldSilentlyRetryConnect(firstOutcome: first.kind) else { return first }
         TunnelFileLogger.log("toggleVPN: watchdog 18s timeout — silent retry", category: "ui")
         vpnManager.disconnect()
         await vpnManager.waitUntilDisconnected(timeout: .seconds(3))
@@ -1492,8 +1497,8 @@ class AppState {
         TunnelFileLogger.log("handleStatus: vpn status=\(vpnManager.status.rawValue)", category: "ui")
         let sharedDefaults = UserDefaults(suiteName: AppConstants.appGroupID)
 
-        switch vpnManager.status {
-        case .connected:
+        switch vpnStatusEffect(for: vpnManager.status) {
+        case .markConnected:
             if vpnConnectedAt == nil {
                 // Restore from UserDefaults if the app was relaunched while
                 // the tunnel was still up (On Demand / background relaunch).
@@ -1541,7 +1546,7 @@ class AppState {
                 self?.applyServerSelectionIfLive()
             }
             startTrafficHealthMonitorIfEligible()
-        case .disconnected, .invalid:
+        case .markDisconnected:
             vpnConnectedAt = nil
             UserDefaults(suiteName: AppConstants.appGroupID)?.removeObject(forKey: AppConstants.vpnConnectedAtKey)
             if commandClient.isConnected { commandClient.disconnect() }
@@ -1556,7 +1561,8 @@ class AppState {
                 AppLogger.app.info("handleStatus: user stopped VPN from Settings, disabling On Demand")
                 Task { await vpnManager.disableOnDemand() }
             }
-        default: break
+        case .ignore:
+            break
         }
 
         // launch-04: refresh the status widget. Must run AFTER the switch —
