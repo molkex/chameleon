@@ -56,21 +56,41 @@ incidents:
       bug was purely the button wiring. build 72 attached to v1.0.26 and
       resubmitted (reviewSubmission
       55f7cc73-20b2-4bed-8a1c-68411303e15d, WAITING_FOR_REVIEW).
+    siwa-outcome: |
+      RESOLVED-CONFIRMED. App Review tested build 72 on iPhone 17 Pro
+      Max AND iPad Air M3 (review 2026-05-14 22:38) — Guideline 2.1(a)
+      was NOT raised. The Sign in with Apple fix works. The week-long
+      blocker is closed.
     secondary-2312: |
       Guideline 2.3.12: the "What's New" text on the en-US localization
       is the placeholder "Initial release" (ru is empty). It CANNOT be
       edited from our side — v1.0.26 is the app's first release, so the
       ASC version page exposes no "What's New" field and the API rejects
       whatsNew PATCHes with 409 STATE_ERROR ("cannot be edited at this
-      time"). Standing plan: if App Review re-flags 2.3.12, reply in the
-      Resolution Center explaining the first-release situation. 2.1(a)
-      is the real blocker and is fixed.
-    status: mitigated   # build 72 in review; awaiting App Review verdict
+      time"), in EVERY version state tried (REJECTED, PREPARE_FOR_
+      SUBMISSION; submission canceled or not).
+      build 72 re-rejected on 2.3.12 alone (review 2026-05-14 22:38).
+      Resolution path taken: since the field is genuinely uneditable,
+      added an explanation to the App Review Notes
+      (appStoreReviewDetail.notes — that IS API-editable) stating it's
+      the initial release with no editable What's New field, and
+      resubmitted build 72 (reviewSubmission 82ab2364-cede-4217-b548-
+      d94ea4f89346, WAITING_FOR_REVIEW). NOTE: setting the notes
+      overwrote the prior DEMO-ACCESS reviewer instructions — they were
+      reconstructed (guest mode + VPN test steps) from the app's actual
+      behaviour and merged back in. If App Review still insists, the
+      next step is a Resolution-Center reply on the live (un-canceled)
+      submission thread — do NOT cancel the rejected submission before
+      replying, that destroys the reply channel (learned the hard way,
+      3x this session).
+    status: mitigated   # 2.1a resolved-confirmed; 2.3.12 addressed via review notes, build 72 re-submitted, awaiting verdict
     lessons:
       - "Never layer a SwiftUI .simultaneousGesture / .onTapGesture on a UIKit-backed control (SignInWithAppleButton, Map, etc.) — it can swallow the control's own touch handling, OS-version-dependent. Use Apple's components exactly as documented."
       - "A 'breadcrumb' diagnostic that MUTATES state (isAuthInFlight) coupled to .disabled() can BE the bug. Diagnostics must be side-effect-free."
       - "Sign in with Apple is untestable on the iOS Simulator here (App Group entitlement crash). Until that's fixed, SIWA MUST be smoke-tested on a real device before every App Store submission — it is the #1 App Review reject surface for this app."
       - "When a fix is rejected for the SAME reason twice, stop changing the implementation TYPE and re-read the actual diff. The constant across builds 51/53/59-71 was the hack layer, not the button."
+      - "A rejected reviewSubmission has a reply box; a CANCELED one does not. Reply to App Review BEFORE canceling/resubmitting — canceling first destroys the only reply channel."
+      - "For a first app release, `whatsNew` is uneditable (no UI field, API 409). App Review Notes (appStoreReviewDetail.notes) IS API-editable — use it to explain uneditable-metadata flags. But fetch the FULL existing notes before PATCHing: they may hold demo-access instructions a VPN review needs."
 
   - id: 2026-05-14-widget-toggle-no-visual-update
     date: 2026-05-14

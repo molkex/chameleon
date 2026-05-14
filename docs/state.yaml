@@ -74,25 +74,29 @@ prod:
   chameleon-repo:
     branch: claude/naughty-golick-e7f6a5
     pushed-to-origin: true
-    head: a80dca4                                  # launch-05 Shortcuts/AppIntents (build 73); doc-sync commit follows next
+    head: 8112e4d                                  # launch-05 docs; App-Store-round-2 doc commit follows next
     unpushed-commits: 0                           # update on every push
 
   app-store:
     version: "1.0.26"
-    state: IN_REVIEW                               # Apple actively reviewing build 72 as of 2026-05-14 evening
-    submission-id: 55f7cc73-20b2-4bed-8a1c-68411303e15d
+    state: WAITING_FOR_REVIEW
+    submission-id: 82ab2364-cede-4217-b548-d94ea4f89346
     attached-build: 72
     submitted: 2026-05-14
-    # 2026-05-14 — REJECTED on build 71 (Guideline 2.1(a) — Sign in with
-    # Apple unresponsive; ~4th rejection for the same bug). Fixed in
-    # build 72, attached, resubmitted as reviewSubmission 55f7cc73-….
+    # 2026-05-14 — Sign in with Apple (2.1a) fix in build 72 PASSED App
+    # Review (tested iPhone 17 Pro Max + iPad Air M3) — the week-long
+    # blocker is closed. build 72 was re-rejected on 2.3.12 ALONE: the
+    # "What's New" text = the uneditable first-release placeholder
+    # "Initial release". Since the field genuinely can't be edited (no
+    # ASC UI field for a first version, API 409 in every state), the
+    # explanation was put in the App Review Notes
+    # (appStoreReviewDetail.notes — IS API-editable; DEMO-ACCESS
+    # reviewer instructions were preserved/reconstructed in the same
+    # notes) and build 72 resubmitted (reviewSubmission 82ab2364-…).
     # See incident 2026-05-14-app-review-siwa-unresponsive.
-    # Secondary 2.3.12 (What's New = "Initial release") is unfixable from
-    # our side — first release has no editable whatsNew field; reply in
-    # Resolution Center if re-flagged.
-    # History: build 60 sub (1481e218) canceled -> build 71 (48eecb25,
-    # REJECTED) canceled -> build 72 (55f7cc73). Queue position reset
-    # each time; the fixed build is what matters.
+    # Submission history: build 60 (1481e218) canceled -> build 71
+    # (48eecb25, REJECTED 2.1a) canceled -> build 72 (55f7cc73, 2.1a
+    # PASSED / REJECTED 2.3.12) canceled -> build 72 (82ab2364, current).
 
 known-issues:
   - id: telegram-media-slow
