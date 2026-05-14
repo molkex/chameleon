@@ -68,6 +68,18 @@ incidents:
       whatsoever (confirmed by probing, not assumption). Budget one
       portal-web-UI step per new App-Group-using target. The capability
       toggle is API-scriptable; the *group linkage* is not.
+    status: resolved
+    resolution: |
+      2026-05-14 — group.com.madfrog.vpn linked to com.madfrog.vpn.widget
+      via the developer.apple.com portal (browser automation: Identifiers
+      -> MadFrog VPN Widget -> App Groups -> Configure -> tick the group
+      -> Save -> Confirm). First Save silently failed on an expired portal
+      session; succeeded after re-login. Verified head-less: a freshly
+      ASC-API-generated profile now carries
+      application-groups: ['group.com.madfrog.vpn']. Then archive ->
+      export -> upload ran clean — build 68 (asc-build-id
+      9290c7f9-5c6f-4788-97e8-9a67f201f428) is VALID and linked to
+      Internal Testers.
 
   - id: 2026-05-13-libbox-1.13.6-oom-wrong-call
     date: 2026-05-13

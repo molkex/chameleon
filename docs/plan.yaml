@@ -441,9 +441,9 @@ phases:
 
   - id: launch-04-widgets
     title: Home/Lock Screen status widget
-    status: in-progress
+    status: done
     layer: ios
-    builds: [68]   # archived only once the widget provisioning profile exists
+    builds: [68]
     rationale: |
       iOS 16+ users expect a glanceable VPN status surface. A read-only
       Home Screen + Lock Screen widget is the bulk of that value and is
@@ -471,26 +471,15 @@ phases:
       WidgetVPNSnapshotTests (4 cases): server-verbatim vs Auto fallback,
       status-text differs by state, Equatable. All 3 targets
       (MadFrogWidget / MadFrogVPN / test) compile clean.
-    blocked-on: |
-      ONE manual portal step. Everything the ASC API allows is done:
-      bundle ID com.madfrog.vpn.widget created, APP_GROUPS capability
-      enabled, IOS_APP_DEVELOPMENT profile created + installed. But the
-      ASC API has NO app-group resource (probed: /v1/appGroups 404,
-      /bundleIds/{id}/appGroups 404 PATH_ERROR) — so the specific group
-      `group.com.madfrog.vpn` can't be linked to the bundle ID head-less.
-      The generated profile carries the application-groups entitlement
-      KEY but an EMPTY value, so archive fails "doesn't support the
-      group.com.madfrog.vpn App Group".
-      USER STEP (~30 s, developer.apple.com, no Xcode):
-        Identifiers -> "MadFrog VPN Widget" -> App Groups -> Configure
-        -> tick group.com.madfrog.vpn -> Save.
-      Then the rest runs head-less: regenerate the profile via ASC API
-      (picks up the linked group) -> archive -> export -> upload -> link
-      to Internal Testers. See incident
-      2026-05-14-widget-bundle-id-provisioning-wall.
+    shipped: |
+      2026-05-14 — build 68 in TestFlight Internal (asc-build-id
+      9290c7f9-5c6f-4788-97e8-9a67f201f428). The provisioning wall
+      (incident 2026-05-14-widget-bundle-id-provisioning-wall) was
+      cleared by linking group.com.madfrog.vpn to the widget bundle ID
+      via the developer.apple.com portal; archive -> export -> upload
+      then ran head-less. field-verified: false.
     follow-up:
       - launch-04b-control-widget   # iOS-18 ControlWidget toggle, deferred
-    estimated-effort: code done; ~5 min of provisioning to unblock
 
   - id: launch-04b-control-widget
     title: iOS-18 ControlWidget toggle + Home Screen AppIntent button

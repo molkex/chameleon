@@ -5,6 +5,26 @@
 # Cross-reference phases via phase ids from plan.yaml.
 
 builds:
+  - number: 68
+    version: "1.0.26"
+    date: 2026-05-14
+    track: testflight-internal
+    asc-build-id: 9290c7f9-5c6f-4788-97e8-9a67f201f428
+    phases: [launch-04-widgets]
+    archive-path: /tmp/MadFrogVPN-build68.xcarchive
+    field-verified: false
+    notes: |
+      launch-04 — Home/Lock-Screen status widget. New MadFrogWidget
+      app-extension target (bundle com.madfrog.vpn.widget, read-only).
+      WidgetVPNSnapshot reads vpnConnectedAtKey + selectedServerTagKey
+      from the App Group; AppState.handleStatus() calls
+      WidgetCenter.reloadAllTimelines(). Supports systemSmall +
+      accessoryCircular/Rectangular/Inline. iOS-only, libbox unchanged
+      from build 60. First build with the new widget bundle ID — the
+      App-Group provisioning wall (incident
+      2026-05-14-widget-bundle-id-provisioning-wall) was cleared via the
+      developer.apple.com portal before this archive.
+
   - number: 67
     version: "1.0.26"
     date: 2026-05-14
