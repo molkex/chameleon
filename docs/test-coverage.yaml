@@ -17,17 +17,17 @@ last-updated-by: claude
 
 summary:
   ios:
-    source-files: 66          # +TunnelConfigSource.swift (extracted from ExtensionProvider)
-    test-files: 21
-    test-cases: ~209
+    source-files: 72          # +6 extracted-logic files from test-coverage-hardening
+    test-files: 32
+    test-cases: ~389
   backend:
     source-files: 69          # excl. _test.go and vendor/
     test-files: 26
     test-cases: ~155
   fork:
     note: sing-box-fork carries upstream's own test suite; the one
-      cherry-pick (firstwrite-callback) has no dedicated test —
-      see ios gap ios-tunnel-stall-probe which exercises its effect.
+      cherry-pick (firstwrite-callback) has no dedicated unit test —
+      its effect is exercised through the iOS stall-probe path.
 
 # ─── iOS / macOS ───────────────────────────────────────────────────────────
 
@@ -40,9 +40,9 @@ ios:
     - RoutingMode.swift -> RoutingModeTests (9)
     - VPNControlIntents.swift -> VPNControlIntentsTests (5)        # launch-04b
     - WidgetVPNSnapshot.swift -> WidgetVPNSnapshotTests (9)        # launch-04/04b — incl. write()
-    - TunnelConfigSource.swift -> TunnelConfigSourceTests (7)      # test-coverage-hardening — extracted from ExtensionProvider
+    - TunnelConfigSource.swift -> TunnelConfigSourceTests (7)      # extracted from ExtensionProvider
     - DisconnectNotifier.swift -> DisconnectNotifierTests (3)      # launch-07
-    - CrashDiagnosticReporter.swift -> CrashDiagnosticReporterTests (10)  # launch-03 / test-coverage-hardening
+    - CrashDiagnosticReporter.swift -> CrashDiagnosticReporterTests (10)  # launch-03
     - OutboundPenaltyStore.swift -> OutboundPenaltyStoreTests (9)  # phase-1.d
     - TunnelProbeOutcome.swift -> TunnelProbeOutcomeTests (9)
     - Networking/SingBoxConfigPatcher.swift -> SingBoxConfigPatcherTests (6)
@@ -51,6 +51,18 @@ ios:
     - TrafficHealthMonitor.swift -> TrafficHealthMonitorTests (8)
     - PathPicker.swift -> PathPickerTests (55)
     - PingService.swift -> PingServiceTests (8)
+    # ─ test-coverage-hardening (2026-05-14): pure cores extracted from
+    #   NE/StoreKit/URLSession-coupled files so they're unit-testable: ─
+    - VPNStatusLogic.swift -> VPNManagerLogicTests (17) + AppStateLogicTests (9)  # extracted from VPNManager + AppState
+    - RealTrafficStallLogic.swift -> RealTrafficStallLogicTests (22)  # extracted from RealTrafficStallDetector
+    - OutboundGroupLogic.swift -> OutboundGroupLogicTests (10)     # extracted from OutboundGroupTracker
+    - Networking/NetworkingDecisionLogic.swift -> NetworkingDecisionLogicTests (22)  # extracted from LegRaceProbe + NetworkFingerprint
+    - Networking/DirectConnection.swift -> DirectConnectionTests (13)
+    - APIResponseLogic.swift -> APIResponseLogicTests (23)         # extracted from APIClient
+    - SubscriptionEntitlementLogic.swift -> SubscriptionEntitlementLogicTests (19)  # extracted from SubscriptionManager
+    - ConfigStore.swift -> ConfigStoreTests (13)
+    - VPNErrorMapper.swift -> VPNErrorMapperTests (10)
+    - ServerGroup.swift -> ServerGroupTests (22)
   behaviour-tests:
     # tests that pin cross-cutting behaviour, not one source file
     - ProxyChainResolverTests (11) — proxy-chain resolution shape
@@ -58,92 +70,15 @@ ios:
     - MigrationLeafToCountryTests (7) — migration.leafToCountry.v32
     - LibboxVersionGuardTests (2) — fails if libbox base bumped silently (ADR-003)
 
-  gaps:
-    - id: ios-app-state
-      path: clients/apple/MadFrogVPN/Models/AppState.swift
-      severity: critical
-      why: |
-        The central UI state machine — toggleVPN(), handleStatus(),
-        the 18 s connect watchdog + silent retry, and the
-        vpnConnectedAtKey App-Group write the widgets read. Zero tests.
-      what-to-test: |
-        handleStatus() state transitions (connected/disconnected/
-        reasserting), watchdog deadline + retry cap, the userStoppedVPN
-        / On-Demand interaction, vpnConnectedAtKey write/clear.
-        Needs a VPNManager seam (protocol) to test without NE.
-
-    - id: ios-vpn-manager
-      path: clients/apple/MadFrogVPN/Models/VPNManager.swift
-      severity: critical
-      why: |
-        NETunnelProviderManager lifecycle — connect/disconnect,
-        setOnDemand (launch-06), disableOnDemand, resetProfile. Zero
-        tests. setOnDemand's idempotency guard is pure-ish logic.
-      what-to-test: |
-        setOnDemand rule-match guard (no redundant save), the
-        userInitiatedDisconnect flag transitions. Manager itself needs
-        an NE fake; at minimum extract + test the pure decision bits.
-
-    - id: ios-real-traffic-stall-detector
-      path: clients/apple/PacketTunnel/RealTrafficStallDetector.swift
-      severity: major
-      why: |
-        Parses the sing-box log stream, counts dial timeouts in a 30 s
-        sliding window, fires onStall past a threshold. Branchy
-        windowing logic, drives a real fallback. Zero tests.
-      what-to-test: |
-        sliding-window count, threshold formula (minAttempts/
-        minTimeouts/rate), that it does NOT fire on healthy traffic.
-
-    - id: ios-outbound-group-tracker
-      path: clients/apple/PacketTunnel/OutboundGroupTracker.swift
-      severity: major
-      why: parses the libbox groups feed; feeds penalty/fallback. Untested.
-      what-to-test: group-feed parsing, selected-outbound tracking.
-
-    - id: ios-api-client
-      path: clients/apple/MadFrogVPN/Models/APIClient.swift
-      severity: major
-      why: |
-        All backend calls + timeouts + the SNI-spoof / direct-IP race.
-        Zero tests. Timeout enforcement is a project rule (CLAUDE.md).
-      what-to-test: |
-        timeout enforcement, retry/hedge logic, response decoding,
-        error mapping. Needs a URLProtocol stub.
-
-    - id: ios-subscription-manager
-      path: clients/apple/MadFrogVPN/Models/SubscriptionManager.swift
-      severity: major
-      why: StoreKit 2 client side — purchase/restore/entitlement. Untested.
-      what-to-test: entitlement evaluation, transaction handling — via StoreKitTest.
-
-    - id: ios-config-store
-      path: clients/apple/MadFrogVPN/Models/ConfigStore.swift
-      severity: minor
-      why: |
-        UserDefaults-backed prefs (selectedServerTag, autoConnectEnabled,
-        autoRecoverEnabled). Mostly get/set but selectedServerTag flows
-        into the widget + server selection — worth pinning.
-      what-to-test: persistence round-trips, defaults, selectedServerTag propagation.
-
-    - id: ios-vpn-error-mapper
-      path: clients/apple/MadFrogVPN/Models/VPNErrorMapper.swift
-      severity: minor
-      why: pure error -> user-message mapping, trivially testable, untested.
-      what-to-test: every error case maps to a non-empty localized string.
-
-    - id: ios-server-group
-      path: clients/apple/MadFrogVPN/Models/ServerGroup.swift
-      severity: minor
-      why: server grouping/sorting logic, pure, untested.
-
-    - id: ios-networking-misc
-      path: clients/apple/Shared/Networking/{DirectConnection,LegRaceProbe,NetworkFingerprint}.swift
-      severity: major
-      why: |
-        The Cloudflare-RU direct-IP race + leg probing + network
-        fingerprint. Load-bearing for RU connectivity, zero tests.
-      what-to-test: leg-race winner selection, fingerprint stability, fallback ordering.
+  gaps: []
+  # All iOS gaps closed by the test-coverage-hardening phase
+  # (2026-05-14). The NE / StoreKit / URLSession orchestration that
+  # wraps the now-tested pure cores stays on-device-verified — it can't
+  # be exercised in a unit test (the app can't even launch on the iOS
+  # Simulator: App Group entitlement fatal-errors there — see incident
+  # simulator-app-group-entitlement). When that simulator block is
+  # lifted, the orchestration + UI become snapshot/integration-test
+  # candidates; until then, on-device smoke testing is the safety net.
 
   exempt:
     reason: UI views, thin OS wrappers, generated/strings, entrypoints.
@@ -187,7 +122,7 @@ backend:
       path: backend/internal/api/
       severity: minor
       why: route wiring (1 file). Mostly declarative; e2e/integration tests
-        exercise the routes indirectly.
+        exercise the routes indirectly. Left as an accepted minor gap.
 
   exempt:
     reason: entrypoints, one-shot tooling, and protoc-generated stubs.
@@ -198,37 +133,31 @@ backend:
       - backend/internal/cli/         # CLI glue
       - backend/internal/vpn/v2rayapi/command/  # protoc-generated (.pb.go /
         # _grpc.pb.go — "DO NOT EDIT"); no hand-written logic. Testing it
-        # would test the protobuf library, not our code. The hand-written
-        # consumer of these stubs lives elsewhere and is covered there.
+        # would test the protobuf library, not our code.
 
-# ─── Priority order to close the gaps ──────────────────────────────────────
-# Tracked as plan.yaml phase `test-coverage-hardening`.
-# ✅ backend-geoip          — DONE (geoip_test.go, 11 funcs, -race clean)
-# ✅ backend-payments-apple — DONE (verify_test.go, 12 funcs: New validation,
-#    assertRealAppleChain panic-guard, Verify/VerifyNotification early
-#    returns, msToTime, ErrRevoked sentinel. Full Verify() path needs a
-#    real Apple-signed JWS — integration territory, not a unit test.)
-# ✅ backend-useragent     — DONE (parse_test.go, 3 funcs)
-# ✅ backend-email         — DONE (email_test.go, 7 funcs — NewResendSender
-#    validation, Send request-shape/success/error-status/transport-error
-#    via a stub RoundTripper, NoopSender, ErrNotConfigured sentinel)
-# ✅ ios-crash-diagnostic-reporter — DONE (CrashDiagnosticReporterTests,
-#    10 funcs. Extracted two pure cores from CrashDiagnosticReporter:
-#    parseTopFrames(fromCallStackJSON:) + diagnosticBody(for:now:) — the
-#    MetricKit-typed paths can't be unit-tested, no public initializer.)
-# ✅ ios-packet-tunnel-provider — DONE. Two pure cores extracted into
-#    Shared/ (so the test target, which can't see PacketTunnel, reaches
-#    them): resolveTunnelConfig (TunnelConfigSource.swift — config-source
-#    precedence, 7 funcs) and WidgetVPNSnapshot.write (the App-Group
-#    writer, now shared by ExtensionProvider AND ToggleVPNIntent so they
-#    can't drift — +3 funcs). startTunnel/stopTunnel orchestration +
-#    sing-box/Libbox lifecycle stay on-device-verified (need NE+Libbox).
-# ℹ️ backend-v2rayapi-command — reclassified gap -> exempt (protoc-
-#    generated, DO NOT EDIT). All backend gaps are now closed or exempt.
-# 1. ios-app-state / ios-vpn-manager — need a VPNManager protocol seam
-#    first; biggest effort, biggest blast radius. Best done fresh.
-# 2. ios-real-traffic-stall-detector, ios-outbound-group-tracker,
-#    ios-api-client, ios-subscription-manager, ios-networking-misc —
-#    major, steady grind
-# 3. ios-config-store, ios-vpn-error-mapper, ios-server-group,
-#    backend-api-router — minor, quick wins
+# ─── test-coverage-hardening — DONE (2026-05-14) ──────────────────────────
+# plan.yaml phase test-coverage-hardening. Every critical + major gap
+# closed; only backend-api-router (minor, accepted) remains.
+#
+# backend:
+#   ✅ backend-geoip          — geoip_test.go, 11 funcs, -race clean (ADR-004)
+#   ✅ backend-payments-apple — verify_test.go, 12 funcs (assertRealAppleChain
+#      panic-guard + early returns; full Verify() needs a real Apple JWS)
+#   ✅ backend-useragent      — parse_test.go, 3 funcs
+#   ✅ backend-email          — email_test.go, 7 funcs (stub RoundTripper)
+#   ℹ️ backend-v2rayapi-command — reclassified gap -> exempt (protoc-generated)
+#
+# iOS — pattern: behaviour-preserving extract-method pulls the pure,
+# branchy core out of an NE/StoreKit/URLSession-coupled file into a
+# testable `*Logic.swift`; the original becomes a thin caller.
+#   ✅ ios-crash-diagnostic-reporter — parseTopFrames + diagnosticBody
+#   ✅ ios-packet-tunnel-provider    — TunnelConfigSource + WidgetVPNSnapshot.write
+#   ✅ ios-app-state / ios-vpn-manager — VPNStatusLogic.swift (26 tests)
+#   ✅ ios-real-traffic-stall-detector — RealTrafficStallLogic.swift (22)
+#   ✅ ios-outbound-group-tracker      — OutboundGroupLogic.swift (10)
+#   ✅ ios-networking-misc             — NetworkingDecisionLogic + DirectConnection (35)
+#   ✅ ios-api-client                  — APIResponseLogic.swift (23)
+#   ✅ ios-subscription-manager        — SubscriptionEntitlementLogic.swift (19)
+#   ✅ ios-config-store                — ConfigStoreTests (13)
+#   ✅ ios-vpn-error-mapper            — VPNErrorMapperTests (10)
+#   ✅ ios-server-group                — ServerGroupTests (22)

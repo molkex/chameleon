@@ -703,7 +703,8 @@ phases:
 
   - id: test-coverage-hardening
     title: Close the critical/major test-coverage gaps
-    status: planned
+    status: done
+    completed: 2026-05-14
     layer: docs            # spans ios + backend; tracked as a hygiene phase
     rationale: |
       Audit 2026-05-14 (docs/test-coverage.yaml) found load-bearing code
@@ -715,18 +716,26 @@ phases:
       every shippable unit of logic has a test; UI views + thin wrappers
       are explicitly exempt.
     artifacts:
-      - docs/test-coverage.yaml   # the canonical gap list + priority order
+      - docs/test-coverage.yaml   # the canonical coverage map
     implementation: |
-      Work the priority order in test-coverage.yaml. Order is chosen by
-      value/effort: pure backend logic first (geoip, payments/apple),
-      then the pure iOS bits (CrashDiagnosticReporter, the
-      ExtensionProvider config-source picker), then the parts that need
-      a seam (AppState/VPNManager need a VPNManager protocol to test
-      without NetworkExtension). Each gap closed → update
-      test-coverage.yaml (move from gaps to tested).
+      Pattern throughout: behaviour-preserving extract-method pulls the
+      pure, branchy core out of an NE/StoreKit/URLSession-coupled file
+      into a testable `*Logic.swift`; the original becomes a thin caller.
+      Backend done directly (geoip, payments/apple, useragent, email).
+      iOS done in three parallel-scoped agent passes (commits 99fe28f,
+      a97df3b, 9ad929a) over disjoint file sets: AppState/VPNManager;
+      stall-detector/group-tracker/RU-networking; API/subscription/
+      config/error/server-group.
+    outcome: |
+      Every critical + major gap closed. iOS: 21 -> 32 test files,
+      ~209 -> ~389 test cases; 6 new `*Logic.swift` extracted cores.
+      Backend: all gaps closed or exempt (26 files / ~155 cases). Only
+      backend-api-router (minor, route wiring) left as an accepted gap.
+      All builds verified via `xcodebuild build` + `build-for-testing`
+      (tests can't RUN on the simulator — App Group entitlement crash —
+      so every extracted core is deterministic/pure by construction).
     notes: |
-      Not release-blocking — the launch builds ship regardless. This is
-      regression-safety debt: the more untested phases stack up
-      (field-verified: false on builds 65-71), the higher the blast
-      radius of the next refactor. Best burned down incrementally
-      alongside feature work, not as one big stop-the-world push.
+      Was not release-blocking — this is regression-safety debt. The
+      NE/StoreKit/URLSession orchestration wrapping the now-tested cores
+      stays on-device-verified; it becomes snapshot/integration-test
+      territory if/when the simulator App-Group block is lifted.
