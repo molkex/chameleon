@@ -29,6 +29,12 @@ struct MadFrogVPNApp: App {
         } else {
             TunnelFileLogger.logSync("MadFrogVPNApp: LibboxSetup OK base=\(opts.basePath)", category: "ui")
         }
+
+        // launch-03: subscribe to MetricKit crash/hang diagnostics. Apple
+        // delivers batched payloads (~daily) covering the whole app bundle
+        // including the PacketTunnel extension. CrashDiagnosticReporter
+        // posts a privacy-safe summary to the existing diagnostic endpoint.
+        CrashDiagnosticReporter.register()
     }
 
     var body: some Scene {

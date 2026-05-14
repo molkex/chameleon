@@ -5,6 +5,20 @@
 # Cross-reference phases via phase ids from plan.yaml.
 
 builds:
+  - number: 65
+    version: "1.0.26"
+    date: 2026-05-14
+    track: testflight-internal
+    asc-build-id: pending
+    phases: [launch-03-crash-reporting]
+    archive-path: /tmp/MadFrogVPN-build65.xcarchive
+    field-verified: false
+    notes: |
+      launch-03 — MetricKit crash/hang reporting. CrashDiagnosticReporter
+      subscribes to MXMetricManager, posts privacy-safe summaries to the
+      diagnostic endpoint. Backend routes crash events to mobile.crash
+      log key. Libbox unchanged from build 60.
+
   - number: 64
     version: "1.0.26"
     date: 2026-05-14

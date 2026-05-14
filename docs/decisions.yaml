@@ -92,6 +92,36 @@ decisions:
       - "Client-side NWPath.isExpensive — misses RU home Wi-Fi DPI"
       - "Per-server `unreachable_from_ru` DB column — needs migration + admin UI"
 
+  - id: ADR-006-metrickit-over-sentry
+    date: 2026-05-14
+    status: accepted
+    title: Crash reporting via Apple MetricKit, not Sentry/Crashlytics
+    context: |
+      launch-03 needs production crash/hang visibility. Industry default
+      is a third-party SDK (Sentry, Crashlytics). For a VPN app the App
+      Privacy section is a trust signal — bolting on an SDK that phones
+      home to a third party undercuts "we don't collect your data" and
+      forces new privacy disclosures.
+    decision: |
+      Use Apple's MetricKit (MXMetricManager + MXMetricManagerSubscriber).
+      Data path: OS → our app → our backend, no third party. The
+      CrashDiagnosticReporter extracts a privacy-safe SUMMARY (crash
+      type, signal, termination, build/OS/device, top ~8 call-stack
+      frames as binary+offset) and POSTs it to the existing
+      /api/v1/mobile/diagnostic endpoint, logged under the mobile.crash
+      key. MetricKit also covers the PacketTunnel extension's crashes —
+      it aggregates for the whole app bundle.
+    consequences:
+      - "Pro: zero third-party SDK, nothing to disclose beyond what we already do"
+      - "Pro: extension crashes are covered for free"
+      - "Pro: reuses the existing diagnostic endpoint — no new infra"
+      - "Con: payloads are OS-batched (~daily), not real-time. Acceptable — we want crash trends per build, not a live pager."
+      - "Con: no automatic symbolication — we keep dSYMs per archive and symbolicate offsets later"
+    alternatives-rejected:
+      - "Sentry — real-time + auto-symbolication, but third-party data flow and a heavier SDK on a privacy-sensitive app"
+      - "TelemetryDeck — privacy-friendly but oriented at analytics signals, weaker crash-diagnostic story"
+      - "No crash reporting — flying blind on 5%+ of production crashes is not acceptable for a paid app"
+
   - id: ADR-005-quic-toggle-via-env
     date: 2026-05-13
     status: accepted

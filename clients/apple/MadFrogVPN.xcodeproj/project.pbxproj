@@ -37,6 +37,7 @@
 		22BB22339ADAEAFF9C424945 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33A809CDAD52A1FB3A57D0A1 /* Constants.swift */; };
 		23ED595CF63572E126B9C141 /* PlatformDevice.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C61B1AA0AC6A405D189C34B /* PlatformDevice.swift */; };
 		24AF754CC3500A6D8402BA19 /* ApplicationServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 84CA81E1B48C9260C55A6012 /* ApplicationServices.framework */; };
+		2694D50EBC372C14A9F1FA9A /* CrashDiagnosticReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E79E78931D813F33B5C86772 /* CrashDiagnosticReporter.swift */; };
 		27118EF86F80BE16990516DF /* StringUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = D231623164FE9FECAD770789 /* StringUtils.swift */; };
 		29395303030F6B15D4E0F443 /* ServerTagShapeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA66DA58C2FEC081307F44D9 /* ServerTagShapeTests.swift */; };
 		2AA4A088C59F575FA98E5305 /* WebPaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F6C0D910C8814F24440E9B4 /* WebPaywallView.swift */; };
@@ -82,6 +83,7 @@
 		62946247597840D24A0C03C3 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31BA223EF19A5BDE5145B520 /* Logger.swift */; };
 		62994815B126F13D48820ECE /* RealTrafficStallDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC879DEDEBE9302A8936940 /* RealTrafficStallDetector.swift */; };
 		6796802AABB7434354F3280B /* LeafRankingStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD40F85317EC15AD9DC28123 /* LeafRankingStoreTests.swift */; };
+		69AEB563FDC45078FE981CB5 /* CrashDiagnosticReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E79E78931D813F33B5C86772 /* CrashDiagnosticReporter.swift */; };
 		6A8DE20C7A5B339770CC4E77 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0CB7FDF9EA71B70EF8E2BB5 /* MainView.swift */; };
 		6B44D4AE2C892A6DB3116CF4 /* L10n.swift in Sources */ = {isa = PBXBuildFile; fileRef = F48680996CDA6DA1906F2747 /* L10n.swift */; };
 		6C3065FFDF35061CFF1DC075 /* PathPickerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73394ADFC3E4785BF545DA45 /* PathPickerTests.swift */; };
@@ -136,6 +138,7 @@
 		95A885652F1BDCEB59C6F071 /* LegRaceProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F3382ABA99A753C80BA61E9 /* LegRaceProbe.swift */; };
 		96DEF159E7D3E0FE7B610E47 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31BA223EF19A5BDE5145B520 /* Logger.swift */; };
 		9795D390116C1BCDC7DABE82 /* UniformTypeIdentifiers.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9E3E0B15FC93A31007046BA1 /* UniformTypeIdentifiers.framework */; };
+		985F11BF81858006CB7E9363 /* CrashDiagnosticReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E79E78931D813F33B5C86772 /* CrashDiagnosticReporter.swift */; };
 		988C3827DE54CCD7D736BEA4 /* DirectConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = D289D2F79D83BFBA207A4C15 /* DirectConnection.swift */; };
 		9AB874F30E33334B32A64AA5 /* ConfigSanitizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 828C4AEC2AEC8A2EEB92717E /* ConfigSanitizerTests.swift */; };
 		9B6D01AD9F7B235A613C075B /* ConfigSanitizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E043C787773D9E89FA561E25 /* ConfigSanitizer.swift */; };
@@ -199,6 +202,7 @@
 		E257B962BF7B37686FAE5DD4 /* NetworkExtension.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 21AE788D6595D4029A9B4AD5 /* NetworkExtension.framework */; };
 		E32DB7E13D8E769D573670CE /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0CB7FDF9EA71B70EF8E2BB5 /* MainView.swift */; };
 		E3C336C2E13E13465E4B048E /* LegRaceProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F3382ABA99A753C80BA61E9 /* LegRaceProbe.swift */; };
+		E4AA3D9C7F2697F67F1C18AC /* CrashDiagnosticReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E79E78931D813F33B5C86772 /* CrashDiagnosticReporter.swift */; };
 		E70D83F87454714019114F62 /* CommandClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E4759379DDD3262CA6B47A9 /* CommandClient.swift */; };
 		E713B19758696F61DA4F415F /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31BA223EF19A5BDE5145B520 /* Logger.swift */; };
 		E954C11C4185740C1077192E /* PlatformDevice.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C61B1AA0AC6A405D189C34B /* PlatformDevice.swift */; };
@@ -371,6 +375,7 @@
 		E043C787773D9E89FA561E25 /* ConfigSanitizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigSanitizer.swift; sourceTree = "<group>"; };
 		E2BA26B8B7F99DE0D1317CFA /* EmailSignInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailSignInView.swift; sourceTree = "<group>"; };
 		E683952FD2B39BA18604AB73 /* VPNErrorMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VPNErrorMapper.swift; sourceTree = "<group>"; };
+		E79E78931D813F33B5C86772 /* CrashDiagnosticReporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashDiagnosticReporter.swift; sourceTree = "<group>"; };
 		E8EF3541F56531E6A2C1EA76 /* MenuBarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarContent.swift; sourceTree = "<group>"; };
 		E95E9718D8CE81EE4E41BE02 /* MainViewCalm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewCalm.swift; sourceTree = "<group>"; };
 		E9C795586D98E530507B81D4 /* ru */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ru; path = ru.lproj/Localizable.strings; sourceTree = "<group>"; };
@@ -540,6 +545,7 @@
 			children = (
 				E043C787773D9E89FA561E25 /* ConfigSanitizer.swift */,
 				33A809CDAD52A1FB3A57D0A1 /* Constants.swift */,
+				E79E78931D813F33B5C86772 /* CrashDiagnosticReporter.swift */,
 				6378A272B7EFCCF1FBCDFBFE /* KeychainHelper.swift */,
 				31BA223EF19A5BDE5145B520 /* Logger.swift */,
 				F3CC9D3B6EA0A7AA5E0F8F2D /* OutboundPenaltyStore.swift */,
@@ -869,6 +875,7 @@
 				2C7219DBE9E489EF766980D5 /* ConfigSanitizer.swift in Sources */,
 				348F2960A052562610557B1A /* ConfigStore.swift in Sources */,
 				7CCC25DD1ADCED3D051E5EF6 /* Constants.swift in Sources */,
+				E4AA3D9C7F2697F67F1C18AC /* CrashDiagnosticReporter.swift in Sources */,
 				6F371943E737DF862A79FEF7 /* DebugLogsView.swift in Sources */,
 				545174FD27F3A408A9831D67 /* DirectConnection.swift in Sources */,
 				1B8ACF623F7FE9A05505DAD9 /* EmailSignInView.swift in Sources */,
@@ -922,6 +929,7 @@
 			files = (
 				9B6D01AD9F7B235A613C075B /* ConfigSanitizer.swift in Sources */,
 				C1427D73FE7EE19C8A739AD6 /* Constants.swift in Sources */,
+				2694D50EBC372C14A9F1FA9A /* CrashDiagnosticReporter.swift in Sources */,
 				555FFF4B9E121E1C8AF28642 /* DirectConnection.swift in Sources */,
 				F56FFC5B7BABAD4472019C65 /* ExtensionPlatformInterface.swift in Sources */,
 				EEFDDC33749D552A10183539 /* ExtensionProvider.swift in Sources */,
@@ -959,6 +967,7 @@
 				11CC47593EBE388CEBE2BB79 /* ConfigSanitizer.swift in Sources */,
 				D05105F5750E89121A262ED5 /* ConfigStore.swift in Sources */,
 				22BB22339ADAEAFF9C424945 /* Constants.swift in Sources */,
+				985F11BF81858006CB7E9363 /* CrashDiagnosticReporter.swift in Sources */,
 				706F72657CDA27B5340D9C68 /* DebugLogsView.swift in Sources */,
 				988C3827DE54CCD7D736BEA4 /* DirectConnection.swift in Sources */,
 				6F53AEF81D6D7333CF80F056 /* EmailSignInView.swift in Sources */,
@@ -1035,6 +1044,7 @@
 			files = (
 				4453A046421824781233B26A /* ConfigSanitizer.swift in Sources */,
 				EE042CF563179D081005D9EE /* Constants.swift in Sources */,
+				69AEB563FDC45078FE981CB5 /* CrashDiagnosticReporter.swift in Sources */,
 				2EF3464C5030C3F45CC4B7C0 /* DirectConnection.swift in Sources */,
 				2267C1D26CF023BA48D22F8F /* ExtensionPlatformInterface.swift in Sources */,
 				3E4CEA517362B9201ED91C6E /* ExtensionProvider.swift in Sources */,
@@ -1298,7 +1308,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 64;
+				CURRENT_PROJECT_VERSION = 65;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = 99W3C374T2;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -1375,7 +1385,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 64;
+				CURRENT_PROJECT_VERSION = 65;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = 99W3C374T2;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;

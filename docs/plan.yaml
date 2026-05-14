@@ -404,14 +404,40 @@ phases:
     estimated-effort: trivial (ASC toggle)
 
   - id: launch-03-crash-reporting
-    title: Crash reporting (TelemetryDeck or Sentry)
-    status: planned
+    title: Crash reporting via MetricKit
+    status: done
     layer: ios
+    builds: [65]
+    completed: 2026-05-14
     rationale: |
-      Without it we're blind to 5%+ of production crashes. TelemetryDeck
-      is privacy-friendly (matters for a VPN app's App Privacy section).
-    estimated-effort: 0.5 day
-    notes: needs ASC App Privacy disclosure update for whichever SDK
+      Production crash/hang visibility — was blind to 5%+ of crashes.
+      Chose MetricKit over Sentry (ADR-006): 0 third-party SDK, covers
+      the PacketTunnel extension too, reuses the existing diagnostic
+      endpoint.
+    artifacts:
+      - clients/apple/Shared/CrashDiagnosticReporter.swift
+      - clients/apple/MadFrogVPN/MadFrogVPNApp.swift
+      - backend/internal/api/mobile/diagnostic.go
+      - backend/internal/api/mobile/diagnostic_test.go
+    implementation: |
+      iOS: CrashDiagnosticReporter conforms to MXMetricManagerSubscriber,
+      registered in MadFrogVPNApp.init. On didReceive([MXDiagnosticPayload])
+      it summarises each crash/hang/cpu/disk diagnostic (type, signal,
+      termination, build/OS/device, top 8 call-stack frames as
+      binary+offset) and POSTs to /api/v1/mobile/diagnostic. UserDefaults
+      watermark guards against double-processing.
+      Backend: diagnosticRequest extended with optional crash fields;
+      events "crash"/"hang"/"cpu"/"disk" route to the mobile.crash log
+      key (zap.Warn) instead of mobile.diagnostic. All fields length-capped.
+    related-decisions:
+      - ADR-006-metrickit-over-sentry
+    tests:
+      - "diagnostic_test.go: 5 cases — routing vs crash key, hang/cpu/disk share crash key, field caps, malformed body still 204"
+    notes: |
+      No ASC App Privacy change needed — MetricKit is OS-native, the
+      summary contains no user data (call-stack offsets only).
+      Symbolication is deferred: keep the dSYM from each archive,
+      symbolicate binary+offset later when triaging.
 
   - id: launch-04-widgets
     title: Home/Lock Screen Widget + Control Center widget (iOS 18)
