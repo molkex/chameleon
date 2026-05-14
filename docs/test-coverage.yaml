@@ -22,8 +22,8 @@ summary:
     test-cases: ~189
   backend:
     source-files: 69          # excl. _test.go and vendor/
-    test-files: 24
-    test-cases: ~133
+    test-files: 26
+    test-cases: ~155
   fork:
     note: sing-box-fork carries upstream's own test suite; the one
       cherry-pick (firstwrite-callback) has no dedicated test —
@@ -195,6 +195,8 @@ backend:
     - internal/payments/apple/verify.go -> verify_test.go (12)     # test-coverage-hardening
     - internal/payments/freekassa/signature.go -> signature_test.go (2)
     - internal/secrets/encrypt.go -> encrypt_test.go (6)
+    - internal/useragent/parse.go -> parse_test.go (3)            # test-coverage-hardening
+    - internal/email/{email,resend}.go -> email_test.go (7)       # test-coverage-hardening
     - internal/cluster/{errors,routes,sync}.go -> *_test.go (2+4+2)
     - internal/api/middleware/idempotency.go -> idempotency_test.go (9)
     - internal/api/admin/admins.go -> admins_test.go (5)
@@ -203,17 +205,6 @@ backend:
     - tests/integration/health_test.go (1)
 
   gaps:
-    - id: backend-useragent
-      path: backend/internal/useragent/
-      severity: major
-      why: parses client UA for routing/telemetry decisions. Untested.
-
-    - id: backend-email
-      path: backend/internal/email/
-      severity: major
-      why: transactional email (Resend) — templating + send. Untested. A
-        broken template/recipient bug ships silently.
-
     - id: backend-v2rayapi-command
       path: backend/internal/vpn/v2rayapi/command/
       severity: major
@@ -240,10 +231,14 @@ backend:
 #    assertRealAppleChain panic-guard, Verify/VerifyNotification early
 #    returns, msToTime, ErrRevoked sentinel. Full Verify() path needs a
 #    real Apple-signed JWS — integration territory, not a unit test.)
+# ✅ backend-useragent     — DONE (parse_test.go, 3 funcs)
+# ✅ backend-email         — DONE (email_test.go, 7 funcs — NewResendSender
+#    validation, Send request-shape/success/error-status/transport-error
+#    via a stub RoundTripper, NoopSender, ErrNotConfigured sentinel)
 # 1. ios-crash-diagnostic-reporter (major, pure, privacy-sensitive)
 # 2. ios-packet-tunnel-provider — extract + test the config-source picker
 #    and publishWidgetState (the launch-04b code is live & untested)
 # 3. ios-app-state / ios-vpn-manager — need a VPNManager protocol seam
 #    first; biggest effort, biggest blast radius
 # 4. ios-real-traffic-stall-detector, ios-outbound-group-tracker,
-#    ios-networking-misc, backend-useragent/email — major, steady grind
+#    ios-networking-misc, backend-v2rayapi-command — major, steady grind
