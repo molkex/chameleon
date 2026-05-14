@@ -31,12 +31,24 @@ prod:
 
   ios:
     marketing-version: "1.0.26"
-    current-build: 67
+    current-build: 67                              # last UPLOADED build
     track: testflight-internal
     asc-build-id: def693a0-a9f0-4390-b314-ce449d8e1a63
     uploaded: 2026-05-14
     field-verified: false                        # builds 65-67 (launch-03/06/07) not yet field-tested; 60-64 were
     previous-builds-in-testflight: [66, 65, 64, 63, 62, 61, 60, 59, 58, 57, 56, 55]
+    pending-build:
+      number: 68
+      contains: launch-04 (Home/Lock-Screen status widget)
+      state: code-complete, all targets compile
+      blocked-on: |
+        New com.madfrog.vpn.widget bundle ID needs an App-Groups
+        provisioning profile. Bundle ID + APP_GROUPS capability created
+        via ASC API; Xcode -allowProvisioningUpdates can't generate the
+        profile head-less ("Authentication failed" on the new target only).
+        Unblock: open Xcode.app once OR create the IOS_APP_STORE profile
+        for the bundle ID in the developer portal. See incident
+        2026-05-14-widget-bundle-id-provisioning-wall.
     libbox:
       source: sing-box v1.13.5 + first-write callback cherry-pick
       binary-size-mb: 44

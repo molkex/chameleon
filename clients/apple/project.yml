@@ -18,7 +18,7 @@ settings:
   base:
     SWIFT_VERSION: "5.10"
     MARKETING_VERSION: "1.0.26"
-    CURRENT_PROJECT_VERSION: "67"
+    CURRENT_PROJECT_VERSION: "68"
     DEVELOPMENT_TEAM: "99W3C374T2"
     TARGETED_DEVICE_FAMILY: "1"
 
@@ -49,6 +49,7 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"
     dependencies:
       - target: PacketTunnel
+      - target: MadFrogWidget
       - framework: Frameworks/Libbox.xcframework
         embed: false
       - sdk: libresolv.tbd
@@ -56,6 +57,31 @@ targets:
         product: GoogleSignIn
       - package: GoogleSignIn
         product: GoogleSignInSwift
+
+  # launch-04: read-only VPN status widget (Home Screen + Lock Screen).
+  # Lean target — pulls only Constants.swift + WidgetVPNSnapshot.swift
+  # from Shared/, not the whole folder (the rest imports MetricKit /
+  # NetworkExtension / Libbox, none of which a widget needs).
+  MadFrogWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: MadFrogWidget
+        excludes:
+          - "**/.DS_Store"
+      - path: Shared/Constants.swift
+      - path: Shared/WidgetVPNSnapshot.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.madfrog.vpn.widget
+        INFOPLIST_FILE: MadFrogWidget/Info.plist
+        CODE_SIGN_ENTITLEMENTS: MadFrogWidget/MadFrogWidget.entitlements
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"
+        ENABLE_BITCODE: false
+        TARGETED_DEVICE_FAMILY: "1"
+    dependencies:
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework
 
   PacketTunnel:
     type: app-extension

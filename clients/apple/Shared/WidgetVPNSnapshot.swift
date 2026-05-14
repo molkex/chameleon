@@ -1,0 +1,54 @@
+import Foundation
+
+/// launch-04: the VPN-status snapshot the Home/Lock-Screen widget reads.
+///
+/// The widget extension and the main app can't share live object state —
+/// they're separate processes. They DO share the App Group container, and
+/// `handleStatus()` already maintains the two keys we need there:
+///   - vpnConnectedAtKey   — set on .connected, removed on .disconnected
+///   - selectedServerTagKey — the user's chosen server / "Auto"
+/// So the widget reads status with zero new write-path code; the app just
+/// has to call `WidgetCenter.reloadAllTimelines()` on status change so the
+/// timeline refreshes promptly.
+///
+/// This type is the single agreed reader, included in both the app target
+/// (so a unit test can exercise it) and the widget target.
+struct WidgetVPNSnapshot: Equatable {
+    let connected: Bool
+    /// User-facing server label, e.g. "Auto" / "🇩🇪 Германия". nil when the
+    /// user has never picked one (fresh install).
+    let serverName: String?
+
+    /// Read the current snapshot from the App Group. Returns a
+    /// disconnected snapshot if the App Group is unreachable — a widget
+    /// must never crash, "disconnected" is the safe default to show.
+    static func read() -> WidgetVPNSnapshot {
+        guard let d = UserDefaults(suiteName: AppConstants.appGroupID) else {
+            return WidgetVPNSnapshot(connected: false, serverName: nil)
+        }
+        // vpnConnectedAtKey is the connected/disconnected signal:
+        // handleStatus() stamps it on .connected, clears it on
+        // .disconnected. Presence + >0 == connected.
+        let connectedAt = d.double(forKey: AppConstants.vpnConnectedAtKey)
+        let server = d.string(forKey: AppConstants.selectedServerTagKey)
+        return WidgetVPNSnapshot(connected: connectedAt > 0, serverName: server)
+    }
+
+    /// Localised status line. The widget target doesn't carry the app's
+    /// Localizable.strings (keeping the new target lean), so the two
+    /// strings it needs are resolved here against the current locale.
+    var statusText: String {
+        let isRU = Locale.current.language.languageCode?.identifier == "ru"
+        if connected {
+            return isRU ? "Защищено" : "Protected"
+        }
+        return isRU ? "Не защищено" : "Not protected"
+    }
+
+    /// Fallback server label when none is stored yet.
+    var serverDisplay: String {
+        if let serverName, !serverName.isEmpty { return serverName }
+        let isRU = Locale.current.language.languageCode?.identifier == "ru"
+        return isRU ? "Авто" : "Auto"
+    }
+}

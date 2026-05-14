@@ -3,6 +3,7 @@ import SwiftUI
 import NetworkExtension
 import AuthenticationServices
 import UserNotifications
+import WidgetKit
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -1557,6 +1558,11 @@ class AppState {
             }
         default: break
         }
+
+        // launch-04: refresh the status widget. Must run AFTER the switch —
+        // the .connected / .disconnected cases above are what mutate the
+        // App Group keys (vpnConnectedAtKey) that WidgetVPNSnapshot reads.
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
     // MARK: - Traffic health monitor + fallback chain

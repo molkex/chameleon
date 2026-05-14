@@ -440,13 +440,73 @@ phases:
       symbolicate binary+offset later when triaging.
 
   - id: launch-04-widgets
-    title: Home/Lock Screen Widget + Control Center widget (iOS 18)
+    title: Home/Lock Screen status widget
+    status: in-progress
+    layer: ios
+    builds: [68]   # archived only once the widget provisioning profile exists
+    rationale: |
+      iOS 16+ users expect a glanceable VPN status surface. A read-only
+      Home Screen + Lock Screen widget is the bulk of that value and is
+      fully compile-verifiable.
+    artifacts:
+      - clients/apple/MadFrogWidget/MadFrogWidgetBundle.swift
+      - clients/apple/MadFrogWidget/StatusWidget.swift
+      - clients/apple/MadFrogWidget/Info.plist
+      - clients/apple/MadFrogWidget/MadFrogWidget.entitlements
+      - clients/apple/Shared/WidgetVPNSnapshot.swift
+      - clients/apple/Tests/UnitTests/WidgetVPNSnapshotTests.swift
+      - clients/apple/project.yml
+      - clients/apple/MadFrogVPN/Models/AppState.swift
+    implementation: |
+      New MadFrogWidget app-extension target (iOS-only — the Mac app has
+      MenuBarExtra). WidgetVPNSnapshot (Shared/) reads vpnConnectedAtKey +
+      selectedServerTagKey from the App Group — zero new write-path code,
+      since handleStatus() already maintains those. StatusWidget supports
+      systemSmall + accessoryCircular/Rectangular/Inline. AppState.
+      handleStatus() calls WidgetCenter.reloadAllTimelines() AFTER the
+      switch (the cases mutate the App Group keys the widget reads).
+      Lean target: pulls only Constants.swift + WidgetVPNSnapshot.swift
+      from Shared/, not the whole folder.
+    tests: |
+      WidgetVPNSnapshotTests (4 cases): server-verbatim vs Auto fallback,
+      status-text differs by state, Equatable. All 3 targets
+      (MadFrogWidget / MadFrogVPN / test) compile clean.
+    blocked-on: |
+      ARCHIVE blocked. The new com.madfrog.vpn.widget bundle ID needs an
+      App-Groups-enabled provisioning profile. Done via ASC API:
+        - created bundle ID com.madfrog.vpn.widget (resource Z76JPFNJ6D)
+        - enabled APP_GROUPS capability on it (matches the working tunnel
+          bundle ID structurally — settings=null)
+      Still blocked: Xcode's `-allowProvisioningUpdates` returns
+      "Authentication failed" ONLY for MadFrogWidget (the target needing a
+      FRESH profile) — existing targets archive fine on cached profiles,
+      and the SAME ASC API key works from direct python calls. Xcode's
+      provisioning-subsystem auth path is the wall — exactly the
+      "App Groups via Xcode UI" gotcha from feedback_mac_testflight_gotchas.
+      Fix needs one of:
+        (a) open Xcode.app once → it generates the MadFrogWidget profile
+            via the GUI auth path, then CLI archives work; or
+        (b) create the IOS_APP_STORE profile for com.madfrog.vpn.widget
+            manually in the developer portal.
+      Note: no iOS distribution certificate exists in the account at all
+      (only DEVELOPMENT + Mac dist) — builds 56-67 relied on
+      -allowProvisioningUpdates auto-creating dist signing at export time.
+    follow-up:
+      - launch-04b-control-widget   # iOS-18 ControlWidget toggle, deferred
+    estimated-effort: code done; ~5 min of provisioning to unblock
+
+  - id: launch-04b-control-widget
+    title: iOS-18 ControlWidget toggle + Home Screen AppIntent button
     status: planned
     layer: ios
     rationale: |
-      iOS 16+ users expect a VPN toggle on the home screen; iOS 18
-      ControlWidget for Control Center / Action Button. Happ Plus has it.
-    estimated-effort: 1-1.5 days
+      The interactive half of widgets — a real connect/disconnect toggle
+      in Control Center (iOS 18 ControlWidget) and an AppIntent-backed
+      Home Screen button. Split from launch-04 because driving
+      NEVPNManager from a widget-extension process needs on-device
+      verification, and a half-working toggle is worse than none.
+    depends-on: launch-04-widgets
+    estimated-effort: 0.5-1 day
 
   - id: launch-05-shortcuts-appintents
     title: Shortcuts App integration (AppIntent — connect/disconnect/switch)

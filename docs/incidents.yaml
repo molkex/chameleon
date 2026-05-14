@@ -6,6 +6,43 @@
 # it's so future-you doesn't re-debug the same misdirection.
 
 incidents:
+  - id: 2026-05-14-widget-bundle-id-provisioning-wall
+    date: 2026-05-14
+    severity: minor
+    title: New widget bundle ID can't get an App-Groups provisioning profile via CLI
+    component: ios-build
+    what-happened: |
+      launch-04 adds a MadFrogWidget app-extension target with a new
+      bundle ID com.madfrog.vpn.widget that needs the App Group
+      group.com.madfrog.vpn. `xcodebuild ... -allowProvisioningUpdates
+      archive` fails ONLY for this target with "Authentication failed:
+      Make sure a bearer token was provided ..." followed by the
+      wildcard profile lacking App Groups. Existing targets archive fine
+      (cached profiles, no ASC call). The SAME ASC API key works fine for
+      direct python calls (used it to create the bundle ID + capability
+      in the same session).
+    root-cause: |
+      Xcode's provisioning subsystem (the part that GENERATES a profile
+      for a never-seen App ID) has its own auth path that the
+      `-authenticationKeyPath` CLI flag isn't satisfying. Predicted by
+      feedback_mac_testflight_gotchas — "App Groups via Xcode UI".
+    mitigation-done: |
+      Via ASC API: created bundle ID com.madfrog.vpn.widget (Z76JPFNJ6D)
+      and enabled its APP_GROUPS capability (structurally identical to the
+      working com.madfrog.vpn.tunnel — settings=null). Code is committed
+      and all targets compile.
+    unblock: |
+      Open Xcode.app once and let the GUI generate the MadFrogWidget
+      provisioning profile (the GUI auth path works where the CLI's
+      doesn't), OR create the IOS_APP_STORE profile for the bundle ID in
+      the developer portal. ~5 minutes either way; then `archive` works
+      from the CLI as before.
+    lesson: |
+      A brand-new bundle ID that needs a non-trivial capability (App
+      Groups, Network Extensions) can't be fully provisioned head-less via
+      `xcodebuild -allowProvisioningUpdates` — budget a one-time Xcode-GUI
+      or portal step when adding a new signed target.
+
   - id: 2026-05-13-libbox-1.13.6-oom-wrong-call
     date: 2026-05-13
     severity: blocker
