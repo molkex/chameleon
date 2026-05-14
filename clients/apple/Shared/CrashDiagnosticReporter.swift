@@ -171,8 +171,18 @@ final class CrashDiagnosticReporter: NSObject, MXMetricManagerSubscriber {
     /// later. Privacy-safe: an offset into a text segment carries no user
     /// data.
     private static func topFrames(_ tree: MXCallStackTree, limit: Int = 8) -> [String] {
+        parseTopFrames(fromCallStackJSON: tree.jsonRepresentation(), limit: limit)
+    }
+
+    /// Pure core of `topFrames` — split out so the privacy-critical frame
+    /// extraction is unit-testable without a real `MXCallStackTree` (a
+    /// MetricKit type with no public initializer). Given the
+    /// `MXCallStackTree.jsonRepresentation()` bytes it returns at most
+    /// `limit` "binaryName+offset" strings and NOTHING else — no paths,
+    /// no symbols, no user data. ADR-006.
+    static func parseTopFrames(fromCallStackJSON data: Data, limit: Int = 8) -> [String] {
         guard
-            let obj = try? JSONSerialization.jsonObject(with: tree.jsonRepresentation()) as? [String: Any],
+            let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
             let stacks = obj["callStacks"] as? [[String: Any]],
             let first = stacks.first,
             let roots = first["callStackRootFrames"] as? [[String: Any]]
@@ -195,6 +205,24 @@ final class CrashDiagnosticReporter: NSObject, MXMetricManagerSubscriber {
 
     // MARK: - Transport
 
+    /// The exact JSON payload POSTed for one diagnostic. Extracted from
+    /// `send` so a test can pin that we ship a SUMMARY and nothing else:
+    /// a fixed, small field set — no raw `MXCallStackTree`, no file
+    /// paths, no user data. ADR-006. If a field is ever added here it's
+    /// a deliberate, test-visible change.
+    static func diagnosticBody(for s: CrashSummary, now: Date) -> [String: Any] {
+        [
+            "event": s.event,
+            "crash_signal": s.signal,
+            "crash_termination": s.termination,
+            "app_build": s.appBuild,
+            "os_version": s.osVersion,
+            "device_type": s.deviceType,
+            "call_stack_top": s.callStackTop,
+            "ts": ISO8601DateFormatter().string(from: now),
+        ]
+    }
+
     /// Best-effort POST to the existing diagnostic endpoint. Any failure
     /// is swallowed — a crash report that doesn't land is not worth a
     /// retry storm, and MetricKit won't redeliver.
@@ -203,17 +231,7 @@ final class CrashDiagnosticReporter: NSObject, MXMetricManagerSubscriber {
         request.httpMethod = "POST"
         request.timeoutInterval = 8
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let body: [String: Any] = [
-            "event": s.event,
-            "crash_signal": s.signal,
-            "crash_termination": s.termination,
-            "app_build": s.appBuild,
-            "os_version": s.osVersion,
-            "device_type": s.deviceType,
-            "call_stack_top": s.callStackTop,
-            "ts": ISO8601DateFormatter().string(from: Date()),
-        ]
-        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        request.httpBody = try? JSONSerialization.data(withJSONObject: diagnosticBody(for: s, now: Date()))
         _ = try? await URLSession.shared.data(for: request)
     }
 }

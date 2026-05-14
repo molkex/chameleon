@@ -18,8 +18,8 @@ last-updated-by: claude
 summary:
   ios:
     source-files: 65
-    test-files: 19
-    test-cases: ~189
+    test-files: 20
+    test-cases: ~199
   backend:
     source-files: 69          # excl. _test.go and vendor/
     test-files: 26
@@ -41,6 +41,7 @@ ios:
     - VPNControlIntents.swift -> VPNControlIntentsTests (5)        # launch-04b
     - WidgetVPNSnapshot.swift -> WidgetVPNSnapshotTests (5)        # launch-04
     - DisconnectNotifier.swift -> DisconnectNotifierTests (3)      # launch-07
+    - CrashDiagnosticReporter.swift -> CrashDiagnosticReporterTests (10)  # launch-03 / test-coverage-hardening
     - OutboundPenaltyStore.swift -> OutboundPenaltyStoreTests (9)  # phase-1.d
     - TunnelProbeOutcome.swift -> TunnelProbeOutcomeTests (9)
     - Networking/SingBoxConfigPatcher.swift -> SingBoxConfigPatcherTests (6)
@@ -93,18 +94,6 @@ ios:
         config-source precedence, the userStoppedVPN early-return,
         publishWidgetState connected/disconnected key write. Extract
         the config-source picker as a pure function to make it testable.
-
-    - id: ios-crash-diagnostic-reporter
-      path: clients/apple/Shared/CrashDiagnosticReporter.swift
-      severity: major
-      why: |
-        launch-03 — extracts a privacy-safe crash SUMMARY from
-        MetricKit payloads. The redaction/summarisation is pure logic
-        and privacy-sensitive (ADR-006) — must not leak PII. Zero tests.
-      what-to-test: |
-        summary extraction from a sample MXDiagnosticPayload: correct
-        fields kept, call-stack truncated to ~8 frames, NO raw
-        user/path data in the output.
 
     - id: ios-real-traffic-stall-detector
       path: clients/apple/PacketTunnel/RealTrafficStallDetector.swift
@@ -235,10 +224,13 @@ backend:
 # ✅ backend-email         — DONE (email_test.go, 7 funcs — NewResendSender
 #    validation, Send request-shape/success/error-status/transport-error
 #    via a stub RoundTripper, NoopSender, ErrNotConfigured sentinel)
-# 1. ios-crash-diagnostic-reporter (major, pure, privacy-sensitive)
-# 2. ios-packet-tunnel-provider — extract + test the config-source picker
+# ✅ ios-crash-diagnostic-reporter — DONE (CrashDiagnosticReporterTests,
+#    10 funcs. Extracted two pure cores from CrashDiagnosticReporter:
+#    parseTopFrames(fromCallStackJSON:) + diagnosticBody(for:now:) — the
+#    MetricKit-typed paths can't be unit-tested, no public initializer.)
+# 1. ios-packet-tunnel-provider — extract + test the config-source picker
 #    and publishWidgetState (the launch-04b code is live & untested)
-# 3. ios-app-state / ios-vpn-manager — need a VPNManager protocol seam
+# 2. ios-app-state / ios-vpn-manager — need a VPNManager protocol seam
 #    first; biggest effort, biggest blast radius
-# 4. ios-real-traffic-stall-detector, ios-outbound-group-tracker,
+# 3. ios-real-traffic-stall-detector, ios-outbound-group-tracker,
 #    ios-networking-misc, backend-v2rayapi-command — major, steady grind

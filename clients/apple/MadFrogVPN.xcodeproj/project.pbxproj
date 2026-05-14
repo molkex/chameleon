@@ -64,6 +64,7 @@
 		3601BA04F2884DCA749B4501 /* DisconnectNotifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50BEFF992FDC4FB3E393F2B7 /* DisconnectNotifier.swift */; };
 		36B80332BA88B42D24ECB1BD /* OutboundGroupTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1F6C7650A9DBA9120681CC2 /* OutboundGroupTracker.swift */; };
 		380227CC676ADAB5C1030C5F /* VPNPermissionPrimerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27C5C9C45F3855532EB54D77 /* VPNPermissionPrimerView.swift */; };
+		383623A550C0B17C4F54CC20 /* CrashDiagnosticReporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC5CB710888B42ABEA9DB82D /* CrashDiagnosticReporterTests.swift */; };
 		3AD613678395080BCC587E49 /* WidgetVPNSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DF255FC3085B56FF435958B /* WidgetVPNSnapshot.swift */; };
 		3AF0A8290A7215D2EF09A649 /* RoutingMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7486DEC72FBB5DD5338F158 /* RoutingMode.swift */; };
 		3BF98D7ADE7ABDDECE5AE129 /* PaywallRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFB204D1606673779D65246 /* PaywallRouter.swift */; };
@@ -394,6 +395,7 @@
 		A630BB5B9993A8152A622ED3 /* CoreWLAN.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreWLAN.framework; path = System/Library/Frameworks/CoreWLAN.framework; sourceTree = SDKROOT; };
 		AAFB204D1606673779D65246 /* PaywallRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallRouter.swift; sourceTree = "<group>"; };
 		AB7094B60F4AA1E18FDEBCE5 /* LastWorkingLegStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LastWorkingLegStoreTests.swift; sourceTree = "<group>"; };
+		AC5CB710888B42ABEA9DB82D /* CrashDiagnosticReporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashDiagnosticReporterTests.swift; sourceTree = "<group>"; };
 		AE8C33AF6B8E237DD5BC9D5B /* ThemePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemePickerView.swift; sourceTree = "<group>"; };
 		B0F1E53A2387E8AB9E727CD9 /* TrafficHealthMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrafficHealthMonitor.swift; sourceTree = "<group>"; };
 		B114B8A077748A71A618058A /* PingServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PingServiceTests.swift; sourceTree = "<group>"; };
@@ -532,6 +534,7 @@
 			isa = PBXGroup;
 			children = (
 				828C4AEC2AEC8A2EEB92717E /* ConfigSanitizerTests.swift */,
+				AC5CB710888B42ABEA9DB82D /* CrashDiagnosticReporterTests.swift */,
 				309988BC023B66A61A71333A /* DisconnectNotifierTests.swift */,
 				FF66055FD7D08B8EB5770BAF /* KeychainHelperTests.swift */,
 				AB7094B60F4AA1E18FDEBCE5 /* LastWorkingLegStoreTests.swift */,
@@ -1144,6 +1147,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				9AB874F30E33334B32A64AA5 /* ConfigSanitizerTests.swift in Sources */,
+				383623A550C0B17C4F54CC20 /* CrashDiagnosticReporterTests.swift in Sources */,
 				C58057A931009CE17264DA4D /* DisconnectNotifierTests.swift in Sources */,
 				C9076459425BD8F9966B4CEE /* KeychainHelperTests.swift in Sources */,
 				80A9B8892DB1DFCEC991BE4C /* LastWorkingLegStoreTests.swift in Sources */,
