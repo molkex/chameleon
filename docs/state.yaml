@@ -27,7 +27,7 @@ prod:
     marketing-version: "1.0.26"
     current-build: 67
     track: testflight-internal
-    asc-build-id: pending
+    asc-build-id: def693a0-a9f0-4390-b314-ce449d8e1a63
     uploaded: 2026-05-14
     field-verified: false                        # pending user test of build 64
     previous-builds-in-testflight: [66, 65, 64, 63, 62, 61, 60, 59, 58, 57, 56, 55]

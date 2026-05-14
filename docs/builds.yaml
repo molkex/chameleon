@@ -9,7 +9,7 @@ builds:
     version: "1.0.26"
     date: 2026-05-14
     track: testflight-internal
-    asc-build-id: pending
+    asc-build-id: def693a0-a9f0-4390-b314-ce449d8e1a63
     phases: [launch-06-auto-connect-untrusted-wifi]
     archive-path: /tmp/MadFrogVPN-build67.xcarchive
     field-verified: false
