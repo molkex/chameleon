@@ -7,6 +7,32 @@
 # (Builds 36-54 are not migrated; see archive/2026-05-pre-yaml/.)
 
 builds:
+  - number: 74
+    version: "1.0.26"
+    date: 2026-05-15
+    track: app-store          # submitted to App Store review (replaces build 72 in the submission)
+    asc-build-id: e9a91d4d-fdc7-46d2-adf5-77c9a45b9008
+    archive-path: /tmp/MadFrogVPN-build74.xcarchive
+    field-verified: false
+    notes: |
+      App Review reject fix — Guideline 2.1(a), round 3: "Continue as
+      guest" showed an error message (incident 2026-05-15-app-review-
+      guest-signin-error). The build-72 SIWA fix and the 2.3.12
+      review-notes both held; this was a NEW 2.1a issue. Root cause:
+      asymmetric error handling — `signInWithApple` caught a /config
+      403 (no active subscription) and routed to the paywall, but
+      `signInAnonymous` had a blunt catch that turned the same 403 into
+      "onboarding.anon_failed". The 403 happens when a device_id was
+      re-bound to an Apple account (backend `AppleSignIn` ClearDeviceID)
+      whose trial later expired — `Register` doesn't extend trials, so
+      "Continue as guest" got a 403 back. build 74 (commit 63e8918)
+      makes `signInAnonymous` catch `APIError.serverError(403)` exactly
+      like `signInWithApple`: sets subscriptionExpire = nil and lands
+      the user in the app at the subscription screen. iOS-only, libbox
+      unchanged from build 60. project.yml CURRENT_PROJECT_VERSION
+      73→74. Attached to v1.0.26 and resubmitted; replied to App Review
+      on the live (un-canceled) reviewSubmission 82ab2364 thread first.
+
   - number: 73
     version: "1.0.26"
     date: 2026-05-14

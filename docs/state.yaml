@@ -31,12 +31,17 @@ prod:
 
   ios:
     marketing-version: "1.0.26"
-    current-build: 73                              # last UPLOADED build (TestFlight Internal)
-    track: testflight-internal                     # build 73 = TestFlight only; the App Store has build 72 (see app-store: below)
-    asc-build-id: 47e6e145-050d-4c46-aea8-d1184e291065
-    uploaded: 2026-05-14
-    field-verified: false                        # builds 65-73 not yet field-tested; 60-64 were. build 72's SIWA fix is UNVERIFIED on device — see incident 2026-05-14-app-review-siwa-unresponsive
-    previous-builds-in-testflight: [72, 71, 70, 69, 68, 67, 66, 65, 64, 63, 62, 61, 60, 59, 58, 57, 56, 55]
+    current-build: 74                              # last UPLOADED build (App Store submission)
+    track: app-store                               # build 74 = App Store review (replaces build 72 in the submission)
+    asc-build-id: e9a91d4d-fdc7-46d2-adf5-77c9a45b9008
+    uploaded: 2026-05-15
+    field-verified: false                        # builds 65-74 not yet field-tested; 60-64 were. build 72's SIWA fix PASSED App Review; build 74's guest-signin fix is UNVERIFIED on device — see incidents 2026-05-14-app-review-siwa-unresponsive + 2026-05-15-app-review-guest-signin-error
+    previous-builds-in-testflight: [73, 72, 71, 70, 69, 68, 67, 66, 65, 64, 63, 62, 61, 60, 59, 58, 57, 56, 55]
+    # build 74 = App Review reject fix round 3 — Guideline 2.1(a)
+    # "Continue as guest" showed an error. signInAnonymous now catches
+    # the /config 403 (no active subscription) and routes to the
+    # paywall, symmetric with signInWithApple. See incident
+    # 2026-05-15-app-review-guest-signin-error.
     # build 73 = launch-05 — Shortcuts / AppIntents: ConnectVPNIntent,
     # DisconnectVPNIntent, VPNStatusIntent + VPNAppShortcuts provider.
     # TestFlight only — deliberately NOT swapped into the App Store
@@ -79,11 +84,23 @@ prod:
 
   app-store:
     version: "1.0.26"
-    state: WAITING_FOR_REVIEW
-    submission-id: 82ab2364-cede-4217-b548-d94ea4f89346
-    attached-build: 72
+    state: REJECTED                                # round 3: 82ab2364 rejected on a NEW 2.1a (guest sign-in); build 74 fix uploaded, reply sent + resubmit in progress
+    submission-id: 82ab2364-cede-4217-b548-d94ea4f89346   # round-3 rejected submission — NOT canceled; replied on its Resolution Center thread. New submission for build 74 pending.
+    attached-build: 72                             # → 74 once the new reviewSubmission is created
     submitted: 2026-05-14
-    # 2026-05-14 — Sign in with Apple (2.1a) fix in build 72 PASSED App
+    # 2026-05-15 — round 3 verdict on reviewSubmission 82ab2364:
+    # SIWA 2.1a was NOT raised (build-72 fix held) and 2.3.12 was NOT
+    # raised (the App Review Notes approach worked). A NEW Guideline
+    # 2.1(a) issue was raised instead: "Continue as guest" showed an
+    # error message. Root cause = asymmetric error handling between
+    # signInWithApple (caught /config 403 → paywall) and signInAnonymous
+    # (blunt catch → hard error), exposed when a device_id had been
+    # re-bound to an Apple account whose trial expired. Fixed in build
+    # 74 (commit 63e8918). Replied to App Review on the live (un-
+    # canceled) 82ab2364 thread, then attaching build 74 + creating a
+    # new reviewSubmission. See incident 2026-05-15-app-review-guest-
+    # signin-error.
+    # 2026-05-14 — round 2: SIWA (2.1a) fix in build 72 PASSED App
     # Review (tested iPhone 17 Pro Max + iPad Air M3) — the week-long
     # blocker is closed. build 72 was re-rejected on 2.3.12 ALONE: the
     # "What's New" text = the uneditable first-release placeholder
@@ -96,7 +113,8 @@ prod:
     # See incident 2026-05-14-app-review-siwa-unresponsive.
     # Submission history: build 60 (1481e218) canceled -> build 71
     # (48eecb25, REJECTED 2.1a) canceled -> build 72 (55f7cc73, 2.1a
-    # PASSED / REJECTED 2.3.12) canceled -> build 72 (82ab2364, current).
+    # PASSED / REJECTED 2.3.12) canceled -> build 72 (82ab2364, REJECTED
+    # 2.1a guest sign-in) -> build 74 (new submission, pending).
 
 known-issues:
   - id: telegram-media-slow

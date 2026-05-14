@@ -83,7 +83,7 @@ incidents:
       submission thread — do NOT cancel the rejected submission before
       replying, that destroys the reply channel (learned the hard way,
       3x this session).
-    status: mitigated   # 2.1a resolved-confirmed; 2.3.12 addressed via review notes, build 72 re-submitted, awaiting verdict
+    status: resolved   # round 3 (reviewSubmission 82ab2364): SIWA 2.1a NOT raised, 2.3.12 NOT raised — the review-notes approach worked. A NEW 2.1a issue (guest sign-in) was raised instead — see incident 2026-05-15-app-review-guest-signin-error.
     lessons:
       - "Never layer a SwiftUI .simultaneousGesture / .onTapGesture on a UIKit-backed control (SignInWithAppleButton, Map, etc.) — it can swallow the control's own touch handling, OS-version-dependent. Use Apple's components exactly as documented."
       - "A 'breadcrumb' diagnostic that MUTATES state (isAuthInFlight) coupled to .disabled() can BE the bug. Diagnostics must be side-effect-free."
@@ -91,6 +91,64 @@ incidents:
       - "When a fix is rejected for the SAME reason twice, stop changing the implementation TYPE and re-read the actual diff. The constant across builds 51/53/59-71 was the hack layer, not the button."
       - "A rejected reviewSubmission has a reply box; a CANCELED one does not. Reply to App Review BEFORE canceling/resubmitting — canceling first destroys the only reply channel."
       - "For a first app release, `whatsNew` is uneditable (no UI field, API 409). App Review Notes (appStoreReviewDetail.notes) IS API-editable — use it to explain uneditable-metadata flags. But fetch the FULL existing notes before PATCHing: they may hold demo-access instructions a VPN review needs."
+
+  - id: 2026-05-15-app-review-guest-signin-error
+    date: 2026-05-15
+    severity: blocker
+    title: App Store rejected v1.0.26 (round 3) — "Continue as guest" shows an error message
+    component: ios-onboarding
+    builds-affected: [72]
+    detected-via: app-review
+    what-happened: |
+      Round 3 of v1.0.26 review (reviewSubmission 82ab2364, build 72).
+      The two prior flags were both gone — Guideline 2.1(a) Sign in
+      with Apple was NOT raised (the build-72 fix held) and Guideline
+      2.3.12 was NOT raised (the App Review Notes approach worked).
+      Instead a NEW Guideline 2.1(a) issue: tapping "Continue as guest"
+      on the onboarding screen showed an error message instead of
+      letting the reviewer into the app.
+    root-cause: |
+      Device-id ↔ Apple-account re-bind interaction, only reproducible
+      on a device that had been used across review rounds:
+        1. In an earlier round the reviewer signed in with Apple.
+           Backend `AppleSignIn` (auth.go) hits a device_id conflict
+           and calls `ClearDeviceID` on the prior guest user, re-binding
+           that device_id to the Apple account.
+        2. In round 3 the reviewer tapped "Continue as guest" →
+           `signInAnonymous()` → `apiClient.registerDevice()`. Backend
+           `Register` finds-or-creates by device_id and returns that
+           SAME Apple account — but `Register` does NOT extend an
+           expired trial (only `AppleSignIn` does). Review had run >1
+           week, so the account's 3-day trial was long expired.
+        3. `fetchAndSaveConfig()` → `/api/v1/mobile/config` returns 403
+           for an account with no active subscription.
+        4. `signInWithApple` already caught `APIError.serverError(403)`
+           and landed the user on the paywall. `signInAnonymous` did
+           NOT — its blunt `catch { errorMessage = "onboarding.anon_
+           failed" }` turned the 403 into a dead-end error. Asymmetric
+           error handling between the two sign-in paths was the bug.
+      Could not repro on a fresh device (fresh device_id registers 200,
+      /config 200, trial works) — only a device_id that had been
+      re-bound to an Apple account whose trial expired hits it. That is
+      exactly the reviewer's device after round 2.
+    resolution: |
+      build 74 (commit 63e8918, project.yml CURRENT_PROJECT_VERSION
+      73→74) — `AppState.signInAnonymous()` now catches
+      `APIError.serverError(403)` around `fetchAndSaveConfig()` exactly
+      like `signInWithApple` does: on 403 it logs, sets
+      subscriptionExpire = nil and completes sign-in (user lands in the
+      app at the subscription screen) instead of surfacing
+      "onboarding.anon_failed". build 74 archived + uploaded to ASC
+      (build id e9a91d4d-fdc7-46d2-adf5-77c9a45b9008), VALID.
+      Replied to App Review on the live (un-canceled) reviewSubmission
+      82ab2364 thread explaining the fix, then attached build 74 and
+      resubmitted v1.0.26.
+    status: mitigated   # build 74 uploaded + resubmitted; awaiting App Review verdict
+    lessons:
+      - "Keep error handling SYMMETRIC across sign-in paths. signInWithApple and signInAnonymous both call fetchAndSaveConfig() → /config; both must treat a 403 (no active subscription) the same way — route to the paywall, never a hard error."
+      - "Backend asymmetry has client consequences: `AppleSignIn` extends expired trials, `Register` does not. A device_id re-bound to an Apple account can therefore come back from `Register` with an expired sub — the guest path must tolerate that."
+      - "App Review reuses the same device across rounds. State the previous round left on the backend (re-bound device_id, consumed trial) is part of the next round's test conditions — repro with a device_id that has history, not just a fresh one."
+      - "Closing one App Review flag often surfaces the next. Budget for it — don't assume a single resubmit after a fix is the last one."
 
   - id: 2026-05-14-widget-toggle-no-visual-update
     date: 2026-05-14
