@@ -466,13 +466,43 @@ phases:
     estimated-effort: 0.5 day
 
   - id: launch-07-disconnect-notification
-    title: Disconnect notification (UNUserNotificationCenter + NEVPNStatus)
-    status: planned
+    title: Disconnect notification (UNUserNotificationCenter + NEProviderStopReason)
+    status: done
     layer: ios
+    builds: [66]
+    completed: 2026-05-14
     rationale: |
-      User should learn the tunnel dropped, not assume "it's working".
-      Low-risk, small surface.
-    estimated-effort: 2-3 hours
+      For a VPN a silent tunnel drop is a SAFETY bug, not a UX nicety —
+      the user keeps browsing believing they're protected when they
+      aren't. Audit also found the app never called requestAuthorization
+      at all, so even the pre-existing stall banner silently no-op'd.
+    artifacts:
+      - clients/apple/Shared/DisconnectNotifier.swift
+      - clients/apple/Shared/Constants.swift
+      - clients/apple/PacketTunnel/ExtensionProvider.swift
+      - clients/apple/MadFrogVPN/Models/AppState.swift
+      - clients/apple/Tests/UnitTests/DisconnectNotifierTests.swift
+    implementation: |
+      DisconnectNotifier (Shared/): two sides, shared policy.
+      - requestAuthorizationIfNeeded() — main app, called from
+        handleStatus() .connected. Asks once (UserDefaults guard) after
+        the first successful connect — not at cold launch, which tanks
+        grant rate.
+      - postUnexpectedDisconnect(reason:) — extension, called from
+        stopTunnel(with:). Maps NEProviderStopReason → notify-or-silent.
+        Notify: providerFailed, connectionFailed, noNetworkAvailable,
+        unrecoverableNetworkChange. Silent: userInitiated + all
+        config/sleep/appUpdate/idleTimeout/superceded cases.
+      Two distinct copy buckets (crash/connection vs network-change).
+    tests: |
+      DisconnectNotifierTests (unit, 3 cases): notify-bucket non-nil,
+      expected-stops nil, crash vs network-change copy differs. Pure
+      policy fn — compiles + runs without Libbox/App Group.
+    notes: |
+      iOS-only, no backend change. Out of scope: hard jetsam SIGKILL
+      never calls stopTunnel — catching that needs the main app noticing
+      .disconnected on next foreground (separate follow-up, low value
+      since the user is already back in the app at that point).
 
   - id: launch-08-polish-p1
     title: P1 launch polish bundle (sparkline, Live Activity, ping UI, uTLS rotation, DoQ, a11y)

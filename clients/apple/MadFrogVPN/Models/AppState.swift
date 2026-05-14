@@ -1494,6 +1494,10 @@ class AppState {
             if !commandClient.isConnected { commandClient.connect() }
             // Clear the user-stopped flag on successful connection
             sharedDefaults?.removeObject(forKey: AppConstants.userStoppedVPNKey)
+            // launch-07: ask for notification permission once, here — the
+            // user has just seen the VPN work, so "we'll tell you if it
+            // drops" is a natural, well-timed ask. Idempotent.
+            DisconnectNotifier.requestAuthorizationIfNeeded()
             // Re-apply the user's routing mode AND server selection after a
             // (re)connect. commandClient takes a moment to bind after connect()
             // above — defer one hop so selectOutbound has a live socket to talk

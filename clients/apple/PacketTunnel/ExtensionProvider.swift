@@ -214,6 +214,13 @@ open class ExtensionProvider: NEPacketTunnelProvider {
         if reason == .userInitiated {
             sharedDefaults?.set(true, forKey: AppConstants.userStoppedVPNKey)
             TunnelFileLogger.log("User-initiated stop — signaled to main app")
+        } else {
+            // launch-07: the user did NOT ask for this. If the reason means
+            // a real loss of protection (crash / network loss), surface a
+            // banner so they know they're browsing unprotected. Expected
+            // stops (config disabled, sleep, app update, …) stay silent —
+            // policy lives in DisconnectNotifier.
+            DisconnectNotifier.postUnexpectedDisconnect(reason: reason)
         }
 
         stopStallProbe()

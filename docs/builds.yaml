@@ -5,6 +5,22 @@
 # Cross-reference phases via phase ids from plan.yaml.
 
 builds:
+  - number: 66
+    version: "1.0.26"
+    date: 2026-05-14
+    track: testflight-internal
+    asc-build-id: pending
+    phases: [launch-07-disconnect-notification]
+    archive-path: /tmp/MadFrogVPN-build66.xcarchive
+    field-verified: false
+    notes: |
+      launch-07 — unexpected-disconnect notification. DisconnectNotifier
+      posts a banner from the extension's stopTunnel(with:) when
+      NEProviderStopReason is an unexpected loss of protection; main app
+      requests notification auth once after first connect (the app never
+      requested it before — pre-existing stall banner also silently
+      no-op'd). iOS-only, libbox unchanged from build 60.
+
   - number: 65
     version: "1.0.26"
     date: 2026-05-14

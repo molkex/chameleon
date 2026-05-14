@@ -145,6 +145,13 @@ enum AppConstants {
     static let tunnelStallDarwinNotification = "com.madfrog.vpn.tunnelStall"
     /// UNUserNotificationCenter identifier for the in-tunnel stall banner.
     static let tunnelStallNotificationID = "tunnel-stall"
+    /// UNUserNotificationCenter identifier for the unexpected-disconnect
+    /// banner (launch-07). Single id so a fresh drop replaces a stale one.
+    static let disconnectNotificationID = "vpn-disconnected"
+    /// UserDefaults guard: set once the app has asked for notification
+    /// authorization, so we only prompt the user a single time (after the
+    /// first successful connect, not at cold launch).
+    static let didRequestNotificationAuthKey = "didRequestNotificationAuth"
 
     // One-shot migration guards. Each key, once set, prevents the migration
     // from running again on subsequent launches. Bumped per release.
