@@ -7,6 +7,27 @@
 # (Builds 36-54 are not migrated; see archive/2026-05-pre-yaml/.)
 
 builds:
+  - number: 72
+    version: "1.0.26"
+    date: 2026-05-14
+    track: app-store          # submitted to App Store review (not just TestFlight)
+    asc-build-id: 58189b41-aef7-4387-8b8c-2e672362e9e3
+    archive-path: /tmp/MadFrogVPN-build72.xcarchive
+    field-verified: false
+    notes: |
+      App Review reject fix — Guideline 2.1(a), "Sign in with Apple
+      button unresponsive" (incident 2026-05-14-app-review-siwa-
+      unresponsive). v1.0.26 had been rejected ~4 times for this since
+      build 51. Root cause: OnboardingView.appleSignInButton wrapped the
+      native SignInWithAppleButton in a `.simultaneousGesture(TapGesture)`
+      that both swallowed the UIKit control's own touchUpInside AND set
+      `isAuthInFlight`, which the `.disabled(... || isAuthInFlight)`
+      wrapper latched — a self-disabling trap. build 72 uses
+      SignInWithAppleButton plainly: gesture removed, `.disabled`
+      decoupled from isAuthInFlight. iOS-only, libbox unchanged from
+      build 60. Attached to v1.0.26, resubmitted (reviewSubmission
+      55f7cc73-20b2-4bed-8a1c-68411303e15d).
+
   - number: 71
     version: "1.0.26"
     date: 2026-05-14

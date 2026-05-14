@@ -6,6 +6,72 @@
 # it's so future-you doesn't re-debug the same misdirection.
 
 incidents:
+  - id: 2026-05-14-app-review-siwa-unresponsive
+    date: 2026-05-14
+    severity: blocker
+    title: App Store rejected v1.0.26 ~4 times — "Sign in with Apple button unresponsive"
+    component: ios-onboarding
+    builds-affected: [51, 53, 59, 60, 71]   # the bug rode every submitted build since 59
+    detected-via: app-review
+    what-happened: |
+      App Review rejected v1.0.26 under Guideline 2.1(a) (App
+      Completeness) — "the Sign in with Apple button was unresponsive"
+      on iPhone 17 Pro Max / iOS 26.5 — on builds 51, 53, and again
+      59-71. Same rejection, ~4 rounds, blocking the app's first App
+      Store release for over a week. A secondary Guideline 2.3.12
+      (Accurate Metadata) flag on the "What's New" text rode along on
+      the last cycle.
+    root-cause: |
+      OnboardingView.appleSignInButton wrapped the native
+      `SignInWithAppleButton` in a `.simultaneousGesture(TapGesture)`
+      "breadcrumb" (added in build 59 to *diagnose* the earlier
+      rejections) whose `.onEnded` set `isAuthInFlight = true`.
+      `SignInWithAppleButton` is a UIKit `UIControl` behind a SwiftUI
+      representable; a SwiftUI simultaneous gesture layered on top of it
+      swallowed the control's own `touchUpInside` — so `onRequest` never
+      fired and the system auth sheet never presented. AND that gesture
+      flipped `isAuthInFlight`, which the wrapper's
+      `.disabled(app.isLoading || isAuthInFlight)` then latched — the
+      button disabled itself on the first tap and stayed dead. The
+      diagnostic hack WAS the bug.
+    why-it-took-four-rounds: |
+      Each "fix" (builds ≤49 SwiftUI auto-anchor, 53 UIKit
+      AppleAuthCoordinator, 59 native button + gesture) changed the
+      button TYPE but kept layering presentation/anchor/single-flight
+      hacks on top — chasing an "anchor lookup" theory that was never
+      the real cause. Nobody removed the gesture. It was never caught
+      locally because the app cannot run on the iOS Simulator (the App
+      Group entitlement fatal-errors there — see incident
+      simulator-app-group-entitlement), so Sign in with Apple was never
+      exercised before submission; only App Review hit it.
+    resolution: |
+      build 72 (commit 494cde9) — use `SignInWithAppleButton` EXACTLY
+      as Apple documents: removed the `.simultaneousGesture` entirely;
+      removed `isAuthInFlight` from the button's `.disabled` (now
+      `.disabled(app.isLoading)` only — reliably defer-scoped, can't
+      stick); removed the now-dead `isAuthInFlight = false` lines. Log
+      breadcrumbs kept INSIDE onRequest/onCompletion — those are the
+      button's own callbacks, they cannot interfere with touch delivery.
+      com.apple.developer.applesignin entitlement verified present — the
+      bug was purely the button wiring. build 72 attached to v1.0.26 and
+      resubmitted (reviewSubmission
+      55f7cc73-20b2-4bed-8a1c-68411303e15d, WAITING_FOR_REVIEW).
+    secondary-2312: |
+      Guideline 2.3.12: the "What's New" text on the en-US localization
+      is the placeholder "Initial release" (ru is empty). It CANNOT be
+      edited from our side — v1.0.26 is the app's first release, so the
+      ASC version page exposes no "What's New" field and the API rejects
+      whatsNew PATCHes with 409 STATE_ERROR ("cannot be edited at this
+      time"). Standing plan: if App Review re-flags 2.3.12, reply in the
+      Resolution Center explaining the first-release situation. 2.1(a)
+      is the real blocker and is fixed.
+    status: mitigated   # build 72 in review; awaiting App Review verdict
+    lessons:
+      - "Never layer a SwiftUI .simultaneousGesture / .onTapGesture on a UIKit-backed control (SignInWithAppleButton, Map, etc.) — it can swallow the control's own touch handling, OS-version-dependent. Use Apple's components exactly as documented."
+      - "A 'breadcrumb' diagnostic that MUTATES state (isAuthInFlight) coupled to .disabled() can BE the bug. Diagnostics must be side-effect-free."
+      - "Sign in with Apple is untestable on the iOS Simulator here (App Group entitlement crash). Until that's fixed, SIWA MUST be smoke-tested on a real device before every App Store submission — it is the #1 App Review reject surface for this app."
+      - "When a fix is rejected for the SAME reason twice, stop changing the implementation TYPE and re-read the actual diff. The constant across builds 51/53/59-71 was the hack layer, not the button."
+
   - id: 2026-05-14-widget-toggle-no-visual-update
     date: 2026-05-14
     severity: minor

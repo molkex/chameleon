@@ -31,12 +31,17 @@ prod:
 
   ios:
     marketing-version: "1.0.26"
-    current-build: 71                              # last UPLOADED build
-    track: testflight-internal
-    asc-build-id: 3741178f-98c6-4fb6-a6ec-ffc7054a0e16
+    current-build: 72                              # last UPLOADED build
+    track: app-store                               # build 72 submitted to App Store review
+    asc-build-id: 58189b41-aef7-4387-8b8c-2e672362e9e3
     uploaded: 2026-05-14
-    field-verified: false                        # builds 65-71 (launch-03/06/07/04/04b) not yet field-tested; 60-64 were
-    previous-builds-in-testflight: [70, 69, 68, 67, 66, 65, 64, 63, 62, 61, 60, 59, 58, 57, 56, 55]
+    field-verified: false                        # builds 65-72 not yet field-tested; 60-64 were. build 72's SIWA fix is UNVERIFIED on device — see incident 2026-05-14-app-review-siwa-unresponsive
+    previous-builds-in-testflight: [71, 70, 69, 68, 67, 66, 65, 64, 63, 62, 61, 60, 59, 58, 57, 56, 55]
+    # build 72 = App Review reject fix — Guideline 2.1(a) "Sign in with
+    # Apple button unresponsive" (v1.0.26 rejected ~4x for this since
+    # build 51). Removed the `.simultaneousGesture` that swallowed the
+    # SignInWithAppleButton's own tap + self-latched `.disabled`. See
+    # incident 2026-05-14-app-review-siwa-unresponsive.
     # build 71 = launch-04b polish (field feedback): optimistic App-Group
     # write in ToggleVPNIntent so the widget flips instantly on tap;
     # filled circular button affordance on the systemSmall shield; live
@@ -65,19 +70,25 @@ prod:
   chameleon-repo:
     branch: claude/naughty-golick-e7f6a5
     pushed-to-origin: true
-    head: 67c953c                                  # test-coverage hardening wave 1; doc-consistency commit follows next
+    head: 494cde9                                  # build 72 SIWA reject fix; docs commit follows next
     unpushed-commits: 0                           # update on every push
 
   app-store:
     version: "1.0.26"
     state: WAITING_FOR_REVIEW
-    submission-id: 48eecb25-44d3-410f-b266-13c6396020ce
-    attached-build: 71                             # was 60 — swapped 2026-05-14
+    submission-id: 55f7cc73-20b2-4bed-8a1c-68411303e15d
+    attached-build: 72
     submitted: 2026-05-14
-    # 2026-05-14 — the build-60 reviewSubmission (1481e218-…) was
-    # canceled and re-created against build 71 so the App Store gets
-    # the widgets (launch-04 + 04b) and every fix in builds 61-71,
-    # not the 2-day-stale build 60. Lost queue position; worth it.
+    # 2026-05-14 — REJECTED on build 71 (Guideline 2.1(a) — Sign in with
+    # Apple unresponsive; ~4th rejection for the same bug). Fixed in
+    # build 72, attached, resubmitted as reviewSubmission 55f7cc73-….
+    # See incident 2026-05-14-app-review-siwa-unresponsive.
+    # Secondary 2.3.12 (What's New = "Initial release") is unfixable from
+    # our side — first release has no editable whatsNew field; reply in
+    # Resolution Center if re-flagged.
+    # History: build 60 sub (1481e218) canceled -> build 71 (48eecb25,
+    # REJECTED) canceled -> build 72 (55f7cc73). Queue position reset
+    # each time; the fixed build is what matters.
 
 known-issues:
   - id: telegram-media-slow
