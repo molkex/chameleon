@@ -22,26 +22,52 @@ incidents:
       direct python calls (used it to create the bundle ID + capability
       in the same session).
     root-cause: |
-      Xcode's provisioning subsystem (the part that GENERATES a profile
-      for a never-seen App ID) has its own auth path that the
-      `-authenticationKeyPath` CLI flag isn't satisfying. Predicted by
-      feedback_mac_testflight_gotchas — "App Groups via Xcode UI".
+      The App-Group↔bundle-ID linkage is not exposed by the App Store
+      Connect API at all. Probed exhaustively:
+        GET  /v1/appGroups                          -> 404 NOT_FOUND
+        GET  /v1/bundleIds/{id}/appGroups           -> 404 PATH_ERROR
+             "The relationship 'appGroups' does not exist"
+        GET  /v1/bundleIds/{id}/relationships/appGroups -> 404 PATH_ERROR
+        include=appGroups on bundleIdCapabilities   -> 400 ILLEGAL
+      Enabling the APP_GROUPS *capability* on a bundle ID via the API
+      (POST /v1/bundleIdCapabilities) succeeds, and a provisioning
+      profile generated afterwards DOES carry the `application-groups`
+      entitlement KEY — but with an EMPTY value, because the specific
+      group `group.com.madfrog.vpn` was never linked. The working
+      com.madfrog.vpn.tunnel shows the same `settings: null` over the
+      API — its real linkage lives in portal state the API doesn't
+      surface. So the linkage is genuinely portal-web-UI / Xcode-GUI
+      only. This is exactly the "App Groups via Xcode UI" gotcha in
+      feedback_mac_testflight_gotchas.
     mitigation-done: |
-      Via ASC API: created bundle ID com.madfrog.vpn.widget (Z76JPFNJ6D)
-      and enabled its APP_GROUPS capability (structurally identical to the
-      working com.madfrog.vpn.tunnel — settings=null). Code is committed
-      and all targets compile.
+      Everything the ASC API CAN do, done autonomously:
+        - created bundle ID com.madfrog.vpn.widget (Z76JPFNJ6D)
+        - enabled its APP_GROUPS capability
+        - created IOS_APP_DEVELOPMENT profile "MadFrog Widget Dev"
+          (uuid 95c64406-97cb-40ab-835f-bfa425f97444), dev cert
+          994RC8J3X6 + all 3 registered iPhones, installed to
+          ~/Library/MobileDevice/Provisioning Profiles/
+      Verified the installed profile: application-groups entitlement
+      present, group.com.madfrog.vpn NOT in its value list — confirming
+      the linkage gap.
+      Code is committed (8d9363c), all targets compile.
     unblock: |
-      Open Xcode.app once and let the GUI generate the MadFrogWidget
-      provisioning profile (the GUI auth path works where the CLI's
-      doesn't), OR create the IOS_APP_STORE profile for the bundle ID in
-      the developer portal. ~5 minutes either way; then `archive` works
-      from the CLI as before.
+      ONE manual step, ~30 seconds, at developer.apple.com (no Xcode
+      needed):
+        Certificates, IDs & Profiles -> Identifiers ->
+        "MadFrog VPN Widget" (com.madfrog.vpn.widget) ->
+        App Groups row -> Configure/Edit -> tick group.com.madfrog.vpn
+        -> Save.
+      After that, regenerating the provisioning profile via the ASC API
+      picks up the now-linked group, and the rest of the pipeline
+      (archive -> export -> upload -> link to Internal Testers) runs
+      head-less as normal.
     lesson: |
-      A brand-new bundle ID that needs a non-trivial capability (App
-      Groups, Network Extensions) can't be fully provisioned head-less via
-      `xcodebuild -allowProvisioningUpdates` — budget a one-time Xcode-GUI
-      or portal step when adding a new signed target.
+      A brand-new bundle ID that needs App Groups CANNOT be fully
+      provisioned head-less — the ASC API has no app-group resource
+      whatsoever (confirmed by probing, not assumption). Budget one
+      portal-web-UI step per new App-Group-using target. The capability
+      toggle is API-scriptable; the *group linkage* is not.
 
   - id: 2026-05-13-libbox-1.13.6-oom-wrong-call
     date: 2026-05-13

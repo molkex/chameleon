@@ -472,25 +472,22 @@ phases:
       status-text differs by state, Equatable. All 3 targets
       (MadFrogWidget / MadFrogVPN / test) compile clean.
     blocked-on: |
-      ARCHIVE blocked. The new com.madfrog.vpn.widget bundle ID needs an
-      App-Groups-enabled provisioning profile. Done via ASC API:
-        - created bundle ID com.madfrog.vpn.widget (resource Z76JPFNJ6D)
-        - enabled APP_GROUPS capability on it (matches the working tunnel
-          bundle ID structurally — settings=null)
-      Still blocked: Xcode's `-allowProvisioningUpdates` returns
-      "Authentication failed" ONLY for MadFrogWidget (the target needing a
-      FRESH profile) — existing targets archive fine on cached profiles,
-      and the SAME ASC API key works from direct python calls. Xcode's
-      provisioning-subsystem auth path is the wall — exactly the
-      "App Groups via Xcode UI" gotcha from feedback_mac_testflight_gotchas.
-      Fix needs one of:
-        (a) open Xcode.app once → it generates the MadFrogWidget profile
-            via the GUI auth path, then CLI archives work; or
-        (b) create the IOS_APP_STORE profile for com.madfrog.vpn.widget
-            manually in the developer portal.
-      Note: no iOS distribution certificate exists in the account at all
-      (only DEVELOPMENT + Mac dist) — builds 56-67 relied on
-      -allowProvisioningUpdates auto-creating dist signing at export time.
+      ONE manual portal step. Everything the ASC API allows is done:
+      bundle ID com.madfrog.vpn.widget created, APP_GROUPS capability
+      enabled, IOS_APP_DEVELOPMENT profile created + installed. But the
+      ASC API has NO app-group resource (probed: /v1/appGroups 404,
+      /bundleIds/{id}/appGroups 404 PATH_ERROR) — so the specific group
+      `group.com.madfrog.vpn` can't be linked to the bundle ID head-less.
+      The generated profile carries the application-groups entitlement
+      KEY but an EMPTY value, so archive fails "doesn't support the
+      group.com.madfrog.vpn App Group".
+      USER STEP (~30 s, developer.apple.com, no Xcode):
+        Identifiers -> "MadFrog VPN Widget" -> App Groups -> Configure
+        -> tick group.com.madfrog.vpn -> Save.
+      Then the rest runs head-less: regenerate the profile via ASC API
+      (picks up the linked group) -> archive -> export -> upload -> link
+      to Internal Testers. See incident
+      2026-05-14-widget-bundle-id-provisioning-wall.
     follow-up:
       - launch-04b-control-widget   # iOS-18 ControlWidget toggle, deferred
     estimated-effort: code done; ~5 min of provisioning to unblock
