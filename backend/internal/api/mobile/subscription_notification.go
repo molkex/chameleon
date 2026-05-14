@@ -28,7 +28,8 @@ type NotificationRequest struct {
 // Routing by notificationType:
 //
 //	SUBSCRIBED / DID_RENEW / OFFER_REDEEMED → credit via payments.CreditDays
-//	REFUND / REVOKE                         → mark payment as refunded, do not change expiry here
+//	REFUND / REVOKE                         → reverse via payments.RefundCharge
+//	REFUND_REVERSED                         → re-credit via payments.RestoreCharge
 //	EXPIRED / DID_FAIL_TO_RENEW / GRACE_*   → log only, expiry handled by client on next config fetch
 //	TEST                                    → log and 200
 //	anything else                           → log and 200 (forward-compat)
@@ -87,11 +88,27 @@ func (h *Handler) AppleNotification(c echo.Context) error {
 		}
 		return c.NoContent(http.StatusOK)
 
-	case "REFUND", "REFUND_REVERSED", "REVOKE":
-		// Phase 1b scope: just log. Actually rolling back subscription_expiry
-		// requires knowing whether ANY other payment covers the current period,
-		// which we'll handle in Phase 2 when we have multi-source ledger queries.
-		logger.Warn("apple notification: refund/revoke received — not auto-reversing in Phase 1b")
+	case "REFUND", "REVOKE":
+		// launch-09: reverse the days this charge added. RefundCharge is
+		// idempotent and a no-op for unknown / already-refunded charges,
+		// so replayed Apple retries are safe.
+		ok, err := h.Payments.RefundCharge(ctx, payments.SourceAppleIAP, appleChargeID(notif.Tx))
+		if err != nil {
+			logger.Error("apple notification: refund failed", zap.Error(err))
+			// 500 → Apple retries. Right call for transient DB errors.
+			return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "refund failed"})
+		}
+		logger.Warn("apple notification: refund/revoke processed", zap.Bool("reversed", ok))
+		return c.NoContent(http.StatusOK)
+
+	case "REFUND_REVERSED":
+		// Apple un-did a refund (chargeback reversed). Re-credit the charge.
+		ok, err := h.Payments.RestoreCharge(ctx, payments.SourceAppleIAP, appleChargeID(notif.Tx))
+		if err != nil {
+			logger.Error("apple notification: refund-reversal failed", zap.Error(err))
+			return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "restore failed"})
+		}
+		logger.Info("apple notification: refund reversal processed", zap.Bool("restored", ok))
 		return c.NoContent(http.StatusOK)
 
 	case "EXPIRED", "DID_FAIL_TO_RENEW", "GRACE_PERIOD_EXPIRED":

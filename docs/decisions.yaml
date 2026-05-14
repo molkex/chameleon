@@ -92,6 +92,37 @@ decisions:
       - "Client-side NWPath.isExpensive — misses RU home Wi-Fi DPI"
       - "Per-server `unreachable_from_ru` DB column — needs migration + admin UI"
 
+  - id: ADR-007-refund-subtract-not-replay
+    date: 2026-05-14
+    status: accepted
+    title: Refund reversal subtracts the charge's days, no full-ledger replay
+    context: |
+      launch-09 needed to reverse a subscription when Apple sends REFUND /
+      REVOKE. The old subscription_notification.go comment deferred this,
+      fearing it "requires knowing whether ANY other payment covers the
+      current period ... multi-source ledger queries" — implying a full
+      historical replay of the ledger.
+    decision: |
+      Reverse a refund by subtracting exactly the refunded charge's days
+      from users.subscription_expiry — the literal inverse of how
+      CreditDays added them. No full-ledger replay.
+    rationale: |
+      CreditDays is a pure additive counter: `expiry = max(now,expiry) +
+      days`, and crucially it is SOURCE-AGNOSTIC — Apple days and FreeKassa
+      days land on the same running total. The exact inverse of "+days" is
+      "-days". Days other charges contributed stay intact automatically
+      because we only subtract what THIS charge added. The feared
+      "multi-source" complexity dissolves once you see the counter has no
+      per-source partitioning to begin with.
+    consequences:
+      - "Pro: O(1) two-statement transaction, no historical scan"
+      - "Pro: correct for the common case (refund a charge whose days are still unconsumed) and harmless for the edge case (refund a long-expired charge → NULL/past expiry stays put)"
+      - "Con: not a perfect historical reconstruction — if days were partially consumed before the refund we still subtract the full amount. Acceptable: it errs toward revoking access on a refund, which is the correct bias for a refunded charge."
+      - "RestoreCharge (REFUND_REVERSED) re-credits with the CreditDays formula rather than the literal inverse — user-favouring, gives full days back from now."
+    alternatives-rejected:
+      - "Full-ledger replay (sum all completed rows, recompute expiry from first purchase) — needs per-payment expiry-at-time-of-credit to be correct across subscription gaps; large surface for a problem the additive model already solves"
+      - "App Store Server API Get-All-Subscription-Statuses poll — heavier, needs the IAP key wired; only useful to recover a missed webhook, and Apple already retries notifications for days"
+
   - id: ADR-006-metrickit-over-sentry
     date: 2026-05-14
     status: accepted

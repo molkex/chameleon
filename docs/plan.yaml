@@ -487,12 +487,49 @@ phases:
     notes: split into individual phases when this bundle is picked up
 
   - id: launch-09-backend-storekit-v2
-    title: Backend launch-P0 — StoreKit Server API v2 verification
-    status: planned
+    title: Backend launch-P0 — Apple refund/revoke handling
+    status: done
     layer: backend
+    completed: 2026-05-14
     rationale: |
-      Currently trusting the client-supplied transaction_id for
-      subscription state. Real money path — should be server-verified
-      before a wide audience.
-    estimated-effort: 1 day
-    notes: partially touched (git log "fix(payments/apple)") — audit first
+      Audit corrected the original premise. The backend does NOT trust a
+      client transaction_id — payments/apple/verify.go already does full
+      JWS signature-chain verification (leaf → intermediate → Apple root
+      CA) for both the /subscription/verify purchase path and the App
+      Store Server Notification V2 webhook. A client cannot forge a
+      transaction.
+      The REAL gap: subscription_notification.go handled REFUND / REVOKE
+      by logging only ("not auto-reversing in Phase 1b"). A user could
+      get refunded by Apple and keep VPN access indefinitely — the actual
+      revenue hole.
+    artifacts:
+      - backend/internal/payments/credit.go
+      - backend/internal/api/mobile/subscription_notification.go
+      - backend/internal/payments/credit_test.go
+      - backend/internal/payments/testdb_test.go
+    implementation: |
+      payments.RefundCharge(source, chargeID): in one tx, marks the ledger
+      row status='refunded' and subtracts exactly that charge's days from
+      users.subscription_expiry (the inverse of CreditDays' additive
+      `max(now,expiry)+days`). is_active flips false when the result is in
+      the past. Idempotent — unknown / already-refunded charge is a no-op.
+      payments.RestoreCharge(source, chargeID): the REFUND_REVERSED inverse
+      — flips refunded→completed and re-credits via the CreditDays formula.
+      subscription_notification.go: REFUND/REVOKE → RefundCharge,
+      REFUND_REVERSED → RestoreCharge. Apple-retry-safe via idempotency.
+    related-decisions:
+      - ADR-007-refund-subtract-not-replay
+    tests: |
+      payments/credit_test.go (integration, //go:build integration,
+      testcontainers Postgres — skips without Docker, same pattern as
+      internal/db): 8 cases — CreditDays extend+idempotent, RefundCharge
+      reverse/keeps-other-source/idempotent/unknown-no-op, RestoreCharge
+      re-credit/not-refunded-no-op.
+    notes: |
+      Title kept as launch-09 (permalink). Scope corrected from "StoreKit
+      v2 verification" — that was already done — to "refund/revoke
+      handling", the genuine remaining gap.
+      Out of scope (separate follow-up if ever needed): outbound App Store
+      Server API polling (Get All Subscription Statuses) to recover from a
+      missed webhook. Not required — Apple retries notifications for days
+      and our handlers are idempotent.

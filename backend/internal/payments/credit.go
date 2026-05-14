@@ -130,6 +130,124 @@ func (s *Service) CreditDays(ctx context.Context, c Credit) (alreadyApplied bool
 	return false, nil
 }
 
+// RefundCharge marks a completed payment as refunded and reverses the days it
+// added to the user's subscription. Called from the Apple App Store Server
+// Notification handler on REFUND / REVOKE.
+//
+// Idempotent and safe on unknown input:
+//   - charge already 'refunded'  → no-op, returns (false, nil)
+//   - charge never recorded      → no-op, returns (false, nil)
+//     (Apple can send REFUND for a purchase the client never POSTed to /verify)
+//
+// Reversal model. CreditDays adds days as a source-agnostic running counter:
+// `expiry = max(now, expiry) + days`. The exact inverse is `expiry = expiry -
+// days`. Days contributed by *other* charges (other Apple renewals, a parallel
+// FreeKassa payment) stay intact because they were added to the same counter —
+// we only subtract what THIS charge added. No multi-source ledger replay
+// needed: the counter is additive and the operation is its inverse.
+//
+// If the result lands in the past the user's next config fetch sees an expired
+// subscription; we also flip is_active to false so any is_active gate revokes
+// access immediately. A NULL expiry stays NULL (the user had no active sub —
+// refunding a long-consumed period is correctly a no-op on expiry).
+func (s *Service) RefundCharge(ctx context.Context, source Source, chargeID string) (refunded bool, err error) {
+	if source == "" || chargeID == "" {
+		return false, errors.New("payments: refund requires source and charge_id")
+	}
+
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return false, fmt.Errorf("payments: refund begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var userID int64
+	var days int
+	err = tx.QueryRow(ctx, `
+		UPDATE payments SET status = 'refunded'
+		WHERE source = $1 AND charge_id = $2 AND status = 'completed'
+		RETURNING user_id, days`,
+		string(source), chargeID,
+	).Scan(&userID, &days)
+	if errors.Is(err, pgx.ErrNoRows) {
+		// Unknown charge or already refunded — both are no-ops.
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("payments: refund mark: %w", err)
+	}
+
+	// Subtract exactly the days this charge added. COALESCE guards the
+	// NULL-expiry case (NULL - interval = NULL, NULL > NOW() = NULL → false).
+	_, err = tx.Exec(ctx, `
+		UPDATE users SET
+			subscription_expiry = subscription_expiry - ($2 || ' days')::interval,
+			is_active = COALESCE((subscription_expiry - ($2 || ' days')::interval) > NOW(), false)
+		WHERE id = $1`, userID, fmt.Sprintf("%d", days))
+	if err != nil {
+		return false, fmt.Errorf("payments: refund reverse subscription: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return false, fmt.Errorf("payments: refund commit: %w", err)
+	}
+	return true, nil
+}
+
+// RestoreCharge undoes a RefundCharge: it flips a refunded payment back to
+// completed and re-adds its days. Called on the Apple REFUND_REVERSED
+// notification (Apple un-did a refund — e.g. a chargeback was reversed).
+//
+// Idempotent: a charge that is already 'completed' (or unknown) is a no-op,
+// returns (false, nil).
+//
+// The re-credit uses the same `max(now, expiry) + days` formula as CreditDays
+// rather than the literal inverse of RefundCharge's subtraction. If time
+// passed between the refund and its reversal that's the user-favouring choice
+// — they get their full days back starting now — and it keeps the re-credit
+// path identical to a normal renewal.
+func (s *Service) RestoreCharge(ctx context.Context, source Source, chargeID string) (restored bool, err error) {
+	if source == "" || chargeID == "" {
+		return false, errors.New("payments: restore requires source and charge_id")
+	}
+
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return false, fmt.Errorf("payments: restore begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var userID int64
+	var days int
+	err = tx.QueryRow(ctx, `
+		UPDATE payments SET status = 'completed'
+		WHERE source = $1 AND charge_id = $2 AND status = 'refunded'
+		RETURNING user_id, days`,
+		string(source), chargeID,
+	).Scan(&userID, &days)
+	if errors.Is(err, pgx.ErrNoRows) {
+		// Not refunded or unknown — no-op.
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("payments: restore mark: %w", err)
+	}
+
+	_, err = tx.Exec(ctx, `
+		UPDATE users SET
+			subscription_expiry = GREATEST(COALESCE(subscription_expiry, NOW()), NOW()) + ($2 || ' days')::interval,
+			is_active = true
+		WHERE id = $1`, userID, fmt.Sprintf("%d", days))
+	if err != nil {
+		return false, fmt.Errorf("payments: restore re-credit subscription: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return false, fmt.Errorf("payments: restore commit: %w", err)
+	}
+	return true, nil
+}
+
 // ReconcileFromLedger recomputes users.subscription_expiry for a single Apple
 // subscription from the payments ledger. Used by Restore Purchases when the
 // user was previously wiped (account deletion) — the original payment row is
