@@ -22,8 +22,8 @@ summary:
     test-cases: ~189
   backend:
     source-files: 69          # excl. _test.go and vendor/
-    test-files: 23
-    test-cases: ~121
+    test-files: 24
+    test-cases: ~133
   fork:
     note: sing-box-fork carries upstream's own test suite; the one
       cherry-pick (firstwrite-callback) has no dedicated test —
@@ -192,6 +192,7 @@ backend:
     - internal/config/config.go -> config_test.go (9)
     - internal/db/users.go -> users_test.go (8)
     - internal/payments/credit.go -> credit_test.go (7)            # launch-09
+    - internal/payments/apple/verify.go -> verify_test.go (12)     # test-coverage-hardening
     - internal/payments/freekassa/signature.go -> signature_test.go (2)
     - internal/secrets/encrypt.go -> encrypt_test.go (6)
     - internal/cluster/{errors,routes,sync}.go -> *_test.go (2+4+2)
@@ -202,20 +203,6 @@ backend:
     - tests/integration/health_test.go (1)
 
   gaps:
-    - id: backend-payments-apple
-      path: backend/internal/payments/apple/
-      severity: critical
-      why: |
-        Apple IAP verification path — JWS x5c chain validation, ASN
-        decode, REFUND/REVOKE/REFUND_REVERSED notification handling.
-        credit.go (the ledger) is tested; the Apple verification layer
-        feeding it is NOT. A bug here = unverified transactions credited
-        or valid ones rejected.
-      what-to-test: |
-        JWS signature verification against the Apple root CA (good +
-        tampered payloads), x5c chain validation, notification-type
-        routing, malformed-payload rejection.
-
     - id: backend-useragent
       path: backend/internal/useragent/
       severity: major
@@ -248,12 +235,15 @@ backend:
 
 # ─── Priority order to close the gaps ──────────────────────────────────────
 # Tracked as plan.yaml phase `test-coverage-hardening`.
-# ✅ backend-geoip — DONE (geoip_test.go, 11 funcs, -race clean)
-# 1. backend-payments-apple (critical — money + security path)
-# 2. ios-crash-diagnostic-reporter (major, pure, privacy-sensitive)
-# 3. ios-packet-tunnel-provider — extract + test the config-source picker
+# ✅ backend-geoip          — DONE (geoip_test.go, 11 funcs, -race clean)
+# ✅ backend-payments-apple — DONE (verify_test.go, 12 funcs: New validation,
+#    assertRealAppleChain panic-guard, Verify/VerifyNotification early
+#    returns, msToTime, ErrRevoked sentinel. Full Verify() path needs a
+#    real Apple-signed JWS — integration territory, not a unit test.)
+# 1. ios-crash-diagnostic-reporter (major, pure, privacy-sensitive)
+# 2. ios-packet-tunnel-provider — extract + test the config-source picker
 #    and publishWidgetState (the launch-04b code is live & untested)
-# 4. ios-app-state / ios-vpn-manager — need a VPNManager protocol seam
+# 3. ios-app-state / ios-vpn-manager — need a VPNManager protocol seam
 #    first; biggest effort, biggest blast radius
-# 5. ios-real-traffic-stall-detector, ios-outbound-group-tracker,
+# 4. ios-real-traffic-stall-detector, ios-outbound-group-tracker,
 #    ios-networking-misc, backend-useragent/email — major, steady grind
