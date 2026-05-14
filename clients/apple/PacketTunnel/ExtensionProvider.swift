@@ -47,17 +47,12 @@ open class ExtensionProvider: NEPacketTunnelProvider {
     /// process that always runs on a state change) + reloading the
     /// timeline keeps the widget honest no matter who flipped the VPN.
     ///
-    /// Values stay consistent with `handleStatus()`: a timestamp on
-    /// connect, key removed on disconnect — `WidgetVPNSnapshot.read()`
-    /// treats presence + >0 as connected.
+    /// Key semantics (timestamp on connect, key removed on disconnect)
+    /// live in `WidgetVPNSnapshot.write` — shared with the optimistic
+    /// write in `ToggleVPNIntent` so the two never drift.
     private func publishWidgetState(connected: Bool) {
         #if os(iOS)
-        if connected {
-            sharedDefaults?.set(Date().timeIntervalSince1970,
-                                forKey: AppConstants.vpnConnectedAtKey)
-        } else {
-            sharedDefaults?.removeObject(forKey: AppConstants.vpnConnectedAtKey)
-        }
+        WidgetVPNSnapshot.write(connected: connected, to: sharedDefaults)
         WidgetCenter.shared.reloadAllTimelines()
         #endif
     }
@@ -183,24 +178,30 @@ open class ExtensionProvider: NEPacketTunnelProvider {
             return
         }
 
-        // Load config — prefer tunnel options, fallback to shared file
-        let configJSON: String
-        if let optionsConfig = options?["configContent"] as? String {
-            configJSON = optionsConfig
-            persistStartOptions(configJSON)
-            TunnelFileLogger.log("Config source: tunnel options (\(optionsConfig.count) chars)")
-        } else if let persisted = loadPersistedConfig() {
-            configJSON = persisted
-            TunnelFileLogger.log("Config source: persisted UserDefaults (\(persisted.count) chars)")
-        } else if let fileConfig = try? String(contentsOf: AppConstants.configFileURL, encoding: .utf8) {
-            configJSON = fileConfig
-            TunnelFileLogger.log("Config source: file (\(fileConfig.count) chars)")
-        } else {
+        // Load config — precedence (tunnel options → App-Group-persisted
+        // → on-disk file) lives in resolveTunnelConfig (Shared/, unit-
+        // tested). The on-disk read is an @autoclosure there, so the warm
+        // path (persisted hit) still does no extra I/O.
+        guard let resolved = resolveTunnelConfig(
+            options: options?["configContent"] as? String,
+            persisted: loadPersistedConfig(),
+            file: try? String(contentsOf: AppConstants.configFileURL, encoding: .utf8)
+        ) else {
             TunnelFileLogger.log("ERROR: No config found anywhere")
             publishWidgetState(connected: false)
             completionHandler(NSError(domain: "Chameleon", code: 1,
                                       userInfo: [NSLocalizedDescriptionKey: "No VPN config. Open app first."]))
             return
+        }
+        let configJSON = resolved.json
+        switch resolved.source {
+        case .options:
+            persistStartOptions(configJSON)
+            TunnelFileLogger.log("Config source: tunnel options (\(configJSON.count) chars)")
+        case .persisted:
+            TunnelFileLogger.log("Config source: persisted UserDefaults (\(configJSON.count) chars)")
+        case .file:
+            TunnelFileLogger.log("Config source: file (\(configJSON.count) chars)")
         }
 
         let sanitizedConfig = ConfigSanitizer.sanitizeForIOS(configJSON)

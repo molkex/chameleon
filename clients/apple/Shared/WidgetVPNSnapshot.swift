@@ -30,6 +30,21 @@ struct WidgetVPNSnapshot: Equatable {
         self.connectedAt = connectedAt
     }
 
+    /// Write the connected/disconnected signal into the App Group — the
+    /// inverse of `read()`. Both `ExtensionProvider.publishWidgetState`
+    /// (the source of truth) and `ToggleVPNIntent` (the optimistic
+    /// instant-feedback write) go through here, so the key semantics —
+    /// a timestamp on connect, key removed on disconnect — live in ONE
+    /// place. No-op when the App Group is unreachable.
+    static func write(connected: Bool, to defaults: UserDefaults?) {
+        guard let defaults else { return }
+        if connected {
+            defaults.set(Date().timeIntervalSince1970, forKey: AppConstants.vpnConnectedAtKey)
+        } else {
+            defaults.removeObject(forKey: AppConstants.vpnConnectedAtKey)
+        }
+    }
+
     /// Read the current snapshot from the App Group. Returns a
     /// disconnected snapshot if the App Group is unreachable — a widget
     /// must never crash, "disconnected" is the safe default to show.

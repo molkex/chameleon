@@ -126,14 +126,13 @@ struct ToggleVPNIntent: SetValueIntent {
     /// tunnel has actually finished coming up / down. The PacketTunnel
     /// extension remains the source of truth and corrects this if the
     /// real outcome differs.
+    ///
+    /// Goes through `WidgetVPNSnapshot.write` — the same key-write the
+    /// extension uses — so the optimistic and authoritative writes can't
+    /// drift apart.
     private static func publishOptimisticState(connected: Bool) {
-        let defaults = UserDefaults(suiteName: AppConstants.appGroupID)
-        if connected {
-            defaults?.set(Date().timeIntervalSince1970,
-                          forKey: AppConstants.vpnConnectedAtKey)
-        } else {
-            defaults?.removeObject(forKey: AppConstants.vpnConnectedAtKey)
-        }
+        WidgetVPNSnapshot.write(connected: connected,
+                                to: UserDefaults(suiteName: AppConstants.appGroupID))
         #if os(iOS)
         WidgetCenter.shared.reloadAllTimelines()
         #endif

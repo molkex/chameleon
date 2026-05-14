@@ -23,6 +23,7 @@
 		11CC47593EBE388CEBE2BB79 /* ConfigSanitizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E043C787773D9E89FA561E25 /* ConfigSanitizer.swift */; };
 		13082BC2A19418CDE5ED74CC /* PathPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F0B078C63922A356A8633EF /* PathPicker.swift */; };
 		136B8B8F928829558DB588E7 /* ApplicationServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 84CA81E1B48C9260C55A6012 /* ApplicationServices.framework */; };
+		1490A46A95F989F91F8E712D /* TunnelConfigSourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E285C5FF4B2D647D4C31750 /* TunnelConfigSourceTests.swift */; };
 		17B4D7844403A6DDB8F9CE93 /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9165FAC1D21DF4F01B68654F /* PaywallView.swift */; };
 		188DDEDF138FC6DCF2243C47 /* CoreLocation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 872DE7900BBC5982BA0688E8 /* CoreLocation.framework */; };
 		18FF3859436DB874A3140712 /* OutboundPenaltyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3CC9D3B6EA0A7AA5E0F8F2D /* OutboundPenaltyStore.swift */; };
@@ -56,6 +57,7 @@
 		2E82DC5CF4FE6D02321F8F78 /* libbsm.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 432EBE9FD5522D30F574115F /* libbsm.tbd */; };
 		2EF3464C5030C3F45CC4B7C0 /* DirectConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = D289D2F79D83BFBA207A4C15 /* DirectConnection.swift */; };
 		2FFAC2F2C40C2DBD341A86FD /* WebPaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F6C0D910C8814F24440E9B4 /* WebPaywallView.swift */; };
+		305E2766C9022054EF8A8E58 /* TunnelConfigSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 413DC4FEA8485BA34FED76A4 /* TunnelConfigSource.swift */; };
 		31808699E7420DED7122D735 /* MainViewNeon.swift in Sources */ = {isa = PBXBuildFile; fileRef = F64AFDF15C8A5F646A1C431B /* MainViewNeon.swift */; };
 		33422A6321F8D75EA134DBD7 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 9559017B879500FA2F899634 /* PrivacyInfo.xcprivacy */; };
 		348F2960A052562610557B1A /* ConfigStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FC0F827BBF3A30F2EDE9AB3 /* ConfigStore.swift */; };
@@ -80,6 +82,7 @@
 		4CF54096E6FFB7697C033D25 /* StringUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = D231623164FE9FECAD770789 /* StringUtils.swift */; };
 		4D22EA1815F86EC0C962D2AC /* AppKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BD660F09A2FD36D53775C288 /* AppKit.framework */; };
 		4EDC2472F487D46930F72F4C /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31BA223EF19A5BDE5145B520 /* Logger.swift */; };
+		5169D1AF41AB81BBEE5CF952 /* TunnelConfigSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 413DC4FEA8485BA34FED76A4 /* TunnelConfigSource.swift */; };
 		5186CA31DBD791C71871730B /* OutboundPenaltyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3CC9D3B6EA0A7AA5E0F8F2D /* OutboundPenaltyStore.swift */; };
 		5284A2E0344730B0592F5215 /* SubscriptionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C254991A86781B863F8BA92C /* SubscriptionManager.swift */; };
 		545174FD27F3A408A9831D67 /* DirectConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = D289D2F79D83BFBA207A4C15 /* DirectConnection.swift */; };
@@ -159,6 +162,7 @@
 		98E0D218E6821C4412D50CB6 /* VPNControlIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DAE6BD983F80C55AB4D1F5F /* VPNControlIntents.swift */; };
 		9AB874F30E33334B32A64AA5 /* ConfigSanitizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 828C4AEC2AEC8A2EEB92717E /* ConfigSanitizerTests.swift */; };
 		9B6D01AD9F7B235A613C075B /* ConfigSanitizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E043C787773D9E89FA561E25 /* ConfigSanitizer.swift */; };
+		9C4DED194A1F4979B4B81A6E /* TunnelConfigSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 413DC4FEA8485BA34FED76A4 /* TunnelConfigSource.swift */; };
 		9DB53C28F97A127499F8AD92 /* NetworkFingerprint.swift in Sources */ = {isa = PBXBuildFile; fileRef = D74E8F46235E55DCBC83A95C /* NetworkFingerprint.swift */; };
 		9DF87570ABBB4BC7145DBC71 /* OutboundGroupTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1F6C7650A9DBA9120681CC2 /* OutboundGroupTracker.swift */; };
 		9FCFD6325D149E8B5D5BF09D /* WidgetVPNSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DF255FC3085B56FF435958B /* WidgetVPNSnapshot.swift */; };
@@ -234,6 +238,7 @@
 		EB087C443D026C56DB4CEC2F /* VPNManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04FC8CF248986C535F825CAB /* VPNManager.swift */; };
 		EB519AA99D0A4BC7475737BA /* LastWorkingLegStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDCBB9F4E8DCDA4AC3C58517 /* LastWorkingLegStore.swift */; };
 		EBA08FF6A92D35DE4B4A955D /* TunnelProbeOutcome.swift in Sources */ = {isa = PBXBuildFile; fileRef = F16C0880F82481558275DBDE /* TunnelProbeOutcome.swift */; };
+		EC367BBCECC8788B573C6D32 /* TunnelConfigSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 413DC4FEA8485BA34FED76A4 /* TunnelConfigSource.swift */; };
 		ED2932322BA67C98F3937409 /* SubscriptionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C254991A86781B863F8BA92C /* SubscriptionManager.swift */; };
 		EE042CF563179D081005D9EE /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33A809CDAD52A1FB3A57D0A1 /* Constants.swift */; };
 		EE90271EC8C8EF0A80F23C19 /* TunnelFileLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBF8B42392C0D194798D2667 /* TunnelFileLogger.swift */; };
@@ -348,9 +353,11 @@
 		3B77B8C83804315DF2505934 /* TunnelStallProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunnelStallProbe.swift; sourceTree = "<group>"; };
 		3C3AA0F75FD43492C173B8C4 /* PacketTunnelProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelProvider.swift; sourceTree = "<group>"; };
 		3C86B933890A16DB4069C1A5 /* DebugLogsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugLogsView.swift; sourceTree = "<group>"; };
+		3E285C5FF4B2D647D4C31750 /* TunnelConfigSourceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunnelConfigSourceTests.swift; sourceTree = "<group>"; };
 		3E4759379DDD3262CA6B47A9 /* CommandClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandClient.swift; sourceTree = "<group>"; };
 		3F3382ABA99A753C80BA61E9 /* LegRaceProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegRaceProbe.swift; sourceTree = "<group>"; };
 		3FC0F827BBF3A30F2EDE9AB3 /* ConfigStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigStore.swift; sourceTree = "<group>"; };
+		413DC4FEA8485BA34FED76A4 /* TunnelConfigSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunnelConfigSource.swift; sourceTree = "<group>"; };
 		432EBE9FD5522D30F574115F /* libbsm.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libbsm.tbd; path = usr/lib/libbsm.tbd; sourceTree = SDKROOT; };
 		4334355585E46811414C5916 /* PacketTunnel.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = PacketTunnel.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		44EE43ED9CEC25421113C6A9 /* Products.storekit */ = {isa = PBXFileReference; path = Products.storekit; sourceTree = "<group>"; };
@@ -550,6 +557,7 @@
 				4B0F8A49025B0790BD2D4EC7 /* SingBoxConfigPatcherTests.swift */,
 				9B07C7F761E8467D5C74E4CD /* StringUtilsTests.swift */,
 				850D3937870EEB29F3CD7BD9 /* TrafficHealthMonitorTests.swift */,
+				3E285C5FF4B2D647D4C31750 /* TunnelConfigSourceTests.swift */,
 				EAB2B174E1652DA9F54F1A90 /* TunnelProbeOutcomeTests.swift */,
 				FB855E1269A733A271C6230F /* VPNControlIntentsTests.swift */,
 				A277436F03DA5DC7F780FCD5 /* WidgetVPNSnapshotTests.swift */,
@@ -618,6 +626,7 @@
 				C7486DEC72FBB5DD5338F158 /* RoutingMode.swift */,
 				056A5CFAAD6E085B3A0ACF9A /* RunBlocking.swift */,
 				D231623164FE9FECAD770789 /* StringUtils.swift */,
+				413DC4FEA8485BA34FED76A4 /* TunnelConfigSource.swift */,
 				DBF8B42392C0D194798D2667 /* TunnelFileLogger.swift */,
 				F16C0880F82481558275DBDE /* TunnelProbeOutcome.swift */,
 				9DAE6BD983F80C55AB4D1F5F /* VPNControlIntents.swift */,
@@ -1020,6 +1029,7 @@
 				DE990DCFB1EDE9CF6D509867 /* ThemeManager.swift in Sources */,
 				11AAD0CBBD52EE06355ACA56 /* ThemePickerView.swift in Sources */,
 				8AEFE40F991011124CAE96AC /* TrafficHealthMonitor.swift in Sources */,
+				5169D1AF41AB81BBEE5CF952 /* TunnelConfigSource.swift in Sources */,
 				C6AF80BEEEDDF6223C295DD5 /* TunnelFileLogger.swift in Sources */,
 				EBA08FF6A92D35DE4B4A955D /* TunnelProbeOutcome.swift in Sources */,
 				5E36E43A7AA47ECD03D80336 /* VPNControlIntents.swift in Sources */,
@@ -1058,6 +1068,7 @@
 				EFCA4C93C13AB9439614EF54 /* RunBlocking.swift in Sources */,
 				DE887C6682FB3DEA7FE8E77F /* SingBoxConfigPatcher.swift in Sources */,
 				27118EF86F80BE16990516DF /* StringUtils.swift in Sources */,
+				9C4DED194A1F4979B4B81A6E /* TunnelConfigSource.swift in Sources */,
 				EFA86C5445E58B8E7F2BA366 /* TunnelFileLogger.swift in Sources */,
 				2D84D6D53C7D701DFF45414F /* TunnelProbeOutcome.swift in Sources */,
 				1ECE818E32C061BDDF6B9B58 /* TunnelStallProbe.swift in Sources */,
@@ -1118,6 +1129,7 @@
 				BACEC61FEE678594868C78AF /* ThemeManager.swift in Sources */,
 				BC0EB19FC3432F56C64386DD /* ThemePickerView.swift in Sources */,
 				8F75A2437F55A299C19D3960 /* TrafficHealthMonitor.swift in Sources */,
+				EC367BBCECC8788B573C6D32 /* TunnelConfigSource.swift in Sources */,
 				EE90271EC8C8EF0A80F23C19 /* TunnelFileLogger.swift in Sources */,
 				76F3F028A2E3F95DDD860DBE /* TunnelProbeOutcome.swift in Sources */,
 				1BE4297D7868C7B87C68DA96 /* VPNControlIntents.swift in Sources */,
@@ -1163,6 +1175,7 @@
 				771D7D152382CD54123F1A34 /* SingBoxConfigPatcherTests.swift in Sources */,
 				88554DBB410CBE11723FF7F3 /* StringUtilsTests.swift in Sources */,
 				B12BD63053EC36D717193BCE /* TrafficHealthMonitorTests.swift in Sources */,
+				1490A46A95F989F91F8E712D /* TunnelConfigSourceTests.swift in Sources */,
 				0260B8435922643E95471DAF /* TunnelProbeOutcomeTests.swift in Sources */,
 				5743D3F671377954BC1018CD /* VPNControlIntentsTests.swift in Sources */,
 				8FC4856161C029FC93573066 /* WidgetVPNSnapshotTests.swift in Sources */,
@@ -1196,6 +1209,7 @@
 				7E28503788E8E5595446762E /* RunBlocking.swift in Sources */,
 				8707A01FC388AEEF2BBB77E8 /* SingBoxConfigPatcher.swift in Sources */,
 				4CF54096E6FFB7697C033D25 /* StringUtils.swift in Sources */,
+				305E2766C9022054EF8A8E58 /* TunnelConfigSource.swift in Sources */,
 				CBB2232BC6F0A99DF2328F4E /* TunnelFileLogger.swift in Sources */,
 				35C1D4B3D289E5725DED223A /* TunnelProbeOutcome.swift in Sources */,
 				2B7F76187D6350C135133CFF /* TunnelStallProbe.swift in Sources */,

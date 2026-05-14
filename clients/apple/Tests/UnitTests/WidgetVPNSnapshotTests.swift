@@ -54,4 +54,40 @@ final class WidgetVPNSnapshotTests: XCTestCase {
         // connectedAt participates in Equatable.
         XCTAssertNotEqual(s, WidgetVPNSnapshot(connected: true, serverName: "Auto"))
     }
+
+    // MARK: - write() — the App-Group writer shared by ExtensionProvider
+    // (source of truth) and ToggleVPNIntent (optimistic write).
+
+    /// An isolated UserDefaults suite so the test never touches the real
+    /// App Group. write() only ever mutates vpnConnectedAtKey.
+    private func freshSuite() -> UserDefaults {
+        let name = "test.widgetwrite.\(UUID().uuidString)"
+        let d = UserDefaults(suiteName: name)!
+        d.removeObject(forKey: AppConstants.vpnConnectedAtKey)
+        return d
+    }
+
+    func testWriteConnected_StampsAPositiveTimestamp() {
+        let d = freshSuite()
+        let before = Date().timeIntervalSince1970
+        WidgetVPNSnapshot.write(connected: true, to: d)
+        let ts = d.double(forKey: AppConstants.vpnConnectedAtKey)
+        XCTAssertGreaterThanOrEqual(ts, before,
+            "write(connected: true) must stamp a current unix timestamp")
+    }
+
+    func testWriteDisconnected_ClearsTheKey() {
+        let d = freshSuite()
+        WidgetVPNSnapshot.write(connected: true, to: d)
+        XCTAssertGreaterThan(d.double(forKey: AppConstants.vpnConnectedAtKey), 0)
+        WidgetVPNSnapshot.write(connected: false, to: d)
+        XCTAssertEqual(d.double(forKey: AppConstants.vpnConnectedAtKey), 0,
+            "write(connected: false) must remove the key — read() treats absent/0 as disconnected")
+    }
+
+    func testWriteToNilDefaultsIsNoOp() {
+        // App Group unreachable — must not crash.
+        WidgetVPNSnapshot.write(connected: true, to: nil)
+        WidgetVPNSnapshot.write(connected: false, to: nil)
+    }
 }

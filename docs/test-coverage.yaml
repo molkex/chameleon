@@ -17,9 +17,9 @@ last-updated-by: claude
 
 summary:
   ios:
-    source-files: 65
-    test-files: 20
-    test-cases: ~199
+    source-files: 66          # +TunnelConfigSource.swift (extracted from ExtensionProvider)
+    test-files: 21
+    test-cases: ~209
   backend:
     source-files: 69          # excl. _test.go and vendor/
     test-files: 26
@@ -39,7 +39,8 @@ ios:
     - StringUtils.swift -> StringUtilsTests (10)
     - RoutingMode.swift -> RoutingModeTests (9)
     - VPNControlIntents.swift -> VPNControlIntentsTests (5)        # launch-04b
-    - WidgetVPNSnapshot.swift -> WidgetVPNSnapshotTests (5)        # launch-04
+    - WidgetVPNSnapshot.swift -> WidgetVPNSnapshotTests (9)        # launch-04/04b — incl. write()
+    - TunnelConfigSource.swift -> TunnelConfigSourceTests (7)      # test-coverage-hardening — extracted from ExtensionProvider
     - DisconnectNotifier.swift -> DisconnectNotifierTests (3)      # launch-07
     - CrashDiagnosticReporter.swift -> CrashDiagnosticReporterTests (10)  # launch-03 / test-coverage-hardening
     - OutboundPenaltyStore.swift -> OutboundPenaltyStoreTests (9)  # phase-1.d
@@ -82,18 +83,6 @@ ios:
         setOnDemand rule-match guard (no redundant save), the
         userInitiatedDisconnect flag transitions. Manager itself needs
         an NE fake; at minimum extract + test the pure decision bits.
-
-    - id: ios-packet-tunnel-provider
-      path: clients/apple/PacketTunnel/ExtensionProvider.swift
-      severity: critical
-      why: |
-        startTunnel/stopTunnel, config-source selection (options ->
-        persisted -> file), and publishWidgetState() (launch-04b,
-        added build 70 — UNTESTED). On the connect hot path.
-      what-to-test: |
-        config-source precedence, the userStoppedVPN early-return,
-        publishWidgetState connected/disconnected key write. Extract
-        the config-source picker as a pure function to make it testable.
 
     - id: ios-real-traffic-stall-detector
       path: clients/apple/PacketTunnel/RealTrafficStallDetector.swift
@@ -228,9 +217,14 @@ backend:
 #    10 funcs. Extracted two pure cores from CrashDiagnosticReporter:
 #    parseTopFrames(fromCallStackJSON:) + diagnosticBody(for:now:) — the
 #    MetricKit-typed paths can't be unit-tested, no public initializer.)
-# 1. ios-packet-tunnel-provider — extract + test the config-source picker
-#    and publishWidgetState (the launch-04b code is live & untested)
-# 2. ios-app-state / ios-vpn-manager — need a VPNManager protocol seam
+# ✅ ios-packet-tunnel-provider — DONE. Two pure cores extracted into
+#    Shared/ (so the test target, which can't see PacketTunnel, reaches
+#    them): resolveTunnelConfig (TunnelConfigSource.swift — config-source
+#    precedence, 7 funcs) and WidgetVPNSnapshot.write (the App-Group
+#    writer, now shared by ExtensionProvider AND ToggleVPNIntent so they
+#    can't drift — +3 funcs). startTunnel/stopTunnel orchestration +
+#    sing-box/Libbox lifecycle stay on-device-verified (need NE+Libbox).
+# 1. ios-app-state / ios-vpn-manager — need a VPNManager protocol seam
 #    first; biggest effort, biggest blast radius
-# 3. ios-real-traffic-stall-detector, ios-outbound-group-tracker,
+# 2. ios-real-traffic-stall-detector, ios-outbound-group-tracker,
 #    ios-networking-misc, backend-v2rayapi-command — major, steady grind
