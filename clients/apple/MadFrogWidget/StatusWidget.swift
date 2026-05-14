@@ -92,22 +92,38 @@ struct StatusWidgetView: View {
     }
 
     private var smallView: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 4) {
             // launch-04b: the shield is an interactive toggle. The
             // intent runs in the widget extension and drives the VPN
             // directly — no app launch. value: !connected = "flip it".
+            // The filled circular background is the tap affordance —
+            // a bare SF Symbol doesn't read as a button (build-70
+            // field feedback).
             Button(intent: ToggleVPNIntent(value: !snapshot.connected)) {
                 Image(systemName: shieldSymbol)
-                    .font(.system(size: 32, weight: .semibold))
-                    .foregroundStyle(tint)
+                    .font(.system(size: 26, weight: .semibold))
+                    .foregroundStyle(snapshot.connected ? Color.white : Color.secondary)
+                    .frame(width: 54, height: 54)
+                    .background(
+                        snapshot.connected ? AnyShapeStyle(tint)
+                                           : AnyShapeStyle(.fill.secondary),
+                        in: Circle()
+                    )
             }
             .buttonStyle(.plain)
             Spacer(minLength: 0)
             Text(snapshot.statusText)
                 .font(.headline)
                 .foregroundStyle(.primary)
+            // launch-04b: live uptime — ticks on its own, no timeline
+            // reload needed (build-70 field feedback: "время нет").
+            if let connectedAt = snapshot.connectedAt {
+                Text(connectedAt, style: .timer)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(tint)
+            }
             Text(snapshot.serverDisplay)
-                .font(.caption)
+                .font(.caption2)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
         }
@@ -129,6 +145,11 @@ struct StatusWidgetView: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(snapshot.statusText)
                     .font(.headline)
+                if let connectedAt = snapshot.connectedAt {
+                    Text(connectedAt, style: .timer)
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
                 Text(snapshot.serverDisplay)
                     .font(.caption2)
                     .foregroundStyle(.secondary)

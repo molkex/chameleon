@@ -18,6 +18,17 @@ struct WidgetVPNSnapshot: Equatable {
     /// User-facing server label, e.g. "Auto" / "🇩🇪 Германия". nil when the
     /// user has never picked one (fresh install).
     let serverName: String?
+    /// When the tunnel came up — the `vpnConnectedAtKey` timestamp. nil
+    /// when disconnected. The widget renders this as a live-updating
+    /// uptime via `Text(_, style: .timer)`, which ticks without any
+    /// timeline reload.
+    let connectedAt: Date?
+
+    init(connected: Bool, serverName: String?, connectedAt: Date? = nil) {
+        self.connected = connected
+        self.serverName = serverName
+        self.connectedAt = connectedAt
+    }
 
     /// Read the current snapshot from the App Group. Returns a
     /// disconnected snapshot if the App Group is unreachable — a widget
@@ -27,11 +38,15 @@ struct WidgetVPNSnapshot: Equatable {
             return WidgetVPNSnapshot(connected: false, serverName: nil)
         }
         // vpnConnectedAtKey is the connected/disconnected signal:
-        // handleStatus() stamps it on .connected, clears it on
-        // .disconnected. Presence + >0 == connected.
-        let connectedAt = d.double(forKey: AppConstants.vpnConnectedAtKey)
+        // handleStatus() / ExtensionProvider.publishWidgetState() stamp
+        // it on connect, clear it on disconnect. Presence + >0 == connected.
+        let ts = d.double(forKey: AppConstants.vpnConnectedAtKey)
         let server = d.string(forKey: AppConstants.selectedServerTagKey)
-        return WidgetVPNSnapshot(connected: connectedAt > 0, serverName: server)
+        return WidgetVPNSnapshot(
+            connected: ts > 0,
+            serverName: server,
+            connectedAt: ts > 0 ? Date(timeIntervalSince1970: ts) : nil
+        )
     }
 
     /// Localised status line. The widget target doesn't carry the app's

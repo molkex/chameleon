@@ -36,6 +36,14 @@ incidents:
       (both write a timestamp on connect, remove the key on disconnect).
       PacketTunnel gained `WidgetKit.framework`; the calls are
       `#if os(iOS)` so PacketTunnelMac is untouched.
+      build 71 — build 70 still felt laggy: the extension's
+      `reloadAllTimelines()` is iOS-budget-throttled, and on a connect
+      the key isn't written until sing-box is up (~0.4 s later), so the
+      reload WidgetKit fires right after the intent showed stale state.
+      Fix: `ToggleVPNIntent` writes the requested state to the App Group
+      *optimistically* (right after startTunnel/stopVPNTunnel returns,
+      before the tunnel finishes) so the post-intent reload is instant;
+      the extension still corrects it on the real outcome.
     status: resolved
     lesson: |
       Any widget/extension-triggered action must update shared state and

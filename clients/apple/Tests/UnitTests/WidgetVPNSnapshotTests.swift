@@ -42,4 +42,16 @@ final class WidgetVPNSnapshotTests: XCTestCase {
         XCTAssertEqual(a, b)
         XCTAssertNotEqual(a, c)
     }
+
+    func testConnectedAtIsCarriedAndOptional() {
+        // launch-04b: connectedAt backs the widget's live uptime timer.
+        // It defaults to nil (back-compat with the 2-arg call sites) and
+        // is carried verbatim when supplied.
+        XCTAssertNil(WidgetVPNSnapshot(connected: false, serverName: nil).connectedAt)
+        let t = Date(timeIntervalSince1970: 1_700_000_000)
+        let s = WidgetVPNSnapshot(connected: true, serverName: "Auto", connectedAt: t)
+        XCTAssertEqual(s.connectedAt, t)
+        // connectedAt participates in Equatable.
+        XCTAssertNotEqual(s, WidgetVPNSnapshot(connected: true, serverName: "Auto"))
+    }
 }

@@ -1,6 +1,9 @@
 import AppIntents
 import Foundation
 import NetworkExtension
+#if os(iOS)
+import WidgetKit
+#endif
 
 /// launch-04b: the interactive half of widgets — a Control Center toggle
 /// (iOS 18 `ControlWidget`) and an interactive Home-Screen button, both
@@ -102,10 +105,37 @@ struct ToggleVPNIntent: SetValueIntent {
             // options: nil — the extension uses the App-Group-persisted
             // config; no backend fetch, no app launch on the warm path.
             try session.startTunnel(options: nil)
+            // Optimistic: startTunnel() didn't throw, so the tunnel is
+            // coming up. Stamp the App Group NOW so the timeline reload
+            // WidgetKit fires right after this intent shows the new
+            // state immediately — instead of waiting for the extension
+            // (whose own reloadAllTimelines() is iOS-budget-throttled).
+            // ExtensionProvider.publishWidgetState() then confirms it,
+            // or clears it if the connection actually fails.
+            Self.publishOptimisticState(connected: true)
 
         case .stop:
             managers[0].connection.stopVPNTunnel()
+            Self.publishOptimisticState(connected: false)
         }
         return .result()
+    }
+
+    /// Write the just-requested state into the App Group and nudge the
+    /// widgets, so the UI flips the instant the user taps — before the
+    /// tunnel has actually finished coming up / down. The PacketTunnel
+    /// extension remains the source of truth and corrects this if the
+    /// real outcome differs.
+    private static func publishOptimisticState(connected: Bool) {
+        let defaults = UserDefaults(suiteName: AppConstants.appGroupID)
+        if connected {
+            defaults?.set(Date().timeIntervalSince1970,
+                          forKey: AppConstants.vpnConnectedAtKey)
+        } else {
+            defaults?.removeObject(forKey: AppConstants.vpnConnectedAtKey)
+        }
+        #if os(iOS)
+        WidgetCenter.shared.reloadAllTimelines()
+        #endif
     }
 }

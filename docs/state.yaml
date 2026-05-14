@@ -31,20 +31,21 @@ prod:
 
   ios:
     marketing-version: "1.0.26"
-    current-build: 70                              # last UPLOADED build
+    current-build: 71                              # last UPLOADED build
     track: testflight-internal
-    asc-build-id: 4398fbac-e1b3-4477-acbf-eb8dfd74716c
+    asc-build-id: 3741178f-98c6-4fb6-a6ec-ffc7054a0e16
     uploaded: 2026-05-14
-    field-verified: false                        # builds 65-70 (launch-03/06/07/04/04b) not yet field-tested; 60-64 were
-    previous-builds-in-testflight: [69, 68, 67, 66, 65, 64, 63, 62, 61, 60, 59, 58, 57, 56, 55]
-    # build 70 = launch-04b fix — widget visual sync. Build 69 toggled
-    # the VPN fine from the widget but didn't repaint until the app was
-    # opened (only the app's handleStatus() wrote vpnConnectedAtKey +
-    # reloaded timelines, and the app isn't running on a widget toggle).
-    # Now ExtensionProvider publishes the state on every start/stop.
+    field-verified: false                        # builds 65-71 (launch-03/06/07/04/04b) not yet field-tested; 60-64 were
+    previous-builds-in-testflight: [70, 69, 68, 67, 66, 65, 64, 63, 62, 61, 60, 59, 58, 57, 56, 55]
+    # build 71 = launch-04b polish (field feedback): optimistic App-Group
+    # write in ToggleVPNIntent so the widget flips instantly on tap;
+    # filled circular button affordance on the systemSmall shield; live
+    # uptime timer (WidgetVPNSnapshot.connectedAt) on small + rectangular.
+    # build 70 = launch-04b fix — ExtensionProvider publishes
+    # vpnConnectedAtKey + reloadAllTimelines on every start/stop (the app
+    # isn't running on a widget-triggered toggle).
     # build 69 = launch-04b — interactive widgets: iOS-18 Control Center
-    # toggle + interactive Home-Screen shield button. NETWORK_EXTENSIONS
-    # capability enabled on com.madfrog.vpn.widget via ASC API.
+    # toggle + interactive Home-Screen shield button.
     # build 68 = launch-04 read-only Home/Lock-Screen status widget.
     # All builds linked to Internal Testers 19b338f9-82fa-4371-ae21-bea225d94076.
     libbox:
@@ -64,7 +65,7 @@ prod:
   chameleon-repo:
     branch: claude/naughty-golick-e7f6a5
     pushed-to-origin: true
-    head: 26b4720                                  # launch-04b build 70 widget-sync fix commit follows next
+    head: 3d874e7                                  # launch-04b build 71 widget-polish commit follows next
     unpushed-commits: 0                           # update on every push
 
   app-store:

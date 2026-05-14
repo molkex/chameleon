@@ -485,7 +485,7 @@ phases:
     title: iOS-18 ControlWidget toggle + interactive Home Screen button
     status: done
     layer: ios
-    builds: [69, 70]
+    builds: [69, 70, 71]
     rationale: |
       The interactive half of widgets — a real connect/disconnect toggle
       in Control Center (iOS 18 ControlWidget) and an interactive button
@@ -533,9 +533,15 @@ phases:
       triggered toggle. build 70 (asc-build-id
       4398fbac-e1b3-4477-acbf-eb8dfd74716c) moves that responsibility to
       ExtensionProvider.publishWidgetState() — the one process that
-      always runs on a VPN state change. field-verified: false — needs
-      on-device re-check that the widget now repaints on toggle without
-      opening the app.
+      always runs on a VPN state change. Build 70 field test still felt
+      laggy (extension's reloadAllTimelines() is iOS-budget-throttled)
+      and surfaced two UX gaps. build 71 (asc-build-id
+      3741178f-98c6-4fb6-a6ec-ffc7054a0e16): (1) ToggleVPNIntent writes
+      the state to the App Group optimistically so WidgetKit's
+      post-intent reload shows it instantly; (2) the systemSmall shield
+      is now a filled circular button (affordance); (3) live uptime
+      timer via WidgetVPNSnapshot.connectedAt on small + rectangular.
+      field-verified: false — needs on-device re-check on build 71.
     estimated-effort: 0.5-1 day
 
   - id: launch-05-shortcuts-appintents

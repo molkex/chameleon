@@ -5,6 +5,30 @@
 # Cross-reference phases via phase ids from plan.yaml.
 
 builds:
+  - number: 71
+    version: "1.0.26"
+    date: 2026-05-14
+    track: testflight-internal
+    asc-build-id: 3741178f-98c6-4fb6-a6ec-ffc7054a0e16
+    phases: [launch-04b-control-widget]
+    archive-path: /tmp/MadFrogVPN-build71.xcarchive
+    field-verified: false
+    notes: |
+      launch-04b polish — three field-feedback fixes on the widgets:
+      (1) Responsiveness: ToggleVPNIntent now writes the requested state
+      to the App Group optimistically (before the tunnel finishes coming
+      up/down) + reloads timelines, so the widget flips the instant the
+      user taps — instead of waiting for the extension's iOS-budget-
+      throttled reload. ExtensionProvider stays the source of truth and
+      corrects it if the real outcome differs.
+      (2) Affordance: the systemSmall shield is now a filled circular
+      button (green when connected, grey when off) — a bare SF Symbol
+      didn't read as tappable.
+      (3) Uptime: WidgetVPNSnapshot gained connectedAt (from the
+      vpnConnectedAtKey timestamp); systemSmall + accessoryRectangular
+      show a live Text(_, style: .timer) — ticks with no timeline
+      reload. iOS-only, libbox unchanged from build 60.
+
   - number: 70
     version: "1.0.26"
     date: 2026-05-14
