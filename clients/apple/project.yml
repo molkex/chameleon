@@ -18,7 +18,7 @@ settings:
   base:
     SWIFT_VERSION: "5.10"
     MARKETING_VERSION: "1.0.26"
-    CURRENT_PROJECT_VERSION: "69"
+    CURRENT_PROJECT_VERSION: "70"
     DEVELOPMENT_TEAM: "99W3C374T2"
     TARGETED_DEVICE_FAMILY: "1"
 
@@ -109,6 +109,10 @@ targets:
         embed: false
       - sdk: UIKit.framework
       - sdk: libresolv.tbd
+      # launch-04b: ExtensionProvider reloads the widget timeline on
+      # VPN state changes (it's the one process that always runs when
+      # the VPN is toggled — incl. from the Control Center widget).
+      - sdk: WidgetKit.framework
 
   MadFrogVPNMac:
     type: application

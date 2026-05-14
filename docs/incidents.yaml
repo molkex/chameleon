@@ -6,6 +6,43 @@
 # it's so future-you doesn't re-debug the same misdirection.
 
 incidents:
+  - id: 2026-05-14-widget-toggle-no-visual-update
+    date: 2026-05-14
+    severity: minor
+    title: Widget toggled the VPN but didn't repaint until the app was opened
+    component: ios-widget
+    builds-affected: [69]
+    detected-via: field-test
+    what-happened: |
+      launch-04b build 69: tapping the Control Center toggle / the
+      interactive Home-Screen shield button DID connect/disconnect the
+      VPN, but the widget kept showing the old state until the app was
+      next opened — at which point it snapped to correct.
+    root-cause: |
+      `vpnConnectedAtKey` (the App-Group key `WidgetVPNSnapshot.read()`
+      keys off) and `WidgetCenter.reloadAllTimelines()` were both driven
+      ONLY by the app's `AppState.handleStatus()`. That's fine when the
+      user toggles inside the app, but a widget-triggered toggle runs
+      `ToggleVPNIntent` in the widget-extension process — the app isn't
+      running, so nothing updated the key or reloaded the timeline. The
+      same blind spot existed for toggling from iOS Settings.
+    resolution: |
+      build 70 — `ExtensionProvider` is the one process that always runs
+      on a VPN state change (app / widget / iOS Settings), so it now
+      owns the widget signal: `publishWidgetState(connected:)` writes
+      `vpnConnectedAtKey` and calls `reloadAllTimelines()` on tunnel
+      start success, stop, and the pre-flight failure paths. The app's
+      `handleStatus()` still does the same — harmless and consistent
+      (both write a timestamp on connect, remove the key on disconnect).
+      PacketTunnel gained `WidgetKit.framework`; the calls are
+      `#if os(iOS)` so PacketTunnelMac is untouched.
+    status: resolved
+    lesson: |
+      Any widget/extension-triggered action must update shared state and
+      reload timelines from a process that's actually alive at that
+      moment — never assume the main app is running. For VPN state, the
+      packet-tunnel provider is the reliable writer.
+
   - id: 2026-05-14-widget-bundle-id-provisioning-wall
     date: 2026-05-14
     severity: minor

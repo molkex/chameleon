@@ -1,6 +1,9 @@
 import NetworkExtension
 import Libbox
 import UserNotifications
+#if os(iOS)
+import WidgetKit
+#endif
 
 /// Base class for PacketTunnelProvider. Implements sing-box lifecycle
 /// using CommandServer API (modern approach, same as SFI).
@@ -33,6 +36,30 @@ open class ExtensionProvider: NEPacketTunnelProvider {
 
     private var sharedDefaults: UserDefaults? {
         UserDefaults(suiteName: AppConstants.appGroupID)
+    }
+
+    /// launch-04b: the extension is the single source of truth for the
+    /// widget's connected/disconnected state. The app's `handleStatus()`
+    /// also maintains `vpnConnectedAtKey`, but the app isn't running when
+    /// the VPN is toggled from the Control Center widget / interactive
+    /// widget button / iOS Settings — so the widget would stay stale
+    /// until the app is next opened. Writing the key here (the one
+    /// process that always runs on a state change) + reloading the
+    /// timeline keeps the widget honest no matter who flipped the VPN.
+    ///
+    /// Values stay consistent with `handleStatus()`: a timestamp on
+    /// connect, key removed on disconnect — `WidgetVPNSnapshot.read()`
+    /// treats presence + >0 as connected.
+    private func publishWidgetState(connected: Bool) {
+        #if os(iOS)
+        if connected {
+            sharedDefaults?.set(Date().timeIntervalSince1970,
+                                forKey: AppConstants.vpnConnectedAtKey)
+        } else {
+            sharedDefaults?.removeObject(forKey: AppConstants.vpnConnectedAtKey)
+        }
+        WidgetCenter.shared.reloadAllTimelines()
+        #endif
     }
 
     // MARK: - Memory diagnostics
@@ -150,6 +177,7 @@ open class ExtensionProvider: NEPacketTunnelProvider {
         if sharedDefaults?.bool(forKey: AppConstants.userStoppedVPNKey) == true {
             sharedDefaults?.removeObject(forKey: AppConstants.userStoppedVPNKey)
             TunnelFileLogger.log("Blocked On Demand restart after user-initiated stop")
+            publishWidgetState(connected: false)
             completionHandler(NSError(domain: "Chameleon", code: 2,
                                       userInfo: [NSLocalizedDescriptionKey: "User stopped VPN"]))
             return
@@ -169,6 +197,7 @@ open class ExtensionProvider: NEPacketTunnelProvider {
             TunnelFileLogger.log("Config source: file (\(fileConfig.count) chars)")
         } else {
             TunnelFileLogger.log("ERROR: No config found anywhere")
+            publishWidgetState(connected: false)
             completionHandler(NSError(domain: "Chameleon", code: 1,
                                       userInfo: [NSLocalizedDescriptionKey: "No VPN config. Open app first."]))
             return
@@ -191,11 +220,13 @@ open class ExtensionProvider: NEPacketTunnelProvider {
                 AppLogger.tunnel.info("sing-box started successfully")
                 self.startMemoryWatchdog()
                 self.startStallProbe()
+                self.publishWidgetState(connected: true)
                 completionHandler(nil)
             } catch {
                 TunnelFileLogger.logSync("ERROR: sing-box start failed: \(error)")
                 AppLogger.tunnel.error("sing-box start failed: \(error)")
                 self.setGrpcState(false)
+                self.publishWidgetState(connected: false)
                 completionHandler(error)
             }
         }
@@ -227,6 +258,7 @@ open class ExtensionProvider: NEPacketTunnelProvider {
         stopMemoryWatchdog()
         stopSingBox()
         setGrpcState(false)
+        publishWidgetState(connected: false)
         completionHandler()
     }
 

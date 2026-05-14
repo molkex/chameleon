@@ -5,6 +5,27 @@
 # Cross-reference phases via phase ids from plan.yaml.
 
 builds:
+  - number: 70
+    version: "1.0.26"
+    date: 2026-05-14
+    track: testflight-internal
+    asc-build-id: 4398fbac-e1b3-4477-acbf-eb8dfd74716c
+    phases: [launch-04b-control-widget]
+    archive-path: /tmp/MadFrogVPN-build70.xcarchive
+    field-verified: false
+    notes: |
+      launch-04b fix — widget visual sync. Field test of build 69:
+      toggling the VPN from the widget worked, but the widget didn't
+      visually update until the app was opened. Root cause:
+      vpnConnectedAtKey (the App-Group key WidgetVPNSnapshot reads) and
+      WidgetCenter.reloadAllTimelines() were only driven by the app's
+      handleStatus() — and the app isn't running on a widget-triggered
+      toggle. Fix: ExtensionProvider (the one process that always runs
+      on a VPN state change) now publishes vpnConnectedAtKey + reloads
+      the timeline on start/stop/failure — publishWidgetState(connected:).
+      PacketTunnel gained WidgetKit.framework; calls are #if os(iOS).
+      iOS-only, libbox unchanged from build 60.
+
   - number: 69
     version: "1.0.26"
     date: 2026-05-14

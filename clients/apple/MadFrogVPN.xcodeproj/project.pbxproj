@@ -219,6 +219,7 @@
 		DE990DCFB1EDE9CF6D509867 /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B28AD4A0F0B61B1CCA267A /* ThemeManager.swift */; };
 		DF38699B83BD4DA7C37DCAF1 /* RealTrafficStallDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC879DEDEBE9302A8936940 /* RealTrafficStallDetector.swift */; };
 		DF6547B5F8BC8B36193C0B3C /* LastWorkingLegStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDCBB9F4E8DCDA4AC3C58517 /* LastWorkingLegStore.swift */; };
+		DF8A8533B63EA2D437C2500F /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 60E77ADEA1CE787C940AA0BE /* WidgetKit.framework */; };
 		E192518FF4AAD355DE6154DA /* L10n.swift in Sources */ = {isa = PBXBuildFile; fileRef = F48680996CDA6DA1906F2747 /* L10n.swift */; };
 		E1C7677A6E0BD00FC7138CFC /* CommandClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E4759379DDD3262CA6B47A9 /* CommandClient.swift */; };
 		E257B962BF7B37686FAE5DD4 /* NetworkExtension.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 21AE788D6595D4029A9B4AD5 /* NetworkExtension.framework */; };
@@ -450,6 +451,7 @@
 				8B0B22B50382DB9506F96734 /* Libbox.xcframework in Frameworks */,
 				42EB07A7DF42BCFC9CA2375E /* UIKit.framework in Frameworks */,
 				D0204995C6A45774531865CC /* libresolv.tbd in Frameworks */,
+				DF8A8533B63EA2D437C2500F /* WidgetKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1467,7 +1469,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 69;
+				CURRENT_PROJECT_VERSION = 70;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = 99W3C374T2;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -1544,7 +1546,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 69;
+				CURRENT_PROJECT_VERSION = 70;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = 99W3C374T2;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;

@@ -485,7 +485,7 @@ phases:
     title: iOS-18 ControlWidget toggle + interactive Home Screen button
     status: done
     layer: ios
-    builds: [69]
+    builds: [69, 70]
     rationale: |
       The interactive half of widgets — a real connect/disconnect toggle
       in Control Center (iOS 18 ControlWidget) and an interactive button
@@ -526,9 +526,16 @@ phases:
       targets compile; test target compiles (build-for-testing).
     shipped: |
       2026-05-14 — build 69 in TestFlight Internal (asc-build-id
-      b4b009ce-ac68-44d2-834d-a015c331d650). field-verified: false —
-      needs on-device check: Control Center toggle connects/disconnects
-      without opening the app; Home Screen shield button toggles.
+      b4b009ce-ac68-44d2-834d-a015c331d650). Field test confirmed the
+      toggle drives the VPN, but the widget didn't repaint until the app
+      was opened — only the app's handleStatus() wrote vpnConnectedAtKey
+      + reloaded timelines, and the app isn't running on a widget-
+      triggered toggle. build 70 (asc-build-id
+      4398fbac-e1b3-4477-acbf-eb8dfd74716c) moves that responsibility to
+      ExtensionProvider.publishWidgetState() — the one process that
+      always runs on a VPN state change. field-verified: false — needs
+      on-device re-check that the widget now repaints on toggle without
+      opening the app.
     estimated-effort: 0.5-1 day
 
   - id: launch-05-shortcuts-appintents
