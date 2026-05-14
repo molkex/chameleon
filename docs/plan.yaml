@@ -6,7 +6,10 @@
 #   yq '.phases[] | select(.status=="planned") | .id'
 #
 # Phase IDs are PERMALINKS — never renamed. Other files reference them.
-# Order in this file = chronological. Append new phases at the end.
+# Order is roughly grouped (smart-selection rollout -> launch readiness
+# -> fork track), NOT strictly chronological — never rely on file
+# position, filter by status/id/layer. Append new phases at the end of
+# their group; never reorder existing entries.
 
 phases:
   # ─── Smart-selection rollout (build 55 onward, 2026-05-13) ─────────────────
@@ -117,7 +120,10 @@ phases:
 
   - id: phase-1.9-libbox-revert
     title: Revert libbox base from v1.13.6 → v1.13.5
-    status: reverted               # the revert itself was the wrong call
+    status: done                   # the revert shipped and STUCK (v1.13.5 is
+                                   # still the base) — the *reasoning* was
+                                   # wrong, but the artifact stayed: that's
+                                   # done-with-a-caveat, not `reverted`.
     layer: fork
     builds: [60]
     completed: 2026-05-13
@@ -442,6 +448,7 @@ phases:
   - id: launch-04-widgets
     title: Home/Lock Screen status widget
     status: done
+    completed: 2026-05-14
     layer: ios
     builds: [68]
     rationale: |
@@ -484,6 +491,7 @@ phases:
   - id: launch-04b-control-widget
     title: iOS-18 ControlWidget toggle + interactive Home Screen button
     status: done
+    completed: 2026-05-14
     layer: ios
     builds: [69, 70, 71]
     rationale: |

@@ -65,7 +65,7 @@ prod:
   chameleon-repo:
     branch: claude/naughty-golick-e7f6a5
     pushed-to-origin: true
-    head: 37640f0                                  # architecture/ADR backfill; test-coverage audit commit follows next
+    head: 67c953c                                  # test-coverage hardening wave 1; doc-consistency commit follows next
     unpushed-commits: 0                           # update on every push
 
   app-store:

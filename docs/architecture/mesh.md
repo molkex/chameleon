@@ -1,10 +1,17 @@
-# Chameleon Mesh Architecture v2
+# Chameleon Mesh Architecture v2 — ASPIRATIONAL DESIGN
 
-> 🤖 Mirror: [agent-readable YAML](architecture.yaml) — keep in sync. Edit either, sync the other.
+> ⚠️ **This is a design proposal, NOT current architecture.** None of it
+> is implemented. Drafted 2026-04-22; no work has started. The live
+> topology is DE + NL only (see `infrastructure/topology.yaml`), the
+> live component map is [`components.yaml`](components.yaml), and the
+> live plan is [`../plan.yaml`](../plan.yaml). Keep this file for the
+> thinking it captures (CockroachDB vs Postgres+CRDT, libp2p vs direct
+> QUIC, Raft for atomic ops) — revisit if/when 20+ nodes is on the
+> roadmap. The "Migration phases / TODAY" section below is from the
+> original draft; its dates are not real.
 
-**Status:** In progress (2026-04-22)
-**Scale target:** 20+ nodes globally
-**Migration tracking branch:** `mesh-v2` (TBD)
+**Scale target (if pursued):** 20+ nodes globally
+**Status:** proposed, not started — not tracked by any `plan.yaml` phase
 
 ---
 

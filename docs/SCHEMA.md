@@ -26,7 +26,7 @@ Markdown is reserved for:
 
 | File | Purpose | One-line summary |
 |---|---|---|
-| `state.yaml` | What's deployed right now in prod | "DE+NL at backend 60.3, iOS build 62 in Internal Testers" |
+| `state.yaml` | What's deployed right now in prod | backend marker + nodes, iOS build + ASC id, fork + repo state, App Store state, known-issues |
 | `plan.yaml` | Phases — what we will / are / have done | Living lifecycle of every named change |
 | `incidents.yaml` | What broke + root cause + lesson | Field-failures and post-mortems |
 | `decisions.yaml` | ADR — architectural choices | "Why fork sing-box", "Why no Cloudflare Tunnel" |
@@ -61,54 +61,84 @@ Status enums (use exactly these strings, lowercase, hyphenated):
 
 ## Schema: `state.yaml`
 
-Single document. The current operational truth.
+Single document. The current operational truth — update with EVERY
+production change (deploy / TestFlight upload / fork rebuild).
 
 ```yaml
-last-updated: 2026-05-13          # ISO date
+last-updated: 2026-05-14           # ISO date
 last-updated-by: claude            # owner of the latest edit
 prod:
   backend:
-    version: 60.3-dpi-aware-config # configBuildMarker
-    nodes: [de, nl]
-    deployed: 2026-05-13
+    version-marker: 60.5-…         # configBuildMarker — tracks clientconfig.go
+                                   # revisions only; a comment below it lists
+                                   # code shipped since the marker
+    nodes:                         # list of {id, host, provider, role}
+      - { id: de, host: 1.2.3.4, provider: OVH, role: primary vpn node + api }
+    deployed: 2026-05-14
+    env-flags: { CHAMELEON_DISABLE_QUIC_OUTBOUNDS: "true" }   # optional
   ios:
-    version: 1.0.26
-    build: 62
+    marketing-version: "1.0.26"
+    current-build: 71              # last UPLOADED build
     track: testflight-internal
-    field-verified: false          # bool; flip after user confirms
+    asc-build-id: <uuid>
+    uploaded: 2026-05-14
+    field-verified: false          # bool; flip after on-device confirm
+    previous-builds-in-testflight: [70, 69, …]
+    libbox: { source: …, binary-size-mb: 44, git-ignored: true }
+    # pending-build: optional sub-map while a build is mid-pipeline
   fork:
+    repo: github.com/…
     branch: v1.13.5-madfrog
-    base: sing-box v1.13.5
-    head: <sha>
-    pushed: false                  # bool; true after origin push
+    base-tag: v1.13.5
+    cherry-picks: [feat(group/urltest)/firstwrite-callback]
+    pushed-to-origin: true
+    remote-branch: origin/v1.13.5-madfrog
+  chameleon-repo:
+    branch: claude/…
+    pushed-to-origin: true
+    head: <short-sha>              # one commit stale right after a commit — expected
+    unpushed-commits: 0
+  app-store:
+    version: "1.0.26"
+    state: WAITING_FOR_REVIEW      # mirrors ASC appStoreState
+    submission-id: <uuid>          # the reviewSubmission id
+    attached-build: 71
+    submitted: 2026-05-14
 
 known-issues:
-  - issue: throttle-cycle-90s
-    severity: major
-    description: nl-via-msk throttles at ~90s of bulk flow, fallback re-elects same
-    next-action: phase-1.d-penalty-score
+  - id: throttle-cycle-90s         # stable id
+    severity: major                # blocker | major | minor | cosmetic
+    description: |
+      <what's wrong>
+    status-update: MITIGATED 2026-05-14 — <what changed>   # optional, dated
+    next-action: phase-1-smart-group | none
 ```
 
 ## Schema: `plan.yaml`
 
 ```yaml
 phases:
-  - id: phase-1.c-adaptive-cadence
+  - id: phase-1.c-adaptive-cadence  # PERMALINK — never rename
     title: Adaptive probe cadence on cellular
-    status: done                   # see status enum above
-    created: 2026-05-13
-    completed: 2026-05-13          # only when status=done|reverted
-    builds: [61, 62]               # related TestFlight build numbers
-    layer: ios                     # ios | backend | fork | infra | docs
+    status: done                    # see status enum below
+    completed: 2026-05-13           # ISO date, when status=done|reverted
+    builds: [61, 62]                # related TestFlight build numbers
+    layer: ios                      # ios | backend | fork | infra | docs
     rationale: |
       <why we're doing this; field-log evidence>
-    artifacts:                     # files this phase touched
-      - clients/apple/PacketTunnel/TunnelStallProbe.swift
-    related-incidents: []          # ids from incidents.yaml
-    related-decisions: []          # ids from decisions.yaml
-    follow-up:                     # phase ids that depend on this
-      - phase-1.d-penalty-score
-    outcome:                       # only when done
+    # ─ optional, as the phase warrants: ─
+    artifacts: [<file paths this phase touched>]
+    implementation: |               # prose: how it was built
+    tests: |                        # prose: what test coverage shipped with it
+    shipped: |                      # prose: ship details (build/asc-id/notes)
+    notes: |                        # caveats; required for reverted/deferred/abandoned
+    related-incidents: [<incidents.yaml ids>]
+    related-decisions: [<decisions.yaml ADR ids>]
+    depends-on: <phase id>
+    blocked-on: |                   # prose, while status=in-progress
+    follow-up: [<phase ids that depend on this>]
+    estimated-effort: <free text>
+    outcome:                        # when done, if there's a metric
       metric: fallback-latency-ms
       value: 9
       previous: 21000
@@ -116,11 +146,18 @@ phases:
 
 Allowed statuses:
 - `planned`: scheduled, no work started
-- `in-progress`: actively being implemented
+- `in-progress`: actively being implemented (`blocked-on:` if stuck)
 - `done`: shipped + (optionally) field-verified
-- `reverted`: shipped but rolled back — keep entry for history
+- `reverted`: the phase's *artifact* shipped and was then rolled back —
+  keep the entry for history. NOT for "the decision was wrong but the
+  artifact stayed" — that's `done` with a `notes:` caveat.
 - `deferred`: paused — reasons in `notes:`
 - `abandoned`: decided not to do — reasons in `notes:`
+
+Order in the file is roughly grouped (smart-selection rollout → launch
+readiness → fork track), NOT strictly chronological. Never rely on file
+position — filter by `status` / `id` / `layer`. Append new phases to the
+end of their group; never reorder existing entries.
 
 ## Schema: `incidents.yaml`
 
@@ -240,11 +277,13 @@ components:
       - emits no outbound without country_code
 ```
 
-## Schema: `architecture/topology.yaml`
+## Topology — not a `docs/` file
 
-Already exists at `infrastructure/topology.yaml`. **Don't duplicate** —
-`docs/architecture/topology.yaml` either re-exports the canonical file
-via `$ref` or is a symlink. Decide once and stick to it.
+Server / relay / chain topology is **canonical at
+`infrastructure/topology.yaml`** and is deliberately NOT mirrored into
+`docs/architecture/`. If a doc needs to reference topology, link the
+`infrastructure/` path directly. (`components.yaml` has an `infra-topology`
+entry that does exactly this.)
 
 ## Cross-file references
 

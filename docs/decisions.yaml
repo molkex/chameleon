@@ -3,7 +3,7 @@
 #
 # Add an entry when a non-obvious tradeoff was made. The point is the
 # WHY, not the WHAT (the code shows what). When superseded, set status
-# and link superseded-by — don't delete.
+# and link superseded-by — don't delete. Kept in ascending ADR-NNN order.
 
 decisions:
   - id: ADR-001-fork-singbox
@@ -92,36 +92,26 @@ decisions:
       - "Client-side NWPath.isExpensive — misses RU home Wi-Fi DPI"
       - "Per-server `unreachable_from_ru` DB column — needs migration + admin UI"
 
-  - id: ADR-007-refund-subtract-not-replay
-    date: 2026-05-14
+  - id: ADR-005-quic-toggle-via-env
+    date: 2026-05-13
     status: accepted
-    title: Refund reversal subtracts the charge's days, no full-ledger replay
+    title: Toggle QUIC outbound emission via env flag, not code constant
     context: |
-      launch-09 needed to reverse a subscription when Apple sends REFUND /
-      REVOKE. The old subscription_notification.go comment deferred this,
-      fearing it "requires knowing whether ANY other payment covers the
-      current period ... multi-source ledger queries" — implying a full
-      historical replay of the ledger.
+      Phase 1.A needed to suppress h2/tuic outbounds. We could've
+      hard-deleted the generation code, or feature-flagged in code.
     decision: |
-      Reverse a refund by subtracting exactly the refunded charge's days
-      from users.subscription_expiry — the literal inverse of how
-      CreditDays added them. No full-ledger replay.
-    rationale: |
-      CreditDays is a pure additive counter: `expiry = max(now,expiry) +
-      days`, and crucially it is SOURCE-AGNOSTIC — Apple days and FreeKassa
-      days land on the same running total. The exact inverse of "+days" is
-      "-days". Days other charges contributed stay intact automatically
-      because we only subtract what THIS charge added. The feared
-      "multi-source" complexity dissolves once you see the counter has no
-      per-source partitioning to begin with.
+      Read CHAMELEON_DISABLE_QUIC_OUTBOUNDS from env at config-generation
+      time. Default off — zero behaviour change unless explicit
+      docker-compose env sets it. Function reads env per-call so tests
+      can flip via t.Setenv.
     consequences:
-      - "Pro: O(1) two-statement transaction, no historical scan"
-      - "Pro: correct for the common case (refund a charge whose days are still unconsumed) and harmless for the edge case (refund a long-expired charge → NULL/past expiry stays put)"
-      - "Con: not a perfect historical reconstruction — if days were partially consumed before the refund we still subtract the full amount. Acceptable: it errs toward revoking access on a refund, which is the correct bias for a refunded charge."
-      - "RestoreCharge (REFUND_REVERSED) re-credits with the CreditDays formula rather than the literal inverse — user-favouring, gives full days back from now."
+      - Instant rollback via docker-compose edit + restart, no rebuild
+      - QUIC outbounds stay in code for future re-enablement (e.g. on
+        nodes where UDP works)
+      - "Slight per-call cost of os.Getenv — negligible"
     alternatives-rejected:
-      - "Full-ledger replay (sum all completed rows, recompute expiry from first purchase) — needs per-payment expiry-at-time-of-credit to be correct across subscription gaps; large surface for a problem the additive model already solves"
-      - "App Store Server API Get-All-Subscription-Statuses poll — heavier, needs the IAP key wired; only useful to recover a missed webhook, and Apple already retries notifications for days"
+      - "Hard-delete code — burns future optionality"
+      - "Build-time constant — needs full Go build to flip"
 
   - id: ADR-006-metrickit-over-sentry
     date: 2026-05-14
@@ -152,6 +142,37 @@ decisions:
       - "Sentry — real-time + auto-symbolication, but third-party data flow and a heavier SDK on a privacy-sensitive app"
       - "TelemetryDeck — privacy-friendly but oriented at analytics signals, weaker crash-diagnostic story"
       - "No crash reporting — flying blind on 5%+ of production crashes is not acceptable for a paid app"
+
+  - id: ADR-007-refund-subtract-not-replay
+    date: 2026-05-14
+    status: accepted
+    title: Refund reversal subtracts the charge's days, no full-ledger replay
+    context: |
+      launch-09 needed to reverse a subscription when Apple sends REFUND /
+      REVOKE. The old subscription_notification.go comment deferred this,
+      fearing it "requires knowing whether ANY other payment covers the
+      current period ... multi-source ledger queries" — implying a full
+      historical replay of the ledger.
+    decision: |
+      Reverse a refund by subtracting exactly the refunded charge's days
+      from users.subscription_expiry — the literal inverse of how
+      CreditDays added them. No full-ledger replay.
+    rationale: |
+      CreditDays is a pure additive counter: `expiry = max(now,expiry) +
+      days`, and crucially it is SOURCE-AGNOSTIC — Apple days and FreeKassa
+      days land on the same running total. The exact inverse of "+days" is
+      "-days". Days other charges contributed stay intact automatically
+      because we only subtract what THIS charge added. The feared
+      "multi-source" complexity dissolves once you see the counter has no
+      per-source partitioning to begin with.
+    consequences:
+      - "Pro: O(1) two-statement transaction, no historical scan"
+      - "Pro: correct for the common case (refund a charge whose days are still unconsumed) and harmless for the edge case (refund a long-expired charge → NULL/past expiry stays put)"
+      - "Con: not a perfect historical reconstruction — if days were partially consumed before the refund we still subtract the full amount. Acceptable: it errs toward revoking access on a refund, which is the correct bias for a refunded charge."
+      - "RestoreCharge (REFUND_REVERSED) re-credits with the CreditDays formula rather than the literal inverse — user-favouring, gives full days back from now."
+    alternatives-rejected:
+      - "Full-ledger replay (sum all completed rows, recompute expiry from first purchase) — needs per-payment expiry-at-time-of-credit to be correct across subscription gaps; large surface for a problem the additive model already solves"
+      - "App Store Server API Get-All-Subscription-Statuses poll — heavier, needs the IAP key wired; only useful to recover a missed webhook, and Apple already retries notifications for days"
 
   - id: ADR-008-widget-toggle-in-extension-process
     date: 2026-05-14
@@ -206,24 +227,3 @@ decisions:
       - "openAppWhenRun on the intent — defeats the whole point; the complaint was that the widget opens the app"
       - "App-only state ownership — the build-69 bug: app is suspended on a widget toggle, widget never repaints until next app open"
       - "Extension-only reload, no optimistic write — build-70 state: correct but laggy, reloadAllTimelines() from an extension is throttled"
-
-  - id: ADR-005-quic-toggle-via-env
-    date: 2026-05-13
-    status: accepted
-    title: Toggle QUIC outbound emission via env flag, not code constant
-    context: |
-      Phase 1.A needed to suppress h2/tuic outbounds. We could've
-      hard-deleted the generation code, or feature-flagged in code.
-    decision: |
-      Read CHAMELEON_DISABLE_QUIC_OUTBOUNDS from env at config-generation
-      time. Default off — zero behaviour change unless explicit
-      docker-compose env sets it. Function reads env per-call so tests
-      can flip via t.Setenv.
-    consequences:
-      - Instant rollback via docker-compose edit + restart, no rebuild
-      - QUIC outbounds stay in code for future re-enablement (e.g. on
-        nodes where UDP works)
-      - "Slight per-call cost of os.Getenv — negligible"
-    alternatives-rejected:
-      - "Hard-delete code — burns future optionality"
-      - "Build-time constant — needs full Go build to flip"

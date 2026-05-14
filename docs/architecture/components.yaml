@@ -47,6 +47,28 @@ components:
       IP → country code lookup via free ip-api.com (45 req/min tier).
       In-memory 24h cache; safe to fire-and-forget (errors swallowed).
 
+  - id: backend-payments
+    layer: backend
+    path: backend/internal/payments/
+    responsibility: |
+      Subscription crediting + the two payment sources.
+        - credit.go — the ledger: CreditDays (source-agnostic additive
+          day counter, expiry = max(now,expiry)+days), RefundCharge /
+          RestoreCharge (launch-09).
+        - apple/verify.go — StoreKit 2 JWS verification: x5c chain →
+          Apple root CA, bundle/env/product invariants, App Store
+          Server Notification V2 parsing.
+        - freekassa/ — FreeKassa payment-notification signature check.
+    consumes: [postgres.payments, postgres.users]
+    contracts:
+      - CreditDays is idempotent per (source, charge_id) and
+        source-agnostic — Apple and FreeKassa days share one counter.
+      - RefundCharge subtracts exactly the charge's days (ADR-007); it
+        is the literal inverse of CreditDays, no full-ledger replay.
+      - apple.Verify requires a real 3+ cert x5c chain — Xcode-local
+        1-cert tokens are rejected before go-iap can index-panic.
+    related-decisions: [ADR-007-refund-subtract-not-replay]
+
   # ─── iOS / macOS app ─────────────────────────────────────────────────────
 
   - id: ios-app-state
@@ -102,16 +124,16 @@ components:
       - app-group:selectedServerTagKey   # server label
       - app-group:startOptionsKey        # persisted config — startTunnel(options:nil) path
     contracts:
-      - WidgetVPNSnapshot.read() never crashes — App-Group-unreachable
-        falls back to a disconnected snapshot.
-      - ToggleVPNIntent connects with startTunnel(options: nil); the
+      - "WidgetVPNSnapshot.read() never crashes — App-Group-unreachable
+        falls back to a disconnected snapshot."
+      - "ToggleVPNIntent connects with startTunnel(options nil); the
         PacketTunnel extension falls back to the App-Group-persisted
-        config, so no backend round-trip / app launch on the warm path.
-      - The intent writes the requested state to the App Group
+        config, so no backend round-trip / app launch on the warm path."
+      - "The intent writes the requested state to the App Group
         optimistically (instant UI), then ExtensionProvider confirms or
-        corrects it on the real tunnel outcome — see ADR-008.
-      - No installed VPN profile → ToggleVPNIntent throws (can't create
-        a profile head-less — needs the one-time iOS permission prompt).
+        corrects it on the real tunnel outcome — see ADR-008."
+      - "No installed VPN profile → ToggleVPNIntent throws (can't create
+        a profile head-less — needs the one-time iOS permission prompt)."
 
   - id: ios-platform-interface
     layer: ios
@@ -148,6 +170,45 @@ components:
       when timeout rate exceeds threshold on actual user traffic.
       Complements TunnelStallProbe (synthetic) — catches the KILL class
       that small probe misses.
+
+  - id: ios-smart-selection
+    layer: ios
+    path: clients/apple/Shared/OutboundPenaltyStore.swift
+    responsibility: |
+      The iOS half of smart outbound selection (phase-1.d onward).
+        - OutboundPenaltyStore — penalises a just-failed outbound for a
+          cooldown window so the urltest fallback can't re-elect it.
+        - OutboundGroupTracker (PacketTunnel/) — subscribes to the
+          libbox groups feed, tracks the live selected outbound.
+      Feeds TunnelStallProbe's penalty-aware fallback.
+    consumes: [libbox.groups-feed]
+
+  - id: ios-crash-reporter
+    layer: ios
+    path: clients/apple/Shared/CrashDiagnosticReporter.swift
+    responsibility: |
+      launch-03 — production crash/hang observability via Apple
+      MetricKit (no third-party SDK). Extracts a privacy-safe SUMMARY
+      (crash type/signal, build/OS/device, top ~8 binaryName+offset
+      frames — never paths or user data) and POSTs it to the existing
+      /api/v1/mobile/diagnostic endpoint. Covers the PacketTunnel
+      extension's crashes too (MetricKit aggregates the whole bundle).
+    contracts:
+      - parseTopFrames / diagnosticBody are pure + unit-tested; the
+        payload is a fixed field set — no raw MXCallStackTree.
+    related-decisions: [ADR-006-metrickit-over-sentry]
+
+  - id: ios-disconnect-notifier
+    layer: ios
+    path: clients/apple/Shared/DisconnectNotifier.swift
+    responsibility: |
+      launch-07 — posts a local notification when the tunnel drops for
+      a reason that means a real loss of protection
+      (providerFailed / connectionFailed / noNetworkAvailable /
+      unrecoverableNetworkChange). Expected stops (user-initiated,
+      sleep, config disabled) stay silent — policy in unexpectedBody().
+      Called from ExtensionProvider.stopTunnel; the main app requests
+      notification authorization once after first connect.
 
   # ─── sing-box fork ───────────────────────────────────────────────────────
 

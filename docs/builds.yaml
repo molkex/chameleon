@@ -1,8 +1,10 @@
 # Per-build release log — every TestFlight upload.
 # Schema: docs/SCHEMA.md § builds.yaml
 #
-# One entry per build number. Append at the end; never re-order.
+# One entry per build number, NEWEST FIRST — prepend each new build at
+# the top of the list. Never edit or re-order existing entries.
 # Cross-reference phases via phase ids from plan.yaml.
+# (Builds 36-54 are not migrated; see archive/2026-05-pre-yaml/.)
 
 builds:
   - number: 71
