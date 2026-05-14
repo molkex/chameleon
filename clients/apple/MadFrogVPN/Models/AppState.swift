@@ -350,8 +350,27 @@ class AppState {
             configStore.accessToken = result.accessToken
             configStore.refreshToken = result.refreshToken
             configStore.username = result.username
-            try await fetchAndSaveConfig()
-            subscriptionExpire = configStore.subscriptionExpire
+            // "Continue as guest" can land on an account that has NO active
+            // subscription. registerDevice() finds the user by device_id —
+            // and that device_id may have been promoted to a Sign-in-with-
+            // Apple account on an earlier run (AppleSignIn re-binds device_id
+            // and, unlike Register, extends a lapsed trial). So a returning
+            // device can resolve to an account whose trial has since
+            // expired, and /config answers 403. That is NOT a failure:
+            // complete the sign-in so the user lands INSIDE the app at the
+            // paywall instead of a dead-end "couldn't continue" error.
+            // Mirrors signInWithApple's identical 403 handling — App Review
+            // rejected the Apple-path version of this (build 52) and now the
+            // guest-path version (build 72). See incident
+            // 2026-05-15-app-review-guest-signin-error.
+            do {
+                try await fetchAndSaveConfig()
+                subscriptionExpire = configStore.subscriptionExpire
+            } catch APIError.serverError(403) {
+                AppLogger.app.info("signInAnonymous: /config 403 — no active subscription, completing sign-in")
+                TunnelFileLogger.log("signInAnonymous: /config 403 (no active sub), proceeding", category: "auth")
+                subscriptionExpire = nil
+            }
             UserDefaults(suiteName: AppConstants.appGroupID)?.set(true, forKey: AppConstants.onboardingCompletedKey)
             isAuthenticated = true
             TunnelFileLogger.log("signInAnonymous: SUCCESS", category: "auth")
