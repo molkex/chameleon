@@ -7,7 +7,7 @@ last-updated-by: claude
 
 prod:
   backend:
-    version-marker: 60.3-dpi-aware-config
+    version-marker: 60.4-telegram-route
     nodes:
       - id: de
         host: 162.19.242.30
@@ -17,7 +17,7 @@ prod:
         host: 147.45.252.234
         provider: Timeweb
         role: secondary vpn node
-    deployed: 2026-05-13
+    deployed: 2026-05-14
     env-flags:
       CHAMELEON_DISABLE_QUIC_OUTBOUNDS: "true"   # Phase 1.A
     # Server-side singbox runs OUTSIDE docker-compose. Normal `./deploy.sh all`
@@ -59,6 +59,16 @@ prod:
     submitted: 2026-05-13
 
 known-issues:
+  - id: telegram-media-slow
+    severity: major
+    description: |
+      TG media (photos/videos) slow because urltest elected nl-direct-nl2
+      which can't route to TG media CDN 91.105.192.0/22. Backend 60.4
+      adds geoip-telegram route rule pinning TG traffic at _telegram_route
+      (DE-capable leg). Awaiting field verification.
+    next-action: verify backend 60.4 in field
+    expected-fix: phase-1.f-telegram-route (backend 60.4)
+
   - id: throttle-cycle-90s
     severity: major
     description: |

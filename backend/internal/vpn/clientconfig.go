@@ -18,13 +18,19 @@ const (
 	// since the feature is only useful inside RU.
 	whitelistBypassGroupTag = "🇷🇺 Россия (обход белых списков)"
 
+	// telegramRouteGroupTag is the internal urltest group that the
+	// geoip-telegram route rule pins TG media traffic at. Underscore
+	// prefix keeps iOS ConfigSanitizer from showing it in the country
+	// picker — it's a routing implementation detail, not a user choice.
+	telegramRouteGroupTag = "_telegram_route"
+
 	// configBuildMarker is a human-readable identifier for THIS revision of
 	// the config-generation code. iOS surfaces this as `cfg:<marker>` in the
 	// debug footer so the user (and us) can tell at a glance which backend
 	// emitted the config currently in their cache. BUMP THIS on any
 	// behavioural change to clientconfig.go (new flag, new outbound, new
 	// rule). Format: "<build>.<patch>-<short-tag>" e.g. "40.2-chain-fix".
-	configBuildMarker = "60.3-dpi-aware-config"
+	configBuildMarker = "60.4-telegram-route"
 )
 
 // disableQUICOutbounds reports whether Hysteria2/TUIC leaf outbounds should
@@ -71,6 +77,37 @@ func clientNeedsDPIBypass(opts ClientConfigOpts) bool {
 		return false
 	}
 	return dpiBlockedDirectCountries[cc]
+}
+
+// telegramRouteLeaves returns the subset of leaf/chain tags whose exit
+// can actually reach the Telegram media CDN (91.105.192.0/22 and the
+// rest of AS62041).
+//
+// Field-verified 2026-05-14 (see incidents.yaml
+// 2026-05-14-nl-timeweb-telegram-cdn-unreachable): DE OVH Frankfurt
+// reaches 91.105.192.100 (ping 32 ms, TCP OK); NL Timeweb does NOT
+// (100% packet loss — an AS9123↔AS62041 routing gap, not a
+// Telegram-side block of us). A user whose urltest elects
+// nl-direct-nl2 (lowest RTT to OUR healthcheck) ends up on a leg
+// that's fast to our backend but can't open a socket to Telegram
+// media — TG photos/videos hang while everything else works.
+//
+// Until a per-server `telegram_cdn_reachable` DB column exists (see
+// plan.yaml phase-1.g), this is a tag-prefix heuristic: DE-country
+// leaves ("de-direct-*", "de-via-*") are TG-capable. Order is
+// preserved so the urltest cold-start preference carries through.
+//
+// Returns an empty slice when the config has no DE leaves at all — the
+// caller then skips the Telegram route group + rule entirely, falling
+// back to normal routing (better than pinning TG at a dead group).
+func telegramRouteLeaves(leaves []string) []string {
+	var out []string
+	for _, tag := range leaves {
+		if strings.HasPrefix(tag, "de-") {
+			out = append(out, tag)
+		}
+	}
+	return out
 }
 
 // pinRecommendedFirst returns a copy of leaves with `hint` moved to index 0
@@ -546,6 +583,27 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 		countryGroupTags = append(countryGroupTags, tag)
 	}
 
+	// --- Telegram route group (build 60.4) ---
+	// Dedicated urltest over only the TG-capable leaves. A route rule
+	// below pins the `geoip-telegram` rule-set at this group, so Telegram
+	// media traffic always exits through a leg that can actually reach
+	// the CDN — regardless of which leaf the general-purpose Auto urltest
+	// would otherwise elect (it elects by RTT to OUR healthcheck, which
+	// NL wins while being unable to open a socket to TG media).
+	// nil when there are no DE leaves at all — caller skips the rule.
+	var telegramRouteGroup *clientOutbound
+	if tgLeaves := telegramRouteLeaves(sortedLeaves); len(tgLeaves) > 0 {
+		telegramRouteGroup = &clientOutbound{
+			Type:                      "urltest",
+			Tag:                       telegramRouteGroupTag,
+			Outbounds:                 tgLeaves,
+			URL:                       urltestProbeURL,
+			Interval:                  urltestInterval,
+			Tolerance:                 urltestTolerance,
+			InterruptExistConnections: boolPtr(true),
+		}
+	}
+
 	// --- "Proxy" selector — top-level user choice ---
 	// Members order: [Auto, country urltests..., individual leaves..., 🇷🇺
 	// Россия (обход), whitelist leaves]. Default = "Auto" so a fresh tunnel
@@ -630,6 +688,9 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 	allOutbounds = append(allOutbounds, autoUrltest)
 	allOutbounds = append(allOutbounds, countryGroups...)
 	allOutbounds = append(allOutbounds, innerGroups...)
+	if telegramRouteGroup != nil {
+		allOutbounds = append(allOutbounds, *telegramRouteGroup)
+	}
 	if whitelistGroupOutbound != nil {
 		allOutbounds = append(allOutbounds, *whitelistGroupOutbound)
 	}
@@ -652,6 +713,61 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 	}
 	_ = dnsRemote // DNS server list below uses plain IPs, kept in EngineConfig for future DoH migration.
 	_ = dnsDirect
+
+	// --- Route rule-sets + rules (built dynamically so the Telegram
+	//     route is omitted cleanly when there are no DE leaves) ---
+	routeRuleSets := []clientRuleSet{
+		{
+			Tag:            "geoip-ru",
+			Type:           "remote",
+			Format:         "binary",
+			URL:            "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-ru.srs",
+			DownloadDetour: "direct",
+			UpdateInterval: "168h",
+		},
+		{
+			Tag:            "refilter",
+			Type:           "remote",
+			Format:         "binary",
+			URL:            "https://raw.githubusercontent.com/teidesu/rkn-singbox/ruleset/rkn-ruleset.srs",
+			DownloadDetour: "direct",
+			UpdateInterval: "168h",
+		},
+	}
+	routeRules := []clientRouteRule{
+		{Action: "sniff"},
+		{Protocol: "dns", Action: "hijack-dns"},
+		{ClashMode: "Direct", Outbound: "direct"},
+		{Network: "udp", Port: 443, Action: "reject", NoDrop: boolPtr(true)},
+		{IPIsPrivate: boolPtr(true), Outbound: "direct"},
+		{DomainSuffix: ruAlwaysDirectDomains, Outbound: "direct"},
+	}
+	// Telegram route (build 60.4): pin geoip-telegram at the dedicated
+	// _telegram_route group so TG media exits through a DE-capable leg.
+	// Must sit BEFORE the refilter / geoip-ru rules — Telegram CDN IPs
+	// are not RU geoip, but ordering it first keeps the intent explicit
+	// and immune to future rule-set overlap. Omitted entirely when
+	// telegramRouteGroup is nil (no DE leaves) — TG then falls through
+	// to normal routing.
+	if telegramRouteGroup != nil {
+		routeRuleSets = append(routeRuleSets, clientRuleSet{
+			Tag:            "geoip-telegram",
+			Type:           "remote",
+			Format:         "binary",
+			URL:            "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-telegram.srs",
+			DownloadDetour: "direct",
+			UpdateInterval: "168h",
+		})
+		routeRules = append(routeRules, clientRouteRule{
+			RuleSet:  "geoip-telegram",
+			Outbound: telegramRouteGroupTag,
+		})
+	}
+	routeRules = append(routeRules,
+		clientRouteRule{RuleSet: "refilter", Outbound: "Blocked Traffic"},
+		clientRouteRule{DomainSuffix: []string{".ru"}, Outbound: "RU Traffic"},
+		clientRouteRule{RuleSet: "geoip-ru", Outbound: "RU Traffic"},
+	)
 
 	config := clientConfig{
 		Log: clientLog{Level: "info"},
@@ -676,36 +792,9 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 		}},
 		Outbounds: allOutbounds,
 		Route: clientRoute{
-			Final: "Default Route",
-			RuleSet: []clientRuleSet{
-				{
-					Tag:            "geoip-ru",
-					Type:           "remote",
-					Format:         "binary",
-					URL:            "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-ru.srs",
-					DownloadDetour: "direct",
-					UpdateInterval: "168h",
-				},
-				{
-					Tag:            "refilter",
-					Type:           "remote",
-					Format:         "binary",
-					URL:            "https://raw.githubusercontent.com/teidesu/rkn-singbox/ruleset/rkn-ruleset.srs",
-					DownloadDetour: "direct",
-					UpdateInterval: "168h",
-				},
-			},
-			Rules: []clientRouteRule{
-				{Action: "sniff"},
-				{Protocol: "dns", Action: "hijack-dns"},
-				{ClashMode: "Direct", Outbound: "direct"},
-				{Network: "udp", Port: 443, Action: "reject", NoDrop: boolPtr(true)},
-				{IPIsPrivate: boolPtr(true), Outbound: "direct"},
-				{DomainSuffix: ruAlwaysDirectDomains, Outbound: "direct"},
-				{RuleSet: "refilter", Outbound: "Blocked Traffic"},
-				{DomainSuffix: []string{".ru"}, Outbound: "RU Traffic"},
-				{RuleSet: "geoip-ru", Outbound: "RU Traffic"},
-			},
+			Final:   "Default Route",
+			RuleSet: routeRuleSets,
+			Rules:   routeRules,
 			DefaultDomainResolver: &clientDomainResolver{
 				Server:   "dns-direct",
 				Strategy: "ipv4_only",

@@ -148,6 +148,41 @@ incidents:
       - "Read sing-box source / log error verbatim before assuming API symmetry."
       - "Field log is the unit test. The simulator never exercises the actual sing-box CommandClient surface — bugs hide until on-device."
 
+  - id: 2026-05-14-nl-timeweb-telegram-cdn-unreachable
+    date: 2026-05-14
+    severity: major
+    title: NL Timeweb cannot reach Telegram media CDN (91.105.192.0/22)
+    builds-affected: [55, 56, 57, 58, 59, 60, 61, 62, 63, 64]   # all before 60.4 backend
+    detected-via: user-report
+    symptoms:
+      - "User: 'в тг плохо грузит медиа файлы'"
+      - "Field log: 224 connections to 91.105.192.100:443 (TG media CDN), all via nl-direct-nl2"
+      - TG photos/videos slow or hang; everything else (including TG text) fine
+    initial-hypothesis: |
+      Throughput limit on NL Timeweb server itself (weak channel).
+    initial-hypothesis-outcome: wrong
+    investigation: |
+      Measured both nodes:
+        DE OVH  → Cloudflare 10MB: 57.8 MB/s. TG CDN 91.105.192.100: ping 32ms, TCP OK.
+        NL Timeweb → Cloudflare 10MB: 50.9 MB/s. TG CDN 91.105.192.100:
+                  100% packet loss, TCP "closed by remote host".
+      So NL's channel is fine (50 MB/s) — it specifically cannot route
+      to 91.105.192.0/22. Checked more TG IPs from NL: 149.154.x reachable,
+      91.105.192.x + 91.108.4.x NOT. From DE: 91.105.192.x reachable.
+    root-cause: |
+      AS9123 (Timeweb) ↔ AS62041 (Telegram) routing gap for the
+      91.105.192.0/22 prefix. Not a Telegram-side block of us, not a
+      bandwidth issue — a missing/broken BGP path. sing-box urltest
+      elects nl-direct-nl2 because it has the lowest RTT to OUR
+      healthcheck endpoint; that metric says nothing about whether the
+      leg can reach Telegram's media CDN.
+    fixed-by:
+      - phase-1.f-telegram-route   # backend 60.4
+    lessons:
+      - "Health-probe RTT to our own endpoint != destination reachability. A leg can be fast to us and dead to a specific CDN."
+      - "When a user says 'X is slow', measure the actual path X takes — don't assume it's our server's bandwidth."
+      - "geoip rule-sets (SagerNet maintained) beat hardcoded CIDR lists — Telegram IP ranges drift; the rule-set auto-updates every 168h."
+
   # ─── Pre-2026-05-13 incidents (migrated from TROUBLESHOOTING.md) ──────────
   # Keep ids stable when migrating to preserve cross-file references.
 

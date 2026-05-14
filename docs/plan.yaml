@@ -274,6 +274,57 @@ phases:
     follow-up:
       - phase-1-smart-group   # validate cheap fix first (this), then escalate
 
+  - id: phase-1.f-telegram-route
+    title: Telegram media routed through TG-capable leg (geoip-telegram rule-set)
+    status: done
+    layer: backend
+    builds: [60.4]
+    completed: 2026-05-14
+    rationale: |
+      Field test 2026-05-14: user reported TG media slow. Root cause
+      (incidents.yaml 2026-05-14-nl-timeweb-telegram-cdn-unreachable):
+      NL Timeweb cannot reach Telegram media CDN 91.105.192.0/22 (100%
+      packet loss, AS9123↔AS62041 routing gap). DE OVH reaches it fine
+      (ping 32ms). But urltest elects nl-direct-nl2 (lowest RTT to OUR
+      healthcheck) — a leg fast to our backend but dead to TG media.
+    artifacts:
+      - backend/internal/vpn/clientconfig.go
+      - backend/internal/vpn/clientconfig_test.go
+    implementation: |
+      - telegramRouteLeaves(): tag-prefix heuristic, "de-*" leaves are
+        TG-capable. TODO phase-1.g: replace with per-server DB column.
+      - New urltest group `_telegram_route` over DE leaves only.
+        For RU clients (de-direct stripped by Phase 1.B) = [de-via-msk].
+      - geoip-telegram rule-set (SagerNet maintained, auto-updates 168h)
+        + route rule pinning it at _telegram_route, ordered BEFORE
+        refilter/geoip-ru.
+      - Omitted entirely when no DE leaves exist (route rule pointing at
+        a missing group would fail sing-box config parse).
+    outcome:
+      config-marker: 60.4-telegram-route
+      field-verified: false                  # awaiting user test
+    related-incidents:
+      - 2026-05-14-nl-timeweb-telegram-cdn-unreachable
+    follow-up:
+      - phase-1.g-per-server-reachability
+
+  - id: phase-1.g-per-server-reachability
+    title: Per-server destination-reachability flags in DB
+    status: planned
+    layer: backend
+    rationale: |
+      phase-1.f hardcodes "DE = TG-capable" via tag prefix. Fragile:
+      if DE OVH gets blocked, or a new node is added, the heuristic
+      rots. Proper fix: per-server capability flags.
+    plan: |
+      - Migration: add vpn_servers.reachability JSONB (or boolean
+        columns telegram_cdn_reachable, etc).
+      - Periodic backend healthcheck: each node curls known
+        destinations (TG CDN, Cloudflare, ...) and updates its own row.
+      - clientconfig.go reads the flag instead of the tag-prefix guess.
+    estimated-effort: 1 day
+    blocked-by: phase-1.f-telegram-route   # validate the heuristic ships first
+
   - id: phase-1.e-server-side-rotation
     title: Periodic upstream connection rotation in fork
     status: deferred

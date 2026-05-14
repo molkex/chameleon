@@ -147,6 +147,132 @@ func outboundMembers(cfg map[string]any, tag string) []string {
 	return out
 }
 
+// routeRules returns the route.rules list as []map for assertions.
+func routeRules(cfg map[string]any) []map[string]any {
+	route, _ := cfg["route"].(map[string]any)
+	raw, _ := route["rules"].([]any)
+	var out []map[string]any
+	for _, r := range raw {
+		if m, ok := r.(map[string]any); ok {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
+// routeRuleSetTags returns the route.rule_set tags.
+func routeRuleSetTags(cfg map[string]any) []string {
+	route, _ := cfg["route"].(map[string]any)
+	raw, _ := route["rule_set"].([]any)
+	var out []string
+	for _, r := range raw {
+		if m, ok := r.(map[string]any); ok {
+			if t, ok := m["tag"].(string); ok {
+				out = append(out, t)
+			}
+		}
+	}
+	return out
+}
+
+// TestTelegramRouteGroupEmittedWithDELeaves — the fixture has DE leaves,
+// so the config must carry a `_telegram_route` urltest group whose
+// members are exactly the DE-prefixed leaves. Field-verified rationale:
+// DE OVH reaches the Telegram media CDN (91.105.192.0/22); NL Timeweb
+// does not. See incidents.yaml 2026-05-14-nl-timeweb-telegram-cdn-unreachable.
+func TestTelegramRouteGroupEmittedWithDELeaves(t *testing.T) {
+	cfg := parseGenerated(t)
+	group := outboundByTag(cfg, "_telegram_route")
+	if group == nil {
+		t.Fatal("_telegram_route group missing despite DE leaves in fixture")
+	}
+	if group["type"] != "urltest" {
+		t.Errorf("_telegram_route type=%v, want urltest", group["type"])
+	}
+	members := outboundMembers(cfg, "_telegram_route")
+	if len(members) == 0 {
+		t.Fatal("_telegram_route has no members")
+	}
+	for _, m := range members {
+		if !startsWith(m, "de-") {
+			t.Errorf("_telegram_route member %q is not a DE leaf — only TG-capable legs belong here", m)
+		}
+	}
+}
+
+// TestTelegramRouteRuleReferencesGroupAndRuleSet — the geoip-telegram
+// rule-set must be declared, and a route rule must pin it at the
+// _telegram_route group. The rule must sit BEFORE the refilter /
+// geoip-ru rules so TG IPs are classified first.
+func TestTelegramRouteRuleReferencesGroupAndRuleSet(t *testing.T) {
+	cfg := parseGenerated(t)
+
+	if !slices.Contains(routeRuleSetTags(cfg), "geoip-telegram") {
+		t.Fatal("geoip-telegram rule-set not declared in route.rule_set")
+	}
+
+	rules := routeRules(cfg)
+	tgIdx, refilterIdx := -1, -1
+	for i, r := range rules {
+		if r["rule_set"] == "geoip-telegram" {
+			tgIdx = i
+			if r["outbound"] != "_telegram_route" {
+				t.Errorf("geoip-telegram rule outbound=%v, want _telegram_route", r["outbound"])
+			}
+		}
+		if r["rule_set"] == "refilter" {
+			refilterIdx = i
+		}
+	}
+	if tgIdx == -1 {
+		t.Fatal("no route rule references geoip-telegram")
+	}
+	if refilterIdx != -1 && tgIdx > refilterIdx {
+		t.Errorf("geoip-telegram rule at index %d must come BEFORE refilter rule at %d", tgIdx, refilterIdx)
+	}
+}
+
+// TestNoTelegramRouteWhenNoDELeaves — if the server set has zero DE
+// exits, the Telegram route group and rule are omitted entirely (TG
+// falls through to normal routing). Guards against shipping a route
+// rule that points at a non-existent group — sing-box would error at
+// config parse.
+func TestNoTelegramRouteWhenNoDELeaves(t *testing.T) {
+	engine, user, servers, chains := fixture()
+	// Drop every DE server and any chain that exits via DE.
+	var nlOnly []ServerEntry
+	for _, s := range servers {
+		if strings.ToUpper(s.CountryCode) != "DE" {
+			nlOnly = append(nlOnly, s)
+		}
+	}
+	var nlChains []ChainedEntry
+	for _, c := range chains {
+		if strings.ToUpper(c.ExitCountryCode) != "DE" {
+			nlChains = append(nlChains, c)
+		}
+	}
+	raw, err := generateClientConfig(engine, user, nlOnly, nlChains, ClientConfigOpts{})
+	if err != nil {
+		t.Fatalf("generateClientConfig: %v", err)
+	}
+	var cfg map[string]any
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		t.Fatal(err)
+	}
+	if outboundByTag(cfg, "_telegram_route") != nil {
+		t.Error("_telegram_route group emitted despite no DE leaves")
+	}
+	if slices.Contains(routeRuleSetTags(cfg), "geoip-telegram") {
+		t.Error("geoip-telegram rule-set declared despite no DE leaves")
+	}
+	for _, r := range routeRules(cfg) {
+		if r["rule_set"] == "geoip-telegram" {
+			t.Error("geoip-telegram route rule emitted despite no _telegram_route group — sing-box would fail to parse")
+		}
+	}
+}
+
 // TestProxySelectorContainsAutoAndCountryGroups verifies the Proxy selector
 // (build 39+ return-to-urltest): top-level user choice has Auto, per-country
 // urltest groups, and every leaf as a direct member. sing-box's `urltest`
