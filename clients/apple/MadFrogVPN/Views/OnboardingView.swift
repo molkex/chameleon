@@ -58,16 +58,17 @@ struct OnboardingView: View {
                 Spacer(minLength: 24)
 
                 // Auth group: Apple + divider + chips read as one block.
-                // We use a styled Button (visually matching Apple's HIG) that
-                // routes through AppleAuthCoordinator, which uses UIKit-backed
-                // ASAuthorizationController with explicit presentation anchor.
-                // SwiftUI's SignInWithAppleButton has known anchor lookup
-                // failures on iPad in iPhone-compatibility mode (App Review
-                // saw "no action took place" on iPad Air M3, build 51).
+                // `appleSignInButton` is the native `SignInWithAppleButton`
+                // used plainly — see its doc comment for the build-72
+                // rejection-fix history. Its `.disabled` is gated ONLY by
+                // `app.isLoading` (reliably `defer`-scoped); it is
+                // deliberately NOT coupled to `isAuthInFlight` — that
+                // coupling, set by a competing gesture, was the build-59-71
+                // self-disabling trap App Review kept hitting.
                 VStack(spacing: 8) {
                     appleSignInButton
                         .frame(height: 52)
-                        .disabled(app.isLoading || isAuthInFlight)
+                        .disabled(app.isLoading)
 
                     // "or" divider — text has solid bg so the line reads cleanly
                     ZStack {
@@ -270,24 +271,29 @@ struct OnboardingView: View {
 
     // MARK: - Apple sign-in button
 
-    /// Native SwiftUI `SignInWithAppleButton` (build 59 fix, 2026-05-13).
+    /// Native SwiftUI `SignInWithAppleButton`, used EXACTLY as Apple
+    /// documents it — no extra gestures, no custom anchor plumbing, no
+    /// `.disabled` coupling to our own flags.
     ///
-    /// History of failures:
-    ///   - Build ≤49: SwiftUI button with auto anchor — App Review (build 51)
-    ///     reported "no action took place" on iPad Air M3.
-    ///   - Build 53: switched to UIKit `AppleAuthCoordinator` with explicit
-    ///     scene/window anchor lookup. App Review still reports the same
-    ///     bug on iPad Air 11" M3 and iPhone 17 Pro Max under iPadOS/iOS 26.5.
-    ///   - Build 59 (this): back to native `SignInWithAppleButton` because
-    ///     Apple's component handles iOS 26 multi-scene/anchor plumbing
-    ///     internally (which our explicit `connectedScenes` lookup can't
-    ///     reliably do on every device + OS combination). We also gate it
-    ///     behind `isAuthInFlight` so SwiftUI's identity-based view diff
-    ///     doesn't fire it twice on rapid taps.
-    ///
-    /// Breadcrumbs to TunnelFileLogger let us trace what happened on the
-    /// reviewer's device if this build still fails — they show up in iOS
-    /// log archives even when the app is suspended.
+    /// History — builds 51 / 53 / 59-71 were ALL rejected for Guideline
+    /// 2.1(a), "the Sign in with Apple button was unresponsive":
+    ///   - Build ≤49: SwiftUI button, automatic anchor.
+    ///   - Build 53: UIKit `AppleAuthCoordinator` with an explicit anchor.
+    ///   - Builds 59-71: native `SignInWithAppleButton` — but wrapped in a
+    ///     `.simultaneousGesture(TapGesture)` "breadcrumb" that also set
+    ///     `isAuthInFlight = true`. `SignInWithAppleButton` is a UIKit
+    ///     `UIControl` behind a representable; a SwiftUI simultaneous
+    ///     gesture on top of it swallowed the control's own
+    ///     `touchUpInside` (so `onRequest` never fired, the system sheet
+    ///     never presented) AND flipped the `.disabled(… || isAuthInFlight)`
+    ///     wrapper — a self-disabling trap. The diagnostic hack WAS the bug.
+    ///   - Build 72 (this): the button, plain. Apple's component handles
+    ///     its own tap, debouncing, and presentation anchor. The only
+    ///     additions are log breadcrumbs INSIDE `onRequest` / `onCompletion`
+    ///     — those are the button's own callbacks, they cannot interfere
+    ///     with touch delivery. `isAuthInFlight` is no longer touched here
+    ///     (it stays for the Google/Email chips, which gate correctly
+    ///     inside their action closures, not via a competing gesture).
     private var appleSignInButton: some View {
         SignInWithAppleButton(.signIn) { request in
             TunnelFileLogger.log("SIWA: onRequest fired", category: "auth")
@@ -298,14 +304,10 @@ struct OnboardingView: View {
             case .success(let auth):
                 if let credential = auth.credential as? ASAuthorizationAppleIDCredential {
                     TunnelFileLogger.log("SIWA: got AppleIDCredential, calling app.signInWithApple", category: "auth")
-                    Task { @MainActor in
-                        await app.signInWithApple(credential: credential)
-                        isAuthInFlight = false
-                    }
+                    Task { @MainActor in await app.signInWithApple(credential: credential) }
                 } else {
                     TunnelFileLogger.log("SIWA: success but credential is not AppleIDCredential — \(type(of: auth.credential))", category: "auth")
                     app.errorMessage = String(localized: "onboarding.signin_failed")
-                    isAuthInFlight = false
                 }
             case .failure(let error):
                 let nsErr = error as NSError
@@ -315,22 +317,12 @@ struct OnboardingView: View {
                     TunnelFileLogger.log("SIWA: failed — code=\(nsErr.code) domain=\(nsErr.domain) desc=\(nsErr.localizedDescription)", category: "auth")
                     app.errorMessage = String(localized: "onboarding.signin_failed")
                 }
-                isAuthInFlight = false
             }
         }
         .signInWithAppleButtonStyle(.white)
         .frame(height: 52)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .accessibilityIdentifier("onboarding.continue_with_apple")
-        .simultaneousGesture(TapGesture().onEnded {
-            // Single-flight gate + breadcrumb. SignInWithAppleButton handles
-            // its own tap, but this records the user actually tapped — so if
-            // onRequest never fires we can see in logs the tap was registered
-            // (rules out "button wasn't pressed").
-            TunnelFileLogger.log("SIWA: tap registered (isAuthInFlight was \(isAuthInFlight))", category: "auth")
-            hapticLight()
-            if !isAuthInFlight { isAuthInFlight = true }
-        })
     }
 
     private var termsButton: some View {
