@@ -311,20 +311,25 @@ phases:
 
   - id: phase-1.g-per-server-reachability
     title: Per-server destination-reachability flags in DB
-    status: planned
+    status: deferred
     layer: backend
     rationale: |
-      phase-1.f hardcodes "DE = TG-capable" via tag prefix. Fragile:
-      if DE OVH gets blocked, or a new node is added, the heuristic
-      rots. Proper fix: per-server capability flags.
+      phase-1.f hardcodes "DE = TG-capable" via tag prefix. Fragile in
+      theory: if DE OVH gets blocked, or a new node is added, the
+      heuristic rots.
+    notes: |
+      Deferred 2026-05-14: with only 2 nodes (DE + NL) the tag-prefix
+      heuristic is currently CORRECT and field-verified — building a
+      reachability-healthcheck job + cluster sync for 2 nodes is
+      over-engineering. Pick this up when (a) a 3rd node is added, or
+      (b) DE OVH starts flapping. Until then it is not a real problem.
     plan: |
-      - Migration: add vpn_servers.reachability JSONB (or boolean
-        columns telegram_cdn_reachable, etc).
+      - Migration: add vpn_servers.reachability JSONB.
       - Periodic backend healthcheck: each node curls known
         destinations (TG CDN, Cloudflare, ...) and updates its own row.
       - clientconfig.go reads the flag instead of the tag-prefix guess.
     estimated-effort: 1 day
-    blocked-by: phase-1.f-telegram-route   # validate the heuristic ships first
+    trigger: 3rd node added OR DE OVH reachability becomes unstable
 
   - id: phase-1.e-server-side-rotation
     title: Periodic upstream connection rotation in fork
@@ -374,5 +379,94 @@ phases:
   # Add new phases under the appropriate header.
 
   # ─── App Store launch ──────────────────────────────────────────────────────
-  # See archive/2026-05-pre-yaml/ROADMAP.md § Launch Checklist for LAUNCH-01..NN
-  # backlog. Will migrate when launch work resumes.
+  # Migrated 2026-05-14 from archive/2026-05-pre-yaml/ROADMAP.md § Launch
+  # Checklist. Competitive gap-analysis vs Karing / Happ Plus (both
+  # sing-box-based) — the engine is on par; gaps are iOS-specific feature
+  # polish. v1.0.26 is currently WAITING_FOR_REVIEW (build 60).
+
+  - id: launch-01-privacy-manifest
+    title: PrivacyInfo.xcprivacy manifest
+    status: done
+    layer: ios
+    completed: pre-2026-05-14
+    notes: |
+      Verified present 2026-05-14: clients/apple/MadFrogVPN/PrivacyInfo.xcprivacy
+      + clients/apple/PacketTunnel/PrivacyInfo.xcprivacy, both wired into
+      pbxproj as Resources. Apple auto-rejects without it (mandatory since
+      May 2024). Not a blocker for v1.0.26.
+
+  - id: launch-02-family-sharing
+    title: Family Sharing flag for subscription
+    status: planned
+    layer: ios
+    rationale: |
+      ASC flag. Without it App Review asks Guideline 3.1.2 questions.
+    estimated-effort: trivial (ASC toggle)
+
+  - id: launch-03-crash-reporting
+    title: Crash reporting (TelemetryDeck or Sentry)
+    status: planned
+    layer: ios
+    rationale: |
+      Without it we're blind to 5%+ of production crashes. TelemetryDeck
+      is privacy-friendly (matters for a VPN app's App Privacy section).
+    estimated-effort: 0.5 day
+    notes: needs ASC App Privacy disclosure update for whichever SDK
+
+  - id: launch-04-widgets
+    title: Home/Lock Screen Widget + Control Center widget (iOS 18)
+    status: planned
+    layer: ios
+    rationale: |
+      iOS 16+ users expect a VPN toggle on the home screen; iOS 18
+      ControlWidget for Control Center / Action Button. Happ Plus has it.
+    estimated-effort: 1-1.5 days
+
+  - id: launch-05-shortcuts-appintents
+    title: Shortcuts App integration (AppIntent — connect/disconnect/switch)
+    status: planned
+    layer: ios
+    rationale: |
+      Users automate "connect when opening Instagram" etc. Min 3 actions.
+    estimated-effort: 0.5 day
+
+  - id: launch-06-auto-connect-untrusted-wifi
+    title: Auto-connect on untrusted Wi-Fi (NEOnDemandRule SSIDMatch)
+    status: planned
+    layer: ios
+    rationale: |
+      Industry standard. Without it the user pays but toggles manually
+      every time.
+    estimated-effort: 0.5 day
+
+  - id: launch-07-disconnect-notification
+    title: Disconnect notification (UNUserNotificationCenter + NEVPNStatus)
+    status: planned
+    layer: ios
+    rationale: |
+      User should learn the tunnel dropped, not assume "it's working".
+      Low-risk, small surface.
+    estimated-effort: 2-3 hours
+
+  - id: launch-08-polish-p1
+    title: P1 launch polish bundle (sparkline, Live Activity, ping UI, uTLS rotation, DoQ, a11y)
+    status: planned
+    layer: ios
+    rationale: |
+      Perception-quality improvements, individually small. Bundled so the
+      plan stays readable. Sub-items (archived ROADMAP LAUNCH-09..14):
+      sparkline, Live Activity/Dynamic Island, manual per-server ping,
+      uTLS fingerprint rotation, DoQ instead of DoH, accessibility pass.
+    estimated-effort: 2-3 days total
+    notes: split into individual phases when this bundle is picked up
+
+  - id: launch-09-backend-storekit-v2
+    title: Backend launch-P0 — StoreKit Server API v2 verification
+    status: planned
+    layer: backend
+    rationale: |
+      Currently trusting the client-supplied transaction_id for
+      subscription state. Real money path — should be server-verified
+      before a wide audience.
+    estimated-effort: 1 day
+    notes: partially touched (git log "fix(payments/apple)") — audit first
