@@ -22,8 +22,8 @@ summary:
     test-cases: ~189
   backend:
     source-files: 69          # excl. _test.go and vendor/
-    test-files: 22
-    test-cases: ~110
+    test-files: 23
+    test-cases: ~121
   fork:
     note: sing-box-fork carries upstream's own test suite; the one
       cherry-pick (firstwrite-callback) has no dedicated test —
@@ -186,6 +186,7 @@ backend:
   tested:
     - internal/vpn/clientconfig.go -> clientconfig_test.go (23)
     - internal/vpn/reality_keys.go -> reality_keys_test.go (6)
+    - internal/geoip/geoip.go -> geoip_test.go (11)               # test-coverage-hardening
     - internal/auth/jwt.go -> jwt_test.go (10)
     - internal/auth/apple.go -> apple_test.go (7)
     - internal/config/config.go -> config_test.go (9)
@@ -201,18 +202,6 @@ backend:
     - tests/integration/health_test.go (1)
 
   gaps:
-    - id: backend-geoip
-      path: backend/internal/geoip/geoip.go
-      severity: critical
-      why: |
-        ADR-004 makes geoip LOAD-BEARING — the whole DPI-aware config
-        filter (Phase 1.B) keys off geoip.Lookup(). Zero tests. A
-        regression here silently ships the wrong config to RU users.
-      what-to-test: |
-        cache hit/miss + 24 h expiry, the 1 s timeout path, the
-        safe-empty fallback on error (must NEVER strip outbounds on a
-        lookup failure), country-code normalisation.
-
     - id: backend-payments-apple
       path: backend/internal/payments/apple/
       severity: critical
@@ -258,12 +247,13 @@ backend:
       - backend/internal/cli/         # CLI glue
 
 # ─── Priority order to close the gaps ──────────────────────────────────────
-# 1. backend-geoip          (critical, pure, fast — highest value/effort)
-# 2. backend-payments-apple (critical — money + security path)
-# 3. ios-crash-diagnostic-reporter (major, pure, privacy-sensitive)
-# 4. ios-packet-tunnel-provider — extract + test the config-source picker
+# Tracked as plan.yaml phase `test-coverage-hardening`.
+# ✅ backend-geoip — DONE (geoip_test.go, 11 funcs, -race clean)
+# 1. backend-payments-apple (critical — money + security path)
+# 2. ios-crash-diagnostic-reporter (major, pure, privacy-sensitive)
+# 3. ios-packet-tunnel-provider — extract + test the config-source picker
 #    and publishWidgetState (the launch-04b code is live & untested)
-# 5. ios-app-state / ios-vpn-manager — need a VPNManager protocol seam
+# 4. ios-app-state / ios-vpn-manager — need a VPNManager protocol seam
 #    first; biggest effort, biggest blast radius
-# 6. ios-real-traffic-stall-detector, ios-outbound-group-tracker,
+# 5. ios-real-traffic-stall-detector, ios-outbound-group-tracker,
 #    ios-networking-misc, backend-useragent/email — major, steady grind
