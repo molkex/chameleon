@@ -8,6 +8,12 @@ last-updated-by: claude
 prod:
   backend:
     version-marker: 60.5-telegram-route-fix
+    # version-marker tracks clientconfig.go revisions only. Code shipped
+    # since that marker but not reflected in it:
+    #   launch-09 — payments.RefundCharge / RestoreCharge + Apple ASN
+    #   REFUND / REVOKE / REFUND_REVERSED handling. Deployed 2026-05-14.
+    #   launch-03 — diagnostic endpoint extended for crash summaries
+    #   (mobile.crash log key). Deployed 2026-05-14.
     nodes:
       - id: de
         host: 162.19.242.30
@@ -29,7 +35,7 @@ prod:
     track: testflight-internal
     asc-build-id: def693a0-a9f0-4390-b314-ce449d8e1a63
     uploaded: 2026-05-14
-    field-verified: false                        # pending user test of build 64
+    field-verified: false                        # builds 65-67 (launch-03/06/07) not yet field-tested; 60-64 were
     previous-builds-in-testflight: [66, 65, 64, 63, 62, 61, 60, 59, 58, 57, 56, 55]
     libbox:
       source: sing-box v1.13.5 + first-write callback cherry-pick
@@ -48,7 +54,7 @@ prod:
   chameleon-repo:
     branch: claude/naughty-golick-e7f6a5
     pushed-to-origin: true
-    head: 36c62b4                                  # docs YAML-first reorg
+    head: d490578                                  # launch-06 build 67 + docs backfill
     unpushed-commits: 0                           # update on every push
 
   app-store:
