@@ -38,6 +38,13 @@ with context, consequences, alternatives rejected.
 → [`builds.yaml`](builds.yaml) — every TestFlight upload with ASC build
 id, included phases, field-verification status, evidence pointer.
 
+## 🧪 Test coverage
+
+→ [`test-coverage.yaml`](test-coverage.yaml) — which modules have tests,
+which are gaps (with severity + what-to-test), and the priority order to
+close them. Update when adding/removing a test file or shipping an
+untested component.
+
 ## 📐 Architecture
 
 → [`architecture/`](architecture/) — high-level component map.

@@ -31,7 +31,7 @@ Markdown is reserved for:
 | `incidents.yaml` | What broke + root cause + lesson | Field-failures and post-mortems |
 | `decisions.yaml` | ADR — architectural choices | "Why fork sing-box", "Why no Cloudflare Tunnel" |
 | `builds.yaml` | Per-build release log | Every TestFlight upload with ASC id + content |
-| `architecture/topology.yaml` | Servers + relays + routing | DE / NL / MSK / SPB hosts |
+| `test-coverage.yaml` | What's tested / what's a gap | Coverage map + prioritized gap list |
 | `architecture/components.yaml` | iOS / backend / fork modules | High-level component map |
 
 Vertical-specific docs (not migrated to this schema):
@@ -186,6 +186,42 @@ builds:
       Log quality refactor of Phase 1.C — single apply(_:) method, dedup
       log on no-op, profile transition format "X → Y", probe recovered event.
 ```
+
+## Schema: `test-coverage.yaml`
+
+Single document. The coverage map — which source modules have tests,
+which are gaps, and the priority order to close them. Update whenever a
+test file is added/removed OR an untested component ships.
+
+```yaml
+last-updated: 2026-05-14
+last-updated-by: claude
+summary:
+  ios: { source-files: 65, test-files: 19, test-cases: ~189 }
+  backend: { source-files: 69, test-files: 22, test-cases: ~110 }
+ios:                               # same shape for `backend:`
+  tested:                          # "Source.swift -> TestFile (N)"
+    - WidgetVPNSnapshot.swift -> WidgetVPNSnapshotTests (5)
+  behaviour-tests: []              # tests not mapped 1:1 to a file
+  gaps:
+    - id: ios-app-state            # stable id, referenceable
+      path: clients/apple/MadFrogVPN/Models/AppState.swift
+      severity: critical           # critical | major | minor | exempt
+      why: |
+        <why this matters / blast radius>
+      what-to-test: |
+        <concrete list of behaviours a test should pin>
+  exempt:                          # explicitly not worth a unit test
+    reason: <why>
+    files: [<glob or path>, ...]
+```
+
+Gap severity:
+- `critical` — load-bearing logic on the connect/pay/security path,
+  shipped to prod, zero tests.
+- `major` — real branching logic, untested, not on the hot path.
+- `minor` — small/pure helper, low blast radius.
+- `exempt` — UI view / thin OS-wrapper / generated / entrypoint.
 
 ## Schema: `architecture/components.yaml`
 

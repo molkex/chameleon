@@ -692,3 +692,33 @@ phases:
       Server API polling (Get All Subscription Statuses) to recover from a
       missed webhook. Not required — Apple retries notifications for days
       and our handlers are idempotent.
+
+  - id: test-coverage-hardening
+    title: Close the critical/major test-coverage gaps
+    status: planned
+    layer: docs            # spans ios + backend; tracked as a hygiene phase
+    rationale: |
+      Audit 2026-05-14 (docs/test-coverage.yaml) found load-bearing code
+      shipped to prod with zero tests: backend geoip (ADR-004 keys the
+      whole DPI filter off it), backend payments/apple (Apple JWS/x5c
+      verification), iOS AppState / VPNManager / ExtensionProvider (the
+      connect hot path, incl. the launch-04b publishWidgetState code),
+      CrashDiagnosticReporter (privacy-sensitive per ADR-006). The bar:
+      every shippable unit of logic has a test; UI views + thin wrappers
+      are explicitly exempt.
+    artifacts:
+      - docs/test-coverage.yaml   # the canonical gap list + priority order
+    implementation: |
+      Work the priority order in test-coverage.yaml. Order is chosen by
+      value/effort: pure backend logic first (geoip, payments/apple),
+      then the pure iOS bits (CrashDiagnosticReporter, the
+      ExtensionProvider config-source picker), then the parts that need
+      a seam (AppState/VPNManager need a VPNManager protocol to test
+      without NetworkExtension). Each gap closed → update
+      test-coverage.yaml (move from gaps to tested).
+    notes: |
+      Not release-blocking — the launch builds ship regardless. This is
+      regression-safety debt: the more untested phases stack up
+      (field-verified: false on builds 65-71), the higher the blast
+      radius of the next refactor. Best burned down incrementally
+      alongside feature work, not as one big stop-the-world push.
