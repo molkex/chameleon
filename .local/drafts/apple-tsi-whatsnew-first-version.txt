@@ -1,0 +1,68 @@
+=== TSI / Apple Developer Support Request ===
+
+Submit at: https://developer.apple.com/contact/
+Topic: "App Store Connect" → "App Submission" → "Contact Us"
+(Or use the App Review "Request a phone call" path on the rejected submission page)
+
+Subject line:
+  Guideline 2.3.12 rejection on first-version submission — "What's New" field is technically uneditable
+
+Body:
+
+Hello,
+
+We need guidance from App Store Connect engineering on a chicken-and-egg situation with our app's first submission.
+
+App: MadFrog VPN (Apple ID: 6761008632, Team ID: 99W3C374T2)
+Version under review: 1.0.26 (the very first version — no prior version has been published)
+Current state: REJECTED on Guideline 2.3.12 (Accurate Metadata) — "What's New" text flagged as nondescript ("Initial release")
+
+The problem:
+
+This is the app's first ever release. Because there is no prior published version, App Store Connect:
+
+  1. Does NOT show a "What's New" field anywhere in the version page (the field does not exist in the ASC web UI for a first-version submission).
+
+  2. Returns HTTP 409 STATE_ERROR from the App Store Connect API on every attempt to set whatsNew:
+     PATCH /v1/appStoreVersionLocalizations/{id}
+       Body: {"data":{"type":"appStoreVersionLocalizations","id":"...","attributes":{"whatsNew":"..."}}}
+       Response: 409
+       {
+         "errors": [{
+           "id": "...",
+           "status": "409",
+           "code": "STATE_ERROR",
+           "title": "The request cannot be fulfilled because of the state of another resource.",
+           "detail": "Attribute 'whatsNew' cannot be edited at this time"
+         }]
+       }
+     This 409 is reproducible in every appStoreState we have tried (REJECTED, PREPARE_FOR_SUBMISSION; with and without an active reviewSubmission; with and without an attached build).
+
+  3. Shows the literal string "Initial release" as the value of whatsNew on the en-US localization — this is the App Store Connect default placeholder for first releases, not something we wrote.
+
+App Review has now rejected the submission on Guideline 2.3.12 specifically for this "Initial release" placeholder text, even after the App Review Notes contained an explanation of the situation. We placed an even more explicit explanation in the notes for the current resubmission (reviewSubmission 7891c82c-c58c-47f7-9833-8d0ec60ecd46) but want to surface this to App Store Connect engineering in case the field's lock for first-version submissions is a bug, or in case there is a documented path we have missed.
+
+Questions:
+
+  1. Is "What's New" supposed to be uneditable for a first-version App Store submission? If yes, is there a separate place where the first-version equivalent of release notes should be entered, so that App Review's 2.3.12 check has something other than "Initial release" to evaluate?
+
+  2. If the field should be editable, what state transition or precondition unlocks it? We have tried submitting / unsubmitting, attaching / detaching builds, REJECTED → PREPARE_FOR_SUBMISSION transitions — all return the same 409.
+
+  3. If neither — can App Review please be informed that "Initial release" on a first-version submission is the App Store Connect default placeholder, and that 2.3.12 should not be raised against it?
+
+Thank you for your time. We are happy to provide any additional details (full curl traces, screenshots of the ASC web UI showing the missing field) on request.
+
+Best regards,
+Maksim Tkachuk
+Tkachuk Maksim Nikolaevich, IP
+support@madfrog.online
+
+=== End of TSI text ===
+
+For the contact form's "build" / "diagnostic" fields:
+- Build: 75 (Production)
+- Bundle ID: com.madfrog.vpn
+- Version: 1.0.26
+- ASC build ID: da8fe96d-1e3a-428d-9a64-dbc8d1301205
+- Most recent rejected reviewSubmission: f7285f48-e64e-4b07-a580-f958cf7c6200 (canceled)
+- Current reviewSubmission (round 6): 7891c82c-c58c-47f7-9833-8d0ec60ecd46 (waiting for review)

@@ -87,25 +87,33 @@ prod:
   chameleon-repo:
     branch: claude/naughty-golick-e7f6a5
     pushed-to-origin: true
-    head: be3c330                                  # round-4 docs; the resubmit-finalization commit follows next
+    head: 7f615b1                                  # round-5 finalization; round-6 docs commit follows next
     unpushed-commits: 0                           # update on every push
 
   app-store:
     version: "1.0.26"
     state: WAITING_FOR_REVIEW
-    submission-id: f7285f48-e64e-4b07-a580-f958cf7c6200   # build 75 resubmit (round 5) — submitted 2026-05-15 06:22 UTC
+    submission-id: 7891c82c-c58c-47f7-9833-8d0ec60ecd46   # build 75 resubmit (round 6) — submitted 2026-05-15 09:22 UTC
     attached-build: 75
     submitted: 2026-05-15
-    # 2026-05-15 — round 5 / build 75 submitted. reviewSubmission
-    # f7285f48 contains one reviewSubmissionItem (appStoreVersion
-    # 95cca4d4); the 4 IAP products are submitted in parallel via
-    # `inAppPurchaseSubmissions` and are all WAITING_FOR_REVIEW. The
-    # `reviewSubmissionItems` resource does NOT accept `inAppPurchaseV2`
-    # as a relationship (Apple deprecated that path — IAPs now ride
-    # their own submission). Reply to the round-4 thread (0280c9a8)
-    # sent in the Resolution Center; 0280c9a8 then canceled to free
-    # the version, and a fresh reviewSubmission created. See incident
-    # 2026-05-15-app-review-iap-not-found.
+    # 2026-05-15 — round 6: same build 75, new reviewSubmission
+    # 7891c82c. Round 5 (f7285f48) had 2.1(a) and 2.1(b) PASS but 2.3.12
+    # "What's New" re-flagged — the same uneditable-field issue from
+    # round 2 that the App Review Notes had previously closed. Verified
+    # AGAIN that whatsNew is locked (PATCH returns 409 STATE_ERROR in
+    # every state). Attempt to bypass via creating v1.0.27 also failed
+    # — ASC refuses "You cannot create a new version of the App in the
+    # current state" while 1.0.26 exists, and the whatsNew lock is
+    # tied to "no published version" not to the version number.
+    # f7285f48 was canceled, IAPs (which Apple auto-rejected with the
+    # version) were unstuck again via inAppPurchaseSubmissions, and
+    # round 6 submitted with reinforced notes (2.6 KB, leading with an
+    # explicit 2.3.12 "READ FIRST" block citing the API error).
+    # Parallel: TSI request drafted at
+    # .local/drafts/apple-tsi-whatsnew-first-version.txt — user to
+    # submit via developer.apple.com/contact.
+    # See incident 2026-05-15-app-review-iap-not-found (kept for IAP
+    # ASC dance) — 2.3.12 saga is now also captured there.
     # 2026-05-15 — round 4: build 74 resubmitted (reviewSubmission
     # 0280c9a8). Round-3 verdict on 82ab2364 was: SIWA 2.1a NOT raised
     # (build-72 fix held), 2.3.12 NOT raised (App Review Notes approach
@@ -135,10 +143,11 @@ prod:
     # PASSED / REJECTED 2.3.12) canceled -> build 72 (82ab2364, REJECTED
     # 2.1a guest sign-in; replied, then canceled) -> build 74
     # (0280c9a8, REJECTED 2.1a "Pro by default" + 2.1b "IAP not found";
-    # replied, then canceled) -> build 75 (f7285f48,
-    # WAITING_FOR_REVIEW, current). IAPs (4 NON_RENEWING_SUBSCRIPTION)
-    # are submitted in parallel via their own inAppPurchaseSubmissions,
-    # all WAITING_FOR_REVIEW.
+    # replied, then canceled) -> build 75 (f7285f48, 2.1a+2.1b PASSED /
+    # REJECTED 2.3.12 again; canceled) -> build 75 (7891c82c,
+    # WAITING_FOR_REVIEW, current — reinforced notes). IAPs unstuck
+    # for each round via inAppPurchaseSubmissions, all currently
+    # WAITING_FOR_REVIEW alongside the version.
 
 known-issues:
   - id: telegram-media-slow
