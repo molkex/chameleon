@@ -92,6 +92,95 @@ incidents:
       - "A rejected reviewSubmission has a reply box; a CANCELED one does not. Reply to App Review BEFORE canceling/resubmitting — canceling first destroys the only reply channel."
       - "For a first app release, `whatsNew` is uneditable (no UI field, API 409). App Review Notes (appStoreReviewDetail.notes) IS API-editable — use it to explain uneditable-metadata flags. But fetch the FULL existing notes before PATCHing: they may hold demo-access instructions a VPN review needs."
 
+  - id: 2026-05-15-app-review-iap-not-found
+    date: 2026-05-15
+    severity: blocker
+    title: App Store rejected v1.0.26 (round 4) — "Pro by default" + IAP products not found
+    component: ios-payments
+    builds-affected: [74]
+    detected-via: app-review
+    what-happened: |
+      Round 4 of v1.0.26 review (reviewSubmission 0280c9a8, build 74).
+      First round to reach the payment layer — SIWA, metadata and guest
+      sign-in (rounds 1-3) are all closed. App Review reported TWO
+      interlinked issues, both under Guideline 2.1 (App Completeness):
+        2.1(a) — "the 'Pro' status was awarded by default, without
+                  completing the In-App Purchase."
+        2.1(b) — "in-app purchase products associated with the app version
+                  submitted for review could not be found in the submitted
+                  binary."
+      Reviewed on iPhone 17 Pro Max + iPad Air M3, iOS/iPadOS 26.5.
+    root-cause: |
+      Two root causes, interlinked:
+
+      (1) "Pro by default" — the Go backend `createUser` (auth.go:437-449)
+      grants every new account a 3-day trial via
+      `SubscriptionExpiry: &trialExpiry`. The iOS UI (MainViewCalm,
+      MainViewNeon, AccountView) had no concept of "trial vs paid": any
+      non-nil `subscriptionExpire` rendered as **"Подписка Pro" / "PRO ·
+      АКТИВНА" / "Pro until <date>"**. A reviewer doing guest sign-in saw
+      "PRO ACTIVE" on the home screen with no purchase made — reads as
+      "Pro awarded for free."
+
+      (2) "IAP not found" — TWO contributing failures:
+        (a) `PaywallRouter.swift` routed CIS-storefront OR
+            **CIS-Locale.region** users to `WebPaywallView` (FreeKassa /
+            СБП external payment). Apple's reviewer's device tripped the
+            Locale.region fallback ("RU" / "RUS") regardless of their
+            actual storefront, so they got the web paywall and could not
+            test the StoreKit IAPs at all.
+        (b) The 4 IAP products
+            (com.madfrog.vpn.sub.{30,90,180,365}days,
+            NON_RENEWING_SUBSCRIPTION) were stuck in
+            `DEVELOPER_ACTION_NEEDED` state in App Store Connect: both
+            en-US and ru localizations were in `REJECTED` state from a
+            prior review cycle, blocking re-submission. The IAPs were
+            therefore not attached to v1.0.26's reviewSubmission.
+    resolution: |
+      build 75 (commit b80b831) — two client changes, no backend deploy:
+        - **Trial is a trial, not "Pro."** New sticky `hasPaidEver` flag
+          in `ConfigStore` (UserDefaults), set by both purchase paths via
+          `AppState.refreshAfterPurchase` (StoreKit + web). New
+          `AppState.isTrial = subscriptionExpire != nil &&
+          !subscriptionManager.isPremium && !hasPaidEver`. The home
+          screen and account screen now render "Пробный период · N дней"
+          / "Free trial · N days" while `isTrial`; the "PRO" pill becomes
+          "TRIAL". Only paid users (StoreKit `isPremium` or web
+          `hasPaidEver`) see "Pro" wording. New L10n keys
+          `home.header.trial`, `home.subscription.trial_active`,
+          `home.subscription.trial_days`,
+          `account.subscription.trial_until`.
+        - **PaywallRouter: storefront-only.** Dropped the
+          `Locale.current.region` fallback that was misrouting reviewers.
+          Routing is now strictly `Storefront.current.countryCode ∈ CIS`
+          → web paywall, otherwise StoreKit. A reviewer on any non-CIS
+          storefront reliably sees the StoreKit paywall and can purchase
+          the IAPs. Real CIS-storefront users keep web checkout.
+
+      ASC: the 4 IAPs were unstuck via a multi-step API dance — direct
+      DELETE on REJECTED ru localizations returned 500 from Apple while
+      the IAP itself was DEVELOPER_ACTION_NEEDED, but
+      `POST /v1/inAppPurchaseSubmissions` with the IAP relationship
+      accepted the submission once en-US localizations were freshly
+      recreated (delete + POST). With the IAP now in
+      WAITING_FOR_REVIEW, the previously-stuck REJECTED ru
+      localizations could finally be DELETEd (the 500 went away). All
+      4 IAPs ended in WAITING_FOR_REVIEW with en-US
+      WAITING_FOR_REVIEW; ru localizations were removed (will be
+      re-added once IAPs ship — adding during review fails 409).
+
+      Resubmit sequence: replied to App Review on the 0280c9a8 thread,
+      canceled 0280c9a8 to free the appStoreVersion, attached build 75,
+      created a new reviewSubmission and submitted with the four IAPs
+      as `reviewSubmissionItems` of type `inAppPurchaseV2`.
+    status: mitigated   # build 75 uploaded + IAPs WAITING_FOR_REVIEW + resubmitted; awaiting App Review verdict
+    lessons:
+      - "Trial must be visibly a trial. The backend gives every account a 3-day trial as a real entitlement, but the iOS UI must say 'Free trial / N days left' — never 'Pro' — until a real payment lands. App Review reads 'Pro Active' on a fresh install as 'Pro for free'."
+      - "Track 'has the user actually paid?' as a sticky client flag (hasPaidEver) that converges in `refreshAfterPurchase`. Both StoreKit and the web paywall must set it. Without that signal the UI cannot distinguish trial entitlement from paid entitlement, because the backend just hands back an `expiry` date in both cases."
+      - "Route paywall by storefront, not device locale. `Storefront.current.countryCode` is the authoritative identifier of the user's purchasing region; `Locale.region` is a UI-language hint that does NOT mean the user is paying via that region. Mixing them strands App Review on a payment flow they can't test."
+      - "ASC IAPs in DEVELOPER_ACTION_NEEDED + REJECTED localizations can't be unstuck linearly. The escape sequence we found: (1) DELETE the en-US REJECTED localization (works), (2) POST a fresh en-US localization (state → PREPARE_FOR_SUBMISSION), (3) POST `/v1/inAppPurchaseSubmissions` with the IAP relationship (IAP state → WAITING_FOR_REVIEW even though ru loc is still REJECTED), (4) THEN DELETE the ru REJECTED localizations (now works — the 500 goes away once the IAP itself is in review). Steps 1+2 alone don't unstick the IAP; step 3 is the key."
+      - "On a first app submission, IAPs must be submitted ALONGSIDE the app version: a `reviewSubmissionItem` of type `inAppPurchaseV2` per IAP in the same reviewSubmission as the appStoreVersion. Without that the reviewer cannot see/test the IAP and Apple flags Guideline 2.1(b) 'IAP not found in submitted binary' even though the product IDs are in the binary as string literals — Apple's complaint is about the version submission, not the binary's strings."
+
   - id: 2026-05-15-app-review-guest-signin-error
     date: 2026-05-15
     severity: blocker

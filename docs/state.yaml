@@ -31,12 +31,20 @@ prod:
 
   ios:
     marketing-version: "1.0.26"
-    current-build: 74                              # last UPLOADED build (App Store submission)
-    track: app-store                               # build 74 = App Store review (replaces build 72 in the submission)
-    asc-build-id: e9a91d4d-fdc7-46d2-adf5-77c9a45b9008
+    current-build: 75                              # last UPLOADED build (round-5 resubmit)
+    track: app-store                               # build 75 = App Store review (replaces build 74 in the submission)
+    asc-build-id: da8fe96d-1e3a-428d-9a64-dbc8d1301205
     uploaded: 2026-05-15
-    field-verified: false                        # builds 65-74 not yet field-tested; 60-64 were. build 72's SIWA fix PASSED App Review; build 74's guest-signin fix is UNVERIFIED on device — see incidents 2026-05-14-app-review-siwa-unresponsive + 2026-05-15-app-review-guest-signin-error
-    previous-builds-in-testflight: [73, 72, 71, 70, 69, 68, 67, 66, 65, 64, 63, 62, 61, 60, 59, 58, 57, 56, 55]
+    field-verified: false                        # builds 65-75 not yet field-tested; 60-64 were. SIWA + guest-signin + trial-UI fixes UNVERIFIED on device. See incidents 2026-05-14-app-review-siwa-unresponsive + 2026-05-15-app-review-guest-signin-error + 2026-05-15-app-review-iap-not-found
+    previous-builds-in-testflight: [74, 73, 72, 71, 70, 69, 68, 67, 66, 65, 64, 63, 62, 61, 60, 59, 58, 57, 56, 55]
+    # build 75 = App Review reject fix round 4 — Guideline 2.1(a)+(b).
+    # "Pro by default" + IAP not found. Two client changes: (1) trial
+    # rendered as "Free trial · N days" (not "Pro") via sticky
+    # hasPaidEver flag in ConfigStore + AppState.isTrial; (2)
+    # PaywallRouter routes by Storefront only (Locale fallback removed)
+    # so reviewers land on StoreKit. Plus the 4 IAP products unstuck in
+    # ASC (DEVELOPER_ACTION_NEEDED → WAITING_FOR_REVIEW). See incident
+    # 2026-05-15-app-review-iap-not-found.
     # build 74 = App Review reject fix round 3 — Guideline 2.1(a)
     # "Continue as guest" showed an error. signInAnonymous now catches
     # the /config 403 (no active subscription) and routes to the
@@ -79,15 +87,29 @@ prod:
   chameleon-repo:
     branch: claude/naughty-golick-e7f6a5
     pushed-to-origin: true
-    head: 43d0d04                                  # App Store round-3 docs; the round-4 resubmit docs commit follows next
+    head: b80b831                                  # build-75 code fixes; the round-4 docs commit follows next
     unpushed-commits: 0                           # update on every push
 
   app-store:
     version: "1.0.26"
-    state: WAITING_FOR_REVIEW
-    submission-id: 0280c9a8-da5c-40e6-bfd3-52ccb683456d   # build 74 resubmit (round 4) — submitted 2026-05-15
-    attached-build: 74
+    state: REJECTED                                # round 4: 0280c9a8 rejected on 2.1(a) "Pro by default" + 2.1(b) "IAP not found". build 75 uploaded + attached, IAPs WAITING_FOR_REVIEW. NOT YET RESUBMITTED — see "Pending user action" below.
+    submission-id: 0280c9a8-da5c-40e6-bfd3-52ccb683456d   # round-4 rejected submission. Build 75 reply drafted in .local/drafts/apple-review-reply-round4.txt — needs user to send + then cancel + new submission.
+    attached-build: 75                             # build 75 attached to v1.0.26 (via PATCH .../relationships/build 2026-05-15). Old 0280c9a8 still UNRESOLVED_ISSUES referring to build 74 — needs cancel to free the version.
     submitted: 2026-05-15
+    # PENDING USER ACTION (build 75 ready, blocked by classifier on Apple reply send):
+    #   1. Send the reply on 0280c9a8 Resolution Center thread. Text is in
+    #      .local/drafts/apple-review-reply-round4.txt (copy-paste). Click
+    #      "Ответ" in the browser. Or grant approval and Claude clicks.
+    #   2. Cancel 0280c9a8 (it still owns the appStoreVersion). PATCH
+    #      /v1/reviewSubmissions/0280c9a8 with canceled:true.
+    #   3. Create new reviewSubmission for v1.0.26 (POST /v1/reviewSubmissions).
+    #   4. Add reviewSubmissionItems:
+    #      - appStoreVersion 95cca4d4-a5da-4758-b745-75126f775b0b
+    #      - inAppPurchaseV2 6762097906 (30days)
+    #      - inAppPurchaseV2 6762098097 (90days)
+    #      - inAppPurchaseV2 6762098056 (180days)
+    #      - inAppPurchaseV2 6762097872 (365days)
+    #   5. PATCH submitted:true on the new reviewSubmission.
     # 2026-05-15 — round 4: build 74 resubmitted (reviewSubmission
     # 0280c9a8). Round-3 verdict on 82ab2364 was: SIWA 2.1a NOT raised
     # (build-72 fix held), 2.3.12 NOT raised (App Review Notes approach
@@ -116,7 +138,9 @@ prod:
     # (48eecb25, REJECTED 2.1a) canceled -> build 72 (55f7cc73, 2.1a
     # PASSED / REJECTED 2.3.12) canceled -> build 72 (82ab2364, REJECTED
     # 2.1a guest sign-in; replied, then canceled) -> build 74
-    # (0280c9a8, WAITING_FOR_REVIEW, current).
+    # (0280c9a8, REJECTED 2.1a "Pro by default" + 2.1b "IAP not found";
+    # reply drafted, NOT YET sent — needs user action) -> build 75
+    # (new submission pending — see "PENDING USER ACTION" above).
 
 known-issues:
   - id: telegram-media-slow

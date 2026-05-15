@@ -1,0 +1,22 @@
+Re: Guideline 2.1(a) - "Pro" status awarded by default, and 2.1(b) - IAP not found
+
+Thank you for the detailed feedback. Both issues are addressed in build 75 (now attached to this version), together with the in-app purchase products which have been re-submitted for review alongside this version.
+
+(2.1a) The "Pro by default" framing came from rendering the backend free trial as "PRO ACTIVE" on the home screen. Build 75 introduces a sticky "has the user actually paid" flag set by every successful purchase (StoreKit success path and the in-region web checkout success path both set it). Until that flag is true, the home screen and account screen now render "Free trial - N days left" - never "Pro." The "PRO" pill becomes "TRIAL." Only users who have completed a real purchase see "Pro" wording.
+
+(2.1b) Two contributing causes, both fixed:
+
+1. The paywall router was choosing between StoreKit and an in-region web checkout based on either the user's App Store storefront OR the device Locale. The device-Locale fallback was misrouting reviewers to the web checkout, so the StoreKit purchase flow was never reached. Build 75 routes by App Store storefront only - a reviewer on any non-CIS storefront reliably sees the StoreKit paywall with the four subscription products.
+
+2. The four in-app purchase products (com.madfrog.vpn.sub.30/90/180/365days) were stuck in Developer Action Required state from a prior cycle. The localizations have been re-created and the products are now Waiting for Review, submitted alongside build 75 in this version's submission as reviewSubmissionItems of type inAppPurchaseV2.
+
+Reviewer flow on this build:
+- Open the app, tap "Continue as guest" (or sign in with Apple).
+- Home screen shows "Free trial - 3 days left" with a "TRIAL" pill.
+- Tap the subscription strip at the bottom to open the StoreKit paywall.
+- Four products are listed (30 / 90 / 180 / 365 days). Selecting one opens Apple's purchase sheet.
+- After a successful sandbox purchase, the home screen flips to "PRO - ACTIVE" / "Pro until <date>."
+
+The four in-app purchase products are now attached to this submission. We do not currently have access to a physical iOS 26 device for a screen recording; the demo account and the on-device flow above can be exercised by App Review on the reviewer device exactly as in prior rounds.
+
+Thank you for your time.

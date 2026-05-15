@@ -7,6 +7,47 @@
 # (Builds 36-54 are not migrated; see archive/2026-05-pre-yaml/.)
 
 builds:
+  - number: 75
+    version: "1.0.26"
+    date: 2026-05-15
+    track: app-store          # submitted to App Store review (round 5; replaces build 74 in the submission)
+    asc-build-id: da8fe96d-1e3a-428d-9a64-dbc8d1301205
+    archive-path: /tmp/MadFrogVPN-build75.xcarchive
+    field-verified: false
+    notes: |
+      App Review reject fix — Guideline 2.1(a)+(b), round 4 (incident
+      2026-05-15-app-review-iap-not-found): "Pro status awarded by
+      default" and "IAP products could not be found in submitted
+      binary." Two client changes, no backend deploy:
+
+      (1) Trial-as-trial UI. New sticky `hasPaidEver` flag in
+      ConfigStore set by every successful purchase (StoreKit success +
+      web paywall success both flow through AppState.refreshAfterPurchase).
+      AppState.isTrial = `subscriptionExpire != nil && !sub.isPremium &&
+      !hasPaidEver`. MainViewCalm / MainViewNeon / AccountView now show
+      "Пробный период · N дней" / "Free trial · N days" instead of
+      "Подписка Pro" / "PRO · АКТИВНА" while isTrial. The "PRO" pill
+      becomes "TRIAL". Only real paying users see Pro wording.
+
+      (2) PaywallRouter is now storefront-only. Dropped the
+      Locale.region fallback. A reviewer on any non-CIS storefront
+      reliably gets the StoreKit paywall — earlier they tripped the
+      Locale "RU" check and were routed to the FreeKassa web paywall,
+      which is why Apple's reviewer "couldn't find the IAPs." Real
+      CIS-storefront users still keep the web paywall.
+
+      ASC IAP fix (separate from build): the 4 NON_RENEWING_SUBSCRIPTION
+      products were stuck in DEVELOPER_ACTION_NEEDED with REJECTED
+      localizations. Unstuck via: DELETE+recreate en-US localizations
+      → POST /v1/inAppPurchaseSubmissions per IAP (state →
+      WAITING_FOR_REVIEW) → DELETE the previously-stuck ru
+      localizations (now allowed). Submitted alongside v1.0.26 in the
+      next reviewSubmission as `reviewSubmissionItem` of type
+      `inAppPurchaseV2`.
+
+      iOS-only, libbox unchanged from build 60. project.yml
+      CURRENT_PROJECT_VERSION 74→75.
+
   - number: 74
     version: "1.0.26"
     date: 2026-05-15
