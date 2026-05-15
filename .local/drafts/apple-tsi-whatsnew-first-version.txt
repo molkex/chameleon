@@ -1,56 +1,101 @@
 === TSI / Apple Developer Support Request ===
 
 Submit at: https://developer.apple.com/contact/
-Topic: "App Store Connect" → "App Submission" → "Contact Us"
-(Or use the App Review "Request a phone call" path on the rejected submission page)
+Topic: "App Review" → "Request support for an App Rejection or Removal" → "App rejection or removal"
 
 Subject line:
-  Guideline 2.3.12 rejection on first-version submission — "What's New" field is technically uneditable
+  Two clarifications needed on a first-version App Store submission — Guideline 5.4 account classification, and Guideline 2.3.12 "What's New" field
 
 Body:
 
 Hello,
 
-We need guidance from App Store Connect engineering on a chicken-and-egg situation with our app's first submission.
+We need guidance from App Store Connect / App Review engineering on two findings against the same submission for app 6761008632 (MadFrog VPN, team 99W3C374T2). Both have now been raised in App Review even though we believe they are misclassifications.
 
-App: MadFrog VPN (Apple ID: 6761008632, Team ID: 99W3C374T2)
-Version under review: 1.0.26 (the very first version — no prior version has been published)
-Current state: REJECTED on Guideline 2.3.12 (Accurate Metadata) — "What's New" text flagged as nondescript ("Initial release")
+App context
+-----------
+
+  App: MadFrog VPN
+  Apple ID: 6761008632
+  Team ID: 99W3C374T2
+  Bundle ID: com.madfrog.vpn
+  Version under review: 1.0.26 (FIRST submission — no prior version has been published on the App Store)
+  Build under review: 75 (Production)
+  ASC build ID: da8fe96d-1e3a-428d-9a64-dbc8d1301205
+  Most recent rejected reviewSubmission: 7891c82c-c58c-47f7-9833-8d0ec60ecd46
+  Developer / legal entity: Tkachuk Maksim Nikolaevich, IP (Individual Entrepreneur)
+  D-U-N-S Number: 94245265
+  Organization enrollment verified by Apple on: 2026-04-21
+
+Issue 1 — Guideline 5.4 (Legal — VPN Apps) suddenly raised after 5 prior review rounds
+---------------------------------------------------------------------------------------
+
+App Review's round-6 rejection states:
+
+  > Your VPN app was submitted by an Apple Developer Program account
+  > registered to an individual.
+  > All VPN apps must be submitted from an Apple Developer Program
+  > account registered to a company or organization.
+
+We believe this is a misclassification of our account type, for the following reasons:
+
+  - The Apple Developer Program team 99W3C374T2 was enrolled and verified by Apple as an ORGANIZATION account in April 2026 (not an Individual account), with D-U-N-S Number 94245265.
+
+  - A D-U-N-S Number is, by Apple's own enrollment requirements, an artifact issued only to companies/organizations — it is not requested from or issued to individual-tier enrollees.
+
+  - The legal entity on file ("Tkachuk Maksim Nikolaevich, IP") is a Russian "Individual Entrepreneur" (Индивидуальный Предприниматель), a registered legal entity under the Russian Federation civil code (Federal Law No. 129-FZ "On State Registration of Legal Entities and Individual Entrepreneurs"). It holds a state registration certificate (OGRNIP), a federal tax identifier (INN), and independent legal capacity to enter contracts, employ staff, and operate commercial services. This is NOT the same legal classification as "individual" in Apple's Individual-tier Developer Program enrollment.
+
+  - The previous five App Review rounds on this exact submission (rounds 1 through 5) processed without raising Guideline 5.4. The account classification did not change between round 5 and round 6 on our side.
+
+Questions:
+
+  1. Can App Review please re-verify the account type for team 99W3C374T2 in your internal records? It should show as "Organization" with D-U-N-S 94245265 (enrollment date 2026-04-21).
+
+  2. If your records confirm Organization enrollment, can the 5.4 finding for this submission be withdrawn?
+
+  3. If the Apple Developer Program's classification of Russian-IP enrollments has changed (so that an Organization-enrolled IP is no longer accepted as a "company or organization" for the purposes of Guideline 5.4), can App Store Connect engineering confirm this in writing so we can plan a re-enrollment (e.g. as an LLC / ООО) if required?
+
+Issue 2 — Guideline 2.3.12 ("What's New" text) on a first-version submission
+-----------------------------------------------------------------------------
+
+App Review has rejected this submission with Guideline 2.3.12 in round 2 (resolved at the time after App Review Notes explanation), round 5, and now round 6. The flag is on the string "Initial release" appearing in the "What's New" field.
 
 The problem:
 
 This is the app's first ever release. Because there is no prior published version, App Store Connect:
 
-  1. Does NOT show a "What's New" field anywhere in the version page (the field does not exist in the ASC web UI for a first-version submission).
+  1. Does NOT show a "What's New" field anywhere in the version page for a first-version submission (the field does not exist in the ASC web UI).
 
-  2. Returns HTTP 409 STATE_ERROR from the App Store Connect API on every attempt to set whatsNew:
-     PATCH /v1/appStoreVersionLocalizations/{id}
-       Body: {"data":{"type":"appStoreVersionLocalizations","id":"...","attributes":{"whatsNew":"..."}}}
-       Response: 409
-       {
-         "errors": [{
-           "id": "...",
-           "status": "409",
-           "code": "STATE_ERROR",
-           "title": "The request cannot be fulfilled because of the state of another resource.",
-           "detail": "Attribute 'whatsNew' cannot be edited at this time"
-         }]
-       }
-     This 409 is reproducible in every appStoreState we have tried (REJECTED, PREPARE_FOR_SUBMISSION; with and without an active reviewSubmission; with and without an attached build).
+  2. Returns HTTP 409 STATE_ERROR from the App Store Connect REST API on every attempt to set whatsNew:
 
-  3. Shows the literal string "Initial release" as the value of whatsNew on the en-US localization — this is the App Store Connect default placeholder for first releases, not something we wrote.
+       PATCH /v1/appStoreVersionLocalizations/{id}
+         Body: {"data":{"type":"appStoreVersionLocalizations","id":"...","attributes":{"whatsNew":"..."}}}
+         Response: 409
+         {
+           "errors": [{
+             "id": "...",
+             "status": "409",
+             "code": "STATE_ERROR",
+             "title": "The request cannot be fulfilled because of the state of another resource.",
+             "detail": "Attribute 'whatsNew' cannot be edited at this time"
+           }]
+         }
 
-App Review has now rejected the submission on Guideline 2.3.12 specifically for this "Initial release" placeholder text, even after the App Review Notes contained an explanation of the situation. We placed an even more explicit explanation in the notes for the current resubmission (reviewSubmission 7891c82c-c58c-47f7-9833-8d0ec60ecd46) but want to surface this to App Store Connect engineering in case the field's lock for first-version submissions is a bug, or in case there is a documented path we have missed.
+     This 409 is reproducible in every appStoreState we have tried (REJECTED, PREPARE_FOR_SUBMISSION), with and without an active reviewSubmission, with and without an attached build.
+
+  3. The literal string "Initial release" shown as the value of whatsNew is the App Store Connect default placeholder for first releases — not something we wrote.
+
+We have placed an explicit explanation of this in the App Review Notes, but the 2.3.12 finding has been raised repeatedly anyway.
 
 Questions:
 
-  1. Is "What's New" supposed to be uneditable for a first-version App Store submission? If yes, is there a separate place where the first-version equivalent of release notes should be entered, so that App Review's 2.3.12 check has something other than "Initial release" to evaluate?
+  1. Is "What's New" supposed to be uneditable for a first-version App Store submission? If yes, where is the first-version equivalent of release notes meant to be entered, so that 2.3.12 has something other than the default "Initial release" placeholder to evaluate?
 
   2. If the field should be editable, what state transition or precondition unlocks it? We have tried submitting / unsubmitting, attaching / detaching builds, REJECTED → PREPARE_FOR_SUBMISSION transitions — all return the same 409.
 
   3. If neither — can App Review please be informed that "Initial release" on a first-version submission is the App Store Connect default placeholder, and that 2.3.12 should not be raised against it?
 
-Thank you for your time. We are happy to provide any additional details (full curl traces, screenshots of the ASC web UI showing the missing field) on request.
+Thank you for your time. We are happy to provide additional details (full curl traces, screenshots of the ASC web UI showing the missing field, the full thread of the rejected submissions) on request.
 
 Best regards,
 Maksim Tkachuk
@@ -58,11 +103,3 @@ Tkachuk Maksim Nikolaevich, IP
 support@madfrog.online
 
 === End of TSI text ===
-
-For the contact form's "build" / "diagnostic" fields:
-- Build: 75 (Production)
-- Bundle ID: com.madfrog.vpn
-- Version: 1.0.26
-- ASC build ID: da8fe96d-1e3a-428d-9a64-dbc8d1301205
-- Most recent rejected reviewSubmission: f7285f48-e64e-4b07-a580-f958cf7c6200 (canceled)
-- Current reviewSubmission (round 6): 7891c82c-c58c-47f7-9833-8d0ec60ecd46 (waiting for review)

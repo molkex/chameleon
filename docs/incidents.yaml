@@ -92,6 +92,60 @@ incidents:
       - "A rejected reviewSubmission has a reply box; a CANCELED one does not. Reply to App Review BEFORE canceling/resubmitting — canceling first destroys the only reply channel."
       - "For a first app release, `whatsNew` is uneditable (no UI field, API 409). App Review Notes (appStoreReviewDetail.notes) IS API-editable — use it to explain uneditable-metadata flags. But fetch the FULL existing notes before PATCHing: they may hold demo-access instructions a VPN review needs."
 
+  - id: 2026-05-15-app-review-5-4-account-misclassification
+    date: 2026-05-15
+    severity: blocker
+    title: App Store round 6 — NEW Guideline 5.4 "individual account" flag on a VPN app after 5 rounds without it
+    component: app-store-account
+    builds-affected: [75]
+    detected-via: app-review
+    what-happened: |
+      Round 6 review of v1.0.26 (reviewSubmission 7891c82c) returned a
+      brand-new Guideline 5.4 (Legal — VPN Apps) flag in addition to
+      the recurring 2.3.12. Apple's wording:
+        "Your VPN app was submitted by an Apple Developer Program account
+         registered to an individual. All VPN apps must be submitted from
+         an Apple Developer Program account registered to a company or
+         organization."
+      The account classification did not change between round 5 and
+      round 6 — the previous five review cycles processed this exact
+      submission on this exact account without raising 5.4.
+    root-cause: |
+      Likely a reviewer-side classification error or a tighter
+      enforcement pass. Team 99W3C374T2 was enrolled and Apple-verified
+      as Organization on 2026-04-21 with D-U-N-S 94245265, legal entity
+      "Tkachuk Maksim Nikolaevich, IP" — a Russian "Individual
+      Entrepreneur" registered under Federal Law No. 129-FZ. An IP is a
+      legal entity with state registration (OGRNIP), federal tax ID
+      (INN), and independent legal capacity to contract / employ /
+      operate commercial services. By Apple's own enrollment process a
+      D-U-N-S Number is only issued to organizations, not to Individual-
+      tier accounts — so the team being classified as "individual" at
+      review time contradicts Apple's own enrollment record.
+      Hypothesis: round-6 reviewer saw "Tkachuk Maksim Nikolaevich" in
+      the legal-entity field and assumed individual without checking the
+      Organization-tier flag and D-U-N-S.
+    resolution: |
+      No code or metadata change possible — this is an account-tier
+      classification question. Reply sent on the 7891c82c Resolution
+      Center thread (2.8 KB) explicitly listing team ID 99W3C374T2,
+      D-U-N-S 94245265, Apple's own Organization-verification date
+      2026-04-21, the legal status of a Russian IP, and the 5-round
+      consistency argument. Asked App Review to re-verify the account
+      classification in Apple's internal records and withdraw the 5.4
+      finding if the record confirms Organization enrollment.
+      The submission was deliberately NOT canceled — the reply goes to
+      Apple's account/review team and they should respond on the same
+      thread; canceling would kill the channel.
+      In parallel: TSI request to Apple Developer Support drafted at
+      .local/drafts/apple-tsi-whatsnew-first-version.txt covers BOTH
+      2.3.12 and 5.4 — user to submit via developer.apple.com/contact.
+    status: pending   # awaiting Apple's response on the Resolution Center thread; cannot resubmit until 5.4 is clarified
+    lessons:
+      - "Account classification is not deterministic at App Review — even an Apple-verified Organization-tier enrollment with a D-U-N-S can be flagged 5.4 by a reviewer who skims the legal-entity name. Five prior rounds passing is no guarantee the sixth won't flag it. Defense: keep documentation of the enrollment (team ID + D-U-N-S + verification date) accessible to cite verbatim in Resolution Center."
+      - "For a Russian IP applying to Apple's Organization tier: the D-U-N-S Number is your strongest single piece of evidence. Apple's enrollment process does not issue D-U-N-S to Individual-tier accounts, so its presence is canonical proof of the Organization classification."
+      - "Reply on the rejected submission BEFORE canceling — even for an account-tier dispute that requires Apple's internal team to investigate. Canceling kills the channel; the reply itself is what gets escalated."
+
   - id: 2026-05-15-app-review-iap-not-found
     date: 2026-05-15
     severity: blocker

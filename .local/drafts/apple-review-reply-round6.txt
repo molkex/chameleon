@@ -1,0 +1,48 @@
+Hello,
+
+We respectfully ask you to reconsider both findings — the first is a misclassification of the account type, the second is the same uneditable-field issue from earlier rounds.
+
+== Re: Guideline 5.4 (Legal — VPN Apps) ==
+
+This developer account IS registered as an Organization, not an individual:
+
+- Team ID: 99W3C374T2
+- Legal Entity on file: Tkachuk Maksim Nikolaevich, IP (Individual Entrepreneur)
+- D-U-N-S Number: 94245265
+- Organization enrollment verified by Apple on 2026-04-21
+
+A D-U-N-S Number is the canonical artifact Apple requires from a company/organization at enrollment — by definition it is NOT issued to individual-tier accounts. The "IP" suffix denotes "Индивидуальный Предприниматель" (Individual Entrepreneur), a registered legal entity under Russian civil code (Federal Law No. 129-FZ). An IP has:
+
+- State registration certificate (ОГРНИП / OGRNIP)
+- Federal tax identifier (ИНН / INN)
+- Independent legal capacity to contract, employ staff, and operate commercial services
+
+This is fundamentally distinct from a person enrolling under Apple's "Individual" enrollment type — and Apple's own enrollment process verified and accepted this account as an Organization in April 2026.
+
+Importantly, the previous five review rounds of this same app on this same account were processed WITHOUT raising Guideline 5.4. Could you please:
+
+1. Re-verify the account type for team 99W3C374T2 in your records (it should show as "Organization" with the D-U-N-S above), and
+2. If the record reflects what is described above, kindly withdraw the 5.4 finding.
+
+== Re: Guideline 2.3.12 ("What's New" text) ==
+
+Same finding from earlier rounds. As explained in the App Review Notes "READ FIRST" block: the "What's New" field is architecturally uneditable for a first-version submission.
+
+- The ASC web UI does not expose a "What's New" input on the version page for a first version.
+- The ASC REST API rejects every attempt:
+
+    PATCH /v1/appStoreVersionLocalizations/{id}
+      { "data": { "attributes": { "whatsNew": "<any value>" }}}
+    →  HTTP 409
+       { "code": "STATE_ERROR",
+         "detail": "Attribute 'whatsNew' cannot be edited at this time" }
+
+  Reproducible in every appStoreState (REJECTED, PREPARE_FOR_SUBMISSION).
+
+- The literal "Initial release" you see is the ASC default placeholder for first-version submissions — not text we wrote.
+
+We have filed a TSI with Apple Developer Support for official guidance. Pending that, we respectfully ask App Review to disregard 2.3.12 for this initial submission, or advise where this field can be edited for a first version.
+
+The description, keywords, subtitle, and promotional text (which ARE editable and which we filled in carefully) accurately describe the app's functionality.
+
+Thank you for your time.

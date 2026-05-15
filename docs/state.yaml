@@ -87,15 +87,41 @@ prod:
   chameleon-repo:
     branch: claude/naughty-golick-e7f6a5
     pushed-to-origin: true
-    head: 7f615b1                                  # round-5 finalization; round-6 docs commit follows next
+    head: fad5495                                  # round-6 initial docs; the round-6 verdict + 5.4 reply commit follows next
     unpushed-commits: 0                           # update on every push
 
   app-store:
     version: "1.0.26"
-    state: WAITING_FOR_REVIEW
-    submission-id: 7891c82c-c58c-47f7-9833-8d0ec60ecd46   # build 75 resubmit (round 6) — submitted 2026-05-15 09:22 UTC
+    state: REJECTED
+    submission-id: 7891c82c-c58c-47f7-9833-8d0ec60ecd46   # round-6 rejected submission; reply sent on the Resolution Center thread, NOT canceled (waiting on Apple's reply re 5.4 account classification)
     attached-build: 75
     submitted: 2026-05-15
+    # 2026-05-15 — ROUND 6 VERDICT: REJECTED on TWO findings —
+    # 2.3.12 "What's New" (recurring; reviewer-dependent, the
+    # strengthened notes didn't move this reviewer) and NEW 5.4
+    # "Legal - VPN Apps" claiming the developer account is
+    # "individual" rather than "company or organization."
+    #
+    # The 5.4 finding is a misclassification — team 99W3C374T2 was
+    # enrolled and Apple-verified as Organization on 2026-04-21 with
+    # D-U-N-S 94245265 (entity: Tkachuk Maksim Nikolaevich, IP — a
+    # registered legal entity under Russian Federation civil code,
+    # NOT the same as Apple's Individual-tier enrollment). Rounds 1-5
+    # processed without raising 5.4 on this exact account/app.
+    #
+    # Reply sent on the 7891c82c Resolution Center thread (2.8 KB)
+    # citing D-U-N-S 94245265 + team ID 99W3C374T2 + the 5-round
+    # consistency argument and asking App Review to re-verify the
+    # account classification in their records. The submission is
+    # deliberately NOT canceled — we wait for Apple's response on
+    # the reply (which goes to an internal account team, not just
+    # the next reviewer in queue).
+    #
+    # TSI to Apple Developer Support drafted at
+    # .local/drafts/apple-tsi-whatsnew-first-version.txt — now
+    # covers BOTH 2.3.12 and the 5.4 misclassification — user to
+    # submit via developer.apple.com/contact (the in-form submit
+    # button is the only step left).
     # 2026-05-15 — round 6: same build 75, new reviewSubmission
     # 7891c82c. Round 5 (f7285f48) had 2.1(a) and 2.1(b) PASS but 2.3.12
     # "What's New" re-flagged — the same uneditable-field issue from
@@ -144,10 +170,14 @@ prod:
     # 2.1a guest sign-in; replied, then canceled) -> build 74
     # (0280c9a8, REJECTED 2.1a "Pro by default" + 2.1b "IAP not found";
     # replied, then canceled) -> build 75 (f7285f48, 2.1a+2.1b PASSED /
-    # REJECTED 2.3.12 again; canceled) -> build 75 (7891c82c,
-    # WAITING_FOR_REVIEW, current — reinforced notes). IAPs unstuck
-    # for each round via inAppPurchaseSubmissions, all currently
-    # WAITING_FOR_REVIEW alongside the version.
+    # REJECTED 2.3.12 again; replied, then canceled) -> build 75
+    # (7891c82c, REJECTED 2.3.12 again + NEW 5.4 "individual account";
+    # reply sent contesting the 5.4 misclassification, NOT canceled —
+    # awaiting Apple Resolution Center response).
+    # IAPs unstuck round-by-round via inAppPurchaseSubmissions; for
+    # round 6 they were WAITING_FOR_REVIEW alongside the version (the
+    # IAP rejection happens automatically when the version is rejected
+    # — they'll be re-unstuck on the next attempt).
 
 known-issues:
   - id: telegram-media-slow
