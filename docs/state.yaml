@@ -87,13 +87,13 @@ prod:
   chameleon-repo:
     branch: claude/naughty-golick-e7f6a5
     pushed-to-origin: true
-    head: fad5495                                  # round-6 initial docs; the round-6 verdict + 5.4 reply commit follows next
+    head: 8cda657                                  # round-6 appeal submitted; round-7 ASC resubmit docs commit follows next
     unpushed-commits: 0                           # update on every push
 
   app-store:
     version: "1.0.26"
-    state: REJECTED
-    submission-id: 7891c82c-c58c-47f7-9833-8d0ec60ecd46   # round-6 rejected submission; reply sent on the Resolution Center thread, NOT canceled (waiting on Apple's reply re 5.4 account classification)
+    state: WAITING_FOR_REVIEW
+    submission-id: 8578a42d-1161-4395-9f95-1c8a93a33118   # round-7 resubmit; submitted 2026-05-15 12:21 UTC
     attached-build: 75
     submitted: 2026-05-15
     # 2026-05-15 — ROUND 6 VERDICT: REJECTED on TWO findings —
@@ -117,16 +117,30 @@ prod:
     # the reply (which goes to an internal account team, not just
     # the next reviewer in queue).
     #
-    # App Review Board appeal SUBMITTED 2026-05-15 via
-    # developer.apple.com/contact → Request Support for an App
-    # Rejection or Removal → "I believe my app follows the guidelines"
-    # → App Rejection. Issues checked: 5.4 (VPN Apps) and 2.3.12
-    # (Accurate Metadata). Reason for Appeal (~3 KB) details the
-    # D-U-N-S argument and the API 409 for whatsNew. Apple's
-    # confirmation page: "We've received your appeal request for
-    # MadFrog VPN (iOS). The App Review Board will review the
-    # information you provided and contact you as soon as possible
-    # with the outcome of your appeal."
+    # THREE parallel Apple channels active 2026-05-15:
+    #
+    # (1) App Store Connect review — reviewSubmission 8578a42d
+    #     (round 7), WAITING_FOR_REVIEW. Same build 75, same notes
+    #     (still no whatsNew-edit-possible). Plays the "different
+    #     reviewer might check the account record" lottery.
+    #
+    # (2) App Review Board appeal — submitted via
+    #     developer.apple.com/contact → "Request Support for an App
+    #     Rejection or Removal" → "I believe my app follows the
+    #     guidelines" → App Rejection. Both 5.4 and 2.3.12 boxes
+    #     checked; Reason for Appeal (~3 KB) cites D-U-N-S 94245265
+    #     and the whatsNew API 409. Apple confirmation page:
+    #     "We've received your appeal request for MadFrog VPN (iOS).
+    #     The App Review Board will review the information you
+    #     provided and contact you as soon as possible with the
+    #     outcome of your appeal." Response comes by email to
+    #     molkex@icloud.com.
+    #
+    # (3) Resolution Center reply on round-6 thread 7891c82c —
+    #     SENT (visible in thread history under "Сообщения (2)"),
+    #     but 7891c82c was canceled to free the version for round 7,
+    #     so no further messages can be exchanged on that thread.
+    #     The reply itself is preserved in history.
     # 2026-05-15 — round 6: same build 75, new reviewSubmission
     # 7891c82c. Round 5 (f7285f48) had 2.1(a) and 2.1(b) PASS but 2.3.12
     # "What's New" re-flagged — the same uneditable-field issue from
@@ -177,12 +191,11 @@ prod:
     # replied, then canceled) -> build 75 (f7285f48, 2.1a+2.1b PASSED /
     # REJECTED 2.3.12 again; replied, then canceled) -> build 75
     # (7891c82c, REJECTED 2.3.12 again + NEW 5.4 "individual account";
-    # reply sent contesting the 5.4 misclassification, NOT canceled —
-    # awaiting Apple Resolution Center response).
+    # reply sent + appeal filed to App Review Board, then canceled) ->
+    # build 75 (8578a42d, WAITING_FOR_REVIEW, current — parallel with
+    # App Review Board appeal).
     # IAPs unstuck round-by-round via inAppPurchaseSubmissions; for
-    # round 6 they were WAITING_FOR_REVIEW alongside the version (the
-    # IAP rejection happens automatically when the version is rejected
-    # — they'll be re-unstuck on the next attempt).
+    # round 7 they're all WAITING_FOR_REVIEW alongside the version.
 
 known-issues:
   - id: telegram-media-slow
