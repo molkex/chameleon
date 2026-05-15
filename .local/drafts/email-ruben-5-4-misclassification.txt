@@ -1,0 +1,46 @@
+Subject: App Store rejection on Guideline 5.4 — account classification question (Team 99W3C374T2)
+
+Hi Ruben,
+
+Hope you're doing well. Hoping you can help us untangle a strange situation with our developer account.
+
+Back in April you helped us transition the MadFrog VPN team from individual to organization enrollment — that completed on 2026-04-21 and everything has been working fine since. The relevant identifiers:
+
+- Team ID: 99W3C374T2
+- D-U-N-S Number: 94245265
+- Legal entity on file: Tkachuk Maksim Nikolaevich, IP (Individual Entrepreneur, Russian Federation)
+- Enrollment ID: SS264955P7
+- App: MadFrog VPN (Apple ID 6761008632)
+
+Since then we've submitted v1.0.26 for App Review seven times. The first five rounds processed normally and did not raise any account-classification issue. Starting from round six (build 75, this past week), App Review has been rejecting us under Guideline 5.4 (Legal — VPN Apps) with the wording:
+
+  "Your VPN app was submitted by an Apple Developer Program account registered to an individual. All VPN apps must be submitted from an Apple Developer Program account registered to a company or organization."
+
+This appears to be a misclassification — the account IS registered as Organization (your work in April, D-U-N-S 94245265 on file, etc.). Nothing changed on our side between round 5 and round 6.
+
+What we've already done:
+
+  1. Replied to App Review in the Resolution Center on submission 7891c82c-c58c-47f7-9833-8d0ec60ecd46 explaining the D-U-N-S argument and citing your enrollment work — no change, the next reviewer rejected with the same finding.
+
+  2. Filed a formal App Review Board appeal via developer.apple.com/contact for the same submission, with both Guideline 5.4 and a separate Guideline 2.3.12 issue documented. Still awaiting outcome.
+
+  3. Tried one more resubmission (8578a42d-1161-4395-9f95-1c8a93a33118) — rejected the same way: "The issues we previously identified still need your attention."
+
+It looks like something in Apple's internal classification of our account is showing us as Individual for VPN-review purposes, despite the Organization enrollment record. Could you take a look at the account on your side and let us know what we should do?
+
+Specifically:
+
+  - Can you confirm that Team 99W3C374T2 is classified as Organization in the internal Apple records (matching D-U-N-S 94245265 and enrollment SS264955P7)?
+
+  - If yes — is there anything you can do to flag this to App Review so the 5.4 finding can be withdrawn on the current submission?
+
+  - If somehow the account got re-classified — what's the path back to Organization status (or do we need to start a new enrollment / corporate transfer)?
+
+We are completely stuck on App Store launch until this is resolved. Any help much appreciated.
+
+Thank you!
+
+Best regards,
+Maksim Tkachuk
+Tkachuk Maksim Nikolaevich, IP
+support@madfrog.online

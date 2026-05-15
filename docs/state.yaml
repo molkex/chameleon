@@ -99,7 +99,7 @@ prod:
   chameleon-repo:
     branch: claude/naughty-golick-e7f6a5
     pushed-to-origin: true
-    head: 0e30605                                  # round-7 ASC resubmit; build-76 regression-fix commit follows next
+    head: 88041b1                                  # build 76 + backend is_trial; round-7 rejection + escalation-channels docs follow next
     unpushed-commits: 0                           # update on every push
 
   app-store:

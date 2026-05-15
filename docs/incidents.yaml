@@ -147,7 +147,43 @@ incidents:
       VPN (iOS). The App Review Board will review the information you
       provided and contact you as soon as possible with the outcome
       of your appeal."
-    status: pending   # awaiting two parallel Apple responses: (1) Resolution Center thread on 7891c82c; (2) App Review Board appeal outcome. Cannot resubmit until 5.4 is clarified.
+    status: pending   # round 7 (8578a42d) ALSO rejected with the same 5.4 + 2.3.12; Apple's wording "The issues we previously identified still need your attention" — regular review queue is a dead end until the underlying account record is fixed. Waiting on (a) App Review Board appeal outcome, (b) personal contact at Apple Developer Support (Ruben, who processed enrollment SS264955P7 in April). Escalation playbook: .local/drafts/apple-escalation-channels.md
+    escalation:
+      - channel: "Ruben (Apple Developer Support, processed enrollment SS264955P7)"
+        status: drafted
+        notes: |
+          Email drafts at .local/drafts/email-ruben-5-4-misclassification.txt
+          (English) and .local/drafts/email-ruben-5-4-misclassification-ru.txt
+          (Russian). Personal contact who has account history and can verify
+          Organization classification from inside Apple.
+      - channel: "App Review Board appeal"
+        status: submitted
+        date: 2026-05-15
+        notes: |
+          Via developer.apple.com/contact → Request Support for an App
+          Rejection or Removal → I believe my app follows the guidelines →
+          App Rejection. Issues checked: 5.4 + 2.3.12. Outcome by email to
+          molkex@icloud.com. Typical SLA 1-5 business days.
+      - channel: "Request a phone call from App Review"
+        status: not-yet-used
+        notes: |
+          Link on the Resolution Center page of each rejected submission
+          ("Request a call to discuss your app's review"). 30-minute call
+          with a senior reviewer within 3-5 business days. Use after Ruben
+          if he doesn't respond in 24h.
+      - channel: "Developer Program Membership / Account Holder Verification"
+        status: not-yet-used
+        notes: |
+          Separate team from App Review (they own the enrollment record).
+          Path: developer.apple.com/contact → Membership and Account →
+          Account Holder Verification.
+      - channel: "Apple Executive Relations (tcook@apple.com)"
+        status: not-yet-used
+        notes: |
+          Last resort. Letters reach Executive Relations team (not Tim
+          personally) — they have authority to push App Review and
+          Membership on stuck cases. Use if 7+ days pass with no movement
+          on Tier 1 channels.
     lessons:
       - "Account classification is not deterministic at App Review — even an Apple-verified Organization-tier enrollment with a D-U-N-S can be flagged 5.4 by a reviewer who skims the legal-entity name. Five prior rounds passing is no guarantee the sixth won't flag it. Defense: keep documentation of the enrollment (team ID + D-U-N-S + verification date) accessible to cite verbatim in Resolution Center."
       - "For a Russian IP applying to Apple's Organization tier: the D-U-N-S Number is your strongest single piece of evidence. Apple's enrollment process does not issue D-U-N-S to Individual-tier accounts, so its presence is canonical proof of the Organization classification."

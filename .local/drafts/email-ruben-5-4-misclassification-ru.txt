@@ -1,0 +1,38 @@
+Тема: Apple App Review отклонил MadFrog VPN по Guideline 5.4 — нужна твоя помощь с классификацией аккаунта
+
+Привет, Рубен,
+
+Помнишь, в апреле ты помогал нам перевести аккаунт MadFrog VPN с физлица на ИП (organization enrollment)? Всё тогда отлично прошло, аккаунт с 21.04 в статусе Organization.
+
+Сейчас столкнулись со странным — App Review семь раз отклонил v1.0.26, и в последних двух раундах ставят флаг Guideline 5.4 (Legal — VPN Apps) с формулировкой:
+
+  "Your VPN app was submitted by an Apple Developer Program account registered to an individual. All VPN apps must be submitted from an account registered to a company or organization."
+
+Это явное несоответствие — аккаунт-то Organization. Идентификаторы:
+
+  - Team ID: 99W3C374T2
+  - D-U-N-S: 94245265
+  - Enrollment ID: SS264955P7 (твоё, апрельское)
+  - App: MadFrog VPN, Apple ID 6761008632
+
+Что уже сделали:
+
+  - Ответили в Resolution Center → следующий ревьюер тот же флаг поставил
+  - Подали официальную апелляцию в App Review Board → ждём решения (3+ часа уже)
+  - Попробовали ещё раз пересабмитить → отказ, дословно: "The issues we previously identified still need your attention"
+
+На нашей стороне с раундов 1-5 (которые прошли без 5.4) ничего не менялось. Похоже, в какой-то внутренней системе Apple наш аккаунт стал отображаться как individual.
+
+Можешь посмотреть со своей стороны:
+
+  1. Числится ли team 99W3C374T2 в Apple как Organization (с D-U-N-S 94245265, enrollment SS264955P7)?
+  2. Если да — реально ли подсветить это в App Review, чтобы 5.4-флаг сняли с текущей заявки?
+  3. Если каким-то образом аккаунт переклассифицировали — что нам делать?
+
+Мы полностью застряли с релизом, ничего больше не зависит от кода — упёрлись в стену по аккаунту. Буду очень благодарен.
+
+Спасибо!
+
+Максим Ткачук
+ИП Tkachuk Maksim Nikolaevich
+support@madfrog.online
