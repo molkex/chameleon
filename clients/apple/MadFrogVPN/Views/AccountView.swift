@@ -90,6 +90,11 @@ struct AccountView: View {
         }
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
-        return L10n.Account.subscriptionProUntil(formatter.string(from: expire))
+        let dateString = formatter.string(from: expire)
+        // App Review build 74 rejected "Pro" wording on the backend trial
+        // — see incident 2026-05-15-app-review-iap-not-found.
+        return app.isTrial
+            ? L10n.Account.subscriptionTrialUntil(dateString)
+            : L10n.Account.subscriptionProUntil(dateString)
     }
 }

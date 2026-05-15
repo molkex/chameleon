@@ -36,6 +36,21 @@ class AppState {
     var errorMessage: String?
     var vpnConnectedAt: Date?
     var subscriptionExpire: Date?
+    /// True when the user has a non-nil `subscriptionExpire` (a future date
+    /// granting full access) but has **never** completed a real purchase —
+    /// i.e. they're on the 3-day backend free trial. Drives the UI to render
+    /// "Пробный период · N дней" instead of "PRO · АКТИВНА". App Review build
+    /// 74 (round 4, Guideline 2.1(a)) rejected the "Pro by default" UX —
+    /// see incident 2026-05-15-app-review-iap-not-found.
+    /// `hasPaidEver` is sticky in ConfigStore; `subscriptionManager.isPremium`
+    /// is the live StoreKit signal. Either being true → user has paid → not
+    /// trial.
+    var isTrial: Bool {
+        guard subscriptionExpire != nil else { return false }
+        if subscriptionManager.isPremium { return false }
+        if configStore.hasPaidEver { return false }
+        return true
+    }
     var isAuthenticated: Bool = false
     var isInitialized: Bool = false
     /// When true, UI should present the VPN permission primer instead of
@@ -767,8 +782,16 @@ class AppState {
     /// reflect the freshly-extended plan.
     func refreshAfterPurchase() async {
         AppLogger.app.info("refreshAfterPurchase: pulling updated config")
+        // Sticky "the user has actually paid" flag. Set here so both
+        // success paths converge: StoreKit (PaywallView.onChange(isPremium))
+        // and the web paywall (WebPaywallView.pollStatus on "completed")
+        // both call refreshAfterPurchase. From now on the UI renders
+        // "PRO · АКТИВНА" for this user instead of the trial wording. See
+        // incident 2026-05-15-app-review-iap-not-found.
+        configStore.hasPaidEver = true
         do {
             try await fetchAndSaveConfig()
+            subscriptionExpire = configStore.subscriptionExpire
         } catch {
             AppLogger.app.error("refreshAfterPurchase: \(error.localizedDescription)")
         }

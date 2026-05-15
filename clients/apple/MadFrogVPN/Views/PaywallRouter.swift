@@ -55,22 +55,25 @@ struct PaywallRouter: View {
         "KG", "AM", "AZ", "TJ", "MD", "TM",
     ]
 
-    /// Any CIS signal wins. Storefront is the authoritative source in the
-    /// App Store build, but under TestFlight `Storefront.current` frequently
-    /// returns the developer's account country (we saw "USA" on a KZ tester)
-    /// which would strand real CIS users on a StoreKit screen they can't pay
-    /// through. Accept either storefront OR Locale.region as "this is a CIS
-    /// user" — false positives (e.g. Russian expat with a US card) are
-    /// strictly better than false negatives.
+    /// Route by **App Store storefront only** — NOT by device Locale.
+    ///
+    /// History: build 74 was rejected (Guideline 2.1(a)+(b), round 4 / submission
+    /// 0280c9a8) — App Review on iPhone 17 Pro Max could not find the StoreKit
+    /// IAPs in the binary because the device's Locale.region tripped the CIS
+    /// check and routed the reviewer to the web paywall (FreeKassa). Apple's
+    /// reviewer is identified by their `Storefront`, not their device locale,
+    /// so storefront alone is the right signal for that decision. The earlier
+    /// "TestFlight returns dev country" worry is moot for App Store builds —
+    /// in the App Store build `Storefront.current` reliably reflects the user's
+    /// purchasing region.
+    ///
+    /// Real CIS users still get the web paywall (their storefront is RU/KZ/etc.).
+    /// A Russian expat on a US storefront sees StoreKit — that is fine; they
+    /// can pay with an international card via Apple IAP.
+    ///
+    /// See incident 2026-05-15-app-review-iap-not-found.
     private var shouldUseWebPaywall: Bool {
-        if let cc = storefrontCountry,
-           Self.cisThreeLetter.contains(cc) || Self.cisTwoLetter.contains(cc) {
-            return true
-        }
-        if let region = Locale.current.region?.identifier,
-           Self.cisTwoLetter.contains(region) {
-            return true
-        }
-        return false
+        guard let cc = storefrontCountry else { return false }
+        return Self.cisThreeLetter.contains(cc) || Self.cisTwoLetter.contains(cc)
     }
 }

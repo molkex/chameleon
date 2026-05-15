@@ -87,6 +87,18 @@ class ConfigStore {
         set { sharedDefaults?.set(newValue, forKey: AppConstants.subscriptionExpireKey) }
     }
 
+    /// Sticky "user has ever completed a real purchase" flag. Set by the
+    /// StoreKit success path (SubscriptionManager.purchase) and the web
+    /// paywall success poll (WebPaywallView.pollStatus). Stays true once
+    /// set; the UI uses it to render "PRO ACTIVE" only for paid users and
+    /// "TRIAL · N days left" for everyone else with a non-nil
+    /// subscriptionExpire. App Review (build 74, round 4) rejected the
+    /// "Pro by default" UX — see incident 2026-05-15-app-review-iap-not-found.
+    var hasPaidEver: Bool {
+        get { sharedDefaults?.bool(forKey: AppConstants.hasPaidEverKey) ?? false }
+        set { sharedDefaults?.set(newValue, forKey: AppConstants.hasPaidEverKey) }
+    }
+
     var lastUpdate: Date? {
         sharedDefaults?.object(forKey: AppConstants.lastUpdateKey) as? Date
     }
@@ -185,6 +197,10 @@ class ConfigStore {
         sharedDefaults?.removeObject(forKey: AppConstants.lastUpdateKey)
         sharedDefaults?.removeObject(forKey: AppConstants.startOptionsKey)
         sharedDefaults?.removeObject(forKey: AppConstants.selectedServerTagKey)
+        // Clear the "has paid ever" flag on logout/account-wipe so the next
+        // sign-in starts as trial until they actually pay again. Otherwise a
+        // logout → sign-in-as-different-user would inherit "PRO ACTIVE".
+        sharedDefaults?.removeObject(forKey: AppConstants.hasPaidEverKey)
     }
 
     // MARK: - Parse Servers from Config

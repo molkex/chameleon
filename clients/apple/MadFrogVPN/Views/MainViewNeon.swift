@@ -115,8 +115,11 @@ struct MainViewNeon: View {
 
             Spacer()
 
+            // Trial users see a "TRIAL" pill, paying users keep "PRO".
+            // App Review build 74 rejected the "Pro by default" UX —
+            // see incident 2026-05-15-app-review-iap-not-found.
             if app.subscriptionExpire != nil {
-                Text("PRO")
+                Text(app.isTrial ? "TRIAL" : "PRO")
                     .font(.system(size: 11, weight: .black))
                     .kerning(1.2)
                     .padding(.horizontal, 12)
@@ -423,7 +426,11 @@ struct MainViewNeon: View {
     }
 
     private var subscriptionStripLeftText: LocalizedStringKey {
-        app.subscriptionExpire != nil ? L10n.Home.subProActive : L10n.Home.subGetPro
+        // Trial → "ПРОБНЫЙ ПЕРИОД"; paid → "PRO · АКТИВНА"; none → CTA.
+        // App Review build 74 rejected the "Pro by default" UX — see
+        // incident 2026-05-15-app-review-iap-not-found.
+        if app.subscriptionExpire == nil { return L10n.Home.subGetPro }
+        return app.isTrial ? L10n.Home.subTrialActive : L10n.Home.subProActive
     }
 
     private var subscriptionStripRightText: String {

@@ -53,6 +53,12 @@ enum L10n {
         static let headerPro       = LKey("home.header.pro")
         static let headerFree      = LKey("home.header.free")
         static let headerProMember = LKey("home.header.pro_member")
+        /// Header label shown when the user is on the 3-day backend free
+        /// trial (subscriptionExpire != nil && !hasPaidEver). Must NOT
+        /// claim "Pro/Premium" — Apple Review build 74 rejected the
+        /// "Pro by default" UX. See incident
+        /// 2026-05-15-app-review-iap-not-found.
+        static let headerTrial     = LKey("home.header.trial")
 
         static let serverActive    = LKey("home.server.active")
         static let serverStandby   = LKey("home.server.standby")
@@ -71,12 +77,20 @@ enum L10n {
         static let subExpired       = LKey("home.subscription.expired")
         static let subExpiredFull   = LKey("home.subscription.expired_full")
         static let subUnlockFull    = LKey("home.subscription.unlock_full")
+        /// Trial-state version of `subProActive` — shown when the user is
+        /// on the 3-day backend free trial. Must NOT use "Pro" wording.
+        static let subTrialActive   = LKey("home.subscription.trial_active")
 
         static func subDaysLeft(_ days: Int) -> String {
             String(format: String(localized: "home.subscription.days_left"), days)
         }
         static func subProDays(_ days: Int) -> String {
             String(format: String(localized: "home.subscription.pro_days"), days)
+        }
+        /// Trial countdown — "Пробный период · N дн." / "Free trial · N days".
+        /// Used by the home screen instead of `subProDays` while `isTrial`.
+        static func subTrialDays(_ days: Int) -> String {
+            String(format: String(localized: "home.subscription.trial_days"), days)
         }
     }
 
@@ -274,6 +288,13 @@ enum L10n {
 
         static func subscriptionProUntil(_ date: String) -> String {
             String(format: String(localized: "account.subscription.pro_until"), date)
+        }
+        /// Trial-state version of `subscriptionProUntil` — "Пробный период
+        /// до %@" / "Free trial until %@". App Review build 74 rejected
+        /// "Pro" wording on the trial — see incident
+        /// 2026-05-15-app-review-iap-not-found.
+        static func subscriptionTrialUntil(_ date: String) -> String {
+            String(format: String(localized: "account.subscription.trial_until"), date)
         }
     }
 

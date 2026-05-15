@@ -72,7 +72,15 @@ struct MainViewCalm: View {
                 Text("MadFrog")
                     .font(theme.displayFont(size: 17, weight: .bold))
                     .foregroundStyle(theme.textPrimary)
-                Text(app.subscriptionExpire != nil ? L10n.Home.headerProMember : L10n.Home.headerFree)
+                // Trial users see "Пробный период"; only paying users see
+                // "Подписка Pro". App Review build 74 rejected the
+                // "Pro by default" UX — see incident
+                // 2026-05-15-app-review-iap-not-found.
+                Text(
+                    app.isTrial
+                        ? L10n.Home.headerTrial
+                        : (app.subscriptionExpire != nil ? L10n.Home.headerProMember : L10n.Home.headerFree)
+                )
                     .font(theme.font(size: 11))
                     .foregroundStyle(theme.textSecondary)
             }
@@ -356,7 +364,10 @@ struct MainViewCalm: View {
         if let expire = app.subscriptionExpire {
             let days = Calendar.current.dateComponents([.day], from: .now, to: expire).day ?? 0
             if days < 0 { return String(localized: "home.subscription.expired_full") }
-            return L10n.Home.subProDays(days)
+            // App Review build 74 (Guideline 2.1a) — must NOT call the
+            // backend trial "Pro". Render trial wording while !hasPaidEver
+            // && !isPremium. See incident 2026-05-15-app-review-iap-not-found.
+            return app.isTrial ? L10n.Home.subTrialDays(days) : L10n.Home.subProDays(days)
         }
         return String(localized: "home.subscription.unlock_full")
     }

@@ -41,16 +41,19 @@
 "home.header.pro"                = "PRO";
 "home.header.free"               = "Бесплатный план";
 "home.header.pro_member"         = "Подписка Pro";
+"home.header.trial"              = "Пробный период";
 
 "home.server.active"             = "АКТИВЕН";
 "home.server.standby"            = "ОЖИДАНИЕ";
 
 "home.subscription.get_pro"      = "ПОЛУЧИТЬ PRO";
 "home.subscription.pro_active"   = "PRO · АКТИВНА";
+"home.subscription.trial_active" = "ПРОБНЫЙ ПЕРИОД";
 "home.subscription.unlock"       = "Открыть всё →";
 "home.subscription.days_left"    = "осталось %d дн.";
 "home.subscription.expired"      = "Истекла";
 "home.subscription.pro_days"     = "Pro · %d дн. осталось";
+"home.subscription.trial_days"   = "Пробный период · %d дн.";
 "home.subscription.expired_full" = "Подписка истекла";
 "home.subscription.unlock_full"  = "Разблокировать Pro — без ограничений";
 
@@ -226,6 +229,7 @@
 "account.username"               = "Логин";
 "account.subscription"           = "Подписка";
 "account.subscription.pro_until" = "Pro до %@";
+"account.subscription.trial_until" = "Пробный период до %@";
 "account.subscription.free"      = "Бесплатный триал";
 
 /* ===== Юридическое ===== */

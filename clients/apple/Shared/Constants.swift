@@ -96,6 +96,15 @@ enum AppConstants {
     static let grpcAvailableKey = "grpcAvailable"
     static let selectedServerTagKey = "selectedServerTag"
     static let subscriptionExpireKey = "subscriptionExpire"
+    /// Set to true once the user has completed a real purchase (StoreKit IAP or
+    /// FreeKassa web payment). Stays true once set — used by the UI to
+    /// distinguish a free trial entitlement from a paid subscription so the
+    /// "PRO ACTIVE" badge only appears for paid users. App Review build-74
+    /// rejection (Guideline 2.1(a), round 4) flagged "Pro status awarded by
+    /// default" because the 3-day backend trial rendered as "PRO ACTIVE" on a
+    /// fresh install with no purchase. See incident
+    /// 2026-05-15-app-review-iap-not-found.
+    static let hasPaidEverKey = "hasPaidEver"
     // Routing mode: "smart" (default) | "ru-direct" | "full-vpn".
     // Controls the three sing-box selectors: "RU Traffic", "Blocked Traffic",
     // "Default Route". See RoutingMode.applyToClash() for the mapping.

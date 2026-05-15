@@ -41,16 +41,19 @@
 "home.header.pro"                = "PRO";
 "home.header.free"               = "Free plan";
 "home.header.pro_member"         = "Pro member";
+"home.header.trial"              = "Free trial";
 
 "home.server.active"             = "ACTIVE";
 "home.server.standby"            = "STANDBY";
 
 "home.subscription.get_pro"      = "GET PRO";
 "home.subscription.pro_active"   = "PRO · ACTIVE";
+"home.subscription.trial_active" = "FREE TRIAL";
 "home.subscription.unlock"       = "Unlock everything →";
 "home.subscription.days_left"    = "%d days left";
 "home.subscription.expired"      = "Expired";
 "home.subscription.pro_days"     = "Pro · %d days left";
+"home.subscription.trial_days"   = "Free trial · %d days left";
 "home.subscription.expired_full" = "Subscription expired";
 "home.subscription.unlock_full"  = "Unlock Pro — unlimited access";
 
@@ -226,6 +229,7 @@
 "account.username"               = "Username";
 "account.subscription"           = "Subscription";
 "account.subscription.pro_until" = "Pro until %@";
+"account.subscription.trial_until" = "Free trial until %@";
 "account.subscription.free"      = "Free trial";
 
 /* ===== Legal ===== */
