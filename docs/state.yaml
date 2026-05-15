@@ -117,11 +117,16 @@ prod:
     # the reply (which goes to an internal account team, not just
     # the next reviewer in queue).
     #
-    # TSI to Apple Developer Support drafted at
-    # .local/drafts/apple-tsi-whatsnew-first-version.txt — now
-    # covers BOTH 2.3.12 and the 5.4 misclassification — user to
-    # submit via developer.apple.com/contact (the in-form submit
-    # button is the only step left).
+    # App Review Board appeal SUBMITTED 2026-05-15 via
+    # developer.apple.com/contact → Request Support for an App
+    # Rejection or Removal → "I believe my app follows the guidelines"
+    # → App Rejection. Issues checked: 5.4 (VPN Apps) and 2.3.12
+    # (Accurate Metadata). Reason for Appeal (~3 KB) details the
+    # D-U-N-S argument and the API 409 for whatsNew. Apple's
+    # confirmation page: "We've received your appeal request for
+    # MadFrog VPN (iOS). The App Review Board will review the
+    # information you provided and contact you as soon as possible
+    # with the outcome of your appeal."
     # 2026-05-15 — round 6: same build 75, new reviewSubmission
     # 7891c82c. Round 5 (f7285f48) had 2.1(a) and 2.1(b) PASS but 2.3.12
     # "What's New" re-flagged — the same uneditable-field issue from

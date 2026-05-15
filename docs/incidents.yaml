@@ -137,10 +137,17 @@ incidents:
       The submission was deliberately NOT canceled — the reply goes to
       Apple's account/review team and they should respond on the same
       thread; canceling would kill the channel.
-      In parallel: TSI request to Apple Developer Support drafted at
-      .local/drafts/apple-tsi-whatsnew-first-version.txt covers BOTH
-      2.3.12 and 5.4 — user to submit via developer.apple.com/contact.
-    status: pending   # awaiting Apple's response on the Resolution Center thread; cannot resubmit until 5.4 is clarified
+      In parallel: App Review Board appeal SUBMITTED on 2026-05-15 via
+      developer.apple.com/contact → "Request Support for an App Rejection
+      or Removal" → "I believe my app follows the guidelines" → topic
+      "App Rejection." Both 5.4 (VPN Apps) and 2.3.12 (Accurate
+      Metadata) checkboxes selected; Reason for Appeal (~3 KB) details
+      the D-U-N-S argument and the API 409 for whatsNew. Apple
+      confirmation: "We've received your appeal request for MadFrog
+      VPN (iOS). The App Review Board will review the information you
+      provided and contact you as soon as possible with the outcome
+      of your appeal."
+    status: pending   # awaiting two parallel Apple responses: (1) Resolution Center thread on 7891c82c; (2) App Review Board appeal outcome. Cannot resubmit until 5.4 is clarified.
     lessons:
       - "Account classification is not deterministic at App Review — even an Apple-verified Organization-tier enrollment with a D-U-N-S can be flagged 5.4 by a reviewer who skims the legal-entity name. Five prior rounds passing is no guarantee the sixth won't flag it. Defense: keep documentation of the enrollment (team ID + D-U-N-S + verification date) accessible to cite verbatim in Resolution Center."
       - "For a Russian IP applying to Apple's Organization tier: the D-U-N-S Number is your strongest single piece of evidence. Apple's enrollment process does not issue D-U-N-S to Individual-tier accounts, so its presence is canonical proof of the Organization classification."
