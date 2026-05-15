@@ -87,29 +87,25 @@ prod:
   chameleon-repo:
     branch: claude/naughty-golick-e7f6a5
     pushed-to-origin: true
-    head: b80b831                                  # build-75 code fixes; the round-4 docs commit follows next
+    head: be3c330                                  # round-4 docs; the resubmit-finalization commit follows next
     unpushed-commits: 0                           # update on every push
 
   app-store:
     version: "1.0.26"
-    state: REJECTED                                # round 4: 0280c9a8 rejected on 2.1(a) "Pro by default" + 2.1(b) "IAP not found". build 75 uploaded + attached, IAPs WAITING_FOR_REVIEW. NOT YET RESUBMITTED — see "Pending user action" below.
-    submission-id: 0280c9a8-da5c-40e6-bfd3-52ccb683456d   # round-4 rejected submission. Build 75 reply drafted in .local/drafts/apple-review-reply-round4.txt — needs user to send + then cancel + new submission.
-    attached-build: 75                             # build 75 attached to v1.0.26 (via PATCH .../relationships/build 2026-05-15). Old 0280c9a8 still UNRESOLVED_ISSUES referring to build 74 — needs cancel to free the version.
+    state: WAITING_FOR_REVIEW
+    submission-id: f7285f48-e64e-4b07-a580-f958cf7c6200   # build 75 resubmit (round 5) — submitted 2026-05-15 06:22 UTC
+    attached-build: 75
     submitted: 2026-05-15
-    # PENDING USER ACTION (build 75 ready, blocked by classifier on Apple reply send):
-    #   1. Send the reply on 0280c9a8 Resolution Center thread. Text is in
-    #      .local/drafts/apple-review-reply-round4.txt (copy-paste). Click
-    #      "Ответ" in the browser. Or grant approval and Claude clicks.
-    #   2. Cancel 0280c9a8 (it still owns the appStoreVersion). PATCH
-    #      /v1/reviewSubmissions/0280c9a8 with canceled:true.
-    #   3. Create new reviewSubmission for v1.0.26 (POST /v1/reviewSubmissions).
-    #   4. Add reviewSubmissionItems:
-    #      - appStoreVersion 95cca4d4-a5da-4758-b745-75126f775b0b
-    #      - inAppPurchaseV2 6762097906 (30days)
-    #      - inAppPurchaseV2 6762098097 (90days)
-    #      - inAppPurchaseV2 6762098056 (180days)
-    #      - inAppPurchaseV2 6762097872 (365days)
-    #   5. PATCH submitted:true on the new reviewSubmission.
+    # 2026-05-15 — round 5 / build 75 submitted. reviewSubmission
+    # f7285f48 contains one reviewSubmissionItem (appStoreVersion
+    # 95cca4d4); the 4 IAP products are submitted in parallel via
+    # `inAppPurchaseSubmissions` and are all WAITING_FOR_REVIEW. The
+    # `reviewSubmissionItems` resource does NOT accept `inAppPurchaseV2`
+    # as a relationship (Apple deprecated that path — IAPs now ride
+    # their own submission). Reply to the round-4 thread (0280c9a8)
+    # sent in the Resolution Center; 0280c9a8 then canceled to free
+    # the version, and a fresh reviewSubmission created. See incident
+    # 2026-05-15-app-review-iap-not-found.
     # 2026-05-15 — round 4: build 74 resubmitted (reviewSubmission
     # 0280c9a8). Round-3 verdict on 82ab2364 was: SIWA 2.1a NOT raised
     # (build-72 fix held), 2.3.12 NOT raised (App Review Notes approach
@@ -139,8 +135,10 @@ prod:
     # PASSED / REJECTED 2.3.12) canceled -> build 72 (82ab2364, REJECTED
     # 2.1a guest sign-in; replied, then canceled) -> build 74
     # (0280c9a8, REJECTED 2.1a "Pro by default" + 2.1b "IAP not found";
-    # reply drafted, NOT YET sent — needs user action) -> build 75
-    # (new submission pending — see "PENDING USER ACTION" above).
+    # replied, then canceled) -> build 75 (f7285f48,
+    # WAITING_FOR_REVIEW, current). IAPs (4 NON_RENEWING_SUBSCRIPTION)
+    # are submitted in parallel via their own inAppPurchaseSubmissions,
+    # all WAITING_FOR_REVIEW.
 
 known-issues:
   - id: telegram-media-slow

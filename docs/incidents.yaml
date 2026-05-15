@@ -169,17 +169,25 @@ incidents:
       WAITING_FOR_REVIEW; ru localizations were removed (will be
       re-added once IAPs ship — adding during review fails 409).
 
-      Resubmit sequence: replied to App Review on the 0280c9a8 thread,
-      canceled 0280c9a8 to free the appStoreVersion, attached build 75,
-      created a new reviewSubmission and submitted with the four IAPs
-      as `reviewSubmissionItems` of type `inAppPurchaseV2`.
-    status: mitigated   # build 75 uploaded + IAPs WAITING_FOR_REVIEW + resubmitted; awaiting App Review verdict
+      Resubmit sequence: replied to App Review on the 0280c9a8
+      Resolution Center thread, canceled 0280c9a8 to free the
+      appStoreVersion, created a new reviewSubmission
+      `f7285f48-e64e-4b07-a580-f958cf7c6200` with a single
+      `reviewSubmissionItem` for appStoreVersion 95cca4d4 and
+      submitted. The four IAPs were already in WAITING_FOR_REVIEW via
+      their own `inAppPurchaseSubmissions` (the modern path); attempting
+      to add them as `reviewSubmissionItems` of type `inAppPurchaseV2`
+      now returns 409 with `'inAppPurchaseV2' is not a relationship
+      on the resource 'reviewSubmissionItems'` — Apple has moved IAPs
+      off the reviewSubmissionItem schema entirely, they ride their
+      own parallel submission.
+    status: mitigated   # build 75 + IAPs all WAITING_FOR_REVIEW; reviewSubmission f7285f48; awaiting App Review verdict
     lessons:
       - "Trial must be visibly a trial. The backend gives every account a 3-day trial as a real entitlement, but the iOS UI must say 'Free trial / N days left' — never 'Pro' — until a real payment lands. App Review reads 'Pro Active' on a fresh install as 'Pro for free'."
       - "Track 'has the user actually paid?' as a sticky client flag (hasPaidEver) that converges in `refreshAfterPurchase`. Both StoreKit and the web paywall must set it. Without that signal the UI cannot distinguish trial entitlement from paid entitlement, because the backend just hands back an `expiry` date in both cases."
       - "Route paywall by storefront, not device locale. `Storefront.current.countryCode` is the authoritative identifier of the user's purchasing region; `Locale.region` is a UI-language hint that does NOT mean the user is paying via that region. Mixing them strands App Review on a payment flow they can't test."
       - "ASC IAPs in DEVELOPER_ACTION_NEEDED + REJECTED localizations can't be unstuck linearly. The escape sequence we found: (1) DELETE the en-US REJECTED localization (works), (2) POST a fresh en-US localization (state → PREPARE_FOR_SUBMISSION), (3) POST `/v1/inAppPurchaseSubmissions` with the IAP relationship (IAP state → WAITING_FOR_REVIEW even though ru loc is still REJECTED), (4) THEN DELETE the ru REJECTED localizations (now works — the 500 goes away once the IAP itself is in review). Steps 1+2 alone don't unstick the IAP; step 3 is the key."
-      - "On a first app submission, IAPs must be submitted ALONGSIDE the app version: a `reviewSubmissionItem` of type `inAppPurchaseV2` per IAP in the same reviewSubmission as the appStoreVersion. Without that the reviewer cannot see/test the IAP and Apple flags Guideline 2.1(b) 'IAP not found in submitted binary' even though the product IDs are in the binary as string literals — Apple's complaint is about the version submission, not the binary's strings."
+      - "On a first app submission, IAPs and the app version go for review IN PARALLEL but via SEPARATE submissions: appStoreVersion via `reviewSubmissionItem`, IAPs via `inAppPurchaseSubmissions` (one per IAP). The reviewSubmissionItem resource does NOT accept `inAppPurchaseV2` as a relationship — that returns 409 'is not a relationship on the resource' (Apple has moved IAPs off that schema). Apple's reviewer pairs them by timing/app, so submitting both around the same time is enough. The 2.1(b) 'IAP not found in submitted binary' fires when there is NO IAP in review for the app version Apple is reviewing — not when the binary is missing product-id strings."
 
   - id: 2026-05-15-app-review-guest-signin-error
     date: 2026-05-15
