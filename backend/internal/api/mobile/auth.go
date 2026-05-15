@@ -29,6 +29,15 @@ type AppleSignInRequest struct {
 }
 
 // AuthResponse is the response for successful authentication.
+//
+// `is_trial` is computed as `(SubscriptionExpiry is future) && (no
+// completed payments exist for this user)`. The iOS client uses it to
+// render "Free trial · N days" instead of "PRO · ACTIVE" while the
+// entitlement is the backend 3-day trial. App Review build 75 round-6
+// confirmed the "Pro by default" framing must not appear on trial
+// entitlements. The flag is omitted from /auth/refresh responses
+// because refresh does not change trial state and would add an extra
+// DB hit on every token rotation.
 type AuthResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
@@ -36,6 +45,35 @@ type AuthResponse struct {
 	UserID       int64  `json:"user_id"`
 	Username     string `json:"username"`
 	IsNew        bool   `json:"is_new"`
+	IsTrial      bool   `json:"is_trial"`
+}
+
+// userHasCompletedPayment reports whether the given user has at least one
+// `completed` row in the payments table. Errors are treated as "no
+// payments" — the failure mode (showing TRIAL to a paid user on a DB
+// hiccup) is preferable to the inverse (claiming PAID without proof).
+func userHasCompletedPayment(ctx context.Context, database *db.DB, userID int64) bool {
+	var exists bool
+	err := database.Pool.QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM payments WHERE user_id = $1 AND status = 'completed')`,
+		userID,
+	).Scan(&exists)
+	if err != nil {
+		return false
+	}
+	return exists
+}
+
+// computeIsTrial returns true if the user is currently on the backend
+// free trial (has a future SubscriptionExpiry and no completed payment).
+func computeIsTrial(ctx context.Context, database *db.DB, user *db.User) bool {
+	if user == nil || user.SubscriptionExpiry == nil {
+		return false
+	}
+	if user.SubscriptionExpiry.Before(time.Now()) {
+		return false
+	}
+	return !userHasCompletedPayment(ctx, database, user.ID)
 }
 
 // ErrorResponse is the standard JSON error body.
@@ -125,6 +163,7 @@ func (h *Handler) Register(c echo.Context) error {
 		UserID:       user.ID,
 		Username:     vpnUsername,
 		IsNew:        isNew,
+		IsTrial:      computeIsTrial(ctx, h.DB, user),
 	})
 }
 
@@ -366,6 +405,7 @@ func (h *Handler) AppleSignIn(c echo.Context) error {
 		UserID:       user.ID,
 		Username:     vpnUsername,
 		IsNew:        isNew,
+		IsTrial:      computeIsTrial(ctx, h.DB, user),
 	})
 }
 

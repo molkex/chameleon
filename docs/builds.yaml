@@ -7,6 +7,50 @@
 # (Builds 36-54 are not migrated; see archive/2026-05-pre-yaml/.)
 
 builds:
+  - number: 76
+    version: "1.0.26"
+    date: 2026-05-15
+    track: testflight-internal   # not yet swapped into the App Store submission (round 7 build 75 is still in queue)
+    asc-build-id: cf8cf8ec-cf9e-430b-a32f-e2f009fa7486
+    archive-path: /tmp/MadFrogVPN-build76.xcarchive
+    field-verified: false
+    notes: |
+      Fix for build-75 regression spotted in TestFlight: paid web-paywall
+      users seeing the "TRIAL" label after a fresh reinstall (because the
+      local sticky `hasPaidEver` flag was false). Also unifies the trial
+      colour treatment so the green "TRIAL" pill and the magenta
+      "ПРОБНЫЙ ПЕРИОД" strip don't visually clash.
+
+      Backend changes (auth.go, auth_google.go, auth_magic.go):
+      AuthResponse gains `is_trial: bool` computed as
+      `(SubscriptionExpiry is future) && (no completed payments)`. New
+      helper `userHasCompletedPayment` does a small EXISTS query against
+      the `payments` table. Returned from register / signInWithApple /
+      signInWithGoogle / verifyMagicLink. Refresh-token responses
+      deliberately omit the field (refresh shouldn't trigger a DB hit).
+
+      iOS changes:
+      - APIClient.AuthResult: new optional `isTrial` field decoded from
+        `is_trial`. Optional for backward compat with older backends.
+      - ConfigStore: new `isTrialFromBackend` flag (UserDefaults-backed,
+        defaults to `true` when unset — conservative). Saved from every
+        successful sign-in (anonymous / apple / google / magic /
+        reRegister). Also set to `false` optimistically in
+        `refreshAfterPurchase` so the UI flips off TRIAL immediately on
+        purchase success.
+      - AppState.isTrial: now reads from `configStore.isTrialFromBackend`
+        as primary signal, with `subscriptionManager.isPremium` and
+        `configStore.hasPaidEver` as "definitely paid" short-circuits.
+      - Theme: new `warning` colour (amber #FFBC32 calm / #FFC63F neon)
+        used by the trial UI everywhere.
+      - MainViewNeon: "TRIAL" pill background and bottom-strip accent
+        both use `theme.warning` while `isTrial`; "PRO" path unchanged.
+      - MainViewCalm: bottom-bar icon is an amber `hourglass` while
+        `isTrial` (was unconditionally `crown.fill`).
+
+      iOS-only build (libbox unchanged from build 60). project.yml
+      CURRENT_PROJECT_VERSION 75 → 76.
+
   - number: 75
     version: "1.0.26"
     date: 2026-05-15

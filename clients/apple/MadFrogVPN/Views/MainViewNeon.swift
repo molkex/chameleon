@@ -115,16 +115,22 @@ struct MainViewNeon: View {
 
             Spacer()
 
-            // Trial users see a "TRIAL" pill, paying users keep "PRO".
-            // App Review build 74 rejected the "Pro by default" UX —
-            // see incident 2026-05-15-app-review-iap-not-found.
+            // Trial users see an amber "TRIAL" pill, paying users see the
+            // accent-coloured "PRO" pill. App Review build 74 rejected the
+            // "Pro by default" UX — see incident
+            // 2026-05-15-app-review-iap-not-found. Build 76 unified the
+            // trial styling: amber everywhere (pill + bottom strip
+            // wording) so there's no green vs. magenta inconsistency.
             if app.subscriptionExpire != nil {
                 Text(app.isTrial ? "TRIAL" : "PRO")
                     .font(.system(size: 11, weight: .black))
                     .kerning(1.2)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(theme.accent, in: RoundedRectangle(cornerRadius: 8))
+                    .background(
+                        app.isTrial ? theme.warning : theme.accent,
+                        in: RoundedRectangle(cornerRadius: 8)
+                    )
                     .foregroundStyle(theme.background)
             }
 
@@ -398,14 +404,19 @@ struct MainViewNeon: View {
 
     @ViewBuilder
     private var subscriptionStrip: some View {
-        Button {
+        // Trial state uses theme.warning (amber) for the strip accent so it
+        // unifies with the "TRIAL" pill above and is visually distinct from
+        // both the green "PRO" pill and the magenta "GET PRO" cta. See
+        // incident 2026-05-15-app-review-iap-not-found.
+        let stripAccent: Color = app.isTrial ? theme.warning : theme.accentSecondary
+        return Button {
             showPaywall = true
         } label: {
             HStack {
                 Text(subscriptionStripLeftText)
                     .font(.system(size: 11, weight: .black))
                     .kerning(1.2)
-                    .foregroundStyle(theme.accentSecondary)
+                    .foregroundStyle(stripAccent)
                 Spacer()
                 Text(subscriptionStripRightText)
                     .font(.system(size: 12, weight: .bold))
@@ -415,11 +426,11 @@ struct MainViewNeon: View {
             .padding(.vertical, 12)
             .background(
                 RoundedRectangle(cornerRadius: 14)
-                    .fill(theme.accentSecondary.opacity(0.10))
+                    .fill(stripAccent.opacity(0.10))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 14)
-                    .stroke(theme.accentSecondary.opacity(0.3), lineWidth: 1)
+                    .stroke(stripAccent.opacity(0.3), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)

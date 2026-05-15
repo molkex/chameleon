@@ -14,6 +14,10 @@ prod:
     #   REFUND / REVOKE / REFUND_REVERSED handling. Deployed 2026-05-14.
     #   launch-03 — diagnostic endpoint extended for crash summaries
     #   (mobile.crash log key). Deployed 2026-05-14.
+    #   build-76 support — AuthResponse.is_trial computed from the
+    #   payments table; new helper userHasCompletedPayment in auth.go.
+    #   Returned from register / signInWithApple / signInWithGoogle /
+    #   verifyMagicLink. Deployed to DE 2026-05-15.
     nodes:
       - id: de
         host: 162.19.242.30
@@ -31,12 +35,20 @@ prod:
 
   ios:
     marketing-version: "1.0.26"
-    current-build: 75                              # last UPLOADED build (round-5 resubmit)
-    track: app-store                               # build 75 = App Store review (replaces build 74 in the submission)
-    asc-build-id: da8fe96d-1e3a-428d-9a64-dbc8d1301205
+    current-build: 76                              # last UPLOADED build (TestFlight Internal only — build 75 is the App Store submission, in round 7)
+    track: testflight-internal                     # build 76 = build-75 regression fix (trial UI + backend is_trial). NOT swapped into the App Store submission while build 75 is in queue.
+    asc-build-id: cf8cf8ec-cf9e-430b-a32f-e2f009fa7486
     uploaded: 2026-05-15
-    field-verified: false                        # builds 65-75 not yet field-tested; 60-64 were. SIWA + guest-signin + trial-UI fixes UNVERIFIED on device. See incidents 2026-05-14-app-review-siwa-unresponsive + 2026-05-15-app-review-guest-signin-error + 2026-05-15-app-review-iap-not-found
-    previous-builds-in-testflight: [74, 73, 72, 71, 70, 69, 68, 67, 66, 65, 64, 63, 62, 61, 60, 59, 58, 57, 56, 55]
+    field-verified: false                        # builds 65-76 not yet field-tested in detail; build 75 in App Store round-7 review. See incidents 2026-05-14-app-review-siwa-unresponsive + 2026-05-15-app-review-guest-signin-error + 2026-05-15-app-review-iap-not-found
+    previous-builds-in-testflight: [75, 74, 73, 72, 71, 70, 69, 68, 67, 66, 65, 64, 63, 62, 61, 60, 59, 58, 57, 56, 55]
+    # build 76 = build-75 regression fix (TestFlight only). User
+    # reported on build-75 TestFlight that paid web-paywall accounts
+    # were rendering "TRIAL" after a fresh reinstall (because the
+    # local sticky `hasPaidEver` flag was false). Backend now returns
+    # `is_trial: bool` in AuthResponse computed from the payments
+    # table; iOS consumes it as the canonical signal. Plus unified
+    # amber colour for trial UI (TRIAL pill + bottom strip + Calm
+    # bottom-bar icon). See incident 2026-05-15-app-review-iap-not-found.
     # build 75 = App Review reject fix round 4 — Guideline 2.1(a)+(b).
     # "Pro by default" + IAP not found. Two client changes: (1) trial
     # rendered as "Free trial · N days" (not "Pro") via sticky
@@ -87,7 +99,7 @@ prod:
   chameleon-repo:
     branch: claude/naughty-golick-e7f6a5
     pushed-to-origin: true
-    head: 8cda657                                  # round-6 appeal submitted; round-7 ASC resubmit docs commit follows next
+    head: 0e30605                                  # round-7 ASC resubmit; build-76 regression-fix commit follows next
     unpushed-commits: 0                           # update on every push
 
   app-store:

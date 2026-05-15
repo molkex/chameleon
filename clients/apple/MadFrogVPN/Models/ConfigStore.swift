@@ -87,16 +87,27 @@ class ConfigStore {
         set { sharedDefaults?.set(newValue, forKey: AppConstants.subscriptionExpireKey) }
     }
 
-    /// Sticky "user has ever completed a real purchase" flag. Set by the
-    /// StoreKit success path (SubscriptionManager.purchase) and the web
-    /// paywall success poll (WebPaywallView.pollStatus). Stays true once
-    /// set; the UI uses it to render "PRO ACTIVE" only for paid users and
-    /// "TRIAL · N days left" for everyone else with a non-nil
-    /// subscriptionExpire. App Review (build 74, round 4) rejected the
-    /// "Pro by default" UX — see incident 2026-05-15-app-review-iap-not-found.
+    /// Sticky "user has ever completed a real purchase" flag (on-device).
+    /// Set by the StoreKit success path (SubscriptionManager.purchase) and
+    /// the web paywall success poll (WebPaywallView.pollStatus). Useful as
+    /// a defence-in-depth fallback alongside `isTrialFromBackend`, in case
+    /// the next /auth round-trip is delayed or the backend signal momentarily
+    /// regresses. App Review (build 74, round 4) rejected the "Pro by
+    /// default" UX — see incident 2026-05-15-app-review-iap-not-found.
     var hasPaidEver: Bool {
         get { sharedDefaults?.bool(forKey: AppConstants.hasPaidEverKey) ?? false }
         set { sharedDefaults?.set(newValue, forKey: AppConstants.hasPaidEverKey) }
+    }
+
+    /// Canonical backend signal: is the current `subscriptionExpire` the
+    /// backend 3-day free trial (true) or a paid subscription (false)?
+    /// Sourced from `AuthResponse.is_trial` on every successful sign-in.
+    /// Defaults to `true` when unset — conservative because the inverse
+    /// failure mode ("render PRO without proof") was the build-74 round-4
+    /// App Review reject. See incident 2026-05-15-app-review-iap-not-found.
+    var isTrialFromBackend: Bool {
+        get { sharedDefaults?.object(forKey: AppConstants.isTrialFromBackendKey) as? Bool ?? true }
+        set { sharedDefaults?.set(newValue, forKey: AppConstants.isTrialFromBackendKey) }
     }
 
     var lastUpdate: Date? {
@@ -197,10 +208,12 @@ class ConfigStore {
         sharedDefaults?.removeObject(forKey: AppConstants.lastUpdateKey)
         sharedDefaults?.removeObject(forKey: AppConstants.startOptionsKey)
         sharedDefaults?.removeObject(forKey: AppConstants.selectedServerTagKey)
-        // Clear the "has paid ever" flag on logout/account-wipe so the next
-        // sign-in starts as trial until they actually pay again. Otherwise a
-        // logout → sign-in-as-different-user would inherit "PRO ACTIVE".
+        // Clear the trial-detection flags on logout/account-wipe so the
+        // next sign-in starts as trial until backend confirms otherwise.
+        // Otherwise a logout → sign-in-as-different-user would inherit
+        // "PRO ACTIVE" from the previous user's state.
         sharedDefaults?.removeObject(forKey: AppConstants.hasPaidEverKey)
+        sharedDefaults?.removeObject(forKey: AppConstants.isTrialFromBackendKey)
     }
 
     // MARK: - Parse Servers from Config

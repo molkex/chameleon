@@ -333,14 +333,30 @@ struct MainViewCalm: View {
     // MARK: - Bottom bar
 
     private var bottomBar: some View {
-        HStack(spacing: 10) {
+        // Trial uses an hourglass icon + amber accent so the bottom bar
+        // doesn't read as "crown / Pro" while the user is still on the
+        // backend trial. Paid users keep the crown. See incident
+        // 2026-05-15-app-review-iap-not-found.
+        let iconName: String
+        let iconColor: Color
+        if app.subscriptionExpire == nil {
+            iconName = "sparkles"
+            iconColor = theme.accent
+        } else if app.isTrial {
+            iconName = "hourglass"
+            iconColor = theme.warning
+        } else {
+            iconName = "crown.fill"
+            iconColor = theme.accent
+        }
+        return HStack(spacing: 10) {
             Button {
                 showPaywall = true
             } label: {
                 HStack(spacing: 10) {
-                    Image(systemName: app.subscriptionExpire != nil ? "crown.fill" : "sparkles")
+                    Image(systemName: iconName)
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(theme.accent)
+                        .foregroundStyle(iconColor)
                     Text(subscriptionText)
                         .font(theme.font(size: 13, weight: .semibold))
                         .foregroundStyle(theme.textPrimary)

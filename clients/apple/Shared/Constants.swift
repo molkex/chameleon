@@ -97,14 +97,28 @@ enum AppConstants {
     static let selectedServerTagKey = "selectedServerTag"
     static let subscriptionExpireKey = "subscriptionExpire"
     /// Set to true once the user has completed a real purchase (StoreKit IAP or
-    /// FreeKassa web payment). Stays true once set — used by the UI to
-    /// distinguish a free trial entitlement from a paid subscription so the
-    /// "PRO ACTIVE" badge only appears for paid users. App Review build-74
-    /// rejection (Guideline 2.1(a), round 4) flagged "Pro status awarded by
-    /// default" because the 3-day backend trial rendered as "PRO ACTIVE" on a
-    /// fresh install with no purchase. See incident
-    /// 2026-05-15-app-review-iap-not-found.
+    /// FreeKassa web payment) on THIS install. Sticky on-device fallback for
+    /// distinguishing a free trial entitlement from a paid subscription.
+    /// Build 76 made the backend the canonical source via `isTrialFromBackendKey`
+    /// — this flag remains as a defence in depth for fresh-install upgrades
+    /// before the next auth round-trip, and for cases where the backend
+    /// momentarily can't be reached. App Review build-74 rejection
+    /// (Guideline 2.1(a), round 4) flagged "Pro status awarded by default"
+    /// because the 3-day backend trial rendered as "PRO ACTIVE" on a fresh
+    /// install. See incident 2026-05-15-app-review-iap-not-found.
     static let hasPaidEverKey = "hasPaidEver"
+    /// Canonical backend signal for "is this entitlement the 3-day backend
+    /// trial?" Set from `AuthResponse.is_trial` on every sign-in
+    /// (register / Apple / Google / Magic). The backend computes it as
+    /// `(SubscriptionExpiry is future) && (no completed payments)`, which
+    /// correctly distinguishes a paid web-paywall user reinstalling on a
+    /// new device (where the local `hasPaidEver` flag is false but the
+    /// user really has paid) from a genuine trial user. Default value when
+    /// missing is `true` (conservative — render trial until backend confirms
+    /// otherwise; the inverse failure mode "render PRO without proof"
+    /// breaks App Review). See incident
+    /// 2026-05-15-app-review-iap-not-found.
+    static let isTrialFromBackendKey = "isTrialFromBackend"
     // Routing mode: "smart" (default) | "ru-direct" | "full-vpn".
     // Controls the three sing-box selectors: "RU Traffic", "Blocked Traffic",
     // "Default Route". See RoutingMode.applyToClash() for the mapping.

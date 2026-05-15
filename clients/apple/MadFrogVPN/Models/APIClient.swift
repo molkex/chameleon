@@ -60,12 +60,18 @@ struct AuthResult: Codable {
     let refreshToken: String
     let username: String
     let isNew: Bool?
+    /// Backend signal: is the entitlement the 3-day backend free trial
+    /// (true) or a paid subscription (false)? Optional because older
+    /// backend versions don't return it — callers default to `true`
+    /// (conservative). See incident 2026-05-15-app-review-iap-not-found.
+    let isTrial: Bool?
 
     enum CodingKeys: String, CodingKey {
         case accessToken = "access_token"
         case refreshToken = "refresh_token"
         case username
         case isNew = "is_new"
+        case isTrial = "is_trial"
     }
 }
 

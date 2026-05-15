@@ -20,6 +20,12 @@ struct Theme: Equatable {
     let textSecondary: Color
     let success: Color
     let danger: Color
+    /// Amber/yellow used by the trial UI ("TRIAL" pill, "Пробный период"
+    /// strip). Intentionally distinct from `accent` (paid Pro signal) and
+    /// `accentSecondary` so trial state never looks like Pro-Active. App
+    /// Review build-74 round-4 background — see incident
+    /// 2026-05-15-app-review-iap-not-found.
+    let warning: Color
 
     // Shape language
     let cornerRadius: CGFloat
@@ -60,6 +66,7 @@ extension Theme {
         textSecondary: Color(red: 0.541, green: 0.541, blue: 0.541),    // #8A8A8A
         success: Color(red: 0.91, green: 1.0, blue: 0.294),
         danger: Color(red: 1.0, green: 0.42, blue: 0.42),
+        warning: Color(red: 1.0, green: 0.737, blue: 0.196),             // #FFBC32 amber for trial
         cornerRadius: 16,
         cardCornerRadius: 26,
         displayFontName: nil,   // SF Pro Rounded fallback for now
@@ -80,6 +87,7 @@ extension Theme {
         textSecondary: Color(red: 0.518, green: 0.588, blue: 0.706),    // #8496B4
         success: Color(red: 0.549, green: 1.0, blue: 0.31),
         danger: Color(red: 1.0, green: 0.239, blue: 0.604),
+        warning: Color(red: 1.0, green: 0.776, blue: 0.247),             // #FFC63F amber for trial (distinct from neon green + magenta)
         cornerRadius: 12,
         cardCornerRadius: 18,
         displayFontName: nil,   // Syne Black fallback for now

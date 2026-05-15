@@ -36,20 +36,28 @@ class AppState {
     var errorMessage: String?
     var vpnConnectedAt: Date?
     var subscriptionExpire: Date?
-    /// True when the user has a non-nil `subscriptionExpire` (a future date
-    /// granting full access) but has **never** completed a real purchase —
-    /// i.e. they're on the 3-day backend free trial. Drives the UI to render
-    /// "Пробный период · N дней" instead of "PRO · АКТИВНА". App Review build
-    /// 74 (round 4, Guideline 2.1(a)) rejected the "Pro by default" UX —
-    /// see incident 2026-05-15-app-review-iap-not-found.
-    /// `hasPaidEver` is sticky in ConfigStore; `subscriptionManager.isPremium`
-    /// is the live StoreKit signal. Either being true → user has paid → not
-    /// trial.
+    /// True when the user holds a non-nil `subscriptionExpire` and the
+    /// entitlement is the 3-day backend free trial, not a paid subscription.
+    /// Drives the UI to render "Пробный период · N дней" / "TRIAL" instead
+    /// of "PRO · АКТИВНА". App Review build 74 round 4 (Guideline 2.1(a))
+    /// rejected the "Pro by default" UX — see incident
+    /// 2026-05-15-app-review-iap-not-found.
+    ///
+    /// Source of truth is the backend signal `configStore.isTrialFromBackend`
+    /// (set from `AuthResponse.is_trial` on every sign-in). Local fallbacks
+    /// short-circuit "definitely paid" to false even before the next /auth
+    /// round-trip: a live StoreKit entitlement (`subscriptionManager.isPremium`)
+    /// or a sticky on-device purchase flag (`configStore.hasPaidEver` —
+    /// set by `refreshAfterPurchase` on any successful purchase) both
+    /// outrank the backend signal. This handles the build-75 regression
+    /// where a paid web-paywall user reinstalling on a new device saw
+    /// "TRIAL" because the local flags were fresh but the backend record
+    /// (payments table) knew they'd paid.
     var isTrial: Bool {
         guard subscriptionExpire != nil else { return false }
         if subscriptionManager.isPremium { return false }
         if configStore.hasPaidEver { return false }
-        return true
+        return configStore.isTrialFromBackend
     }
     var isAuthenticated: Bool = false
     var isInitialized: Bool = false
@@ -361,10 +369,11 @@ class AppState {
         do {
             let result = try await apiClient.registerDevice()
             AppLogger.app.info("signInAnonymous: registered as \(result.username)")
-            TunnelFileLogger.log("signInAnonymous: registerDevice OK, username=\(result.username) isNew=\(result.isNew ?? false)", category: "auth")
+            TunnelFileLogger.log("signInAnonymous: registerDevice OK, username=\(result.username) isNew=\(result.isNew ?? false) isTrial=\(result.isTrial ?? true)", category: "auth")
             configStore.accessToken = result.accessToken
             configStore.refreshToken = result.refreshToken
             configStore.username = result.username
+            configStore.isTrialFromBackend = result.isTrial ?? true
             // "Continue as guest" can land on an account that has NO active
             // subscription. registerDevice() finds the user by device_id —
             // and that device_id may have been promoted to a Sign-in-with-
@@ -467,6 +476,7 @@ class AppState {
         configStore.accessToken = result.accessToken
         configStore.refreshToken = result.refreshToken
         configStore.username = result.username
+        configStore.isTrialFromBackend = result.isTrial ?? true
         try await doFetchAndSave(username: result.username)
     }
 
@@ -619,10 +629,11 @@ class AppState {
         do {
             let result = try await apiClient.signInWithGoogle(idToken: idToken)
             AppLogger.app.info("signInWithGoogle: username=\(result.username), isNew=\(result.isNew ?? false)")
-            TunnelFileLogger.log("signInWithGoogle: API OK, username=\(result.username) isNew=\(result.isNew ?? false)", category: "auth")
+            TunnelFileLogger.log("signInWithGoogle: API OK, username=\(result.username) isNew=\(result.isNew ?? false) isTrial=\(result.isTrial ?? true)", category: "auth")
             configStore.accessToken = result.accessToken
             configStore.refreshToken = result.refreshToken
             configStore.username = result.username
+            configStore.isTrialFromBackend = result.isTrial ?? true
             try await fetchAndSaveConfig()
             subscriptionExpire = configStore.subscriptionExpire
             UserDefaults(suiteName: AppConstants.appGroupID)?.set(true, forKey: AppConstants.onboardingCompletedKey)
@@ -687,10 +698,11 @@ class AppState {
         do {
             let result = try await apiClient.verifyMagicLink(token: token)
             AppLogger.app.info("consumeMagicToken: username=\(result.username), isNew=\(result.isNew ?? false)")
-            TunnelFileLogger.log("consumeMagicToken: API OK, username=\(result.username) isNew=\(result.isNew ?? false)", category: "auth")
+            TunnelFileLogger.log("consumeMagicToken: API OK, username=\(result.username) isNew=\(result.isNew ?? false) isTrial=\(result.isTrial ?? true)", category: "auth")
             configStore.accessToken = result.accessToken
             configStore.refreshToken = result.refreshToken
             configStore.username = result.username
+            configStore.isTrialFromBackend = result.isTrial ?? true
             try await fetchAndSaveConfig()
             subscriptionExpire = configStore.subscriptionExpire
             UserDefaults(suiteName: AppConstants.appGroupID)?.set(true, forKey: AppConstants.onboardingCompletedKey)
@@ -723,10 +735,11 @@ class AppState {
         do {
             let result = try await apiClient.signInWithApple(identityToken: token)
             AppLogger.app.info("signInWithApple: username=\(result.username), isNew=\(result.isNew ?? false)")
-            TunnelFileLogger.log("signInWithApple: API OK, username=\(result.username) isNew=\(result.isNew ?? false)", category: "auth")
+            TunnelFileLogger.log("signInWithApple: API OK, username=\(result.username) isNew=\(result.isNew ?? false) isTrial=\(result.isTrial ?? true)", category: "auth")
             configStore.accessToken = result.accessToken
             configStore.refreshToken = result.refreshToken
             configStore.username = result.username
+            configStore.isTrialFromBackend = result.isTrial ?? true
             // /config 403 on a returning user whose trial has lapsed must NOT
             // be a hard failure — auth itself succeeded. Treat it as "signed
             // in, no active subscription" so the user lands inside the app
@@ -782,13 +795,18 @@ class AppState {
     /// reflect the freshly-extended plan.
     func refreshAfterPurchase() async {
         AppLogger.app.info("refreshAfterPurchase: pulling updated config")
-        // Sticky "the user has actually paid" flag. Set here so both
-        // success paths converge: StoreKit (PaywallView.onChange(isPremium))
-        // and the web paywall (WebPaywallView.pollStatus on "completed")
-        // both call refreshAfterPurchase. From now on the UI renders
-        // "PRO · АКТИВНА" for this user instead of the trial wording. See
-        // incident 2026-05-15-app-review-iap-not-found.
+        // Mark "the user has paid" on both fronts so the UI flips out
+        // of trial wording immediately, without waiting for the next
+        // /auth round-trip:
+        //   - hasPaidEver: sticky on-device fallback
+        //   - isTrialFromBackend = false: optimistic update; the backend
+        //     will confirm with is_trial=false on the next sign-in
+        //     (it now sees a completed payment row)
+        // Both success paths (StoreKit + web paywall) converge here.
+        // App Review build-74 round-4 rejection background: see incident
+        // 2026-05-15-app-review-iap-not-found.
         configStore.hasPaidEver = true
+        configStore.isTrialFromBackend = false
         do {
             try await fetchAndSaveConfig()
             subscriptionExpire = configStore.subscriptionExpire

@@ -211,6 +211,7 @@ func (h *Handler) MagicLinkVerify(c echo.Context) error {
 		UserID:       user.ID,
 		Username:     vpnUsername,
 		IsNew:        isNew,
+		IsTrial:      computeIsTrial(ctx, h.DB, user),
 	})
 }
 
