@@ -224,10 +224,19 @@ extension ExtensionPlatformInterface: LibboxPlatformInterfaceProtocol {
                 ipv6Prefixes.append(NSNumber(value: prefix.prefix()))
             }
         }
-        // Only set up IPv6 if the config provides IPv6 addresses
-        // (relay servers don't support IPv6 forwarding)
         if !ipv6Addresses.isEmpty {
             let ipv6Settings = NEIPv6Settings(addresses: ipv6Addresses, networkPrefixLengths: ipv6Prefixes)
+            ipv6Settings.includedRoutes = [NEIPv6Route.default()]
+            settings.ipv6Settings = ipv6Settings
+        } else {
+            // Build-56 leak-plug: capture all v6 routes INTO the tunnel even
+            // when sing-box has no v6 outbound. Without this, dual-stack apps
+            // (Safari, Gemini, Maps) do happy-eyeballs v6-first → packets go
+            // natively → Google sees the real IP and geo-gates features. ULA
+            // (RFC 4193) gives iOS a v6 source to route to; sing-box drops the
+            // packet on the outbound side (no v6 exit), happy-eyeballs falls
+            // back to v4 within ~250ms, v4 goes through the VPN as expected.
+            let ipv6Settings = NEIPv6Settings(addresses: ["fd00::1"], networkPrefixLengths: [NSNumber(value: 128)])
             ipv6Settings.includedRoutes = [NEIPv6Route.default()]
             settings.ipv6Settings = ipv6Settings
         }

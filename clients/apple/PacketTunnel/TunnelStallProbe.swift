@@ -89,9 +89,9 @@ final class TunnelStallProbe {
         /// Names of urltest groups to nudge via `LibboxCommandClient.urlTest`
         /// when stall fires. Sing-box's group tags are the human-facing
         /// labels we generate in `backend/internal/vpn/clientconfig.go`.
-        /// Build-41 added nested urltest groups (`_de_leaves`, `_nl_leaves`)
-        /// for cross-country fallback — we nudge the user-visible OUTER
-        /// groups, sing-box recurses into the inner ones automatically.
+        /// Build-42 reverted to flat single-country urltests — country groups
+        /// hold only own-country leaves, no cross-country fallback. Nudging
+        /// re-probes leaves within the user's chosen country.
         var urltestGroupTags: [String] = ["Auto", "🇩🇪 Германия", "🇳🇱 Нидерланды"]
     }
 

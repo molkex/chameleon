@@ -23,7 +23,7 @@ const (
 	// emitted the config currently in their cache. BUMP THIS on any
 	// behavioural change to clientconfig.go (new flag, new outbound, new
 	// rule). Format: "<build>.<patch>-<short-tag>" e.g. "40.2-chain-fix".
-	configBuildMarker = "41.0-country-fallback"
+	configBuildMarker = "42.0-strict-country"
 )
 
 // legSortKey returns a comparable string that orders leaf tags within a
@@ -346,51 +346,14 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 	}
 	sort.Strings(countryCodes)
 
-	// Build-41 (2026-04-27): country groups become NESTED urltest with
-	// cross-country fallback. The user picks "🇩🇪 Германия" and we route
-	// through DE leaves while ANY DE leaf is alive; when ALL DE leaves go
-	// unavailable simultaneously (RU LTE + OVH ASN block scenario, observed
-	// 2026-04-26 23:58 — 4/4 DE leaves dead, only de-via-msk crawling at
-	// 4500ms probe latency), urltest auto-falls-back to NL leaves.
-	//
-	// Inner urltest "_<cc>_leaves" — keeps the build-39/40 fast re-election
-	// behaviour (interval=10s, tolerance=0, interrupt=true) over leaves of a
-	// SINGLE country.
-	//
-	// Outer urltest (the user-visible country group) — picks between inner
-	// groups with tolerance=99999, which means it sticks to the FIRST member
-	// (the country the user chose) and only switches when that inner group
-	// is fully unavailable. Outer interval is 15s — slightly slower than
-	// inner so we don't churn during transient blips.
-	//
-	// Inner tags start with `_` so iOS UI can filter them out of the country
-	// picker (clients/apple/Shared/ConfigSanitizer.swift).
-	const outerInterval = "15s"
-	// sing-box 1.13 encodes tolerance as uint16 (max 65535). 65000ms is
-	// still ~65 seconds — orders of magnitude larger than any realistic
-	// latency drift between healthy DE and NL leaves (200-500ms range), so
-	// the outer urltest treats both inner groups as effectively equal in
-	// latency and only switches when the current member returns
-	// `unavailable`. That's the whitelist-bypass semantic we want: NL is
-	// taken over DE only when DE-inner reports total failure.
-	const outerTolerance = 65000
-
-	var innerGroups []clientOutbound
-	innerByCC := map[string]string{}
-	for _, cc := range countryCodes {
-		innerTag := "_" + cc + "_leaves"
-		innerByCC[cc] = innerTag
-		innerGroups = append(innerGroups, clientOutbound{
-			Type:                      "urltest",
-			Tag:                       innerTag,
-			Outbounds:                 leavesByCountry[cc],
-			URL:                       urltestProbeURL,
-			Interval:                  urltestInterval,
-			Tolerance:                 urltestTolerance,
-			InterruptExistConnections: boolPtr(true),
-		})
-	}
-
+	// Build-42 (2026-05-23): country groups are strict single-country urltests.
+	// Reverts build-41's nested cross-country fallback because it silently
+	// re-routed the user's deliberate country pick — when ALL DE leaves
+	// returned `unavailable` (RU LTE OVH-ASN block), the outer urltest jumped
+	// to NL leaves while the UI still showed "🇩🇪 Германия", and Google
+	// geo-targeted the user as NL. Strict semantics: picking a country means
+	// "exit via this country or fail" — cross-country failover is opt-in via
+	// the explicit "Auto" group.
 	var countryGroups []clientOutbound
 	var countryGroupTags []string
 	for _, cc := range countryCodes {
@@ -398,23 +361,13 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 		if tag == "" {
 			tag = strings.ToUpper(cc)
 		}
-		// Own country first, then all others as fallback in deterministic
-		// (alpha-sorted) order. Single-country deployments degenerate to a
-		// nested urltest with one member — sing-box handles this gracefully.
-		members := []string{innerByCC[cc]}
-		for _, otherCC := range countryCodes {
-			if otherCC == cc {
-				continue
-			}
-			members = append(members, innerByCC[otherCC])
-		}
 		countryGroups = append(countryGroups, clientOutbound{
 			Type:                      "urltest",
 			Tag:                       tag,
-			Outbounds:                 members,
+			Outbounds:                 leavesByCountry[cc],
 			URL:                       urltestProbeURL,
-			Interval:                  outerInterval,
-			Tolerance:                 outerTolerance,
+			Interval:                  urltestInterval,
+			Tolerance:                 urltestTolerance,
 			InterruptExistConnections: boolPtr(true),
 		})
 		countryGroupTags = append(countryGroupTags, tag)
@@ -494,8 +447,8 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 	// sing-box 1.13. Topology (build-41):
 	//   Proxy (selector)            → references Auto, country urltests, leaves
 	//   Mode selectors              → reference Proxy / direct
-	//   Auto + country urltests     → reference inner _<cc>_leaves groups
-	//   Inner _<cc>_leaves urltests → reference individual leaf outbounds
+	//   Auto urltest                → all leaves cross-country (opt-in fallback)
+	//   Country urltests            → strict single-country leaves only (build-42)
 	//   Whitelist group (selector)  → references whitelist leaves
 	//   All leaves                  → individual outbounds
 	//   System                      → direct, block
@@ -503,7 +456,6 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 	allOutbounds = append(allOutbounds, ruTrafficOutbound, blockedTrafficOutbound, defaultRouteOutbound)
 	allOutbounds = append(allOutbounds, autoUrltest)
 	allOutbounds = append(allOutbounds, countryGroups...)
-	allOutbounds = append(allOutbounds, innerGroups...)
 	if whitelistGroupOutbound != nil {
 		allOutbounds = append(allOutbounds, *whitelistGroupOutbound)
 	}
