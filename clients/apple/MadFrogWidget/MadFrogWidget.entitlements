@@ -6,5 +6,16 @@
 	<array>
 		<string>group.com.madfrog.vpn</string>
 	</array>
+	<!-- launch-04b: the Control Center toggle / interactive widget
+	     button runs ToggleVPNIntent in THIS extension's process, which
+	     calls NETunnelProviderManager start/stopVPNTunnel. That needs
+	     the packet-tunnel-provider Network Extension entitlement here.
+	     Capability enabled on the com.madfrog.vpn.widget bundle ID via
+	     the ASC API (POST /v1/bundleIdCapabilities NETWORK_EXTENSIONS)
+	     — no portal step (unlike the App Group group-linkage). -->
+	<key>com.apple.developer.networking.networkextension</key>
+	<array>
+		<string>packet-tunnel-provider</string>
+	</array>
 </dict>
 </plist>

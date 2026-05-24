@@ -1487,7 +1487,6 @@ class AppState {
 
     private func handleStatus() {
         TunnelFileLogger.log("handleStatus: vpn status=\(vpnManager.status.rawValue)", category: "ui")
-        WidgetStatusBridge.publish(status: vpnManager.status, serverName: configStore.selectedServerTag)
         let sharedDefaults = UserDefaults(suiteName: AppConstants.appGroupID)
 
         switch vpnManager.status {
