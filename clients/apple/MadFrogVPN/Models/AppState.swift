@@ -868,15 +868,15 @@ class AppState {
         // in the background for next time. Only block on refresh when there is
         // no cache at all (first launch, offline).
         if configStore.hasConfig() {
-            // Fast-fail iOS multi-VPN collision: only one NEPacketTunnelProvider
-            // can be active at a time. If a third-party VPN is on, our start
-            // would die in the watchdog after ~18s with a misleading "сервер
-            // отклонил". Catch it now and tell the user the real cause.
-            if VPNErrorMapper.anotherVPNActive() {
-                TunnelFileLogger.log("toggleVPN: another VPN active — short-circuit", category: "ui")
-                errorMessage = L10n.Error.anotherVPNActive
-                return
-            }
+            // iOS multi-VPN handling: only one NEPacketTunnelProvider can be
+            // active at a time, BUT Apple's framework auto-displaces the
+            // current owner when we call setEnabled(true) + saveToPreferences +
+            // startTunnel (see vpnManager.connect). So we DON'T short-circuit
+            // here — let iOS try the takeover first. If it fails (e.g. user
+            // declined the system permission dialog, or the other VPN uses
+            // On-Demand and immediately reclaims the device), the catch /
+            // watchdog branches below detect the still-active foreign tunnel
+            // and surface the actionable "disable other VPN" message.
             TunnelFileLogger.log("toggleVPN: have cached config, running preconnect race + building", category: "ui")
             let config: String? = await configForStartupWithRace() ?? configStore.loadConfig()
             TunnelFileLogger.log("toggleVPN: config built, running preflight probe", category: "ui")
