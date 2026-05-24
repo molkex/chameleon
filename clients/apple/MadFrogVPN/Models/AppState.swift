@@ -868,6 +868,15 @@ class AppState {
         // in the background for next time. Only block on refresh when there is
         // no cache at all (first launch, offline).
         if configStore.hasConfig() {
+            // Fast-fail iOS multi-VPN collision: only one NEPacketTunnelProvider
+            // can be active at a time. If a third-party VPN is on, our start
+            // would die in the watchdog after ~18s with a misleading "сервер
+            // отклонил". Catch it now and tell the user the real cause.
+            if VPNErrorMapper.anotherVPNActive() {
+                TunnelFileLogger.log("toggleVPN: another VPN active — short-circuit", category: "ui")
+                errorMessage = L10n.Error.anotherVPNActive
+                return
+            }
             TunnelFileLogger.log("toggleVPN: have cached config, running preconnect race + building", category: "ui")
             let config: String? = await configForStartupWithRace() ?? configStore.loadConfig()
             TunnelFileLogger.log("toggleVPN: config built, running preflight probe", category: "ui")
@@ -896,7 +905,11 @@ class AppState {
                 TunnelFileLogger.log("toggleVPN: vpnManager.connect returned OK", category: "ui")
             } catch {
                 TunnelFileLogger.log("toggleVPN: vpnManager.connect FAILED: \(error)", category: "ui")
-                errorMessage = VPNErrorMapper.humanMessage(error)
+                if VPNErrorMapper.anotherVPNActive() {
+                    errorMessage = L10n.Error.anotherVPNActive
+                } else {
+                    errorMessage = VPNErrorMapper.humanMessage(error)
+                }
                 return
             }
 
@@ -922,7 +935,9 @@ class AppState {
             case .failed:
                 TunnelFileLogger.log("toggleVPN: watchdog — extension rejected connection", category: "ui")
                 vpnManager.disconnect()
-                errorMessage = L10n.Error.serverRejected
+                errorMessage = VPNErrorMapper.anotherVPNActive()
+                    ? L10n.Error.anotherVPNActive
+                    : L10n.Error.serverRejected
                 return
             case .permissionDenied:
                 TunnelFileLogger.log("toggleVPN: watchdog — permission denied", category: "ui")

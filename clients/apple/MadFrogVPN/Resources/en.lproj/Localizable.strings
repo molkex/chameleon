@@ -234,6 +234,7 @@
 /* ===== Errors ===== */
 "error.no_config"                = "No config available. Check your internet connection.";
 "error.server_rejected"          = "Server rejected the connection. Try another server.";
+"error.another_vpn_active"       = "Disable the other VPN first — iOS only allows one active VPN tunnel.";
 "error.timeout"                  = "Connection takes too long. Try another server.";
 "error.permission"               = "VPN permission denied. Grant VPN access in iOS Settings → General → VPN.";
 "error.generic"                  = "Could not connect.";
