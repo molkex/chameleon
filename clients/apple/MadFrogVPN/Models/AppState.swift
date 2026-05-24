@@ -3,6 +3,7 @@ import SwiftUI
 import NetworkExtension
 import AuthenticationServices
 import UserNotifications
+import WidgetKit
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -1487,6 +1488,12 @@ class AppState {
 
     private func handleStatus() {
         TunnelFileLogger.log("handleStatus: vpn status=\(vpnManager.status.rawValue)", category: "ui")
+        // Build-84: nudge the widget timeline so the Home/Lock-Screen widget
+        // re-reads App Group state immediately after the main app sees a
+        // status transition. Without this the widget can show stale "Защищено"
+        // for up to 15 min after disconnect (own timeline policy is the only
+        // refresh signal). Cheap: WidgetCenter rate-limits internally.
+        WidgetCenter.shared.reloadAllTimelines()
         let sharedDefaults = UserDefaults(suiteName: AppConstants.appGroupID)
 
         switch vpnManager.status {

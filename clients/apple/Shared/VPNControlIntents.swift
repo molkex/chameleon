@@ -102,17 +102,28 @@ enum VPNControl {
             // options: nil — the extension uses the App-Group-persisted
             // config; no backend fetch, no app launch on the warm path.
             try session.startTunnel(options: nil)
-            // Optimistic: startTunnel() didn't throw, so the tunnel is
-            // coming up. Stamp the App Group NOW so the timeline reload
-            // WidgetKit fires right after this intent shows the new
-            // state immediately — instead of waiting for the extension
-            // (whose own reloadAllTimelines() is iOS-budget-throttled).
-            // ExtensionProvider.publishWidgetState() then confirms it,
-            // or clears it if the connection actually fails.
-            publishOptimisticState(connected: true)
+            // Build-84: NO optimistic .connected write. startTunnel() is
+            // async — it returns without throwing as long as iOS QUEUED
+            // the start, but the actual tunnel may fail to come up
+            // (another VPN holding the device, On-Demand reclaim, config
+            // error, etc.). The widget process doesn't observe the
+            // outcome, so an optimistic .connected write here could
+            // never be reverted and the widget would lie forever about
+            // protection state. Defer to ExtensionProvider.publishWidget
+            // State, which fires from the one process that knows. Cost:
+            // ~1-3s delay before the widget shows "Защищено" after a tap;
+            // far better than showing it when actually disconnected.
+            // Still nudge a reload so any stale "Защищено" from a prior
+            // session gets re-read (current cleared key wins).
+            #if os(iOS)
+            WidgetCenter.shared.reloadAllTimelines()
+            #endif
 
         case .stop:
             managers[0].connection.stopVPNTunnel()
+            // Stop IS essentially immediate at the kernel level — the
+            // tunnel comes down within ~100ms. Optimistic-disconnected
+            // is safe: if it somehow stays up, ExtensionProvider re-asserts.
             publishOptimisticState(connected: false)
         }
     }
