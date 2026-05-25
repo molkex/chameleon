@@ -1358,7 +1358,18 @@ class AppState {
 
             let chain = self.resolveSelectionChain(target: selectedTag)
             guard !chain.isEmpty else {
-                TunnelFileLogger.log("applyServerSelectionIfLive: empty chain for '\(selectedTag)' — keeping baked-in default", category: "ui")
+                // Build-85: target no longer exists in the current config
+                // (the server / country was retired backend-side, e.g. DE
+                // shutdown 2026-05-25). The baked-in default is Auto so
+                // traffic still flows, but the UI keeps showing "🇩🇪 Германия"
+                // forever otherwise. Reset both the persisted tag and the
+                // mirrored @Observable copy so the chip / picker reflect
+                // reality on the next render.
+                TunnelFileLogger.log("applyServerSelectionIfLive: empty chain for '\(selectedTag)' — resetting to Auto", category: "ui")
+                if selectedTag != "Auto", self.configStore.selectedServerTag != nil {
+                    self.configStore.selectedServerTag = nil
+                    self.selectedServerTag = nil
+                }
                 return
             }
             let chainStr = chain.map { "\($0.group)→\($0.target)" }.joined(separator: " / ")
