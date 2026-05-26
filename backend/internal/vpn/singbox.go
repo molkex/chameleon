@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -455,13 +456,68 @@ func (e *SingboxEngine) GenerateClientConfig(user VPNUser, servers []ServerEntry
 // ---------------------------------------------------------------------------
 
 // writeConfigLocked generates the server config and writes it atomically.
+//
+// Audit H-003 (2026-05-26): before the final rename onto e.configPath,
+// validate the generated JSON with `sing-box check`. A schema regression
+// (e.g. accidental field rename during a sing-box version bump) would
+// otherwise reach the live config and brick the tunnel on the next HUP.
+// Falls back to skip-check (with a warning log) when the binary can't
+// be found, so unit tests / fresh dev boxes without sing-box still work.
 func (e *SingboxEngine) writeConfigLocked() error {
 	data, err := e.buildServerConfig()
 	if err != nil {
 		return fmt.Errorf("build config: %w", err)
 	}
 
+	// Write to a temp sibling next to the real config; only rename on
+	// successful validation. atomicWrite does its own *.tmp dance for the
+	// final swap; here we just gate it on a separate validation pass.
+	if err := validateSingboxConfig(data, e.logger); err != nil {
+		return fmt.Errorf("singbox check: %w", err)
+	}
+
 	return atomicWrite(e.configPath, data)
+}
+
+// validateSingboxConfig writes the candidate JSON to a temp file and runs
+// `sing-box check -c <temp>`. Returns nil on success, error on validation
+// failure. If the sing-box binary isn't on PATH, logs a warning and returns
+// nil — that lets unit tests and fresh dev environments work without the
+// binary installed, while production (where sing-box is always present)
+// gets the check.
+func validateSingboxConfig(data []byte, logger *zap.Logger) error {
+	bin, err := exec.LookPath("sing-box")
+	if err != nil {
+		if logger != nil {
+			logger.Warn("singbox check skipped: binary not found on PATH", zap.Error(err))
+		}
+		return nil
+	}
+
+	tmp, err := os.CreateTemp("", "singbox-check-*.json")
+	if err != nil {
+		return fmt.Errorf("create temp: %w", err)
+	}
+	defer func() {
+		_ = os.Remove(tmp.Name())
+		_ = tmp.Close()
+	}()
+
+	if _, err := tmp.Write(data); err != nil {
+		return fmt.Errorf("write temp: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("close temp: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, bin, "check", "-c", tmp.Name())
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("validation failed: %s: %w", strings.TrimSpace(string(out)), err)
+	}
+	return nil
 }
 
 // buildServerConfig generates the sing-box server JSON config from current state.

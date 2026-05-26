@@ -23,6 +23,7 @@ import (
 	"flag"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -343,10 +344,26 @@ func run() error {
 
 	e := api.NewServer(srv)
 
+	// Audit H-011 (2026-05-26): explicit http.Server timeouts + header limits.
+	// Without these, a slowloris client holding TCP open with a never-finishing
+	// header stream ties up an Echo handler indefinitely. Nginx in front would
+	// usually catch this for public traffic, but the chameleon container also
+	// listens on :8000 directly (cluster sync, metrics-agent path), so we
+	// belt-and-braces here.
+	httpServer := &http.Server{
+		Addr:              listenAddr,
+		Handler:           e,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		MaxHeaderBytes:    1 << 16, // 64 KiB — generous for JWT-laden headers, hostile for header floods
+	}
+
 	errCh := make(chan error, 1)
 	go func() {
 		logger.Info("http server listening", zap.String("addr", listenAddr))
-		if err := e.Start(listenAddr); err != nil {
+		if err := e.StartServer(httpServer); err != nil {
 			// echo returns error on Shutdown -- not a real failure.
 			errCh <- err
 		}

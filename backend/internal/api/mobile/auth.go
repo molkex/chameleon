@@ -393,7 +393,11 @@ func (h *Handler) RefreshToken(c echo.Context) error {
 	// One-time use: mark this token as used in Redis (same pattern as admin auth).
 	// SET NX ensures only the first caller succeeds.
 	ctx := c.Request().Context()
-	key := fmt.Sprintf("mrt:used:%s", req.RefreshToken[:32])
+	// Audit H-007 (2026-05-26): SHA-256 of full token, not 32-char prefix.
+	// HS256 JWT headers share a stable prefix, so token[:32] could collide
+	// across unrelated refresh tokens.
+	rtHash := sha256.Sum256([]byte(req.RefreshToken))
+	key := fmt.Sprintf("mrt:used:%s", hex.EncodeToString(rtHash[:]))
 	ttl := 30 * 24 * time.Hour // Keep blacklist entry for 30 days
 
 	ok, err := h.Redis.SetNX(ctx, key, "1", ttl).Result()

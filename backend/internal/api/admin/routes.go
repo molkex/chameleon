@@ -65,12 +65,12 @@ func RegisterRoutes(g *echo.Group, h *Handler, jwtManager *auth.JWTManager) {
 	authGroup.POST("/logout", h.Logout)
 
 	// Auth check requires admin middleware (supports both header and cookie).
-	authGroup.GET("/me", h.Me, CookieOrBearerAuth(jwtManager))
+	authGroup.GET("/me", h.Me, CookieOrBearerAuth(jwtManager, h.DB))
 
 	// All remaining routes require admin auth (admin/operator/viewer can read).
 	// adminOnly is a stricter middleware applied on top of adminMW to
 	// destructive/privileged endpoints — see RequireAdmin below.
-	adminMW := CookieOrBearerAuth(jwtManager)
+	adminMW := CookieOrBearerAuth(jwtManager, h.DB)
 	adminOnly := RequireAdmin()
 
 	// Users. List/get are read; delete/extend are destructive → admin only.
@@ -128,7 +128,13 @@ func RequireAdmin() echo.MiddlewareFunc {
 // CookieOrBearerAuth returns Echo middleware that checks for admin auth
 // via either the Authorization header (Bearer token) or the access_token cookie.
 // This supports both the SPA (cookie-based) and API clients (bearer token).
-func CookieOrBearerAuth(jwtManager *auth.JWTManager) echo.MiddlewareFunc {
+//
+// Audit H-010 (2026-05-26): if `database` is non-nil, every request also
+// loads the admin row by claims.UserID and rejects when is_active=false.
+// Without that load, a soft-deleted admin (DeleteAdmin sets is_active=false
+// but does not invalidate tokens) keeps working until access-token expiry
+// and can refresh up to refresh TTL. With it, off-boarding is immediate.
+func CookieOrBearerAuth(jwtManager *auth.JWTManager, database *db.DB) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			// Try bearer token from Authorization header first.
@@ -161,6 +167,19 @@ func CookieOrBearerAuth(jwtManager *auth.JWTManager) echo.MiddlewareFunc {
 			// For admin endpoints, allow admin/operator/viewer roles.
 			if claimsResult.Role != "admin" && claimsResult.Role != "operator" && claimsResult.Role != "viewer" {
 				return echo.NewHTTPError(403, "forbidden")
+			}
+
+			// Audit H-010: reload from DB on every request. The JWT is
+			// valid until expiry; DeleteAdmin sets is_active=false but
+			// can't revoke already-issued tokens, so without this check
+			// off-boarded admins keep working for up to access+refresh
+			// TTL. Lookup failure also rejects — fail closed.
+			if database != nil {
+				ctx := c.Request().Context()
+				admin, lookupErr := database.FindAdminByID(ctx, claimsResult.UserID)
+				if lookupErr != nil || admin == nil || !admin.IsActive {
+					return echo.NewHTTPError(401, "unauthorized")
+				}
 			}
 
 			c.Set("auth_claims", claimsResult)
