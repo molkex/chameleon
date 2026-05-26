@@ -260,10 +260,10 @@ docker rm -f singbox && bash scripts/singbox-run.sh
 ### Как диагностировали
 - `reality private key not found` на NL-1 после деплоя nl2 → стоп nl2 чтобы остановить дальнейшую порчу через sync
 - Извлекли реальные private keys из живых singbox config (`/var/lib/docker/volumes/chameleon-singbox-config/_data/singbox-config.json`)
-- Вывели public keys через `docker run --rm teddysun/xray xray x25519 -i <priv>`:
-  - DE singbox `mMQQZci...` → pub `ug2jX3uFFdLXih4t0O-PTRElQpAkO6v74RiRVJVvpzE`
-  - NL-1 singbox `YKtG3VAu...` → pub `q2prwNjFnbWJq_P3VzkjZE9KMm32mWKMKSc-235yvWE`
-- Это показало что в БД строки `de` (`opMTn_Dm...`) и `relay-nl` (`Lwt1zBDp...`) имеют ключи, не соответствующие ни одному живому серверу
+- Вывели public keys через `docker run --rm teddysun/xray xray x25519 -i <priv>` и сверили с БД
+- Это показало что строки в БД имеют ключи, не соответствующие ни одному живому серверу
+
+**⚠️ 2026-05-26 (audit CRIT-001):** конкретные значения private/public keys ранее упоминались в этом блоке. Удалены при ротации — production Reality keypairs (DE, NL2, MSK-relay) считались скомпрометированными из-за того что были закоммичены в test fixtures (`reality_keys_test.go`). Не возвращать конкретные значения в документацию ни при каких условиях.
 
 ### Решение
 1. Остановили chameleon на nl2 чтобы прервать sync
