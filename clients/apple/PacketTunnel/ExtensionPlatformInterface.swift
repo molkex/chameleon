@@ -170,10 +170,16 @@ extension ExtensionPlatformInterface: LibboxPlatformInterfaceProtocol {
     }
 
     func clearDNSCache() {
-        // Toggle tunnel settings to flush iOS DNS cache
+        // Audit MED-007 (2026-05-26): Apple docs require NEPacketTunnelProvider
+        // KVO-observable properties (reasserting, protocolConfiguration, etc.)
+        // to be mutated on the main thread. libbox calls this from its own
+        // background goroutine on every DNS-purge event, so without hopping
+        // we'd race NEVPNStatusDidChange observers in the main app.
         guard let tunnel = tunnel else { return }
-        tunnel.reasserting = true
-        tunnel.reasserting = false
+        DispatchQueue.main.async {
+            tunnel.reasserting = true
+            tunnel.reasserting = false
+        }
     }
 
     func send(_ notification: LibboxNotification?) throws {

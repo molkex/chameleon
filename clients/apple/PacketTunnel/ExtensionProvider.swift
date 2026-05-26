@@ -215,6 +215,14 @@ open class ExtensionProvider: NEPacketTunnelProvider {
             } catch {
                 TunnelFileLogger.logSync("ERROR: sing-box start failed: \(error)")
                 AppLogger.tunnel.error("sing-box start failed: \(error)")
+                // Audit MED-008 (2026-05-26): explicitly tear down the
+                // CommandServer + any partially-started service. The previous
+                // code only flipped grpcRunning=false and returned the error,
+                // leaving any sockets/file descriptors opened during
+                // startSingBox() dangling until the extension itself
+                // terminates. stopSingBox is idempotent — safe to call even
+                // if no listener was bound.
+                self.stopSingBox()
                 self.setGrpcState(false)
                 self.publishWidgetState(connected: false)
                 completionHandler(error)

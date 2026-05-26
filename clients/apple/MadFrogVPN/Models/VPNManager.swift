@@ -192,16 +192,40 @@ class VPNManager {
     }
 
     /// Send message to tunnel extension.
+    ///
+    /// Audit MED-006 (2026-05-26): bounded with a 5s timeout. The system
+    /// `sendProviderMessage` continuation will hang forever if the
+    /// extension never calls the completion handler (jetsam'd between
+    /// receiving the message and replying, or its handleAppMessage
+    /// implementation is missing a callback path). Without a timeout
+    /// any UI task awaiting this — server selection apply, ping refresh,
+    /// stats read — wedges silently. We surface that as a thrown
+    /// NSError(.timedOut) so callers can fall back gracefully.
     func sendMessage(_ data: Data) async throws -> Data? {
         guard let session = manager?.connection as? NETunnelProviderSession else { return nil }
-        return try await withCheckedThrowingContinuation { continuation in
-            do {
-                try session.sendProviderMessage(data) { response in
-                    continuation.resume(returning: response)
+        return try await withThrowingTaskGroup(of: Data?.self) { group in
+            group.addTask {
+                try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Data?, Error>) in
+                    do {
+                        try session.sendProviderMessage(data) { response in
+                            continuation.resume(returning: response)
+                        }
+                    } catch {
+                        continuation.resume(throwing: error)
+                    }
                 }
-            } catch {
-                continuation.resume(throwing: error)
             }
+            group.addTask {
+                try await Task.sleep(for: .seconds(5))
+                throw NSError(
+                    domain: NSURLErrorDomain,
+                    code: NSURLErrorTimedOut,
+                    userInfo: [NSLocalizedDescriptionKey: "extension sendProviderMessage timed out"]
+                )
+            }
+            let result = try await group.next()
+            group.cancelAll()
+            return result ?? nil
         }
     }
 

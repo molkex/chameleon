@@ -1781,15 +1781,18 @@ class AppState {
         let candidates = country.serverTags.filter { !deadLeavesInCurrentCascade.contains($0) }
         if let next = candidates.first {
             TunnelFileLogger.log("fallback: '\(pinned)' leaf '\(activeLeaf ?? "?")' → '\(next)' (same country)", category: "ui")
-            // selectOutbound on Proxy with a leaf tag bypasses the country
-            // urltest entirely — sing-box honours the explicit pick until
-            // we set it back via another selectOutbound or the user picks
-            // a country/Auto. The country pin in selectedServerTag is
-            // preserved at the iOS state level so leaving and returning
-            // re-pins.
+            // Audit P1-3 (2026-05-26): the previous version called
+            // selectOutbound directly and left `configStore.selectedServerTag`
+            // pointing at the country pin — `selectOutbound` is a live-tunnel
+            // override that doesn't survive restart, so the live leaf and
+            // the persisted intent diverged. Now both are written so a
+            // cold start re-honors the same leaf.
+            //
             // selectOutbound itself closes existing connections so in-flight
             // sockets get re-dialled through the new leaf.
             commandClient.selectOutbound(groupTag: group.tag, outboundTag: next)
+            configStore.selectedServerTag = next
+            selectedServerTag = next
             fallbackToastMessage = L10n.Recovery.switchedLeg(country.name)
             return
         }
