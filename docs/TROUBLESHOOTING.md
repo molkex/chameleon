@@ -2,6 +2,35 @@
 
 > 🤖 Mirror: [agent-readable YAML](troubleshooting.yaml) — keep in sync. Edit either, sync the other.
 
+## 2026-05-25: DE окончательно отключён (OVH retired, не продлевался)
+
+### Состояние
+`162.19.242.30` — ping 100% packet loss, все TCP-порты timeout, SSH dead. OVH договор истёк, не продлевался.
+
+### Cleanup
+- **Backend (NL postgres):** `UPDATE vpn_servers SET is_active=false WHERE id IN (1, 3)` (Russia→DE relay + Germany standard exit), `relay_exit_peers` connected rows cleaned.
+- **iOS build-85:** `applyServerSelectionIfLive` — если `configStore.selectedServerTag` не находится ни в одной группе нового /v1/config, сбрасывает на `nil` → Auto. Без этого fix'а UI лгал "🇩🇪 Германия" пока трафик уходил через NL.
+- **Остаточные DE-ссылки в коде** (не критично): `Tests/UnitTests/*` использует `de-direct-de` / `de-via-msk` как data fixtures для unit-тестов — безопасно. `RealTrafficStallDetector.swift` docstring приводит DE как пример формата лог-строк — безопасно.
+
+### Грабли
+- Не "чистить" DE из тестов — они валидируют `ServerTagShape` парсинг на формате `cc-protocol-host`, не presence DE в проде.
+- SPB relay `185.218.0.43` (INFRA-SPB-01) маппил на DE — после `is_active=false` на relay_exit_peers лишний хвост не отдаётся в /v1/config.
+
+## 2026-05-25: iOS виджет показывает "Защищено" хотя VPN отключён
+
+### Проблема
+Build 83: тап на shield-кнопке widget'а → widget мгновенно показывает "Защищено 0:06" с растущим таймером, главное приложение показывает "ВЫ ОТКЛЮЧЕНЫ". Расхождение остаётся навсегда до перезапуска.
+
+### Причина
+`ToggleVPNIntent.perform()` запускается в widget-extension процессе. После `try session.startTunnel(options: nil)` (который НЕ throws сразу — это "queued") вызывался `VPNControl.publishOptimisticState(connected: true)` → пишет `vpnConnectedAtKey = now` в App Group, widget читает → "Защищено". Если реальный connect упал асинхронно (другой VPN, On-Demand, config error), widget process не наблюдает outcome → optimistic write никогда не отменяется. Главное приложение очищало `vpnConnectedAtKey` в `handleStatus()` на `.disconnected`, но НЕ дёргало `WidgetCenter.reloadAllTimelines()` → widget узнавал только через свою 30-мин timeline policy.
+
+### Решение (build 84)
+1. `Shared/VPNControlIntents.swift` — убрал `publishOptimisticState(connected: true)` из `.start` case. Только `WidgetCenter.shared.reloadAllTimelines()` (на случай stale read). Authoritative truth = `ExtensionProvider.publishWidgetState()`, пишет когда sing-box реально стартанул (~1-3с после тапа). Optimistic `.stop` оставлен — `stopVPNTunnel` essentially мгновенный на kernel-уровне.
+2. `MadFrogVPN/Models/AppState.swift handleStatus()` — теперь `WidgetCenter.shared.reloadAllTimelines()` вызывается на каждой смене статуса. Дёшево: WidgetCenter сам rate-limit'ит.
+
+### Анти-паттерн
+**Не write `connected: true` optimistic из widget process без observation на реальный outcome.** startTunnel — это "iOS queued", не "tunnel up". Если в будущем понадобится мгновенный feedback при тапе — нужен отдельный `widget.pending_until` deadline-ключ, который автоматически expires если authoritative write не пришёл за N секунд.
+
 ## 2026-04-24: DE (OVH Frankfurt) заблокирован на RU LTE — все протоколы мёртвые
 
 ### Проблема

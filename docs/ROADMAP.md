@@ -15,9 +15,9 @@
 - **LAUNCH-01:** `PrivacyInfo.xcprivacy` — обязательно Apple с мая 2024. Декларировать UserDefaults usage, DeviceName usage, SystemBootTime usage. Без файла — авто-reject.
 - **LAUNCH-02:** Family Sharing для subscription — ASC флаг. Без него App Review задаёт вопросы по 3.1.2.
 - **LAUNCH-03:** Crash reporting (`TelemetryDeck` privacy-friendly или Sentry). Без него слепая зона на 5%+ крашей в проде.
-- **LAUNCH-04:** Widget (Home / Lock Screen) — минимум 1 штука: "connect toggle". iOS 16+ юзеры ожидают кнопку VPN на главном экране.
-- **LAUNCH-05:** Control Center Widget (iOS 18 `ControlWidget`) — кнопка управления VPN в Control Center / Action Button / Lock Screen. Happ Plus умеет. Без этого приложение выглядит устаревшим.
-- **LAUNCH-06:** Shortcuts App integration — минимум 3 actions: connect, disconnect, switch server. Через `AppIntent` (iOS 16+). Юзеры делают автоматизации ("подключиться при открытии Instagram" и т.п.).
+- **LAUNCH-04:** ✅ DONE 2026-05-25 (build 83) — Widget (Home / Lock Screen) с interactive toggle. systemSmall + accessoryCircular/Rectangular/Inline. Bundle `com.madfrog.vpn.widget`. Build-84 фикс анти-вранья.
+- **LAUNCH-05:** ✅ DONE 2026-05-25 (build 83) — iOS-18 ControlWidget (`MadFrogControlWidget`) с ControlWidgetToggle, привязан к `ToggleVPNIntent`.
+- **LAUNCH-06:** ✅ DONE 2026-05-25 (build 83) — Shortcuts: `ConnectVPNIntent`, `DisconnectVPNIntent`, `VPNStatusIntent` (с ProvidesDialog). "Switch server" отложили — нужен @MainActor/AppState.
 - **LAUNCH-07:** Auto-connect on untrusted WiFi — `NEOnDemandRule` с `SSIDMatch` / `InterfaceTypeMatch: .cellular`. Стандарт индустрии. Без этого юзер платит но включает руками каждый раз.
 - **LAUNCH-08:** Disconnect notification (`UNUserNotificationCenter` + `NEVPNStatus`-observer). Чтобы юзер узнавал когда разорвался тоннель, а не думал "работает".
 
