@@ -156,6 +156,47 @@ func (h *Handler) VerifySubscription(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid receipt"})
 	}
 
+	// Audit H-008 (2026-05-26): reject signed JWS payloads whose ExpiresDate
+	// is already in the past. Without this guard an attacker (or just a user
+	// replaying their own pre-cancelled receipt) can credit days indefinitely
+	// from a single old purchase — the credit path adds tx.Days from NOW()
+	// rather than honoring Apple's own expiresDate.
+	//
+	// Exception: alreadyApplied path. Restore Purchases for a legitimately
+	// expired-on-Apple's-side subscription (user cancelled, days remain on
+	// our books) needs to reconcile from ledger; we let those through and
+	// let CreditDays return alreadyApplied=true, which just touches the
+	// existing payments row instead of crediting fresh days.
+	//
+	// `ExpiresDate.IsZero()` covers non-subscription products (consumables)
+	// — those have no expiry concept and should not be rejected here.
+	if !tx.ExpiresDate.IsZero() && tx.ExpiresDate.Before(time.Now()) {
+		// Probe the ledger to see if this charge already exists. If so,
+		// it's a Restore Purchases call against an old purchase that's
+		// in our books — let it through to reconcile. Otherwise reject.
+		chargeID := appleChargeID(tx)
+		known, lookupErr := h.Payments.HasCharge(c.Request().Context(), payments.SourceAppleIAP, chargeID)
+		if lookupErr != nil {
+			h.Logger.Warn("apple: HasCharge probe failed during expired guard",
+				zap.Error(lookupErr),
+				zap.Int64("user_id", claims.UserID),
+				zap.String("charge_id", chargeID),
+			)
+			// Fail closed: treat lookup failure as "unknown → reject"
+			return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "transaction expired"})
+		}
+		if !known {
+			h.Logger.Warn("apple: rejected expired transaction (H-008)",
+				zap.Int64("user_id", claims.UserID),
+				zap.String("charge_id", chargeID),
+				zap.Time("expires_date", tx.ExpiresDate),
+			)
+			return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "transaction expired"})
+		}
+		// Known charge → fall through to CreditDays which will detect
+		// alreadyApplied and reconcile from ledger.
+	}
+
 	ctx := c.Request().Context()
 
 	// charge_id strategy depends on product type:
