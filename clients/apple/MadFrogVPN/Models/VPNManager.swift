@@ -203,29 +203,48 @@ class VPNManager {
     /// NSError(.timedOut) so callers can fall back gracefully.
     func sendMessage(_ data: Data) async throws -> Data? {
         guard let session = manager?.connection as? NETunnelProviderSession else { return nil }
-        return try await withThrowingTaskGroup(of: Data?.self) { group in
-            group.addTask {
-                try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Data?, Error>) in
-                    do {
-                        try session.sendProviderMessage(data) { response in
-                            continuation.resume(returning: response)
-                        }
-                    } catch {
-                        continuation.resume(throwing: error)
+        return try await Self.raceWithTimeout(timeout: .seconds(5)) {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Data?, Error>) in
+                do {
+                    try session.sendProviderMessage(data) { response in
+                        continuation.resume(returning: response)
                     }
+                } catch {
+                    continuation.resume(throwing: error)
                 }
             }
+        }
+    }
+
+    /// build-88 testability extract (audit MED-006): race `operation`
+    /// against a timeout and throw `NSError(NSURLErrorDomain,
+    /// NSURLErrorTimedOut)` if the timeout wins. Pulled out of
+    /// `sendMessage` so the timeout semantics can be unit-tested without
+    /// touching `NETunnelProviderSession` (which can't be constructed in
+    /// a test environment). The error shape is preserved exactly so
+    /// callers that key on `URLError.timedOut` still match.
+    static func raceWithTimeout<T: Sendable>(
+        timeout: Duration,
+        operation: @escaping @Sendable () async throws -> T
+    ) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
             group.addTask {
-                try await Task.sleep(for: .seconds(5))
+                try await operation()
+            }
+            group.addTask {
+                try await Task.sleep(for: timeout)
                 throw NSError(
                     domain: NSURLErrorDomain,
                     code: NSURLErrorTimedOut,
-                    userInfo: [NSLocalizedDescriptionKey: "extension sendProviderMessage timed out"]
+                    userInfo: [NSLocalizedDescriptionKey: "operation timed out"]
                 )
             }
-            let result = try await group.next()
+            // group.next() returns the first task to complete — either the
+            // real work or the timeout. Cancelling the rest stops the loser
+            // immediately so we don't leak a sleeping Task.
+            let result = try await group.next()!
             group.cancelAll()
-            return result ?? nil
+            return result
         }
     }
 

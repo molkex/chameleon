@@ -1812,6 +1812,36 @@ class AppState {
         return first.uppercased()
     }
 
+    /// build-85 testability extract (P1-3): the pure leaf-pick the
+    /// `fallbackFromCountry` cascade uses. Given the country the user is
+    /// pinned to and the set of leaves marked dead this cascade, return
+    /// the next leaf the cascade should try (the first not-dead leaf in
+    /// `country.serverTags`), or nil when every leaf has been tried.
+    /// Free of CommandClient / ConfigStore / AppState references so it
+    /// can be unit-tested without standing up the @MainActor object graph.
+    static func nextLeafForCountry(country: CountryGroup,
+                                   deadLeaves: Set<String>) -> String? {
+        country.serverTags.first { !deadLeaves.contains($0) }
+    }
+
+    /// build-85 testability extract (audit P0-B): decides whether
+    /// `performFallbackForCurrentLeg` should escalate beyond the pinned
+    /// country. The architectural contract after the build-42 backend
+    /// strict-country fix is "this country or fail" — at a single-country
+    /// topology (only one country has any leaves) we must NOT auto-jump,
+    /// because there is nowhere else to legitimately go. Likewise when
+    /// every other country is already in the dead set.
+    static func shouldEscalateBeyondCountry(group: ServerGroup,
+                                            currentCountry: String,
+                                            deadCountries: Set<String>) -> Bool {
+        let alive = group.countries.filter { country in
+            country.tag != currentCountry &&
+            !deadCountries.contains(country.tag) &&
+            !country.serverTags.isEmpty
+        }
+        return !alive.isEmpty
+    }
+
     private func fallbackOnAuto(group: ServerGroup) async {
         // Build-39: ask PathPicker for the next-best leaf across the whole
         // pool, excluding any we've already given up on this cascade. The

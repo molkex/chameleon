@@ -72,46 +72,48 @@ servers:
     notes: "Production gateway for /v1/* — api.madfrog.online DNS A-record points here (not Cloudflare). Repointed to NL upstream 2026-05-22 after DE retirement preparation."
 
 # API Communication paths (iOS → Backend)
+# Updated 2026-05-27: scrubbed retired DE direct-IP legs; primary now lands
+# on NL via MSK relay for api.madfrog.online (DE retired 2026-05-25).
 api_race:
   primary:
     - host: api.madfrog.online
-      via: cloudflare  # apex A-record on Cloudflare proxied → DE origin
+      via: msk_api_relay  # DNS A-record → 217.198.5.52, nginx upstream → nl:80
       scheme: https
       port: 443
       sni_spoof: false
       timeout_sec: 8
       source: clients/apple/Shared/Constants.swift:10
 
+  # AppConfig.directBackendIPs as of build 88 — see
+  # clients/apple/Shared/Constants.swift:22. The list still has
+  # 162.19.242.30 in code (not yet pruned) but RU users skip it via the
+  # ASN-block carveout in APIClient.swift dataWithFallback.
   fallback_direct_ips:
-    - host: 162.19.242.30
-      port: 443
-      scheme: https
-      sni_spoof: true
-      transport: nwconnection
-      timeout_sec: 6
-      priority: 1
     - host: 147.45.252.234
       port: 443
       scheme: https
       sni_spoof: true
+      cert_validation: enforced  # H-002b 2026-05-27 — DirectConnection now binds SecPolicyCreateSSL to SNI
       transport: nwconnection
       timeout_sec: 6
-      priority: 2
+      priority: 1
     - host: 185.218.0.43
       port: 80
       scheme: http
       sni_spoof: false
       timeout_sec: 6
-      priority: 3
+      priority: 2
     - host: 162.19.242.30
-      port: 80
-      scheme: http
-      sni_spoof: false
-      timeout_sec: 8
-      priority: 4
+      status: retired-still-in-client-pool  # 2026-05-25 retired; pruned from RU race via region carveout, will be removed from Constants.swift in next build
+      port: 443
+      scheme: https
+      sni_spoof: true
+      transport: nwconnection
+      timeout_sec: 6
+      priority: 3
 
-  race_strategy: "fastest first, cascade if 4xx/5xx/timeout"
-  fallback_session: "InsecureDelegate (trusts all certs for direct IP)"
+  race_strategy: "fastest first, cascade if 4xx/5xx/timeout; sensitive endpoints (auth, refresh, magic, payments) skip direct-IP and HTTP:80 legs (H-001/H-002)"
+  fallback_session: "URLSession (default cert validation, NL primary); NWConnection direct legs validate cert against SNI (H-002b)"
 
 # VPN Client config structure
 vpn_client_config:
@@ -226,32 +228,17 @@ vpn_client_config:
         update_interval: 168h
 
 # UI Server representation (iOS app)
+# Updated 2026-05-27: dropped retired DE leaves (de_direct, relay_de,
+# h2_de, tuic_de). NL is the only direct country; SPB relay still hosts a
+# bypass-leaf into NL for gfw-restricted regions.
 ui_servers:
-  - tag: de_direct
-    display: "Germany"
-    country_code: DE
-    flag: 🇩🇪
-    type: direct
-    outbound_base: "VLESS 🇩🇪 Germany"
-    note: "OVH Frankfurt, main node"
-
   - tag: nl_direct
     display: "Netherlands"
     country_code: NL
     flag: 🇳🇱
     type: direct
     outbound_base: "VLESS 🇳🇱 Netherlands"
-    note: "Timeweb, secondary node"
-
-  - tag: relay_de
-    display: "Germany (relay)"
-    country_code: DE
-    flag: 🇩🇪
-    type: relay
-    relay_via: spb_relay
-    relay_target: de:443
-    outbound_base: "VLESS 🇩🇪 Germany (via relay)"
-    note: "SPB(185.218.0.43):443 → DE:443, for users in gfw-restricted regions"
+    note: "Timeweb, sole production node post-2026-05-25"
 
   - tag: relay_nl
     display: "Netherlands (relay)"
@@ -261,38 +248,22 @@ ui_servers:
     relay_via: spb_relay
     relay_target: nl:2096
     outbound_base: "VLESS 🇳🇱 Netherlands (via relay)"
-    note: "SPB(185.218.0.43):2098 → NL:2096"
-
-  - tag: h2_de
-    display: "Germany (H2)"
-    country_code: DE
-    flag: 🇩🇪
-    type: direct
-    protocol: hysteria2
-    outbound_base: "H2 🇩🇪 Germany"
-
-  - tag: tuic_de
-    display: "Germany (TUIC)"
-    country_code: DE
-    flag: 🇩🇪
-    type: direct
-    protocol: tuic
-    outbound_base: "TUIC 🇩🇪 Germany"
+    note: "SPB(185.218.0.43):2098 → NL:2096 — bypass-leaf for gfw-restricted regions"
 
 # Auto selector membership (urltest group)
+# Updated 2026-05-27: single-NL world. With one country in the pool the
+# fallback cascade does NOT escalate to the bypass relay unless nl_direct
+# AND nl_direct via bypass both fail (P1-3 audit, see
+# AppStateFallbackTests.swift).
 auto_selector:
   tag: Auto
   members:
-    - de_direct
     - nl_direct
-    - relay_de
     - relay_nl
-    - h2_de
-    - tuic_de
   test_url: "https://cp.cloudflare.com"
   test_interval: "3m"
   tolerance_ms: 100
-  note: "Automatically picks fastest server, excludes servers with 4xx/5xx responses"
+  note: "Single-NL: relay_nl serves as the bypass-leaf when nl_direct degrades"
 
 # Routing modes (iOS app selector)
 routing_modes:

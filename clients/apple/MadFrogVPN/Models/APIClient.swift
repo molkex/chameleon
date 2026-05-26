@@ -106,9 +106,56 @@ private final class InsecureDelegate: NSObject, URLSessionDelegate {
     }
 }
 
+/// build-88 testability extract: pure decision describing which legs the
+/// hedged race in `dataWithFallback` should dispatch. Pulled out so the
+/// sensitive/auth/region gating can be exercised in a unit test without
+/// spinning real URLSession / NWConnection legs.
+///
+/// Invariants (mirrored by APIClientSensitiveFlagTests):
+///   * `sensitive=true` zeroes BOTH `directIPs` and `httpEightyIPs`
+///     (audit H-001 / H-002): refresh tokens, magic tokens and signed JWS
+///     bodies must never traverse a cleartext HTTP:80 leg or a direct-IP
+///     TLS leg with disabled cert validation.
+///   * Authenticated requests (`Authorization` header present, modelled
+///     here as `isAuthenticated=true`) skip HTTP:80 even when not
+///     sensitive — sending a Bearer over cleartext is unacceptable.
+///   * RU region filters out the OVH Frankfurt direct IP (162.19.242.30)
+///     because RU mobile carriers ASN-block it; that filter applies to
+///     both direct-IP and HTTP:80 leg lists.
+///   * The primary HTTPS leg always fires (`primary == true`); the
+///     race only widens with extra legs.
+struct RaceLegPlan: Equatable {
+    var primary: Bool
+    var directIPs: [String]
+    var httpEightyIPs: [String]
+}
+
 class APIClient {
     private let session: URLSession
     private let fallbackSession: URLSession
+
+    /// build-88 testability extract — see `RaceLegPlan` doc.
+    static func raceLegPlan(sensitive: Bool,
+                            isAuthenticated: Bool,
+                            region: String?,
+                            availableIPs: [String]) -> RaceLegPlan {
+        if sensitive {
+            return RaceLegPlan(primary: true, directIPs: [], httpEightyIPs: [])
+        }
+        let directIPs: [String]
+        if region == "RU" {
+            directIPs = availableIPs.filter { $0 != "162.19.242.30" }
+        } else {
+            directIPs = availableIPs
+        }
+        let httpEightyIPs: [String]
+        if isAuthenticated {
+            httpEightyIPs = []
+        } else {
+            httpEightyIPs = directIPs
+        }
+        return RaceLegPlan(primary: true, directIPs: directIPs, httpEightyIPs: httpEightyIPs)
+    }
 
     init() {
         let config = URLSessionConfiguration.default
@@ -225,29 +272,27 @@ class APIClient {
             }
 
             let sni = AppConfig.baseURLHost
-            // Audit H-002: skip direct-IP legs entirely for sensitive
-            // requests — DirectConnection has no cert validation, so a
-            // Bearer/refresh/signed-JWS payload on a hijacked direct-IP
-            // path could be sniffed/altered. Primary HTTPS via URLSession
-            // is the only allowed leg for sensitive endpoints.
-            let raceIPs: [String]
+            // build-88 testability extract: the leg-selection decision lives
+            // in `Self.raceLegPlan` so it can be unit-tested. The behaviour
+            // is unchanged from before the extract:
+            //   * sensitive=true → no direct/HTTP:80 legs (audit H-001/H-002).
+            //   * RU region → drop the OVH Frankfurt IP (162.19.242.30)
+            //     because RU mobile ASN-blocks it and the 6s timeout would
+            //     otherwise delay the race.
+            //   * Authenticated requests skip the HTTP:80 leg list (no
+            //     Bearer over cleartext).
+            let isAuthenticatedHeader = request.value(forHTTPHeaderField: "Authorization") != nil
+            let plan = Self.raceLegPlan(
+                sensitive: sensitive,
+                isAuthenticated: isAuthenticatedHeader,
+                region: Locale.current.region?.identifier,
+                availableIPs: AppConfig.directBackendIPs
+            )
+            let raceIPs = plan.directIPs
             if sensitive {
-                raceIPs = []
                 AppLogger.network.info("race.sensitive=true direct_legs=skipped")
-            } else {
-                // RU mobile carriers block OVH Frankfurt (162.19.242.30) at
-                // the ASN level — every DE direct leg sits there for the
-                // full 6s timeout and delays the race by ~6s even when NL
-                // wins. For RU users skip the DE legs entirely. Primary
-                // Cloudflare leg + NL + SPB relay still race so a working
-                // path keeps working.
-                let isRURegion = Locale.current.region?.identifier == "RU"
-                raceIPs = isRURegion
-                    ? AppConfig.directBackendIPs.filter { $0 != "162.19.242.30" }
-                    : AppConfig.directBackendIPs
-                if isRURegion {
-                    AppLogger.network.info("race.region ru=true skipped=DE")
-                }
+            } else if Locale.current.region?.identifier == "RU" {
+                AppLogger.network.info("race.region ru=true skipped=DE")
             }
             // Build-36: hedged dispatch (Dean & Barroso "Tail at Scale").
             // Primary fires at T+0; each direct leg waits legIndex*250ms before
@@ -300,11 +345,15 @@ class APIClient {
             // ALSO require `!sensitive` — sensitive callers opt in explicitly
             // and never see HTTP:80 legs. NL + bypass relay direct legs are
             // also skipped above when sensitive (H-002).
-            let isAuthenticated = request.value(forHTTPHeaderField: "Authorization") != nil
-            if !isAuthenticated && !sensitive {
+            //
+            // build-88: gating now lives in `RaceLegPlan.httpEightyIPs`
+            // (empty when sensitive OR authenticated). The wrapping `if` is
+            // kept for indentation parity with the prior diff.
+            let httpEightyIPs = plan.httpEightyIPs
+            if !httpEightyIPs.isEmpty {
             // HTTP legs continue the hedge ladder after direct legs.
             let httpStartIndex = 1 + raceIPs.count
-            for (i, ip) in raceIPs.enumerated() {
+            for (i, ip) in httpEightyIPs.enumerated() {
                 let legIndex = httpStartIndex + i
                 group.addTask { [fallbackSession] in
                     let staggerMs = legIndex * 250
@@ -337,7 +386,7 @@ class APIClient {
                     }
                 }
             }
-            } // !isAuthenticated
+            } // httpEightyIPs non-empty
 
             for try await result in group {
                 if let winner = result {

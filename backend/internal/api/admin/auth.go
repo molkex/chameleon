@@ -69,12 +69,17 @@ func (h *Handler) Login(c echo.Context) error {
 	}
 
 	if adminUser == nil {
+		// Audit MED-014: record the attempt with the attempted username
+		// so brute-force attempts are visible. Admin ID is nil — the
+		// caller is unauthenticated by definition.
+		h.recordAuditForAdmin(c, nil, "login.failed", "username="+req.Username+" reason=unknown_user")
 		return echo.NewHTTPError(http.StatusUnauthorized, "invalid credentials")
 	}
 
 	// Verify password (supports argon2, bcrypt, SHA-256).
 	matches, needsRehash := auth.VerifyPassword(req.Password, adminUser.PasswordHash)
 	if !matches {
+		h.recordAuditForAdmin(c, &adminUser.ID, "login.failed", "username="+req.Username+" reason=bad_password")
 		return echo.NewHTTPError(http.StatusUnauthorized, "invalid credentials")
 	}
 
@@ -86,6 +91,7 @@ func (h *Handler) Login(c echo.Context) error {
 	// Update last_login timestamp.
 	_ = h.DB.UpdateAdminLastLogin(ctx, adminUser.ID)
 
+	h.recordAuditForAdmin(c, &adminUser.ID, "login.success", "username="+adminUser.Username)
 	return h.issueTokens(c, adminUser.ID, adminUser.Username, adminUser.Role)
 }
 
@@ -198,6 +204,9 @@ func (h *Handler) Logout(c echo.Context) error {
 		SameSite: http.SameSiteStrictMode,
 		MaxAge:   -1,
 	})
+	// Audit MED-014: logout is unauthenticated route, so claims may be
+	// nil — recordAudit handles that and writes admin_user_id=NULL.
+	h.recordAudit(c, "logout", "")
 	return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 }
 

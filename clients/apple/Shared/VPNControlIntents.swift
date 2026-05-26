@@ -79,6 +79,16 @@ enum VPNControlError: Error, CustomLocalizedStringResourceConvertible {
 /// side effects for `.start` / `.stop` and throws `VPNControlError` for
 /// `.needsApp` — identical to the original `ToggleVPNIntent` switch.
 enum VPNControl {
+    /// build-84 testability seam: encodes the invariant that `.start` must
+    /// NOT optimistically write `connected=true` into the App Group. The
+    /// optimistic-connected path can never be reverted from the widget
+    /// process (it can't observe whether the tunnel actually came up), so
+    /// the widget would lie forever about protection state on any failed
+    /// start. Asserted by VPNControlIntentsBehaviorTests so a regression
+    /// flips the constant visibly. `.stop` IS optimistic (kernel teardown
+    /// is essentially immediate) — see `publishOptimisticState` call below.
+    static let publishesOptimisticOnStart: Bool = false
+
     /// Drive `NETunnelProviderManager` to satisfy `plan`. Callers load
     /// the managers (to compute the plan) and hand the same array in,
     /// so this stays a pure extract — no extra `loadAllFromPreferences`.

@@ -244,6 +244,13 @@ func (h *Handler) DeleteUser(c echo.Context) error {
 	h.Logger.Info("admin: user deleted",
 		zap.String("vpn_username", vpnUsername))
 
+	// Audit MED-014: soft-delete is a high-blast-radius action.
+	auditDetails := "id=" + idParam
+	if vpnUsername != "" {
+		auditDetails += " vpn_username=" + vpnUsername
+	}
+	h.recordAudit(c, "user.delete", auditDetails)
+
 	return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 }
 
@@ -305,6 +312,11 @@ func (h *Handler) ExtendSubscription(c echo.Context) error {
 		zap.String("user", idParam),
 		zap.Int("days", req.Days),
 		zap.String("charge_id", chargeID))
+
+	// Audit MED-014: a free subscription extension is the highest-value
+	// non-destructive action available to admins; track every grant.
+	h.recordAudit(c, "user.extend_subscription",
+		fmt.Sprintf("user=%s days=%d charge_id=%s", idParam, req.Days, chargeID))
 
 	return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 }

@@ -278,9 +278,21 @@ func (e *SingboxEngine) AddUser(ctx context.Context, user VPNUser) error {
 			e.logger.Warn("user-api add failed, falling back to SIGHUP",
 				zap.String("username", user.Username), zap.Error(err))
 		} else {
-			// Also update config on disk for persistence across restarts.
+			// Audit MED-002 (2026-05-27): persist the change to disk before
+			// declaring success. Without this, the user lives only in the
+			// User-API runtime state and disappears on singbox restart —
+			// caller thinks they're added, next deploy/SIGHUP-fail/OOM
+			// silently loses them. Roll back the in-memory append and the
+			// User-API add when write fails so e.users matches reality.
 			if err := e.writeConfigLocked(); err != nil {
-				e.logger.Warn("failed to write config after user-api add", zap.Error(err))
+				e.users = e.users[:len(e.users)-1]
+				if rmErr := e.userAPI.RemoveUser(ctx, user.Username); rmErr != nil {
+					e.logger.Error("user-api rollback failed after writeConfig error — runtime state diverged from disk",
+						zap.String("username", user.Username),
+						zap.Error(err),
+						zap.Error(rmErr))
+				}
+				return fmt.Errorf("singbox engine: write config after user-api add: %w", err)
 			}
 			e.logger.Info("user added via user-api",
 				zap.String("username", user.Username), zap.Int("total_users", len(e.users)))
@@ -312,10 +324,12 @@ func (e *SingboxEngine) RemoveUser(ctx context.Context, username string) error {
 	}
 
 	found := false
+	var removed VPNUser
 	filtered := make([]VPNUser, 0, len(e.users))
 	for _, u := range e.users {
 		if u.Username == username {
 			found = true
+			removed = u
 			continue
 		}
 		filtered = append(filtered, u)
@@ -335,8 +349,24 @@ func (e *SingboxEngine) RemoveUser(ctx context.Context, username string) error {
 			e.logger.Warn("user-api remove failed, falling back to SIGHUP",
 				zap.String("username", username), zap.Error(err))
 		} else {
+			// Audit MED-002 (2026-05-27): same persistence-vs-runtime
+			// divergence as AddUser. If writeConfig fails after a User-API
+			// remove, the user is gone at runtime but the on-disk config
+			// still has them — next restart restores a "deleted" user.
+			// Roll runtime back to match disk and surface the error.
 			if err := e.writeConfigLocked(); err != nil {
-				e.logger.Warn("failed to write config after user-api remove", zap.Error(err))
+				// `removed` was populated alongside `filtered` above as the
+				// pre-removal snapshot of the doomed user. Restore both
+				// in-memory list and User-API runtime so the caller's retry
+				// or the eventual on-disk truth find consistent state.
+				e.users = append(e.users, removed)
+				if addErr := e.userAPI.AddUser(ctx, removed); addErr != nil {
+					e.logger.Error("user-api rollback failed after writeConfig error — runtime state diverged from disk",
+						zap.String("username", username),
+						zap.Error(err),
+						zap.Error(addErr))
+				}
+				return fmt.Errorf("singbox engine: write config after user-api remove: %w", err)
 			}
 			e.logger.Info("user removed via user-api",
 				zap.String("username", username), zap.Int("total_users", len(e.users)))
