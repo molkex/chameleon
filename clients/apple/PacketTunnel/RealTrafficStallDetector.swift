@@ -66,22 +66,34 @@ final class RealTrafficStallDetector {
         /// Minimum total dial attempts in window before STALL can fire.
         /// Without this an idle tunnel (no traffic) would oscillate
         /// between "0 attempts / 0 failures = stall?" decisions.
-        var minAttempts: Int = 8
+        ///
+        /// 2026-05-26 (audit P0-D): raised 8 → 20. With the
+        /// `hasMeaningfulDownload` suppressor branch dead (`addCloseEvent`
+        /// is defined but never called anywhere, so closeEvents is
+        /// permanently empty), the only guard against false STALL on
+        /// ad-heavy pages is the attempts/timeouts thresholds. Raising
+        /// them keeps the detector usable while not firing on normal
+        /// browsing.
+        var minAttempts: Int = 20
 
         /// Minimum failed dials (i/o timeout / context deadline / TLS
         /// timeout) in window. Need a real cluster, not one transient
         /// blip on a single host.
-        var minTimeouts: Int = 5
+        /// 2026-05-26 (audit P0-D): raised 5 → 12 — see comment on
+        /// `minAttempts` above.
+        var minTimeouts: Int = 12
 
-        /// Failure ratio required. 0.6 = 60% of attempts failed.
+        /// Failure ratio required. 0.75 = 75% of attempts failed.
         /// Excludes scenarios where a few hosts time out among many
         /// successful connections (e.g. one slow CDN, rest fine).
-        var minTimeoutRate: Double = 0.6
+        /// 2026-05-26: raised 0.6 → 0.75 to require a clearer majority.
+        var minTimeoutRate: Double = 0.75
 
         /// Distinct destination IPs required among failures. Excludes
-        /// "one bad host" scenarios — if 5 timeouts all hit the same
-        /// IP, that's host-specific, not tunnel-wide.
-        var minDistinctDestinations: Int = 3
+        /// "one bad host" / "ad-server batch" scenarios — if 8 timeouts
+        /// hit the same 2-3 hosts, that's host-specific, not tunnel-wide.
+        /// 2026-05-26: raised 3 → 8 to suppress ad-heavy false positives.
+        var minDistinctDestinations: Int = 8
 
         /// If any connection closed in the window with at least this
         /// many downlink bytes, suppress STALL — meaningful download

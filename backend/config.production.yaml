@@ -97,7 +97,12 @@ rate_limit:
 payments:
   apple:
     bundle_id: "com.madfrog.vpn"
-    allow_sandbox: true
+    # 2026-05-26: was `true`. With sandbox JWS accepted, any TestFlight
+    # account on Apple Sandbox could mint subscription days for arbitrary
+    # user_ids in prod — see audit P0-A. Sandbox is only useful when
+    # exercising flows against the dev backend (config.yaml has
+    # `allow_sandbox: true` for that). Production must reject sandbox.
+    allow_sandbox: false
 
   freekassa:
     enabled: true

@@ -1,13 +1,20 @@
 # Chameleon VPN Infrastructure Topology
-# Last verified: 2026-04-23
+# Last verified: 2026-05-26 (post-DE retirement)
 # Sources: backend/config.yaml, migrations/, clients/apple/Constants.swift, clientconfig.go, DebugLogsView.swift
+#
+# ⚠️ SINGLE-NL WORLD — DE retired 2026-05-25. Only NL `147.45.252.234`
+#    serves production traffic. MSK relay fronts api.madfrog.online for
+#    RU users. The `de:` block below is kept for historical context only
+#    (`status: retired`). Do NOT use 162.19.242.30 in any deploy/recipe.
 
 servers:
   de:
+    status: retired           # 2026-05-25 OVH договор истёк, не продлевался
+    retired_at: 2026-05-25
     ip: 162.19.242.30
     hosting: OVH Frankfurt
     provider: OVH
-    role: primary vpn node + api backend
+    role: retired vpn node + api backend (historical)
     location: Frankfurt, Germany
     sni: from-db  # vpn_servers.sni — verify on server: SELECT sni FROM vpn_servers WHERE id=3
     sni_fallback: ads.adfox.ru  # used if DB sni empty (clientconfig.go:33)
@@ -56,11 +63,13 @@ servers:
       http_80: de:80        # fallback http to DE
 
   msk_api_relay:
+    status: active            # 2026-05-22 migration — see project_de_nl_migration.md
     ip: 217.198.5.52
     hosting: TimeWeb MSK VPS
-    role: api endpoint relay (PLANNED, NOT IN USE)
+    role: api endpoint relay (ACTIVE — fronts api.madfrog.online)
     location: Moscow, Russia
-    notes: "Mentioned in memory project_ru_api_relay.md but NOT referenced anywhere in current iOS code (clients/apple/Shared/Constants.swift, clients/apple/ChameleonVPN/Models/APIClient.swift). api.madfrog.online resolves via Cloudflare, not this IP. Either delete server or wire it in."
+    upstream: nl2:80          # nginx forwards HTTPS termination → NL :80 (HTTP-only there)
+    notes: "Production gateway for /v1/* — api.madfrog.online DNS A-record points here (not Cloudflare). Repointed to NL upstream 2026-05-22 after DE retirement preparation."
 
 # API Communication paths (iOS → Backend)
 api_race:

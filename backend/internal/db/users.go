@@ -333,7 +333,12 @@ func (db *DB) WipeUserOnDelete(ctx context.Context, id int64) error {
 	return nil
 }
 
-// ListActiveVPNUsers returns all active users that have VPN credentials assigned.
+// ListActiveVPNUsers returns all active users that have VPN credentials
+// assigned AND a valid (non-past) subscription. The expiry guard prevents
+// expired users from being silently kept in sing-box's allow-set after
+// their subscription ends — a fraud path because the iOS client caches
+// /v1/config locally and would otherwise keep authenticating to the
+// tunnel indefinitely (audit P0-E, 2026-05-26).
 func (db *DB) ListActiveVPNUsers(ctx context.Context) ([]User, error) {
 	ctx, cancel := defaultTimeout(ctx)
 	defer cancel()
@@ -344,6 +349,7 @@ func (db *DB) ListActiveVPNUsers(ctx context.Context) ([]User, error) {
 		WHERE is_active = true
 		  AND vpn_uuid IS NOT NULL
 		  AND vpn_username IS NOT NULL
+		  AND (subscription_expiry IS NULL OR subscription_expiry > NOW())
 		ORDER BY id`)
 	if err != nil {
 		return nil, err

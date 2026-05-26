@@ -1660,7 +1660,17 @@ class AppState {
                     await HealthProbeURLSession.probe(url: url, timeout: timeout)
                 },
                 onStallDetected: { [weak self] in
-                    await self?.performFallbackForCurrentLeg()
+                    // 2026-05-26 (audit P0-C): main-app monitor no longer
+                    // performs a fallback. PacketTunnel's
+                    // `RealTrafficStallDetector` is the sole authority for
+                    // stall-triggered recovery — running two competing
+                    // detectors created a `selectOutbound` storm that tore
+                    // in-flight sockets. We still nudge the widget so any
+                    // UI uptime/state stays fresh on observed stall.
+                    TunnelFileLogger.log("ui.stall: TrafficHealthMonitor saw stall — deferring to extension (no fallback here)", category: "ui")
+                    Task { @MainActor in
+                        WidgetCenter.shared.reloadAllTimelines()
+                    }
                 },
                 onProbeSuccess: { [weak self] in
                     await MainActor.run {
@@ -1843,59 +1853,33 @@ class AppState {
         return demote
     }
 
-    /// Pick the next-best country (or SPB relay), pin it, force its
-    /// urltest to probe under current network. Called once per cascade
-    /// step. Caller is responsible for marking the previous country dead.
+    /// 2026-05-26 (audit P0-B): the prior implementation silently switched
+    /// COUNTRY and even promoted the user to SPB whitelist-bypass on a
+    /// stall — that's the "переключилось куда-то, не знаю зачем" the
+    /// user reports. After the backend strict-country build-42 fix the
+    /// architectural contract is: picking a country means "this country
+    /// or fail". Cross-country failover stays opt-in via the explicit
+    /// "Auto" group.
+    ///
+    /// New behaviour: when the same-country leaf cycling in
+    /// `fallbackFromLeaf` / `fallbackFromCountry` is exhausted, we report
+    /// the country as unreachable and stop. The user sees a toast
+    /// suggesting they pick another country manually. We never persist
+    /// a different country into `configStore.selectedServerTag` behind
+    /// the user's back, and we never auto-jump to whitelist-bypass.
     private func escalateBeyondCountry(
         group: ServerGroup,
         exhaustedCountry: CountryGroup?,
         reason: String
     ) async {
-        // Cascade depth check — bound how many countries we'll try before
-        // jumping straight to SPB. Without this a network with widespread
-        // DPI could have us thrash through every country.
-        let directCountries = group.countries.filter { $0.section == .direct && $0.id != "other" }
-        let triedDirect = deadCountriesInCurrentCascade.intersection(Set(directCountries.map(\.tag))).count
-
-        // Step A: try next direct country (sorted by best ping, dead-skipped)
-        if triedDirect < maxCascadeDepth {
-            let candidates = directCountries
-                .filter { !deadCountriesInCurrentCascade.contains($0.tag) }
-                .sorted { lhs, rhs in
-                    // bestDelay 0 = unknown, push to end. Otherwise ascending.
-                    let l = lhs.bestDelay > 0 ? Int(lhs.bestDelay) : Int.max
-                    let r = rhs.bestDelay > 0 ? Int(rhs.bestDelay) : Int.max
-                    return l < r
-                }
-            if let nextCountry = candidates.first {
-                TunnelFileLogger.log("fallback: ESCALATE → country '\(nextCountry.tag)' (depth=\(triedDirect + 1)/\(maxCascadeDepth), reason: \(reason))", category: "ui")
-                selectServer(groupTag: group.tag, serverTag: nextCountry.tag, clearCascade: false)
-                if let from = exhaustedCountry {
-                    fallbackToastMessage = L10n.Recovery.switchedFromTo(from.name, nextCountry.name)
-                } else {
-                    fallbackToastMessage = L10n.Recovery.switchedTo(nextCountry.name)
-                }
-                return
-            }
+        if let from = exhaustedCountry {
+            TunnelFileLogger.log("fallback: country '\(from.tag)' exhausted, NO cross-country jump (audit P0-B); reason=\(reason)", category: "ui")
+            fallbackToastMessage = L10n.Error.selectedUnreachable(from.name)
+        } else {
+            TunnelFileLogger.log("fallback: leg exhausted, NO cross-country jump (audit P0-B); reason=\(reason)", category: "ui")
+            fallbackToastMessage = L10n.Error.allServersUnreachable
         }
-
-        // Step B: try SPB whitelist-bypass relays as last resort
-        let bypassCountries = group.countries.filter { $0.section == .whitelistBypass }
-        let allBypassLeaves = bypassCountries.flatMap(\.serverTags)
-        let bypassLeavesAlive = allBypassLeaves.filter { !deadLeavesInCurrentCascade.contains($0) }
-        if let firstBypassLeaf = bypassLeavesAlive.first {
-            TunnelFileLogger.log("fallback: ESCALATE → SPB relay '\(firstBypassLeaf)' (last resort, reason: \(reason))", category: "ui")
-            selectServer(groupTag: group.tag, serverTag: firstBypassLeaf, clearCascade: false)
-            fallbackToastMessage = L10n.Recovery.switchedToBypass
-            return
-        }
-
-        // Step C: nothing left
-        TunnelFileLogger.log("fallback: ALL COUNTRIES + SPB DEAD — giving up (reason: \(reason))", category: "ui")
-        reportDiagnostic(event: "all_dead", country: "*", deadLeaves: Array(deadLeavesInCurrentCascade))
-        fallbackToastMessage = L10n.Recovery.allDead
-        // Don't reset cascade — let the cooldown elapse, next stall will
-        // start a fresh sequence (cascade sets are wiped on selectServer).
+        reportDiagnostic(event: "country_exhausted_no_jump", country: exhaustedCountry?.tag ?? "*", deadLeaves: Array(deadLeavesInCurrentCascade))
     }
 
     /// Fire-and-forget diagnostic POST to backend. Catches network errors
