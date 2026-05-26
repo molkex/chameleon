@@ -5,6 +5,13 @@
 #
 # All secrets come from environment variables (set in .env by deploy.sh).
 
+# Audit MED-013 (2026-05-26): top-level encryption key for provider
+# credentials (hosting account passwords stored in vpn_servers). Without
+# this resolved from env, the provider-cipher falls back to nil-cipher
+# and logs "provider passwords stored as plaintext" on startup.
+secrets:
+  encryption_key: "${CHAMELEON_PROVIDERS_ENCRYPTION_KEY}"
+
 server:
   host: "0.0.0.0"
   port: 8000
