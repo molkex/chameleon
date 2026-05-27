@@ -262,12 +262,21 @@ func (h *Handler) VerifySubscription(c echo.Context) error {
 		)
 	}
 
+	// BE-01a telemetry — log presence/value of appAccountToken on every
+	// verified purchase. Goal is to see how quickly iOS clients ship the
+	// `Product.PurchaseOption.appAccountToken(...)` change so we can flip
+	// from "warn only" to "reject mismatch" once adoption clears ~95%.
+	// Don't enforce anything yet — empty token is the current legitimate
+	// state on iOS 1.0.26 / 1.0.27.
+	hasToken := tx.AppAccountToken != ""
 	h.Logger.Info("subscription verified",
 		zap.Int64("user_id", claims.UserID),
 		zap.String("product_id", tx.ProductID),
 		zap.String("original_transaction_id", tx.OriginalTransactionID),
 		zap.Int("days", tx.Days),
 		zap.Bool("already_applied", alreadyApplied),
+		zap.Bool("app_account_token_present", hasToken),
+		zap.String("app_account_token", tx.AppAccountToken), // safe to log: opaque UUID, not a secret
 	)
 
 	var expiryUnix int64

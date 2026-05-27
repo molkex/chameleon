@@ -51,6 +51,15 @@ type Transaction struct {
 	ExpiresDate           time.Time
 	Days                  int // resolved from Config.Products
 	Revoked               bool
+
+	// AppAccountToken is the UUID iOS sets via
+	// `Product.PurchaseOption.appAccountToken(uuid)` at purchase time.
+	// Apple round-trips it back inside the signed JWS, so once iOS ships its
+	// half (BE-01a) we'll use this to bind a JWS to a single authenticated
+	// user — defeats the "stolen JWS replayed on another account" attack
+	// that the charge_id idempotency check does NOT cover. Empty string
+	// when the client didn't set one (current state of iOS 1.0.26 / 1.0.27).
+	AppAccountToken string
 }
 
 // Verifier parses and validates Apple JWS transactions.
@@ -150,6 +159,7 @@ func (v *Verifier) Verify(signedJWS string) (result *Transaction, err error) {
 		ExpiresDate:           msToTime(jws.ExpiresDate),
 		Days:                  days,
 		Revoked:               jws.RevocationDate > 0,
+		AppAccountToken:       strings.TrimSpace(jws.AppAccountToken),
 	}
 
 	if tx.Revoked {
