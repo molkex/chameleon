@@ -42,9 +42,13 @@ else
     alert "singbox" "🔴 <b>$HOSTNAME</b>: singbox container NOT RUNNING"
 fi
 
-# Check VPN port
-if ss -tlnp 2>/dev/null | grep -q ':2096' || netstat -tlnp 2>/dev/null | grep -q ':2096'; then
+# Check VPN port — defaults to 443 (VLESS Reality canonical). Override
+# with VPN_PORT env var when a node listens elsewhere. Don't hardcode the
+# old 2096 — production NL serves VLESS on :443, and the false alarms
+# spammed Telegram every 5 min for ~1h on 2026-05-27 before this fix.
+VPN_PORT="${VPN_PORT:-443}"
+if ss -tlnp 2>/dev/null | grep -q ":${VPN_PORT}\b" || netstat -tlnp 2>/dev/null | grep -q ":${VPN_PORT}\b"; then
     clear_alert "vpn-port"
 else
-    alert "vpn-port" "🔴 <b>$HOSTNAME</b>: VPN port 2096 NOT LISTENING"
+    alert "vpn-port" "🔴 <b>$HOSTNAME</b>: VPN port ${VPN_PORT} NOT LISTENING"
 fi
