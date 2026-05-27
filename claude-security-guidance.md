@@ -87,12 +87,20 @@ exists because we already shipped the inverse mistake at least once.
 
 ### Auth + JWT
 
-- **Never** trust `device_id` from the request body as an authentication
-  bearer beyond the initial registration. `device_id` is client-asserted
-  and not server-issued; anyone who guesses or scrapes a device_id can
-  hijack the account. The MED-012 followup will introduce a server-issued
-  `install_secret` returned on first register; until then, treat `device_id`
-  as identity, not credential.
+- **Server-issued `install_secret` is the credential, not `device_id`.**
+  MED-012 Phase 1 (2026-05-27): every successful `/api/mobile/auth/register`
+  returns an `install_secret` in the response body. New iOS builds persist
+  it to Keychain and echo it on every subsequent register. Backend
+  enforces: if DB has a secret stored AND client sends a non-matching one
+  → 401. Legacy clients sending NO secret are still accepted (Phase-1
+  backward-compat for builds 75-89 in the field). Phase 2 will flip to
+  strict-require when iOS adoption crosses ~95%.
+- **Never** echo `install_secret` to logs, even in debug builds. It's a
+  bearer-equivalent credential — treat with the same care as JWT.
+- **Never** copy `install_secret` from user A's row to user B during
+  an admin operation. It's bound to a specific (device_id, user_id)
+  pair; rotating must use `generateInstallSecret` (crypto/rand), not a
+  reuse.
 - **Always** verify refresh-token blacklist via SHA-256 of the FULL token
   (`sha256.Sum256([]byte(refreshToken))`), not a fixed-length prefix.
   HS256 JWT headers share a stable prefix, so `token[:32]` collides across
@@ -262,4 +270,9 @@ hook that runs alongside the upstream plugin.
   (rclone, 30-day retention, us-east-005 region for jurisdictional
   separation). Documented rotation policy and failure-handling expectations
   for the B2 push step.
+- 2026-05-27 (later evening) — MED-010 shipped: docker-socket-proxy
+  replaces the raw `/var/run/docker.sock` bind into chameleon, with
+  CONTAINERS=1+POST=1 whitelist. MED-012 Phase 1 shipped: server-issued
+  `install_secret` credential paired with `device_id`, with backward-
+  compat for legacy iOS builds. Migration `016_install_secret.sql`.
 - _Add an entry every time a rule is added or revised._

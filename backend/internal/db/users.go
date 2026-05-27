@@ -20,7 +20,7 @@ const userColumns = `
 	last_country, last_country_name, last_city,
 	initial_ip, initial_country, initial_country_name, initial_city,
 	timezone, device_model, ios_version, accept_language, install_date, store_country,
-	email, email_verified_at, password_hash,
+	email, email_verified_at, password_hash, install_secret,
 	created_at, updated_at`
 
 // scanUser scans a single user row from pgx.Row into a User struct.
@@ -36,7 +36,7 @@ func scanUser(row pgx.Row) (*User, error) {
 		&u.LastCountry, &u.LastCountryName, &u.LastCity,
 		&u.InitialIP, &u.InitialCountry, &u.InitialCountryName, &u.InitialCity,
 		&u.Timezone, &u.DeviceModel, &u.IOSVersion, &u.AcceptLanguage, &u.InstallDate, &u.StoreCountry,
-		&u.Email, &u.EmailVerifiedAt, &u.PasswordHash,
+		&u.Email, &u.EmailVerifiedAt, &u.PasswordHash, &u.InstallSecret,
 		&u.CreatedAt, &u.UpdatedAt,
 	)
 	if err != nil {
@@ -64,7 +64,7 @@ func scanUsers(rows pgx.Rows) ([]User, error) {
 			&u.LastCountry, &u.LastCountryName, &u.LastCity,
 			&u.InitialIP, &u.InitialCountry, &u.InitialCountryName, &u.InitialCity,
 			&u.Timezone, &u.DeviceModel, &u.IOSVersion, &u.AcceptLanguage, &u.InstallDate, &u.StoreCountry,
-			&u.Email, &u.EmailVerifiedAt, &u.PasswordHash,
+			&u.Email, &u.EmailVerifiedAt, &u.PasswordHash, &u.InstallSecret,
 			&u.CreatedAt, &u.UpdatedAt,
 		)
 		if err != nil {
@@ -754,6 +754,25 @@ func (db *DB) SaveInitialContext(ctx context.Context, userID int64, c InitialCon
 			install_date         = COALESCE(install_date, $6)
 		WHERE id = $1`,
 		userID, c.IP, c.Country, c.CountryName, c.City, c.InstallDate)
+	return err
+}
+
+// UpdateInstallSecret writes the server-issued install_secret for a user.
+// MED-012 (2026-05-27): used by /auth/register the first time a device
+// authenticates without one stored. The secret is generated server-side
+// (see auth.NewInstallSecret), returned to the client in AuthResponse,
+// and must be presented on subsequent registers to prove ownership of
+// the device_id record. Idempotent — calling with the same secret value
+// is a no-op for security purposes; callers should not re-rotate without
+// reason.
+func (db *DB) UpdateInstallSecret(ctx context.Context, userID int64, secret string) error {
+	ctx, cancel := defaultTimeout(ctx)
+	defer cancel()
+
+	_, err := db.Pool.Exec(ctx, `
+		UPDATE users SET install_secret = $2, updated_at = NOW()
+		WHERE id = $1`,
+		userID, secret)
 	return err
 }
 
