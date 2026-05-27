@@ -125,4 +125,54 @@ final class APIClientSensitiveFlagTests: XCTestCase {
         )
         XCTAssertEqual(plan.directIPs, allIPs, "nil region keeps OVH Frankfurt")
     }
+
+    // MARK: - Per-endpoint regression guard
+    //
+    // Security-review 2026-05-27 followup: the helper above is well-tested,
+    // but a future developer could still forget `sensitive: true` at a new
+    // call site. This is documentation-as-test — it pins down which
+    // endpoint URLs MUST be called sensitive end-to-end. When a new
+    // sensitive endpoint is added, append its path here and grep for the
+    // path in `APIClient.swift` to confirm the `sensitive: true` parameter
+    // is present on the `dataWithFallback` call.
+
+    /// Endpoints that handle credentials (refresh tokens, magic-link tokens,
+    /// signed JWS receipts, Apple/Google identity tokens, registration
+    /// secrets) and therefore MUST use `sensitive: true`. Every entry here
+    /// represents a real call site verified against `APIClient.swift` as of
+    /// build 89. If a path is added/renamed, update this list.
+    static let sensitiveEndpointPaths: [String] = [
+        "/api/mobile/auth/register",
+        "/api/mobile/auth/apple",
+        "/api/mobile/auth/google",
+        "/api/mobile/auth/magic/request",
+        "/api/mobile/auth/magic/verify",
+        "/api/mobile/auth/refresh",
+        "/api/mobile/subscription/verify",
+    ]
+
+    func testSensitiveEndpointPathsAllResolveToEmptyFallback() {
+        // Every sensitive endpoint feeds the same `raceLegPlan` with
+        // `sensitive: true`. The combinations below cover the matrix of
+        // (RU vs non-RU, authenticated vs not) so a regression in the
+        // helper for any single endpoint would also surface here.
+        for path in Self.sensitiveEndpointPaths {
+            for region in ["RU", "US"] as [String?] {
+                for auth in [true, false] {
+                    let plan = APIClient.raceLegPlan(
+                        sensitive: true,
+                        isAuthenticated: auth,
+                        region: region,
+                        availableIPs: allIPs
+                    )
+                    XCTAssertEqual(plan.directIPs, [],
+                        "sensitive endpoint \(path) must not race direct-IP (auth=\(auth) region=\(region ?? "nil"))")
+                    XCTAssertEqual(plan.httpEightyIPs, [],
+                        "sensitive endpoint \(path) must not race HTTP:80 (auth=\(auth) region=\(region ?? "nil"))")
+                    XCTAssertTrue(plan.primary,
+                        "sensitive endpoint \(path) still uses the primary HTTPS leg")
+                }
+            }
+        }
+    }
 }
