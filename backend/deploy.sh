@@ -216,6 +216,22 @@ ASC_APP_ID=${ASC_APP_ID}
 EOF
 chmod 600 .env
 
+# MON-06: ensure /var/log/singbox-events.jsonl exists AS A FILE before
+# docker-compose mounts it. If the path doesn't exist, Docker silently
+# creates it as a DIRECTORY which then fails the Python watcher's
+# `open(file, "a")` with IsADirectoryError. Pre-creating the file
+# prevents that race forever.
+sudo touch /var/log/singbox-events.jsonl
+sudo chmod 644 /var/log/singbox-events.jsonl
+
+# Same trick for the ASC key — if the operator hasn't scp'd a real .p8
+# yet, ensure the mount target exists as a file (even if empty) so
+# docker doesn't auto-create a directory. asc.New() on empty PEM
+# returns nil → Status page renders "ASC not configured" cleanly.
+sudo mkdir -p /etc/chameleon
+sudo touch /etc/chameleon/asc-key.p8
+sudo chmod 600 /etc/chameleon/asc-key.p8
+
 # Telegram alerts config
 if [ -n "$TG_BOT_TOKEN" ]; then
     printf 'TELEGRAM_BOT_TOKEN=%s\nTELEGRAM_CHAT_IDS="%s"\n' \
