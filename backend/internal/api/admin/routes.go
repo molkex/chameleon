@@ -95,6 +95,7 @@ func RegisterRoutes(g *echo.Group, h *Handler, jwtManager *auth.JWTManager) {
 	g.GET("/stats", h.GetStats, adminMW)
 	g.GET("/stats/dashboard", h.GetDashboard, adminMW)
 	g.GET("/stats/traffic-outliers", h.TrafficOutliers, adminMW)
+	g.GET("/stats/funnel", h.Funnel, adminMW)
 
 	// Servers. Read open; CRUD admin-only.
 	g.GET("/servers", h.ListServers, adminMW)
