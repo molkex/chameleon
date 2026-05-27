@@ -58,6 +58,7 @@ const Shield = lazy(() => import("./pages/shield"));
 const Settings = lazy(() => import("./pages/settings"));
 const Servers = lazy(() => import("./pages/servers"));
 const Admins = lazy(() => import("./pages/admins"));
+const Audit = lazy(() => import("./pages/audit"));
 const Login = lazy(() => import("./pages/login"));
 
 // ── Routes ──
@@ -143,11 +144,17 @@ const adminsRoute = createRoute({
   },
 });
 
+const auditRoute = createRoute({
+  getParentRoute: () => layoutRoute,
+  path: "/audit",
+  component: Audit,
+});
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
   layoutRoute.addChildren([
     indexRoute, usersRoute, nodesRoute, serversRoute, protocolsRoute,
-    shieldRoute, settingsRoute, adminsRoute,
+    shieldRoute, settingsRoute, adminsRoute, auditRoute,
   ]),
 ]);
 

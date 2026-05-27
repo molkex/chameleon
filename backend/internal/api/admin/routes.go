@@ -107,6 +107,15 @@ func RegisterRoutes(g *echo.Group, h *Handler, jwtManager *auth.JWTManager) {
 	admins.GET("", h.ListAdmins)
 	admins.POST("", h.CreateAdmin)
 	admins.DELETE("/:id", h.DeleteAdmin)
+
+	// Audit log viewer. Read endpoints open to admin/operator/viewer —
+	// the table holds no secrets (sensitive details are sanitised at write
+	// time, see auditSafeUsername in mobile/auth.go and MED-014). Visibility
+	// for non-admin operators / viewers is a feature: they review their own
+	// actions and catch their teammates' destructive ones.
+	audit := g.Group("/audit", adminMW)
+	audit.GET("", h.ListAuditEvents)
+	audit.GET("/actions", h.ListAuditActions)
 }
 
 // RequireAdmin returns middleware that allows only `admin` role through.
