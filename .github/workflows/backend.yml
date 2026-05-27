@@ -33,7 +33,11 @@ jobs:
       - name: Lint (golangci-lint)
         uses: golangci/golangci-lint-action@v6
         with:
-          version: latest
+          # Pinned to a v2.x release that supports Go 1.25.
+          # `latest` resolved to a stale v1.x binary that fails with
+          # "Go language version (go1.24) ... is lower than the targeted
+          # Go version (1.25.4)". v2.12.2 was published 2026-05-06.
+          version: v2.12.2
           working-directory: backend
           args: --timeout=5m
 

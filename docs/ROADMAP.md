@@ -181,6 +181,17 @@ Qupra DC outage (Amsterdam, 27 May) выявил пробелы: мы узнал
 - ✓ **ADM-05 (verified 2026-05-27):** `auth.go` login/refresh/logout cookies все используют `SameSite: http.SameSiteStrictMode` + `Secure: isHTTPS(c)` + `HttpOnly: true` (см. строки 209/230). Старый pending item.
 - **ADM-06:** Form validation отсутствует (JSON, URL, numeric)
 
+### Tech-debt
+- **TD-LINT-01:** golangci-lint set расширить (errcheck / staticcheck / unused). Минимальный config (govet/ineffassign/unconvert/misspell) добавлен 2026-05-28 чтобы CI зелёный — dry-run выдал ~22 pre-existing issues которые нужно фиксить отдельным проходом:
+  - **errcheck (9):** `defer resp.Body.Close()` / `defer f.Close()` в `internal/api/admin/metrics.go`, `internal/api/admin/nodes.go:474`, `internal/asc/asc.go:149`, `internal/geoip/geoip.go:87`, `internal/payments/freekassa/client.go:121`.
+  - **staticcheck deprecations (8):** `redis.Client.SetNX` (deprecated в 2.6.12 — use `Set` + `NX` option) в admin/auth.go:155, middleware/idempotency.go:141, mobile/auth.go:473. `echomw.TimeoutWithConfig` (data-race issues — use `ContextTimeoutWithConfig`) в api/server.go:126. `grpc.DialContext`/`grpc.WithBlock` (use `NewClient`) в vpn/stats_v2ray.go.
+  - **staticcheck style (3):** QF1008 embedded field в cmd/chameleon/main.go:269 + config/config.go:253, S1011 replace loop with append в vpn/clientconfig.go:388, QF1001 De Morgan в mobile/auth_test.go:188.
+  - **unused (2):** `configBuildMarker` const в vpn/clientconfig.go:26, `v2rayStatsClient.close` метод в vpn/stats_v2ray.go.
+  - **SA4000 (1, real bug):** `if blacklistKey(token) != blacklistKey(token)` в `internal/api/auth_blacklist_key_test.go:52` — identical expressions, тест бесполезен.
+- **TD-LINT-02:** react-hooks 7.0.1 strict rules. `eslint.config.js` понизил два error-level правила до warn (2026-05-28) чтобы PR не упирался в pre-existing patterns:
+  - `react-hooks/set-state-in-effect` — `useEffect(() => setPage(1), [filters])` в users.tsx / audit.tsx / settings.tsx. По React-19 docs нужно переводить в event handlers; рефактор каждой страницы отдельным проходом.
+  - `react-hooks/purity` — `Math.random()` в useMemo (placeholder data) в одном файле, нужно деаплицировать.
+
 ---
 
 ## Later (бэклог)
