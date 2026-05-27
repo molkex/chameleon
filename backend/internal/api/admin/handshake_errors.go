@@ -22,28 +22,43 @@ import (
 const handshakeLogPath = "/var/log/singbox-events.jsonl"
 
 type handshakeTickRow struct {
-	TS     string         `json:"ts"`
-	Errors int            `json:"errors"`
-	ByIP   map[string]int `json:"by_ip"`
+	TS         string            `json:"ts"`
+	Errors     int               `json:"errors"`
+	ByIP       map[string]int    `json:"by_ip"`
+	Users      map[string]string `json:"users,omitempty"`        // Phase 2+ : {ip: vpn_username}
+	UserErrors int               `json:"user_errors,omitempty"`  // Phase 2+
+	BotErrors  int               `json:"bot_errors,omitempty"`   // Phase 2+
 }
 
 type handshakeHourBucket struct {
-	HourStart string `json:"hour_start"` // YYYY-MM-DDTHH:00:00Z
-	Errors    int    `json:"errors"`
+	HourStart   string `json:"hour_start"` // YYYY-MM-DDTHH:00:00Z
+	Errors      int    `json:"errors"`
+	UserErrors  int    `json:"user_errors"`
+	BotErrors   int    `json:"bot_errors"`
 }
 
 type handshakeTopIP struct {
-	IP     string `json:"ip"`
-	Errors int    `json:"errors"`
+	IP          string `json:"ip"`
+	Errors      int    `json:"errors"`
+	VPNUsername string `json:"vpn_username,omitempty"` // Phase 2+ — set when IP matches a real user
+}
+
+type handshakeAffectedUser struct {
+	VPNUsername string `json:"vpn_username"`
+	IP          string `json:"ip"`
+	Errors      int    `json:"errors"`
 }
 
 type handshakeErrorsResponse struct {
-	WindowHours int                   `json:"window_hours"`
-	Total       int                   `json:"total"`
-	Hourly      []handshakeHourBucket `json:"hourly"`
-	TopIPs      []handshakeTopIP      `json:"top_ips"`
-	WatcherOK   bool                  `json:"watcher_ok"`
-	WatcherNote string                `json:"watcher_note,omitempty"`
+	WindowHours    int                     `json:"window_hours"`
+	Total          int                     `json:"total"`
+	UserErrors     int                     `json:"user_errors"`
+	BotErrors      int                     `json:"bot_errors"`
+	Hourly         []handshakeHourBucket   `json:"hourly"`
+	TopIPs         []handshakeTopIP        `json:"top_ips"`
+	AffectedUsers  []handshakeAffectedUser `json:"affected_users"`
+	WatcherOK      bool                    `json:"watcher_ok"`
+	WatcherNote    string                  `json:"watcher_note,omitempty"`
 }
 
 // GetHandshakeErrors handles GET /api/v1/admin/status/handshake-errors.
@@ -88,9 +103,13 @@ func (h *Handler) GetHandshakeErrors(c echo.Context) error {
 	}
 	defer f.Close()
 
-	hourBuckets := make(map[string]int)
+	type hourAgg struct{ total, user, bot int }
+	hourBuckets := make(map[string]*hourAgg)
 	ipBuckets := make(map[string]int)
+	ipToUsername := make(map[string]string) // last-wins, but stable within window
 	total := 0
+	userTotal := 0
+	botTotal := 0
 	latestTick := time.Time{}
 
 	scanner := bufio.NewScanner(f)
@@ -117,10 +136,34 @@ func (h *Handler) GetHandshakeErrors(c echo.Context) error {
 		}
 		// Hour bucket key: round-down to hour boundary.
 		hourKey := t.Truncate(time.Hour).Format(time.RFC3339)
-		hourBuckets[hourKey] += row.Errors
+		agg := hourBuckets[hourKey]
+		if agg == nil {
+			agg = &hourAgg{}
+			hourBuckets[hourKey] = agg
+		}
+		agg.total += row.Errors
 		total += row.Errors
+
+		// Phase 2 fields are optional — older JSONL lines from Phase 1
+		// have row.UserErrors=0 and row.BotErrors=0 even when errors>0.
+		// Detect via the presence of the row.Users map (only Phase 2+
+		// emits it). When missing, fall back to "treat all as bot" so
+		// the rollup doesn't double-count.
+		if row.Users != nil {
+			agg.user += row.UserErrors
+			agg.bot += row.BotErrors
+			userTotal += row.UserErrors
+			botTotal += row.BotErrors
+		} else {
+			agg.bot += row.Errors
+			botTotal += row.Errors
+		}
+
 		for ip, n := range row.ByIP {
 			ipBuckets[ip] += n
+		}
+		for ip, username := range row.Users {
+			ipToUsername[ip] = username
 		}
 	}
 	if err := scanner.Err(); err != nil {
@@ -132,15 +175,23 @@ func (h *Handler) GetHandshakeErrors(c echo.Context) error {
 	now := time.Now().UTC().Truncate(time.Hour)
 	hourly := make([]handshakeHourBucket, 0, hours)
 	for i := hours - 1; i >= 0; i-- {
-		h := now.Add(-time.Duration(i) * time.Hour)
-		key := h.Format(time.RFC3339)
+		ht := now.Add(-time.Duration(i) * time.Hour)
+		key := ht.Format(time.RFC3339)
+		agg := hourBuckets[key]
+		if agg == nil {
+			agg = &hourAgg{}
+		}
 		hourly = append(hourly, handshakeHourBucket{
-			HourStart: key,
-			Errors:    hourBuckets[key],
+			HourStart:  key,
+			Errors:     agg.total,
+			UserErrors: agg.user,
+			BotErrors:  agg.bot,
 		})
 	}
 
-	// Top 10 IPs by count in the window.
+	// Top 10 IPs by count in the window. Annotate with vpn_username so
+	// the admin can scan the table and immediately spot real users that
+	// keep failing — those rows render highlighted in the SPA.
 	type ipPair struct {
 		ip string
 		n  int
@@ -156,18 +207,40 @@ func (h *Handler) GetHandshakeErrors(c echo.Context) error {
 	}
 	topIPs := make([]handshakeTopIP, 0, topN)
 	for _, p := range pairs[:topN] {
-		topIPs = append(topIPs, handshakeTopIP{IP: p.ip, Errors: p.n})
+		topIPs = append(topIPs, handshakeTopIP{
+			IP:          p.ip,
+			Errors:      p.n,
+			VPNUsername: ipToUsername[p.ip], // empty for bots
+		})
 	}
+
+	// Dedicated "affected users" list — drop the bot IPs entirely so the
+	// admin can see the 3 real users failing in front of an unmuted page.
+	affected := make([]handshakeAffectedUser, 0)
+	for ip, username := range ipToUsername {
+		if username == "" {
+			continue
+		}
+		affected = append(affected, handshakeAffectedUser{
+			VPNUsername: username,
+			IP:          ip,
+			Errors:      ipBuckets[ip],
+		})
+	}
+	sort.Slice(affected, func(i, j int) bool { return affected[i].Errors > affected[j].Errors })
 
 	// Watcher fresh if we saw a tick in the last 5 minutes. Anything
 	// older = cron isn't running or the docker logs call is failing.
 	watcherOK := !latestTick.IsZero() && time.Since(latestTick) < 5*time.Minute
 	resp := handshakeErrorsResponse{
-		WindowHours: hours,
-		Total:       total,
-		Hourly:      hourly,
-		TopIPs:      topIPs,
-		WatcherOK:   watcherOK,
+		WindowHours:   hours,
+		Total:         total,
+		UserErrors:    userTotal,
+		BotErrors:     botTotal,
+		Hourly:        hourly,
+		TopIPs:        topIPs,
+		AffectedUsers: affected,
+		WatcherOK:     watcherOK,
 	}
 	if !watcherOK {
 		if latestTick.IsZero() {

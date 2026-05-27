@@ -14,8 +14,22 @@
 #   - failure to run for a few ticks just leaves a gap in JSONL, doesn't
 #     desync anything
 #
+# Phase 2 (2026-05-27 evening): the watcher also joins observed source IPs
+# against `users.last_ip` via a single batched postgres query. The output
+# carries a `users` map of IP → vpn_username for matches, and the totals
+# are split into `user_errors` vs `bot_errors` so the admin Status page
+# can render "3 real users failing" loud and 297 bot probes muted —
+# instead of one big undifferentiated number.
+#
 # Output format (one line per tick, ndjson):
-#   {"ts":"2026-05-27T20:45:00Z","errors":12,"by_ip":{"1.2.3.4":7,...}}
+#   {
+#     "ts":"2026-05-27T20:45:00Z",
+#     "errors":12,
+#     "by_ip":{"1.2.3.4":7,"2.3.4.5":5},
+#     "users":{"1.2.3.4":"device_abc123"},   // present in Phase 2+
+#     "user_errors":7,
+#     "bot_errors":5
+#   }
 #
 # Empty ticks ARE emitted (errors=0) so the consumer can distinguish
 # "zero events" from "watcher didn't run". logrotate keeps the file
@@ -64,12 +78,75 @@ def main() -> int:
         if m:
             by_ip[m.group(1)] += 1
 
+    # Phase 2: batch-lookup all observed IPs against users.last_ip in a
+    # single psql call. Empty input short-circuits to {} so an idle tick
+    # doesn't spawn a docker exec for nothing.
+    users = lookup_users_by_ip(list(by_ip.keys()))
+    user_errors = sum(n for ip, n in by_ip.items() if ip in users)
+    total = sum(by_ip.values())
+    bot_errors = total - user_errors
+
     emit({
         "ts": now(),
-        "errors": sum(by_ip.values()),
+        "errors": total,
         "by_ip": dict(by_ip),
+        "users": users,
+        "user_errors": user_errors,
+        "bot_errors": bot_errors,
     })
     return 0
+
+
+# Regex pre-screens the IPs we ship to psql so we never pass anything
+# weird through string interpolation. Tight: 1-3 digits, three dots,
+# 1-3 digits — IPv6 not supported because singbox logs only IPv4 source.
+_IP_RE = re.compile(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
+
+
+def lookup_users_by_ip(ips: list[str]) -> dict[str, str]:
+    """Return {ip: vpn_username} for IPs matching any user's last_ip.
+
+    Uses `docker exec chameleon-postgres psql` with -A (unaligned) -t
+    (tuples only) -F| (custom field sep) so output is one row per match
+    in `ip|username` form, trivial to parse without a real psycopg
+    dependency.
+
+    Returns {} on any error — the rest of the tick still emits with
+    `users` empty, so admin gets the IP-only view (Phase-1-equivalent)
+    instead of the watcher silently dying.
+    """
+    safe = [ip for ip in ips if _IP_RE.match(ip)]
+    if not safe:
+        return {}
+
+    # Safe to inline-quote because we just validated against _IP_RE.
+    in_list = ",".join(f"'{ip}'" for ip in safe)
+    sql = (
+        f"SELECT last_ip, vpn_username FROM users "
+        f"WHERE last_ip IN ({in_list}) AND vpn_username IS NOT NULL"
+    )
+
+    try:
+        proc = subprocess.run(
+            [
+                "docker", "exec", "-i", "chameleon-postgres",
+                "psql", "-U", "chameleon", "-d", "chameleon",
+                "-A", "-t", "-F", "|", "-c", sql,
+            ],
+            capture_output=True, text=True, timeout=5,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return {}
+
+    out: dict[str, str] = {}
+    for line in (proc.stdout or "").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split("|", 1)
+        if len(parts) == 2 and _IP_RE.match(parts[0]):
+            out[parts[0]] = parts[1]
+    return out
 
 
 def now() -> str:

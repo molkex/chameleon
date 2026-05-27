@@ -66,16 +66,27 @@ interface AppleState {
 interface HandshakeHourBucket {
   hour_start: string;
   errors: number;
+  user_errors: number;
+  bot_errors: number;
 }
 interface HandshakeTopIP {
+  ip: string;
+  errors: number;
+  vpn_username?: string;
+}
+interface HandshakeAffectedUser {
+  vpn_username: string;
   ip: string;
   errors: number;
 }
 interface HandshakeErrors {
   window_hours: number;
   total: number;
+  user_errors: number;
+  bot_errors: number;
   hourly: HandshakeHourBucket[];
   top_ips: HandshakeTopIP[];
+  affected_users: HandshakeAffectedUser[];
   watcher_ok: boolean;
   watcher_note?: string;
 }
@@ -355,43 +366,97 @@ export default function StatusPage() {
             {!hs.watcher_ok && (
               <p className="text-xs text-amber-400">⚠ {hs.watcher_note}</p>
             )}
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-zinc-400">Total in window:</span>
-              <span className="text-2xl font-bold text-zinc-200 tabular-nums">{hs.total.toLocaleString()}</span>
-            </div>
-            {/* Mini sparkline-style bars per hour. Hand-rolled to avoid
-                pulling Recharts on the Status page (kept off the
-                critical-render path of the most-visited admin route). */}
-            <div className="flex items-end gap-0.5 h-16 border-b border-zinc-800">
-              {hs.hourly.map((b) => {
-                const maxErrors = Math.max(1, ...hs.hourly.map((x) => x.errors));
-                const heightPct = (b.errors / maxErrors) * 100;
-                const bgClass =
-                  b.errors === 0 ? "bg-zinc-800" :
-                  b.errors < maxErrors * 0.3 ? "bg-emerald-900" :
-                  b.errors < maxErrors * 0.7 ? "bg-yellow-700" : "bg-red-700";
-                return (
-                  <div
-                    key={b.hour_start}
-                    className={`flex-1 ${bgClass} rounded-sm`}
-                    style={{ height: `${heightPct}%` }}
-                    title={`${b.hour_start.slice(11, 16)} UTC: ${b.errors} errors`}
-                  />
-                );
-              })}
-            </div>
-            <div className="flex justify-between text-xs text-zinc-600">
-              <span>{hs.hourly[0]?.hour_start.slice(0, 16)} UTC</span>
-              <span>now</span>
+
+            {/* Two-column split: real-user failures (the thing that matters)
+                in red on the left, bot-probe noise muted on the right. */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className={`rounded-lg p-3 ${hs.user_errors > 0 ? "bg-red-950/40 border border-red-900/50" : "bg-zinc-900/40 border border-zinc-800"}`}>
+                <div className="text-xs text-zinc-400 mb-1">Real users failing</div>
+                <div className={`text-2xl font-bold tabular-nums ${hs.user_errors > 0 ? "text-red-300" : "text-zinc-500"}`}>
+                  {hs.user_errors.toLocaleString()}
+                </div>
+                <div className="text-xs text-zinc-600 mt-1">
+                  {hs.affected_users.length} {hs.affected_users.length === 1 ? "user" : "users"} affected
+                </div>
+              </div>
+              <div className="rounded-lg p-3 bg-zinc-900/40 border border-zinc-800">
+                <div className="text-xs text-zinc-500 mb-1">Bot probes (noise)</div>
+                <div className="text-2xl font-bold text-zinc-400 tabular-nums">{hs.bot_errors.toLocaleString()}</div>
+                <div className="text-xs text-zinc-600 mt-1">internet-wide :443 scanners</div>
+              </div>
             </div>
 
-            {hs.top_ips.length > 0 && (
+            {/* Per-hour stacked bars: user-errors layered on top of bot-errors
+                so an attack day pops visually even if the totals look uniform. */}
+            <div>
+              <div className="flex items-end gap-0.5 h-16 border-b border-zinc-800">
+                {hs.hourly.map((b) => {
+                  const maxErrors = Math.max(1, ...hs.hourly.map((x) => x.errors));
+                  const userH = (b.user_errors / maxErrors) * 100;
+                  const botH = (b.bot_errors / maxErrors) * 100;
+                  return (
+                    <div
+                      key={b.hour_start}
+                      className="flex-1 flex flex-col justify-end gap-px"
+                      title={`${b.hour_start.slice(11, 16)} UTC — users: ${b.user_errors}, bots: ${b.bot_errors}`}
+                    >
+                      {b.user_errors > 0 && (
+                        <div className="bg-red-500/80 rounded-t-sm" style={{ height: `${userH}%` }} />
+                      )}
+                      {b.bot_errors > 0 && (
+                        <div className="bg-zinc-700 rounded-sm" style={{ height: `${botH}%` }} />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex justify-between text-xs text-zinc-600 mt-1">
+                <span>{hs.hourly[0]?.hour_start.slice(0, 16)} UTC</span>
+                <span className="flex items-center gap-3">
+                  <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 bg-red-500/80 rounded-sm" /> users</span>
+                  <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 bg-zinc-700 rounded-sm" /> bots</span>
+                </span>
+                <span>now</span>
+              </div>
+            </div>
+
+            {/* Affected users — shown first, full table because this IS the
+                actionable list. Bot top-IPs collapsed below in a folded
+                details element to keep them out of the way. */}
+            {hs.affected_users.length > 0 && (
               <div>
-                <div className="text-xs uppercase tracking-wide text-zinc-500 mb-2">Top sources</div>
+                <div className="text-xs uppercase tracking-wide text-red-400 mb-2">Affected users</div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-xs">User</TableHead>
+                      <TableHead className="text-xs">IP</TableHead>
+                      <TableHead className="text-right text-xs">Errors</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {hs.affected_users.map((u) => (
+                      <TableRow key={u.vpn_username + u.ip}>
+                        <TableCell className="font-mono text-sm text-zinc-200">{u.vpn_username}</TableCell>
+                        <TableCell className="font-mono text-xs text-zinc-500">{u.ip}</TableCell>
+                        <TableCell className="text-right font-mono text-sm tabular-nums text-red-300">{u.errors.toLocaleString()}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+
+            {hs.top_ips.length > 0 && (
+              <details className="text-sm">
+                <summary className="text-xs uppercase tracking-wide text-zinc-500 mb-2 cursor-pointer hover:text-zinc-300">
+                  Top sources (all, including bots)
+                </summary>
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead className="text-xs">IP</TableHead>
+                      <TableHead className="text-xs">User</TableHead>
                       <TableHead className="text-right text-xs">Errors</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -399,12 +464,17 @@ export default function StatusPage() {
                     {hs.top_ips.map((row) => (
                       <TableRow key={row.ip}>
                         <TableCell className="font-mono text-sm text-zinc-300">{row.ip}</TableCell>
+                        <TableCell className="text-xs">
+                          {row.vpn_username
+                            ? <span className="font-mono text-red-300">{row.vpn_username}</span>
+                            : <span className="text-zinc-600 italic">bot</span>}
+                        </TableCell>
                         <TableCell className="text-right font-mono text-sm tabular-nums">{row.errors.toLocaleString()}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
-              </div>
+              </details>
             )}
           </CardContent>
         </Card>
