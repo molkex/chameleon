@@ -165,13 +165,20 @@ func (h *Handler) GetConfig(c echo.Context) error {
 // touchDevice updates the user's last_seen + device metadata columns from
 // the request's headers. Runs in a background goroutine with a detached
 // context so it outlives the request but never blocks the response.
+//
+// GeoIP is resolved inside the goroutine — ip-api.com adds up to 5s, and
+// we don't want it on the hot path. We pass an empty Country/CountryName/
+// City when the resolver isn't wired or the IP isn't public, which keeps
+// TouchUserDevice's CASE-WHEN-empty guard from clobbering an existing
+// non-empty value.
 func (h *Handler) touchDevice(userID int64, c echo.Context) {
 	req := c.Request()
 	ua := req.UserAgent()
 	parsed := useragent.Parse(ua)
 
+	ip := c.RealIP()
 	info := db.DeviceInfo{
-		IP:             c.RealIP(),
+		IP:             ip,
 		UserAgent:      ua,
 		AppVersion:     parsed.AppVersion,
 		OSName:         parsed.OSName,
@@ -183,8 +190,16 @@ func (h *Handler) touchDevice(userID int64, c echo.Context) {
 	}
 
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
+
+		if h.GeoIP != nil && ip != "" {
+			geo := h.GeoIP.Lookup(ctx, ip)
+			info.Country = geo.Country
+			info.CountryName = geo.CountryName
+			info.City = geo.City
+		}
+
 		if err := h.DB.TouchUserDevice(ctx, userID, info); err != nil {
 			h.Logger.Warn("touch user device", zap.Error(err), zap.Int64("user_id", userID))
 		}
