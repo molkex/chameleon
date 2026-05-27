@@ -1,4 +1,4 @@
-import { useState, useDeferredValue } from "react";
+import { useState, useDeferredValue, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, type User } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,8 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Search, Trash2, Clock, Link, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
+import { Search, Trash2, Clock, Link, ArrowUp, ArrowDown, ArrowUpDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { statusColor } from "@/lib/constants";
+
+const PAGE_SIZES = [25, 50, 100, 200] as const;
+type PageSize = (typeof PAGE_SIZES)[number];
 
 // Sortable columns — must match the whitelist in
 // backend/internal/db/users.go resolveUserSort. Adding a column here
@@ -82,6 +85,8 @@ export default function UsersPage() {
   const deferredSearch = useDeferredValue(search);
   const [sortColumn, setSortColumn] = useState<SortColumn>("id");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<PageSize>(50);
   const queryClient = useQueryClient();
 
   // Toggle sort: same column flips direction, new column resets to desc
@@ -95,18 +100,33 @@ export default function UsersPage() {
     }
   };
 
-  const { data: users = [], isLoading } = useQuery({
-    queryKey: ["users", deferredSearch, sortColumn, sortOrder],
+  // Search/sort/page-size change → reset to page 1. A filter shrinks the
+  // result set; staying on page 12 of a now-empty list is just an empty
+  // table with no obvious way to recover.
+  useEffect(() => { setPage(1); }, [deferredSearch, sortColumn, sortOrder, pageSize]);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["users", deferredSearch, sortColumn, sortOrder, page, pageSize],
     queryFn: () => {
       const params = new URLSearchParams({
-        page_size: "100",
+        page: String(page),
+        page_size: String(pageSize),
         sort: sortColumn,
         order: sortOrder,
       });
       if (deferredSearch) params.set("search", deferredSearch);
-      return api.get<{ users: User[] }>(`/admin/users?${params.toString()}`).then((r) => r.users || []);
+      return api.get<{ users: User[]; total: number; page: number; page_size: number }>(
+        `/admin/users?${params.toString()}`,
+      );
     },
+    placeholderData: (prev) => prev, // keep showing previous page while next loads
   });
+
+  const users = data?.users ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const firstShown = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const lastShown = Math.min(page * pageSize, total);
 
   const deleteMutation = useMutation({
     mutationFn: (username: string) => api.del(`/admin/users/${username}`),
@@ -257,6 +277,49 @@ export default function UsersPage() {
           </Table>
         </CardContent>
       </Card>
+
+      <div className="flex items-center justify-between text-sm text-zinc-400">
+        <div>
+          {total === 0 ? (
+            <span>0 users</span>
+          ) : (
+            <span>
+              <span className="text-zinc-200">{firstShown.toLocaleString()}–{lastShown.toLocaleString()}</span>
+              {" "}of{" "}
+              <span className="text-zinc-200">{total.toLocaleString()}</span>
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-4">
+          <label className="flex items-center gap-2">
+            <span className="text-zinc-500">Per page</span>
+            <select
+              className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-zinc-200"
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value) as PageSize)}
+            >
+              {PAGE_SIZES.map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </label>
+
+          <div className="flex items-center gap-1">
+            <Button size="icon" variant="ghost" className="h-7 w-7" disabled={page <= 1} onClick={() => setPage(1)} title="First">
+              <ChevronsLeft className="h-4 w-4" />
+            </Button>
+            <Button size="icon" variant="ghost" className="h-7 w-7" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))} title="Previous">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="px-2 tabular-nums text-zinc-200">{page} / {totalPages}</span>
+            <Button size="icon" variant="ghost" className="h-7 w-7" disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))} title="Next">
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Button size="icon" variant="ghost" className="h-7 w-7" disabled={page >= totalPages} onClick={() => setPage(totalPages)} title="Last">
+              <ChevronsRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
