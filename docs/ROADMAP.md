@@ -146,6 +146,31 @@
 - **SRV-12:** File descriptor limit 1024 на NL — `/etc/security/limits.conf` + docker daemon
 - **SRV-13:** SSL Cloudflare ↔ DE — проверить mode = «Full», не «Flexible»
 
+### Monitoring / Observability — overhaul (added 2026-05-27 after Qupra incident)
+
+Qupra DC outage (Amsterdam, 27 May) выявил пробелы: мы узнали о падении из бота, фиксили вручную, **singbox container не auto-перезапустился** после VPS recovery из-за бага в watchdog filter, и об этом узнали только потому что вручную полезли. Снизу — конкретные задачи, не размытые «улучшить мониторинг».
+
+- **MON-01:** Внешний uptime monitor (Uptime Kuma self-hosted OR UptimeRobot free). 5 чеков от 3+ географий: `https://api.madfrog.online/health` (200/json), `https://madfrog.online/` (200), SPB:2098 TCP probe, NL:443 TCP probe, MSK:443 TCP probe. Telegram alert при > 2 fails подряд. Отдельный хост (НЕ на Timeweb).
+- **MON-02:** Расширить `backend/scripts/health-check.sh` — сейчас чекает только API + singbox container + VPN port. Добавить: postgres connect, redis ping, disk usage > 85%, RAM usage > 90%, ratio swap/total > 10%, время последнего успешного backup'а (warn если > 30ч от db-backup.sh log).
+- **MON-03:** **Singbox watchdog** — сейчас name-filter был broken (`name=singbox` matched `singbox-ss-ws` → false positive). Уже пофиксили в commit `a7457b0`. Добавить regression test: cron каждые 10 мин делает `stop singbox` если нужно тестить и watchdog должен поднять (или dry-run flag).
+- **MON-04:** **Per-service метрики** в Prometheus / OpenObserve. Сейчас metrics-agent шлёт node-level (CPU/RAM/disk) — нет per-service: singbox handshakes/sec (success + fail), postgres connections active/idle, redis memory used %, chameleon API latency p50/p95/p99 per endpoint, nginx upstream timeouts. Дешевле всего: добавить /metrics endpoint в chameleon (Prometheus format), scrape с metrics-agent.
+- **MON-05:** **Dashboard в admin SPA** — Real-time из metrics-agent collected stats: график CPU/RAM/traffic per node за 24ч, список последних 50 alert-событий из admin_audit_log + bot logs (нужен log shipper), статус каждого node (last health-check timestamp + green/yellow/red).
+- **MON-06:** **Distributed tracing для VPN handshake failures** — сейчас в singbox logs видны `REALITY: processed invalid connection` без контекста (кто, с каким клиентом, на каком этапе). Структурированный лог с device_id (если знаем), client SNI, фаза handshake. Помогает дебажить юзер-репорты «не подключается».
+- **MON-07:** **Synthetic VPN connect test** каждые 15 мин — внешний скрипт делает реальный VLESS handshake к NL:443 (или через SPB:2098) с тестовым device_id, проверяет что туннель устанавливается. Это catches проблемы которых не видит TCP probe (Reality config drift, expired ASN whitelist, etc).
+
+### User tracking / data quality — overhaul (added 2026-05-27)
+
+Юзер пожаловался: «слишком мало данных у пользователей, нет сортировок». Конкретные пробелы которые видны прямо сейчас в админке (78 users) и в DB:
+
+- **USR-01:** **`last_ip` пишется MSK relay IP вместо реального юзера**. Все 78 юзеров с `last_ip=217.198.5.52`. Backend читает RealIP из echo который смотрит на X-Real-IP (поставлен nginx). nginx должен брать самый дальний IP из X-Forwarded-For chain (CF → MSK → NL). Конфиг nginx + `real_ip_recursive on` + `set_real_ip_from <CF/MSK ranges>`.
+- **USR-02:** **`last_country` пустой у всех сегодняшних регистраций.** GeoIP lookup сломан или MMDB старая. Проверить путь `internal/geoip/`, обновить MMDB, добавить fallback `CF-IPCountry` header который Cloudflare шлёт бесплатно.
+- **USR-03:** **Sortable / filterable users table в admin SPA**. Сейчас просто список без headers-click-to-sort. Нужно: сортировка по `created_at`, `last_seen`, `subscription_expiry`, `cumulative_traffic`, `last_country`. Фильтры: `is_active`, `auth_provider`, `subscription_expiry < 7д`, country, has-paid-subscription. Search by username/email/device_id (partial match).
+- **USR-04:** **Пагинация + virtual scroll** — текущий `/api/admin/users` уже поддерживает `page` + `pageSize`, но в UI отсутствует. При росте до 1000+ юзеров браузер ляжет.
+- **USR-05:** **User detail page** — кликнуть на юзера → отдельная страница со всей историей: payments timeline, traffic graph за 7д/30д, device info (model, iOS version, app version), connection history (IPs + countries), audit log записи касающиеся этого юзера, кнопки «extend subscription», «reset device limit», «delete account».
+- **USR-06:** **Активность за период** — графики: signups per day за 30д, MAU/DAU, retention cohort, conversion device→Apple/Google sign-in. Сейчас только snapshot цифры (Total/Active/Online).
+- **USR-07:** **Per-user traffic breakdown** в `traffic_snapshots` уже копится — добавить агрегат «средний GB/мес per user» + outliers (top-10 by traffic last 7д) — помогает выявлять abuse.
+- **USR-08:** **Audit log в UI** — таблица `admin_audit_log` уже растёт (см. MED-014), нужен раздел в admin SPA «История действий» с фильтром по `action`, `admin_user_id`, date range.
+
 ### Admin SPA
 - **ADM-05:** Cookie missing `SameSite=Strict`
 - **ADM-06:** Form validation отсутствует (JSON, URL, numeric)
