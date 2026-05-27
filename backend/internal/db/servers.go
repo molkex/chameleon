@@ -187,6 +187,14 @@ func (db *DB) CreateServer(ctx context.Context, s *VPNServer) (*VPNServer, error
 }
 
 // UpdateServer updates an existing VPN server by ID and returns the updated record.
+//
+// MED-015 (2026-05-27 incident): reality_{public,private}_key + provider_password
+// are guarded with COALESCE-NULLIF so a payload that omits them (e.g. admin SPA
+// form that doesn't surface key material) cannot wipe the row. The admin
+// /servers PUT form posts every field of vpn_servers including empty
+// reality_private_key, which previously SET it to ''. With the local node's
+// row zeroed, chameleon refuses to start on next deploy — see post-mortem in
+// TROUBLESHOOTING.md. Mirrors the guard already in UpsertServerByKey below.
 func (db *DB) UpdateServer(ctx context.Context, id int64, s *VPNServer) (*VPNServer, error) {
 	ctx, cancel := defaultTimeout(ctx)
 	defer cancel()
@@ -195,10 +203,14 @@ func (db *DB) UpdateServer(ctx context.Context, id int64, s *VPNServer) (*VPNSer
 	err := db.Pool.QueryRow(ctx, `
 		UPDATE vpn_servers
 		SET key = $2, name = $3, flag = $4, host = $5, port = $6,
-		    domain = $7, sni = $8, reality_public_key = $9, reality_private_key = $10,
+		    domain = $7, sni = $8,
+		    reality_public_key  = COALESCE(NULLIF($9,  ''), reality_public_key),
+		    reality_private_key = COALESCE(NULLIF($10, ''), reality_private_key),
 		    is_active = $11, sort_order = $12,
 		    provider_name = $13, cost_monthly = $14, provider_url = $15,
-		    provider_login = $16, provider_password = $17, notes = $18,
+		    provider_login = $16,
+		    provider_password = COALESCE(NULLIF($17, ''), provider_password),
+		    notes = $18,
 		    role = COALESCE(NULLIF($19, ''), role),
 		    country_code = $20,
 		    user_api_url = $21,

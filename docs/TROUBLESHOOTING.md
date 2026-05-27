@@ -2,6 +2,43 @@
 
 > 🤖 Mirror: [agent-readable YAML](troubleshooting.yaml) — keep in sync. Edit either, sync the other.
 
+## 2026-05-27: Chameleon в restart-loop — `reality_private_key` wiped (MED-015)
+
+### Симптом
+NL chameleon container `Restarting (1)`, /health возвращает 000, новые юзеры не могут /auth/register или /api/v1/mobile/config. Singbox продолжает работать (свой config файл, не зависит от backend) — активные VPN-сессии не падают.
+
+```
+fatal: reality private key not found — set it in vpn_servers DB table or REALITY_PRIVATE_KEY env var
+```
+
+`vpn_servers.reality_private_key` для локальной ноды (`key='nl2'`) пустой (`length(reality_private_key) = 0`).
+
+### Причина
+**Admin SPA `PUT /api/v1/admin/servers/:id`** (вкладка "Servers" в админке) отправляет всё содержимое формы при сохранении. Форма НЕ показывает `reality_private_key` (это sensitive, должен быть за re-auth), поэтому в payload `reality_private_key = ""`. `db.UpdateServer` делал `SET reality_private_key = $10` без NULLIF guard, и пустая строка **затирала** существующий ключ.
+
+В `admin_audit_log`:
+```
+15 | 2026-05-27 19:40:06 | server.update | 72.56.108.130 | id=93 key=nl2 host=147.45.252.234 port=443 active=true
+```
+
+При следующем перезапуске chameleon (любой `deploy.sh` или container restart) startup читает `vpn_servers` → priv = "" → fatal.
+
+### Решение
+1. **Recovery (immediate):** вытащить ключ из работающего `singbox-config.json` + `UPDATE vpn_servers SET reality_private_key=... WHERE key='nl2'`. Singbox volume mount → /etc/singbox/singbox-config.json содержит `inbounds[].tls.reality.private_key`.
+2. **Prevention (MED-015):** `internal/db/servers.go` UpdateServer обернул `reality_public_key`, `reality_private_key`, `provider_password` в `COALESCE(NULLIF($N, ''), <column>)` — пустой payload-string preserve'ит сохранённое значение. Mirrors guard уже стоявший в `UpsertServerByKey`. Regression test `TestUpdateServerPreservesSecrets` пинит.
+
+### Грабли
+- **Не ротировать как fix.** Если делать rotation key пара когда backend в restart-loop, новый pub_key не доходит до клиентов (/config API down) → они продолжат handshake'ать со старым pub_key → silent auth fail. Сначала restore, потом если нужно — rotate с живым API.
+- **Singbox + chameleon хранят private_key отдельно.** Singbox config файл — single source operational; DB — copy для chameleon. Cluster sync специально НЕ передаёт private_key между peers (см. `cluster/models.go SyncServer`). Bug сидел в одном-единственном UPDATE handler.
+- **Sensitive fields в формах admin** — если не показываем (за re-auth), не отправляй пустой строкой. Лучший паттерн: не включать поле в payload вообще (omitempty) ИЛИ серверный guard как сейчас.
+
+### Verify
+```sql
+SELECT key, length(reality_private_key) AS priv_len, length(reality_public_key) AS pub_len, updated_at
+  FROM vpn_servers WHERE is_active = true;
+```
+Все priv_len должны быть > 0 (для VLESS Reality keypair ровно 43, base64url).
+
 ## 2026-05-27: Все юзеры с last_ip = MSK relay IP, last_country пустой
 
 ### Симптом

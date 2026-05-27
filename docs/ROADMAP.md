@@ -225,7 +225,10 @@ Qupra DC outage (Amsterdam, 27 May) выявил пробелы: мы узнал
 
 ## Done
 
-### 2026-05-27 (USR overhaul + audit followup + ops)
+### 2026-05-27 (USR overhaul + audit followup + ops + INCIDENT)
+- ✓ **MED-015 (2026-05-27 incident):** `db.UpdateServer` обернул reality_public_key/private_key + provider_password в `COALESCE(NULLIF(...), col)` чтобы admin SPA `PUT /servers/:id` с пустыми полями не wipe'нул secrets. Regression test `TestUpdateServerPreservesSecrets`. Породило 7-минутный outage NL backend 19:50-19:57 UTC когда `vpn_servers.reality_private_key` для nl2 был обнулён через "save server" в админке. Подробности в TROUBLESHOOTING.md.
+- ✓ **Test cleanup:** удалено 37 test accounts (zombies + dev IPs `72.56.108.130`/`71.34.73.209`, до 2026-05-26, non-Apple-signed). 81 → 44 users. Audit-entry `user.bulk_delete` сохраняет полный список ids.
+- ✓ **Admin device names:** `clients/admin/src/lib/devices.ts` мапит `iPhone14,7` → "iPhone 14" и т.п. для всех iOS моделей с 2017+. Hover показывает сырое id для дебага.
 - ✓ **USR-01..03** (PR [#1](https://github.com/molkex/chameleon/pull/1), commits `3709501`+`cea665b`): real client IP via nginx (MSK/SPB trusted, real_ip_header=XFF), `last_country` per-fetch GeoIP refresh, sortable admin users table (5 columns + whitelist + SQL-injection test). Deployed NL.
 - ✓ **Audit followup** (18 commits folded from `strange-bhabha-4f2c93`): MED-001/002/010/011/012/013/014 (install_secret server-issued, docker-socket-proxy, SyncConfig audit, login.failed sanitize), H-001..H-011 (Apple receipt replay reject, refresh, admin, timeouts, singbox check, cert validation). All shipped via PR #1.
 - ✓ **Ops:** singbox-watchdog name-filter regex anchored (`a7457b0`), health-check.sh env-driven VPN_PORT=443 (`dcd5e85`), NL Reality keypair rotated, B2 off-host backup (`520d8eb`), SPB nginx→NL (`0eda66d`), spb-relay mirror в repo.
