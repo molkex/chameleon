@@ -180,14 +180,26 @@ exists because we already shipped the inverse mistake at least once.
 
 ### Backups
 
-- **Never** rely solely on on-host backups. NL's daily `pg_dump` lands in
-  `/var/backups/chameleon/` with 7-day retention; a full node loss erases
-  both prod DB and its backups. Off-host (B2 or similar) is a documented
-  TODO as of 2026-05-27.
+- **Always** maintain both on-host AND off-host backups. NL's
+  `db-backup.sh` runs daily `pg_dump` → `/var/backups/chameleon/` (7-day
+  retention) AND pushes to Backblaze B2 bucket `madfrog-vpn-backups`
+  (30-day retention, us-east-005 region for jurisdictional separation
+  from NL). B2 push uses rclone with config at
+  `/root/.config/rclone/rclone.conf` and the `b2-madfrog` remote; the
+  application key is restricted to that bucket only (Read+Write, no list-
+  all-buckets capability).
+- **Always** rotate the B2 application key when an admin with key access
+  leaves or annually, whichever comes first. Rotation flow: create new key
+  in Backblaze UI → update `/root/.config/rclone/rclone.conf` on NL +
+  `~/.secrets.env` on dev machine → verify next backup pushes → delete
+  old key in UI.
 - **Always** verify backup script paths in cron match reality. We've had
   two separate "broken cron path" outages where someone renamed
   `backend-go/` → `backend/` and forgot to update the crontab; for ~33
   days nothing backed up.
+- **Always** include the B2 push step's failure handling: B2 failure is
+  NOT fatal to db-backup.sh (local backup is the primary safety net), but
+  must trigger a Telegram alert so it gets attention.
 
 ---
 
@@ -246,4 +258,8 @@ hook that runs alongside the upstream plugin.
   for `login.failed` rows (added). H-002b cert validation note clarified —
   direct-IP gate now relaxable per-endpoint after cert chain validation
   landed.
+- 2026-05-27 (evening) — B2 off-host backup wired into db-backup.sh
+  (rclone, 30-day retention, us-east-005 region for jurisdictional
+  separation). Documented rotation policy and failure-handling expectations
+  for the B2 push step.
 - _Add an entry every time a rule is added or revised._
