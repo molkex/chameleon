@@ -954,3 +954,76 @@ func (h *Handler) GetServerCredentials(c echo.Context) error {
 		ProviderPassword: server.ProviderPassword,
 	})
 }
+
+// trafficOutlierRow is the JSON shape for one top-traffic user. Bytes is in
+// raw bytes — the SPA formats GB/MB locally so units stay consistent with
+// the rest of the admin (cumulative_traffic is also GB on the wire).
+type trafficOutlierRow struct {
+	UserID      int64   `json:"user_id"`
+	VPNUsername string  `json:"vpn_username"`
+	GB          float64 `json:"gb"`
+	LastSeen    *string `json:"last_seen"`
+	LastCountry string  `json:"last_country"`
+	IsActive    bool    `json:"is_active"`
+}
+
+type trafficOutliersResponse struct {
+	Users []trafficOutlierRow `json:"users"`
+	Days  int                 `json:"days"`
+	Limit int                 `json:"limit"`
+}
+
+// TrafficOutliers handles GET /api/v1/admin/stats/traffic-outliers
+//
+// Query params: days (default 7, clamped 1-90), limit (default 10, clamped
+// 1-100). Returns the top-N users by SUM(used_traffic) over the window.
+// Read-only — open to viewer / operator / admin like the other /stats reads.
+func (h *Handler) TrafficOutliers(c echo.Context) error {
+	days, _ := strconv.Atoi(c.QueryParam("days"))
+	limit, _ := strconv.Atoi(c.QueryParam("limit"))
+
+	rows, err := h.DB.TopTrafficUsers(c.Request().Context(), days, limit)
+	if err != nil {
+		h.Logger.Error("admin: traffic outliers", zap.Error(err))
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to query traffic outliers")
+	}
+
+	out := make([]trafficOutlierRow, 0, len(rows))
+	for _, r := range rows {
+		row := trafficOutlierRow{
+			UserID:      r.UserID,
+			VPNUsername: r.VPNUsername,
+			GB:          math.Round(float64(r.Bytes)/1073741824*100) / 100,
+			LastCountry: r.LastCountry,
+			IsActive:    r.IsActive,
+		}
+		if r.LastSeen != nil {
+			s := r.LastSeen.UTC().Format(time.RFC3339)
+			row.LastSeen = &s
+		}
+		out = append(out, row)
+	}
+
+	// Echo back the clamped values so the SPA can render "Top 10, last 7d"
+	// without re-deriving from its own query string.
+	resolvedDays := days
+	if resolvedDays < 1 {
+		resolvedDays = 7
+	}
+	if resolvedDays > 90 {
+		resolvedDays = 90
+	}
+	resolvedLimit := limit
+	if resolvedLimit < 1 {
+		resolvedLimit = 10
+	}
+	if resolvedLimit > 100 {
+		resolvedLimit = 100
+	}
+
+	return c.JSON(http.StatusOK, trafficOutliersResponse{
+		Users: out,
+		Days:  resolvedDays,
+		Limit: resolvedLimit,
+	})
+}
