@@ -11,7 +11,7 @@ HOSTNAME=$(hostname -f 2>/dev/null || hostname)
 LOG_PREFIX="[$(date '+%Y-%m-%d %H:%M:%S')]"
 
 # Check if running
-if docker ps --filter "name=${CONTAINER}" --filter "status=running" -q | grep -q .; then
+if docker ps --filter "name=^${CONTAINER}$" --filter "status=running" -q | grep -q .; then
     exit 0  # healthy, nothing to do
 fi
 
@@ -41,7 +41,7 @@ docker run -d \
 
 # Wait and verify
 sleep 3
-if docker ps --filter "name=${CONTAINER}" --filter "status=running" -q | grep -q .; then
+if docker ps --filter "name=^${CONTAINER}$" --filter "status=running" -q | grep -q .; then
     echo "${LOG_PREFIX} singbox restarted successfully"
     # Alert: singbox was down but recovered
     [ -x "$SCRIPT_DIR/telegram-alert.sh" ] && \

@@ -106,9 +106,56 @@ private final class InsecureDelegate: NSObject, URLSessionDelegate {
     }
 }
 
+/// build-88 testability extract: pure decision describing which legs the
+/// hedged race in `dataWithFallback` should dispatch. Pulled out so the
+/// sensitive/auth/region gating can be exercised in a unit test without
+/// spinning real URLSession / NWConnection legs.
+///
+/// Invariants (mirrored by APIClientSensitiveFlagTests):
+///   * `sensitive=true` zeroes BOTH `directIPs` and `httpEightyIPs`
+///     (audit H-001 / H-002): refresh tokens, magic tokens and signed JWS
+///     bodies must never traverse a cleartext HTTP:80 leg or a direct-IP
+///     TLS leg with disabled cert validation.
+///   * Authenticated requests (`Authorization` header present, modelled
+///     here as `isAuthenticated=true`) skip HTTP:80 even when not
+///     sensitive — sending a Bearer over cleartext is unacceptable.
+///   * RU region filters out the OVH Frankfurt direct IP (162.19.242.30)
+///     because RU mobile carriers ASN-block it; that filter applies to
+///     both direct-IP and HTTP:80 leg lists.
+///   * The primary HTTPS leg always fires (`primary == true`); the
+///     race only widens with extra legs.
+struct RaceLegPlan: Equatable {
+    var primary: Bool
+    var directIPs: [String]
+    var httpEightyIPs: [String]
+}
+
 class APIClient {
     private let session: URLSession
     private let fallbackSession: URLSession
+
+    /// build-88 testability extract — see `RaceLegPlan` doc.
+    static func raceLegPlan(sensitive: Bool,
+                            isAuthenticated: Bool,
+                            region: String?,
+                            availableIPs: [String]) -> RaceLegPlan {
+        if sensitive {
+            return RaceLegPlan(primary: true, directIPs: [], httpEightyIPs: [])
+        }
+        let directIPs: [String]
+        if region == "RU" {
+            directIPs = availableIPs.filter { $0 != "162.19.242.30" }
+        } else {
+            directIPs = availableIPs
+        }
+        let httpEightyIPs: [String]
+        if isAuthenticated {
+            httpEightyIPs = []
+        } else {
+            httpEightyIPs = directIPs
+        }
+        return RaceLegPlan(primary: true, directIPs: directIPs, httpEightyIPs: httpEightyIPs)
+    }
 
     init() {
         let config = URLSessionConfiguration.default
@@ -161,7 +208,16 @@ class APIClient {
 
     /// Cloudflare is SNI-filtered in RU (2026-04). Race URLSession
     /// against SNI-spoofed NWConnection dials to hardcoded backend IPs.
-    private func dataWithFallback(for request: URLRequest) async throws -> (Data, URLResponse) {
+    ///
+    /// `sensitive: true` opts the request out of BOTH fallback legs:
+    /// HTTP:80 cleartext (refresh tokens, magic tokens, signed JWS would
+    /// be exposed on hostile networks) and direct-IP TLS (cert validation
+    /// is currently disabled — see DirectConnection.swift — so Bearer
+    /// headers on direct-IP legs can be MitM'd). 2026-05-26 audit
+    /// H-001 / H-002. The cost is no fallback for sensitive endpoints
+    /// when Cloudflare is blocked; revisit when DirectConnection learns
+    /// to validate the cert chain against the SNI.
+    private func dataWithFallback(for request: URLRequest, sensitive: Bool = false) async throws -> (Data, URLResponse) {
         guard let url = request.url else {
             throw APIError.networkError("missing URL")
         }
@@ -216,16 +272,26 @@ class APIClient {
             }
 
             let sni = AppConfig.baseURLHost
-            // RU mobile carriers block OVH Frankfurt (162.19.242.30) at the
-            // ASN level — every DE direct leg sits there for the full 6s
-            // timeout and delays the race by ~6s even when NL wins. For RU
-            // users skip the DE legs entirely. Primary Cloudflare leg + NL +
-            // SPB relay still race so a working path keeps working.
-            let isRURegion = Locale.current.region?.identifier == "RU"
-            let raceIPs = isRURegion
-                ? AppConfig.directBackendIPs.filter { $0 != "162.19.242.30" }
-                : AppConfig.directBackendIPs
-            if isRURegion {
+            // build-88 testability extract: the leg-selection decision lives
+            // in `Self.raceLegPlan` so it can be unit-tested. The behaviour
+            // is unchanged from before the extract:
+            //   * sensitive=true → no direct/HTTP:80 legs (audit H-001/H-002).
+            //   * RU region → drop the OVH Frankfurt IP (162.19.242.30)
+            //     because RU mobile ASN-blocks it and the 6s timeout would
+            //     otherwise delay the race.
+            //   * Authenticated requests skip the HTTP:80 leg list (no
+            //     Bearer over cleartext).
+            let isAuthenticatedHeader = request.value(forHTTPHeaderField: "Authorization") != nil
+            let plan = Self.raceLegPlan(
+                sensitive: sensitive,
+                isAuthenticated: isAuthenticatedHeader,
+                region: Locale.current.region?.identifier,
+                availableIPs: AppConfig.directBackendIPs
+            )
+            let raceIPs = plan.directIPs
+            if sensitive {
+                AppLogger.network.info("race.sensitive=true direct_legs=skipped")
+            } else if Locale.current.region?.identifier == "RU" {
                 AppLogger.network.info("race.region ru=true skipped=DE")
             }
             // Build-36: hedged dispatch (Dean & Barroso "Tail at Scale").
@@ -271,16 +337,23 @@ class APIClient {
             // HTTP port 80 legs — RU operators often don't block TCP:80 even
             // when TCP:443 is TCP-RST'd on foreign IPs. Backend nginx accepts
             // port-80 requests whose Host is the raw IP (no 301 redirect).
-            // Only used when the request has no Authorization header, so we
-            // never put a JWT in cleartext on the wire — the original request
-            // already includes the header for HTTPS legs that race in
-            // parallel above; an unauthenticated leg here just adds another
-            // chance for the response to come back fast.
-            let isAuthenticated = request.value(forHTTPHeaderField: "Authorization") != nil
-            if !isAuthenticated {
+            //
+            // Audit H-001: the prior `isAuthenticated` gate only checked the
+            // Authorization header, missing endpoints that put refresh_token /
+            // magic token / signed JWS in the request body (refreshAccessToken,
+            // requestMagicLink, registerDevice, verifySubscription). Now we
+            // ALSO require `!sensitive` — sensitive callers opt in explicitly
+            // and never see HTTP:80 legs. NL + bypass relay direct legs are
+            // also skipped above when sensitive (H-002).
+            //
+            // build-88: gating now lives in `RaceLegPlan.httpEightyIPs`
+            // (empty when sensitive OR authenticated). The wrapping `if` is
+            // kept for indentation parity with the prior diff.
+            let httpEightyIPs = plan.httpEightyIPs
+            if !httpEightyIPs.isEmpty {
             // HTTP legs continue the hedge ladder after direct legs.
             let httpStartIndex = 1 + raceIPs.count
-            for (i, ip) in raceIPs.enumerated() {
+            for (i, ip) in httpEightyIPs.enumerated() {
                 let legIndex = httpStartIndex + i
                 group.addTask { [fallbackSession] in
                     let staggerMs = legIndex * 250
@@ -313,7 +386,7 @@ class APIClient {
                     }
                 }
             }
-            } // !isAuthenticated
+            } // httpEightyIPs non-empty
 
             for try await result in group {
                 if let winner = result {
@@ -350,7 +423,9 @@ class APIClient {
         request.timeoutInterval = 6
 
         do {
-            let (data, response) = try await dataWithFallback(for: applyTelemetry(to: request))
+            // Audit H-001/H-002: registerDevice mints fresh access+refresh
+            // tokens. No HTTP:80 or direct-IP TLS legs — primary HTTPS only.
+            let (data, response) = try await dataWithFallback(for: applyTelemetry(to: request), sensitive: true)
             guard let http = response as? HTTPURLResponse else {
                 throw APIError.networkError("No response")
             }
@@ -554,7 +629,10 @@ class APIClient {
         request.httpBody = try JSONSerialization.data(withJSONObject: ["email": email])
         request.timeoutInterval = 6
 
-        let (_, response) = try await dataWithFallback(for: applyTelemetry(to: request))
+        // Audit H-001/H-002: magic link delivery includes a token in the
+        // email; even though the body here is just an email address, we
+        // treat this as sensitive end-to-end (no HTTP:80, no direct-IP TLS).
+        let (_, response) = try await dataWithFallback(for: applyTelemetry(to: request), sensitive: true)
         guard let http = response as? HTTPURLResponse else {
             throw APIError.networkError("No response")
         }
@@ -624,7 +702,9 @@ class APIClient {
         request.httpBody = try JSONSerialization.data(withJSONObject: ["refresh_token": refreshToken])
         request.timeoutInterval = 10
 
-        let (data, response) = try await dataWithFallback(for: applyTelemetry(to: request))
+        // Audit H-001/H-002: refresh_token in request body, access_token
+        // in response. No HTTP:80 leg, no direct-IP TLS leg.
+        let (data, response) = try await dataWithFallback(for: applyTelemetry(to: request), sensitive: true)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             throw APIError.unauthorized
         }
@@ -820,7 +900,9 @@ class APIClient {
         request.timeoutInterval = 20
 
         do {
-            let (data, response) = try await dataWithFallback(for: applyTelemetry(to: request))
+            // Audit H-001/H-002: signed JWS payload from StoreKit + access
+            // token in Bearer header. Sensitive — no HTTP:80, no direct-IP TLS.
+            let (data, response) = try await dataWithFallback(for: applyTelemetry(to: request), sensitive: true)
             guard let http = response as? HTTPURLResponse else {
                 throw APIError.networkError("No response")
             }

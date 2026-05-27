@@ -284,6 +284,7 @@ enum L10n {
     enum Error {
         static let noConfig         = "error.no_config".localized
         static let serverRejected   = "error.server_rejected".localized
+        static let anotherVPNActive = "error.another_vpn_active".localized
         static let timeout          = "error.timeout".localized
         static let permission       = "error.permission".localized
         static let generic          = "error.generic".localized

@@ -142,6 +142,12 @@ func (h *Handler) SyncConfig(c echo.Context) error {
 	h.Logger.Info("admin: config synced",
 		zap.Int("active_users", activeCount))
 
+	// Audit MED-014 followup (security-review 2026-05-27): mass sync is
+	// exactly the kind of event we want a clean trail for during incident
+	// response. The other mutating admin handlers already record audit;
+	// this was the only gap in the wired set.
+	h.recordAudit(c, "node.sync_config", fmt.Sprintf("active_users=%d", activeCount))
+
 	return c.JSON(http.StatusOK, syncResponse{
 		Status:      "ok",
 		ActiveUsers: activeCount,
@@ -621,6 +627,9 @@ func (h *Handler) RestartSingbox(c echo.Context) error {
 	}
 
 	h.Logger.Info("admin: VPN engine restarted", zap.Int("active_users", count))
+	// Audit MED-014: a restart drops every live connection for ~5s while
+	// singbox respawns. Worth tracking who fires it.
+	h.recordAudit(c, "node.restart_singbox", fmt.Sprintf("active_users=%d", count))
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"status":       "ok",
 		"active_users": count,
@@ -799,6 +808,10 @@ func (h *Handler) CreateServer(c echo.Context) error {
 	}
 
 	h.Logger.Info("admin: server created", zap.String("key", server.Key))
+	// Audit MED-014: server adds change the topology of the user-facing
+	// VPN pool — every one should be attributable.
+	h.recordAudit(c, "server.create",
+		fmt.Sprintf("key=%s host=%s port=%d active=%t", server.Key, server.Host, server.Port, server.IsActive))
 	return c.JSON(http.StatusCreated, toServerResponse(server))
 }
 
@@ -844,6 +857,10 @@ func (h *Handler) UpdateServer(c echo.Context) error {
 	}
 
 	h.Logger.Info("admin: server updated", zap.String("key", server.Key))
+	// Audit MED-014: edits to a live server (host/port/SNI/active flag)
+	// can re-route or take down user traffic — keep an explicit trail.
+	h.recordAudit(c, "server.update",
+		fmt.Sprintf("id=%d key=%s host=%s port=%d active=%t", id, server.Key, server.Host, server.Port, server.IsActive))
 	return c.JSON(http.StatusOK, toServerResponse(server))
 }
 
@@ -864,6 +881,9 @@ func (h *Handler) DeleteServer(c echo.Context) error {
 	}
 
 	h.Logger.Info("admin: server deleted", zap.Int64("id", id))
+	// Audit MED-014: deleting a server removes it from the user-facing
+	// pool and may strand active sessions — always record.
+	h.recordAudit(c, "server.delete", fmt.Sprintf("id=%d", id))
 	return c.NoContent(http.StatusNoContent)
 }
 
@@ -905,6 +925,9 @@ func (h *Handler) GetServerCredentials(c echo.Context) error {
 
 	matches, _ := auth.VerifyPassword(req.Password, adminUser.PasswordHash)
 	if !matches {
+		// Audit MED-014: a failed re-auth on a credential-reveal endpoint
+		// is high-signal — could be a session theft attempt.
+		h.recordAudit(c, "server.credentials.reauth_failed", fmt.Sprintf("server_id=%d", id))
 		return echo.NewHTTPError(http.StatusForbidden, "invalid password")
 	}
 
@@ -921,6 +944,10 @@ func (h *Handler) GetServerCredentials(c echo.Context) error {
 	h.Logger.Info("admin: credentials revealed",
 		zap.String("admin", claims.Username),
 		zap.Int64("server_id", id))
+
+	// Audit MED-014: provider credentials are the highest-value secret
+	// exposed via the admin panel — record every reveal.
+	h.recordAudit(c, "server.credentials.reveal", fmt.Sprintf("server_id=%d", id))
 
 	return c.JSON(http.StatusOK, credentialsResponse{
 		ProviderLogin:    server.ProviderLogin,

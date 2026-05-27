@@ -1,5 +1,6 @@
 import Foundation
 import Network
+import Security
 import os.log
 
 /// Direct TLS dial to a hardcoded IP while presenting a chosen SNI —
@@ -93,17 +94,40 @@ enum DirectConnection {
     ) async throws -> (Data, HTTPResponseMeta) {
 
         // Build TLS options with the SNI we want to present. The server
-        // sees sni (e.g. "madfrog.online"), TCP goes to `ip`.
+        // sees sni (e.g. "api.madfrog.online"), TCP goes to `ip`.
         let tlsOptions = NWProtocolTLS.Options()
         sec_protocol_options_set_tls_server_name(tlsOptions.securityProtocolOptions, sni)
 
-        // Accept the server cert unconditionally — validation has no
-        // meaning when we dial a hardcoded IP with a spoofed SNI. The
-        // VPN tunnel itself uses VLESS Reality for real E2E security;
-        // this endpoint is only used for API bootstrapping.
+        // Audit H-002b (2026-05-27): validate the cert chain against `sni`.
+        // The platform's default verifier uses the *hostname* in the URL,
+        // but we connect to a hardcoded IP — so the default validation
+        // would either be skipped or check the cert against the IP, neither
+        // of which proves we are actually talking to api.madfrog.online.
+        //
+        // Instead, build an explicit SecPolicy bound to `sni` and evaluate
+        // the server-presented trust against it. This catches every MitM
+        // scenario the IP-dial opens (DNS-poisoned IPs, hijacked RU
+        // exit-relay terminating TLS with its own cert, etc.) — exactly
+        // what URLSession would do for a regular HTTPS dial, just bound
+        // to the SNI we chose instead of the URL host.
         sec_protocol_options_set_verify_block(
             tlsOptions.securityProtocolOptions,
-            { _, _, complete in complete(true) },
+            { _, sec_trust, complete in
+                let trust = sec_trust_copy_ref(sec_trust).takeRetainedValue()
+                let policy = SecPolicyCreateSSL(true, sni as CFString)
+                let policyStatus = SecTrustSetPolicies(trust, policy)
+                guard policyStatus == errSecSuccess else {
+                    AppLogger.network.error("direct.cert SetPolicies failed status=\(policyStatus, privacy: .public) sni=\(sni, privacy: .public)")
+                    complete(false)
+                    return
+                }
+                var error: CFError?
+                let valid = SecTrustEvaluateWithError(trust, &error)
+                if !valid, let error {
+                    AppLogger.network.error("direct.cert reject sni=\(sni, privacy: .public) err=\(CFErrorCopyDescription(error) as String, privacy: .public)")
+                }
+                complete(valid)
+            },
             .global()
         )
 

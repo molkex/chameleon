@@ -91,6 +91,11 @@ func (h *Handler) CreateAdmin(c echo.Context) error {
 		zap.String("username", req.Username),
 		zap.String("role", req.Role))
 
+	// Audit MED-014: admin account creation expands the trust boundary;
+	// always recorded with the new account's role.
+	h.recordAudit(c, "admin.create",
+		fmt.Sprintf("new_username=%s new_role=%s new_id=%d", req.Username, req.Role, admin.ID))
+
 	return c.JSON(http.StatusCreated, toAdminResponse(*admin))
 }
 
@@ -119,6 +124,9 @@ func (h *Handler) DeleteAdmin(c echo.Context) error {
 	}
 
 	h.Logger.Info("admin: admin deleted", zap.Int64("id", id))
+	// Audit MED-014: counterpart to admin.create — every revocation of
+	// trust must be attributable.
+	h.recordAudit(c, "admin.delete", fmt.Sprintf("deleted_id=%d", id))
 	return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 }
 

@@ -192,16 +192,59 @@ class VPNManager {
     }
 
     /// Send message to tunnel extension.
+    ///
+    /// Audit MED-006 (2026-05-26): bounded with a 5s timeout. The system
+    /// `sendProviderMessage` continuation will hang forever if the
+    /// extension never calls the completion handler (jetsam'd between
+    /// receiving the message and replying, or its handleAppMessage
+    /// implementation is missing a callback path). Without a timeout
+    /// any UI task awaiting this — server selection apply, ping refresh,
+    /// stats read — wedges silently. We surface that as a thrown
+    /// NSError(.timedOut) so callers can fall back gracefully.
     func sendMessage(_ data: Data) async throws -> Data? {
         guard let session = manager?.connection as? NETunnelProviderSession else { return nil }
-        return try await withCheckedThrowingContinuation { continuation in
-            do {
-                try session.sendProviderMessage(data) { response in
-                    continuation.resume(returning: response)
+        return try await Self.raceWithTimeout(timeout: .seconds(5)) {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Data?, Error>) in
+                do {
+                    try session.sendProviderMessage(data) { response in
+                        continuation.resume(returning: response)
+                    }
+                } catch {
+                    continuation.resume(throwing: error)
                 }
-            } catch {
-                continuation.resume(throwing: error)
             }
+        }
+    }
+
+    /// build-88 testability extract (audit MED-006): race `operation`
+    /// against a timeout and throw `NSError(NSURLErrorDomain,
+    /// NSURLErrorTimedOut)` if the timeout wins. Pulled out of
+    /// `sendMessage` so the timeout semantics can be unit-tested without
+    /// touching `NETunnelProviderSession` (which can't be constructed in
+    /// a test environment). The error shape is preserved exactly so
+    /// callers that key on `URLError.timedOut` still match.
+    static func raceWithTimeout<T: Sendable>(
+        timeout: Duration,
+        operation: @escaping @Sendable () async throws -> T
+    ) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                try await operation()
+            }
+            group.addTask {
+                try await Task.sleep(for: timeout)
+                throw NSError(
+                    domain: NSURLErrorDomain,
+                    code: NSURLErrorTimedOut,
+                    userInfo: [NSLocalizedDescriptionKey: "operation timed out"]
+                )
+            }
+            // group.next() returns the first task to complete — either the
+            // real work or the timeout. Cancelling the rest stops the loser
+            // immediately so we don't leak a sleeping Task.
+            let result = try await group.next()!
+            group.cancelAll()
+            return result
         }
     }
 

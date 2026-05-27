@@ -1,13 +1,20 @@
 # Chameleon VPN Infrastructure Topology
-# Last verified: 2026-04-23
+# Last verified: 2026-05-26 (post-DE retirement)
 # Sources: backend/config.yaml, migrations/, clients/apple/Constants.swift, clientconfig.go, DebugLogsView.swift
+#
+# ⚠️ SINGLE-NL WORLD — DE retired 2026-05-25. Only NL `147.45.252.234`
+#    serves production traffic. MSK relay fronts api.madfrog.online for
+#    RU users. The `de:` block below is kept for historical context only
+#    (`status: retired`). Do NOT use 162.19.242.30 in any deploy/recipe.
 
 servers:
   de:
+    status: retired           # 2026-05-25 OVH договор истёк, не продлевался
+    retired_at: 2026-05-25
     ip: 162.19.242.30
     hosting: OVH Frankfurt
     provider: OVH
-    role: primary vpn node + api backend
+    role: retired vpn node + api backend (historical)
     location: Frankfurt, Germany
     sni: from-db  # vpn_servers.sni — verify on server: SELECT sni FROM vpn_servers WHERE id=3
     sni_fallback: ads.adfox.ru  # used if DB sni empty (clientconfig.go:33)
@@ -32,17 +39,21 @@ servers:
     ip: 147.45.252.234
     hosting: Timeweb
     provider: Timeweb
-    role: secondary vpn node
+    role: sole production vpn node (post-2026-05-25 DE retirement)
     location: Netherlands
-    sni: from-db  # SELECT sni FROM vpn_servers WHERE id=<nl_id>
+    sni: ads.adfox.ru  # verified 2026-05-27: vpn_servers row id=93 key=nl2
     sni_fallback: ads.adfox.ru
     inbounds:
+      # 2026-05-27 correction: actual listening port is 443 (verified via
+      # `ss -tlnp` on the node), not 2096. iOS DB row vpn_servers.port=443
+      # matches. MadFrogRobot bot on MSK still hardcodes 2096 and spams
+      # "VPN port 2096 NOT LISTENING" — bot fix tracked separately.
       - protocol: vless-reality
-        port: 2096
+        port: 443
         transport: tcp
       # No Hysteria2/TUIC on NL per memory (NULL in DB)
     client_outbound_ports:
-      vless_port: 2096
+      vless_port: 443
 
   spb_relay:
     ip: 185.218.0.43
@@ -50,59 +61,68 @@ servers:
     role: tcp relay (russia-side) for users behind gfw
     location: Saint Petersburg, Russia
     relay_mapping:
-      tcp_443: de:443       # VLESS Reality to DE
-      tcp_2096: de:2096     # VLESS to DE
-      tcp_2098: nl:2096     # VLESS to NL (sprayed as :2098 on relay)
-      http_80: de:80        # fallback http to DE
+      # Updated 2026-05-27 (later): nginx fix on the SPB box redirected
+      # ALL former DE-bound stream upstreams to NL:443 (chameleon-stream.conf).
+      # Also api-proxy.conf for HTTP:80 /api/* path now points at NL:80
+      # (was 162.19.242.30:80 which had been dead since DE retire 05-25).
+      tcp_443:  nl:443       # was DE:443 pre-2026-05-27, now NL:443
+      tcp_2096: nl:443       # was DE:443 pre-2026-05-27, now NL:443
+      tcp_2098: nl:443       # always was NL — sprayed as :2098 on relay
+      http_80:  nl:80        # was DE:80 pre-2026-05-27, now NL:80, Host=api.madfrog.online
+    config_source_of_truth: infrastructure/spb-relay/  # mirror of live /etc/nginx/* on box-900774
 
   msk_api_relay:
+    status: active            # 2026-05-22 migration — see project_de_nl_migration.md
     ip: 217.198.5.52
     hosting: TimeWeb MSK VPS
-    role: api endpoint relay (PLANNED, NOT IN USE)
+    role: api endpoint relay (ACTIVE — fronts api.madfrog.online)
     location: Moscow, Russia
-    notes: "Mentioned in memory project_ru_api_relay.md but NOT referenced anywhere in current iOS code (clients/apple/Shared/Constants.swift, clients/apple/ChameleonVPN/Models/APIClient.swift). api.madfrog.online resolves via Cloudflare, not this IP. Either delete server or wire it in."
+    upstream: nl2:80          # nginx forwards HTTPS termination → NL :80 (HTTP-only there)
+    notes: "Production gateway for /v1/* — api.madfrog.online DNS A-record points here (not Cloudflare). Repointed to NL upstream 2026-05-22 after DE retirement preparation."
 
 # API Communication paths (iOS → Backend)
+# Updated 2026-05-27: scrubbed retired DE direct-IP legs; primary now lands
+# on NL via MSK relay for api.madfrog.online (DE retired 2026-05-25).
 api_race:
   primary:
     - host: api.madfrog.online
-      via: cloudflare  # apex A-record on Cloudflare proxied → DE origin
+      via: msk_api_relay  # DNS A-record → 217.198.5.52, nginx upstream → nl:80
       scheme: https
       port: 443
       sni_spoof: false
       timeout_sec: 8
       source: clients/apple/Shared/Constants.swift:10
 
+  # AppConfig.directBackendIPs as of build 88 — see
+  # clients/apple/Shared/Constants.swift:22. The list still has
+  # 162.19.242.30 in code (not yet pruned) but RU users skip it via the
+  # ASN-block carveout in APIClient.swift dataWithFallback.
   fallback_direct_ips:
-    - host: 162.19.242.30
-      port: 443
-      scheme: https
-      sni_spoof: true
-      transport: nwconnection
-      timeout_sec: 6
-      priority: 1
     - host: 147.45.252.234
       port: 443
       scheme: https
       sni_spoof: true
+      cert_validation: enforced  # H-002b 2026-05-27 — DirectConnection now binds SecPolicyCreateSSL to SNI
       transport: nwconnection
       timeout_sec: 6
-      priority: 2
+      priority: 1
     - host: 185.218.0.43
       port: 80
       scheme: http
       sni_spoof: false
       timeout_sec: 6
-      priority: 3
+      priority: 2
     - host: 162.19.242.30
-      port: 80
-      scheme: http
-      sni_spoof: false
-      timeout_sec: 8
-      priority: 4
+      status: retired-still-in-client-pool  # 2026-05-25 retired; pruned from RU race via region carveout, will be removed from Constants.swift in next build
+      port: 443
+      scheme: https
+      sni_spoof: true
+      transport: nwconnection
+      timeout_sec: 6
+      priority: 3
 
-  race_strategy: "fastest first, cascade if 4xx/5xx/timeout"
-  fallback_session: "InsecureDelegate (trusts all certs for direct IP)"
+  race_strategy: "fastest first, cascade if 4xx/5xx/timeout; sensitive endpoints (auth, refresh, magic, payments) skip direct-IP and HTTP:80 legs (H-001/H-002)"
+  fallback_session: "URLSession (default cert validation, NL primary); NWConnection direct legs validate cert against SNI (H-002b)"
 
 # VPN Client config structure
 vpn_client_config:
@@ -217,32 +237,17 @@ vpn_client_config:
         update_interval: 168h
 
 # UI Server representation (iOS app)
+# Updated 2026-05-27: dropped retired DE leaves (de_direct, relay_de,
+# h2_de, tuic_de). NL is the only direct country; SPB relay still hosts a
+# bypass-leaf into NL for gfw-restricted regions.
 ui_servers:
-  - tag: de_direct
-    display: "Germany"
-    country_code: DE
-    flag: 🇩🇪
-    type: direct
-    outbound_base: "VLESS 🇩🇪 Germany"
-    note: "OVH Frankfurt, main node"
-
   - tag: nl_direct
     display: "Netherlands"
     country_code: NL
     flag: 🇳🇱
     type: direct
     outbound_base: "VLESS 🇳🇱 Netherlands"
-    note: "Timeweb, secondary node"
-
-  - tag: relay_de
-    display: "Germany (relay)"
-    country_code: DE
-    flag: 🇩🇪
-    type: relay
-    relay_via: spb_relay
-    relay_target: de:443
-    outbound_base: "VLESS 🇩🇪 Germany (via relay)"
-    note: "SPB(185.218.0.43):443 → DE:443, for users in gfw-restricted regions"
+    note: "Timeweb, sole production node post-2026-05-25"
 
   - tag: relay_nl
     display: "Netherlands (relay)"
@@ -250,40 +255,24 @@ ui_servers:
     flag: 🇳🇱
     type: relay
     relay_via: spb_relay
-    relay_target: nl:2096
+    relay_target: nl:443
     outbound_base: "VLESS 🇳🇱 Netherlands (via relay)"
-    note: "SPB(185.218.0.43):2098 → NL:2096"
-
-  - tag: h2_de
-    display: "Germany (H2)"
-    country_code: DE
-    flag: 🇩🇪
-    type: direct
-    protocol: hysteria2
-    outbound_base: "H2 🇩🇪 Germany"
-
-  - tag: tuic_de
-    display: "Germany (TUIC)"
-    country_code: DE
-    flag: 🇩🇪
-    type: direct
-    protocol: tuic
-    outbound_base: "TUIC 🇩🇪 Germany"
+    note: "SPB(185.218.0.43):2098 → NL:443 — bypass-leaf for gfw-restricted regions"
 
 # Auto selector membership (urltest group)
+# Updated 2026-05-27: single-NL world. With one country in the pool the
+# fallback cascade does NOT escalate to the bypass relay unless nl_direct
+# AND nl_direct via bypass both fail (P1-3 audit, see
+# AppStateFallbackTests.swift).
 auto_selector:
   tag: Auto
   members:
-    - de_direct
     - nl_direct
-    - relay_de
     - relay_nl
-    - h2_de
-    - tuic_de
   test_url: "https://cp.cloudflare.com"
   test_interval: "3m"
   tolerance_ms: 100
-  note: "Automatically picks fastest server, excludes servers with 4xx/5xx responses"
+  note: "Single-NL: relay_nl serves as the bypass-leaf when nl_direct degrades"
 
 # Routing modes (iOS app selector)
 routing_modes:

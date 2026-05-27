@@ -82,7 +82,16 @@ func (s *Server) setupMiddleware(e *echo.Echo) {
 		},
 	}))
 
-	// 2. Request ID — generate or propagate X-Request-Id header.
+	// 2. Audit MED-011: global request-body size cap. Without it, an
+	// oversized JSON body can run the parser out of memory. nginx in front
+	// usually catches this for public traffic, but the chameleon container
+	// also exposes :8000 directly. 1 MiB is generous for any legitimate
+	// endpoint (largest is the signed JWS upload for IAP verification,
+	// which Apple bounds well under 100 KiB). Tighter per-route caps on
+	// auth/payment/webhook are a follow-up.
+	e.Use(echomw.BodyLimit("1M"))
+
+	// 3. Request ID — generate or propagate X-Request-Id header.
 	e.Use(echomw.RequestID())
 
 	// 3. Structured request logging via zap.

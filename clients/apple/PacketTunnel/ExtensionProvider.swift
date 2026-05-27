@@ -1,6 +1,9 @@
 import NetworkExtension
 import Libbox
 import UserNotifications
+#if os(iOS)
+import WidgetKit
+#endif
 
 /// Base class for PacketTunnelProvider. Implements sing-box lifecycle
 /// using CommandServer API (modern approach, same as SFI).
@@ -33,6 +36,22 @@ open class ExtensionProvider: NEPacketTunnelProvider {
 
     private var sharedDefaults: UserDefaults? {
         UserDefaults(suiteName: AppConstants.appGroupID)
+    }
+
+    /// Extension is the single source of truth for the widget's
+    /// connected/disconnected state: the main app's handleStatus() also
+    /// maintains vpnConnectedAtKey but isn't running when the VPN is
+    /// toggled from the Control Center widget / interactive button / iOS
+    /// Settings. Writing the key here + reloading widget timelines keeps
+    /// the widget honest regardless of who flipped the VPN. Key semantics
+    /// (timestamp on connect, key removed on disconnect) live in
+    /// WidgetVPNSnapshot.write — shared with the optimistic write in
+    /// ToggleVPNIntent so the two never drift.
+    private func publishWidgetState(connected: Bool) {
+        #if os(iOS)
+        WidgetVPNSnapshot.write(connected: connected, to: sharedDefaults)
+        WidgetCenter.shared.reloadAllTimelines()
+        #endif
     }
 
     // MARK: - Memory diagnostics
@@ -191,11 +210,21 @@ open class ExtensionProvider: NEPacketTunnelProvider {
                 AppLogger.tunnel.info("sing-box started successfully")
                 self.startMemoryWatchdog()
                 self.startStallProbe()
+                self.publishWidgetState(connected: true)
                 completionHandler(nil)
             } catch {
                 TunnelFileLogger.logSync("ERROR: sing-box start failed: \(error)")
                 AppLogger.tunnel.error("sing-box start failed: \(error)")
+                // Audit MED-008 (2026-05-26): explicitly tear down the
+                // CommandServer + any partially-started service. The previous
+                // code only flipped grpcRunning=false and returned the error,
+                // leaving any sockets/file descriptors opened during
+                // startSingBox() dangling until the extension itself
+                // terminates. stopSingBox is idempotent — safe to call even
+                // if no listener was bound.
+                self.stopSingBox()
                 self.setGrpcState(false)
+                self.publishWidgetState(connected: false)
                 completionHandler(error)
             }
         }
@@ -220,6 +249,7 @@ open class ExtensionProvider: NEPacketTunnelProvider {
         stopMemoryWatchdog()
         stopSingBox()
         setGrpcState(false)
+        publishWidgetState(connected: false)
         completionHandler()
     }
 

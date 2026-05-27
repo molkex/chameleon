@@ -18,8 +18,17 @@ import (
 )
 
 // RegisterRequest is the body for POST /api/mobile/auth/register.
+//
+// MED-012 (2026-05-27): `InstallSecret` is the server-issued credential
+// that pairs with `DeviceID`. New iOS builds receive it on first register
+// and echo it on every subsequent call. Legacy builds (75-89, currently
+// in the field) omit it — Phase-1 backward-compat accepts that and
+// generates a fresh secret on those calls. Once iOS adoption crosses
+// ~95%, Phase 2 flips to strict-require (reject when DB has a secret
+// stored but client sends none/wrong).
 type RegisterRequest struct {
-	DeviceID string `json:"device_id"`
+	DeviceID       string `json:"device_id"`
+	InstallSecret  string `json:"install_secret,omitempty"`
 }
 
 // AppleSignInRequest is the body for POST /api/mobile/auth/apple.
@@ -29,13 +38,18 @@ type AppleSignInRequest struct {
 }
 
 // AuthResponse is the response for successful authentication.
+//
+// MED-012: `InstallSecret` is populated on every successful register.
+// Clients MUST persist it to Keychain and present it on subsequent
+// registers — see RegisterRequest.InstallSecret.
 type AuthResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	ExpiresAt    int64  `json:"expires_at"`
-	UserID       int64  `json:"user_id"`
-	Username     string `json:"username"`
-	IsNew        bool   `json:"is_new"`
+	AccessToken   string `json:"access_token"`
+	RefreshToken  string `json:"refresh_token"`
+	ExpiresAt     int64  `json:"expires_at"`
+	UserID        int64  `json:"user_id"`
+	Username      string `json:"username"`
+	IsNew         bool   `json:"is_new"`
+	InstallSecret string `json:"install_secret,omitempty"`
 }
 
 // ErrorResponse is the standard JSON error body.
@@ -94,6 +108,48 @@ func (h *Handler) Register(c echo.Context) error {
 		)
 	}
 
+	// MED-012 install_secret pairing:
+	//   - If user.InstallSecret is set AND client sent a value that does
+	//     NOT match → reject. This is the actual hijack defense: an
+	//     attacker who guessed/stole a device_id but doesn't have the
+	//     paired secret can't impersonate the user.
+	//   - If user.InstallSecret is set AND client sent the matching
+	//     value → accept, no rotation.
+	//   - If user.InstallSecret is set AND client sent nothing → accept
+	//     (Phase-1 backward-compat for legacy iOS builds 75-89 in the
+	//     field), do not rotate. Phase 2 will flip this to reject.
+	//   - If user.InstallSecret is NULL → first time we see this
+	//     device_id pair. Generate a fresh secret, store it, return to
+	//     client. Whether the request supplied one or not is irrelevant
+	//     because there's nothing in the DB to compare against yet.
+	//
+	// The returned secret is always populated in the response body so
+	// every register call is a chance for a new iOS build to grab and
+	// persist its secret.
+	issuedSecret := ""
+	if user.InstallSecret != nil && *user.InstallSecret != "" {
+		if req.InstallSecret != "" && req.InstallSecret != *user.InstallSecret {
+			h.Logger.Warn("install_secret mismatch — possible hijack attempt",
+				zap.Int64("user_id", user.ID),
+				zap.String("device_id", req.DeviceID),
+				zap.String("ip", c.RealIP()),
+			)
+			return c.JSON(http.StatusUnauthorized, ErrorResponse{Error: "invalid credentials"})
+		}
+		issuedSecret = *user.InstallSecret
+	} else {
+		secret, err := generateInstallSecret()
+		if err != nil {
+			h.Logger.Error("generate install_secret", zap.Error(err))
+			return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
+		}
+		if err := h.DB.UpdateInstallSecret(ctx, user.ID, secret); err != nil {
+			h.Logger.Error("store install_secret", zap.Error(err), zap.Int64("user_id", user.ID))
+			return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
+		}
+		issuedSecret = secret
+	}
+
 	// Add user to VPN engine (idempotent — safe for existing users too).
 	if err := h.addUserToVPN(ctx, user); err != nil {
 		h.Logger.Warn("vpn: add user (non-fatal)", zap.Error(err), zap.Int64("user_id", user.ID))
@@ -119,13 +175,27 @@ func (h *Handler) Register(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, AuthResponse{
-		AccessToken:  tokens.AccessToken,
-		RefreshToken: tokens.RefreshToken,
-		ExpiresAt:    tokens.ExpiresAt,
-		UserID:       user.ID,
-		Username:     vpnUsername,
-		IsNew:        isNew,
+		AccessToken:   tokens.AccessToken,
+		RefreshToken:  tokens.RefreshToken,
+		ExpiresAt:     tokens.ExpiresAt,
+		UserID:        user.ID,
+		Username:      vpnUsername,
+		IsNew:         isNew,
+		InstallSecret: issuedSecret,
 	})
+}
+
+// generateInstallSecret returns a 32-byte hex-encoded random string
+// (64 chars) for use as the server-issued client credential. MED-012:
+// crypto/rand is the entropy source — never math/rand, which is
+// predictable. Length matches install_secret column in
+// 016_install_secret.sql.
+func generateInstallSecret() (string, error) {
+	var b [32]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", fmt.Errorf("generate install_secret: %w", err)
+	}
+	return hex.EncodeToString(b[:]), nil
 }
 
 // captureInitialContext geolocates the request IP and stores it in the
@@ -393,7 +463,11 @@ func (h *Handler) RefreshToken(c echo.Context) error {
 	// One-time use: mark this token as used in Redis (same pattern as admin auth).
 	// SET NX ensures only the first caller succeeds.
 	ctx := c.Request().Context()
-	key := fmt.Sprintf("mrt:used:%s", req.RefreshToken[:32])
+	// Audit H-007 (2026-05-26): SHA-256 of full token, not 32-char prefix.
+	// HS256 JWT headers share a stable prefix, so token[:32] could collide
+	// across unrelated refresh tokens.
+	rtHash := sha256.Sum256([]byte(req.RefreshToken))
+	key := fmt.Sprintf("mrt:used:%s", hex.EncodeToString(rtHash[:]))
 	ttl := 30 * 24 * time.Hour // Keep blacklist entry for 30 days
 
 	ok, err := h.Redis.SetNX(ctx, key, "1", ttl).Result()

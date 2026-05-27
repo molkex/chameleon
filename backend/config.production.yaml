@@ -5,6 +5,13 @@
 #
 # All secrets come from environment variables (set in .env by deploy.sh).
 
+# Audit MED-013 (2026-05-26): top-level encryption key for provider
+# credentials (hosting account passwords stored in vpn_servers). Without
+# this resolved from env, the provider-cipher falls back to nil-cipher
+# and logs "provider passwords stored as plaintext" on startup.
+secrets:
+  encryption_key: "${CHAMELEON_PROVIDERS_ENCRYPTION_KEY}"
+
 server:
   host: "0.0.0.0"
   port: 8000
@@ -97,7 +104,12 @@ rate_limit:
 payments:
   apple:
     bundle_id: "com.madfrog.vpn"
-    allow_sandbox: true
+    # 2026-05-26: was `true`. With sandbox JWS accepted, any TestFlight
+    # account on Apple Sandbox could mint subscription days for arbitrary
+    # user_ids in prod — see audit P0-A. Sandbox is only useful when
+    # exercising flows against the dev backend (config.yaml has
+    # `allow_sandbox: true` for that). Production must reject sandbox.
+    allow_sandbox: false
 
   freekassa:
     enabled: true

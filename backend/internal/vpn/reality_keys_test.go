@@ -5,30 +5,32 @@ import (
 	"testing"
 )
 
-// Keys from production servers, captured 2026-04-25 — verified x25519
-// pairs before we ever checked. Using real data keeps these tests tied
-// to how sing-box actually generates them; synthetic fixtures might miss
-// edge cases like leading-bit masking quirks.
+// Synthetic Reality x25519 keypairs generated for test fixtures only.
+// 2026-05-26 (audit CRIT-001): the prior version of this file shipped
+// production keys verbatim — those have been rotated; these are fresh
+// pairs created via `sing-box generate reality-keypair` purely so the
+// tests can exercise DerivePublicKey / ValidateRealityKeyPair against
+// known-good math. No deployed node uses any of these. Treat as test
+// data, not credentials.
 var realityPairs = []struct {
-	name    string
-	priv    string
-	pub     string
-	comment string
+	name string
+	priv string
+	pub  string
 }{
 	{
-		name: "DE",
-		priv: "mMQQZciNtcjfln0jBddIclm_HM8M3C8KALzHPfR0WVQ",
-		pub:  "ug2jX3uFFdLXih4t0O-PTRElQpAkO6v74RiRVJVvpzE",
+		name: "synthetic-A",
+		priv: "KNNykKLLBlq7Jj_wO4UF8OTMJn3whOm4yvqXPgy6b1Y",
+		pub:  "YFdu6tIo4524vI0q3eSXLJdySAwBJ2toXbr_NSKYQQs",
 	},
 	{
-		name: "NL2",
-		priv: "4OVfYYCUb4s_ajjRTO1BuH-fJklTG4o3T8utU9yW3kU",
-		pub:  "99tZNtOBXlY4XhbHrmdXuXmZ7DBzRV0m5GKVlXaNOR8",
+		name: "synthetic-B",
+		priv: "UKBoOUNAKuIsnzhATzuqawFJ8rbMgALS-wWfYJZuZ3M",
+		pub:  "QTC2XRuUaiWO2A1CNbps_9wJp-vaQ2zMYu0VPrS65QM",
 	},
 	{
-		name: "MSK-relay",
-		priv: "kMQAnrm9vUHhPfBLA9OW7bCqnpZy6mSKqyBo_cxWFWY",
-		pub:  "OJSR6FJytgohcFEUU4YD_IBdc3X83SUuez0n5tskTUs",
+		name: "synthetic-C",
+		priv: "uGvlHG6EearUAUG-5OqbtEegZ4ttuP2Xiad4eqRfMVg",
+		pub:  "I84vSWkXXJGJU3KreRsR1ztmy1u6PyeYXCKMrYXX_zY",
 	},
 }
 
@@ -57,7 +59,8 @@ func TestValidateRealityKeyPairAcceptsMatchingPairs(t *testing.T) {
 }
 
 func TestValidateRealityKeyPairRejectsMismatchedPair(t *testing.T) {
-	// Swap DE private with NL public — valid keys, wrong pair.
+	// Swap synthetic-A private with synthetic-B public — valid keys,
+	// wrong pair.
 	err := ValidateRealityKeyPair(realityPairs[0].priv, realityPairs[1].pub)
 	if err == nil {
 		t.Fatal("expected mismatch error, got nil")
