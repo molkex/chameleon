@@ -29,6 +29,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sort"
 	"sync"
 	"time"
 
@@ -194,11 +195,31 @@ type Build struct {
 
 // ── Endpoint wrappers ─────────────────────────────────────────────────────
 
-// AppStoreVersions returns versions for the given app, newest first.
+// AppStoreVersions returns versions for the given app, newest first by
+// createdDate.
+//
+// Sorting note: Apple's ASC API on /v1/apps/{id}/appStoreVersions only
+// accepts `sort` values "versionString" and "appStoreState" — passing
+// `createdDate` returns HTTP 400 PARAMETER_ERROR.ILLEGAL (caught live
+// on 2026-05-27 in the admin Status page). `-versionString` would
+// almost work but breaks the moment we cross 1.0.10 (lex sort puts
+// "1.0.9" after "1.0.10"). So we don't sort server-side, fetch with a
+// generous limit, then sort client-side by createdDate. With <50
+// versions per app over the app's lifetime this is cheap.
 func (c *Client) AppStoreVersions(ctx context.Context, appID string, limit int) ([]AppStoreVersion, error) {
 	if limit <= 0 {
 		limit = 5
 	}
+	// Fetch a wider window than the caller asked for so the post-sort
+	// trim catches the actually-newest N. ASC limit cap is 200.
+	fetchLimit := limit * 4
+	if fetchLimit > 200 {
+		fetchLimit = 200
+	}
+	if fetchLimit < limit {
+		fetchLimit = limit
+	}
+
 	type wireResp struct {
 		Data []struct {
 			ID         string          `json:"id"`
@@ -206,8 +227,7 @@ func (c *Client) AppStoreVersions(ctx context.Context, appID string, limit int) 
 		} `json:"data"`
 	}
 	q := url.Values{}
-	q.Set("limit", fmt.Sprintf("%d", limit))
-	q.Set("sort", "-createdDate")
+	q.Set("limit", fmt.Sprintf("%d", fetchLimit))
 	q.Set("fields[appStoreVersions]", "versionString,platform,appStoreState,releaseType,createdDate")
 	var raw wireResp
 	if _, err := c.get(ctx, "/v1/apps/"+appID+"/appStoreVersions", q, &raw); err != nil {
@@ -218,6 +238,17 @@ func (c *Client) AppStoreVersions(ctx context.Context, appID string, limit int) 
 		v := d.Attributes
 		v.ID = d.ID
 		out = append(out, v)
+	}
+	// Newest createdDate first. Lexicographic compare is safe — Apple
+	// returns RFC3339-with-tz format which sorts correctly as strings
+	// (e.g. "2026-05-27T19:18:26-07:00" > "2026-05-15T..."). Empty
+	// createdDate strings sort to the end which is the right "stale
+	// rows last" behaviour.
+	sort.SliceStable(out, func(i, j int) bool {
+		return out[i].CreatedDate > out[j].CreatedDate
+	})
+	if len(out) > limit {
+		out = out[:limit]
 	}
 	return out, nil
 }
