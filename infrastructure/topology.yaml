@@ -61,10 +61,15 @@ servers:
     role: tcp relay (russia-side) for users behind gfw
     location: Saint Petersburg, Russia
     relay_mapping:
-      # Updated 2026-05-27: DE retired, NL port is 443 not 2096. The relay
-      # spray-port 2098 still maps to NL but to the correct upstream :443.
-      tcp_2098: nl:443      # VLESS to NL (sprayed as :2098 on relay → NL:443)
-      # tcp_443 / tcp_2096 / http_80 to DE deleted — DE node retired 2026-05-25
+      # Updated 2026-05-27 (later): nginx fix on the SPB box redirected
+      # ALL former DE-bound stream upstreams to NL:443 (chameleon-stream.conf).
+      # Also api-proxy.conf for HTTP:80 /api/* path now points at NL:80
+      # (was 162.19.242.30:80 which had been dead since DE retire 05-25).
+      tcp_443:  nl:443       # was DE:443 pre-2026-05-27, now NL:443
+      tcp_2096: nl:443       # was DE:443 pre-2026-05-27, now NL:443
+      tcp_2098: nl:443       # always was NL — sprayed as :2098 on relay
+      http_80:  nl:80        # was DE:80 pre-2026-05-27, now NL:80, Host=api.madfrog.online
+    config_source_of_truth: infrastructure/spb-relay/  # mirror of live /etc/nginx/* on box-900774
 
   msk_api_relay:
     status: active            # 2026-05-22 migration — see project_de_nl_migration.md
