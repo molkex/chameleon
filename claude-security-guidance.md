@@ -275,4 +275,13 @@ hook that runs alongside the upstream plugin.
   CONTAINERS=1+POST=1 whitelist. MED-012 Phase 1 shipped: server-issued
   `install_secret` credential paired with `device_id`, with backward-
   compat for legacy iOS builds. Migration `016_install_secret.sql`.
+- 2026-05-27 (post-deploy incident) — MED-012 deploy briefly broke
+  backend startup with `fatal: load vpn users: number of field
+  descriptions must equal number of destinations, got 50 and 49` because
+  `scanUsers` was missed when `scanUser` was updated to scan the new
+  install_secret column. Lesson: **whenever the `userColumns` SELECT
+  list grows, edit BOTH `scanUser` AND `scanUsers` in `db/users.go`** —
+  they have identical destination orders and must stay in lockstep.
+  `replace_all` Edit may silently miss one if indentation differs; always
+  visually verify the second helper after a column change.
 - _Add an entry every time a rule is added or revised._
