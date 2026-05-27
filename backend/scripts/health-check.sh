@@ -20,10 +20,42 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 HOSTNAME=$(hostname -f 2>/dev/null || hostname)
 ALERT_INTERVAL=300
 STATE_DIR="/tmp/chameleon-health"
-mkdir -p "$STATE_DIR"
+FAIL_DIR="/tmp/chameleon-health/fails"
+mkdir -p "$STATE_DIR" "$FAIL_DIR"
+
+# Require N consecutive failures before alerting. Each cron tick that fails
+# increments a per-key counter; success resets it. A single-tick blip
+# (typical during `docker compose up --force-recreate` which leaves /health
+# unreachable for 5-15s) no longer pages — real outages still trigger
+# within MIN_FAILS minutes since cron fires every minute.
+#
+# MIN_FAILS=2 → ≥2 min of continuous failure before the first alert.
+# Tune up to 3 if deploys regularly span >1 tick; tune to 1 if false-
+# negative tolerance is lower than false-positive tolerance.
+MIN_FAILS=2
+
+record_fail() {
+    local key="$1"
+    local fail_file="$FAIL_DIR/$key"
+    local count=0
+    [ -f "$fail_file" ] && count=$(cat "$fail_file")
+    count=$((count + 1))
+    echo "$count" > "$fail_file"
+    echo "$count"
+}
+
+reset_fail() {
+    rm -f "$FAIL_DIR/$1"
+}
 
 alert() {
     local key="$1" msg="$2"
+    local fails
+    fails=$(record_fail "$key")
+    if [ "$fails" -lt "$MIN_FAILS" ]; then
+        # First (or transient) failure — track it but stay quiet.
+        return
+    fi
     local last_file="$STATE_DIR/$key"
     local now=$(date +%s)
     if [ -f "$last_file" ]; then
@@ -39,6 +71,7 @@ alert() {
 
 clear_alert() {
     rm -f "$STATE_DIR/$1"
+    reset_fail "$1"
 }
 
 # ── chameleon API ──────────────────────────────────────────────────────────
