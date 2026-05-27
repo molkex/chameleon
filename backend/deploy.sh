@@ -229,6 +229,17 @@ fi
 echo ">>> Building nginx (admin SPA)..."
 docker compose build nginx 2>&1 | tail -5
 
+# ── Ensure docker-socket-proxy is up (MED-010) ────────────────────────────
+# chameleon depends on this proxy for `docker ps` (metrics) and
+# `docker kill` (singbox HUP/TERM) since the direct /var/run/docker.sock
+# bind was removed. Pull image + start before chameleon so the dependency
+# is satisfied at chameleon startup.
+echo ">>> Starting docker-socket-proxy..."
+docker compose up -d --no-deps docker-socket-proxy
+# Brief wait for proxy to be listening on :2375 before chameleon tries to
+# connect during its own boot.
+sleep 2
+
 # ── Restart chameleon ONLY (singbox is standalone, compose can't touch it) ─
 echo ">>> Starting chameleon + nginx..."
 # Project name comes from the directory; after the backend-go → backend

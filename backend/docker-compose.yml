@@ -7,6 +7,56 @@
 # ============================================================================
 
 services:
+  # ---------- docker-socket-proxy (MED-010, 2026-05-27) ----------
+  # Filters the docker daemon API surface that the chameleon container can
+  # reach. Replaces the direct /var/run/docker.sock RW bind into chameleon,
+  # which was a container-escape-to-root vector if chameleon ever got
+  # compromised (untrusted HTTP/webhook input).
+  #
+  # Whitelist scope: CONTAINERS=1 + POST=1.
+  #   - CONTAINERS=1 enables /containers/* reads (needed for `docker ps`).
+  #   - POST=1 enables POST endpoints including /containers/{id}/kill
+  #     (needed for singbox HUP/TERM). POST=1 is broader than ideal — it
+  #     also permits container start/stop/restart/create — but the proxy
+  #     still blocks /exec, /networks, /volumes, /images create, /events,
+  #     /swarm, etc. Net reduction in attack surface vs raw socket: large.
+  #
+  # Listen on 127.0.0.1:2375 because chameleon runs in network_mode: host.
+  # Anyone with shell access on the host can still reach the proxy — that
+  # accepts the same trust boundary as the host root user.
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:0.3.0
+    container_name: docker-socket-proxy
+    restart: unless-stopped
+    # NOTE: `read_only: true` is intentionally NOT set. The entrypoint
+    # regenerates /usr/local/etc/haproxy/haproxy.cfg from the .template
+    # file shipped in the image at boot. A read_only root FS blocks the
+    # write, and a tmpfs over /usr/local/etc/haproxy hides the template.
+    # Hardening preserved: cap_drop ALL + no-new-privileges + minimal
+    # whitelist + RO socket mount.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETUID
+      - SETGID
+    environment:
+      - CONTAINERS=1
+      - POST=1
+      - LOG_LEVEL=warning
+    volumes:
+      # Read-only mount of the host socket. The proxy never writes to it,
+      # it only proxies requests through after the whitelist check.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "127.0.0.1:2375:2375"
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: '0.1'
+
   # ---------- Go backend ----------
   chameleon:
     build: .
@@ -18,9 +68,10 @@ services:
     volumes:
       - ./config.yaml:/etc/chameleon/config.yaml:ro
       - singbox-config:/etc/singbox
-      # Required read-write: used for docker ps (metrics) and docker kill -s (singbox HUP/TERM).
-      # If singbox management is moved to a separate mechanism, this can be removed.
-      - /var/run/docker.sock:/var/run/docker.sock
+      # MED-010 (2026-05-27): docker socket bind removed. chameleon now
+      # talks to docker via docker-socket-proxy on 127.0.0.1:2375 with a
+      # narrow whitelist (containers read + POST for kill). See service
+      # `docker-socket-proxy` above.
     environment:
       # sslmode=disable is safe here: PostgreSQL listens on 127.0.0.1 only (see ports below).
       # If DB is ever moved to an external host, MUST enable sslmode=require or sslmode=verify-full.
@@ -37,6 +88,8 @@ services:
       - GOOGLE_IOS_CLIENT_ID=${GOOGLE_IOS_CLIENT_ID}
       - CHAMELEON_PROVIDERS_ENCRYPTION_KEY=${CHAMELEON_PROVIDERS_ENCRYPTION_KEY}
       - CHAMELEON_MSK_USER_API_SECRET=${CHAMELEON_MSK_USER_API_SECRET}
+      # MED-010: routes `docker` CLI in this container to the local proxy.
+      - DOCKER_HOST=tcp://127.0.0.1:2375
     deploy:
       resources:
         limits:
@@ -47,6 +100,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      docker-socket-proxy:
+        condition: service_started
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8000/health"]
       interval: 10s
