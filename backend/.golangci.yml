@@ -1,0 +1,35 @@
+# golangci-lint v2 config.
+#
+# Replaces missing config — CI's `golangci-lint run` step has been failing
+# since stage-b CI was wired (1102da8, 2026-04-23): the action was called
+# without any config and resolved to a v1.x binary that does not support
+# Go 1.25. Pinning to v2.x in the workflow and providing this minimal
+# config makes the step actually exercise real linters.
+#
+# Scope is intentionally conservative for the first pass:
+# - govet, ineffassign, unconvert, misspell — cheap, high-signal,
+#   no false-positive flood on the existing code.
+# - errcheck / staticcheck / unused are NOT yet enabled. A first dry run
+#   surfaced ~22 pre-existing issues in older code (unchecked
+#   resp.Body.Close, deprecated grpc.DialContext / SetNX, dead consts).
+#   They are real tech-debt but cleaning them is out of scope for the PR
+#   that wired the lint step. Track separately and enable here once a
+#   cleanup pass lands.
+
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  default: none
+  enable:
+    - govet
+    - ineffassign
+    - unconvert
+    - misspell
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

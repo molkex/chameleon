@@ -2,6 +2,67 @@
 
 > 🤖 Mirror: [agent-readable YAML](troubleshooting.yaml) — keep in sync. Edit either, sync the other.
 
+## 2026-05-27: Chameleon в restart-loop — `reality_private_key` wiped (MED-015)
+
+### Симптом
+NL chameleon container `Restarting (1)`, /health возвращает 000, новые юзеры не могут /auth/register или /api/v1/mobile/config. Singbox продолжает работать (свой config файл, не зависит от backend) — активные VPN-сессии не падают.
+
+```
+fatal: reality private key not found — set it in vpn_servers DB table or REALITY_PRIVATE_KEY env var
+```
+
+`vpn_servers.reality_private_key` для локальной ноды (`key='nl2'`) пустой (`length(reality_private_key) = 0`).
+
+### Причина
+**Admin SPA `PUT /api/v1/admin/servers/:id`** (вкладка "Servers" в админке) отправляет всё содержимое формы при сохранении. Форма НЕ показывает `reality_private_key` (это sensitive, должен быть за re-auth), поэтому в payload `reality_private_key = ""`. `db.UpdateServer` делал `SET reality_private_key = $10` без NULLIF guard, и пустая строка **затирала** существующий ключ.
+
+В `admin_audit_log`:
+```
+15 | 2026-05-27 19:40:06 | server.update | 72.56.108.130 | id=93 key=nl2 host=147.45.252.234 port=443 active=true
+```
+
+При следующем перезапуске chameleon (любой `deploy.sh` или container restart) startup читает `vpn_servers` → priv = "" → fatal.
+
+### Решение
+1. **Recovery (immediate):** вытащить ключ из работающего `singbox-config.json` + `UPDATE vpn_servers SET reality_private_key=... WHERE key='nl2'`. Singbox volume mount → /etc/singbox/singbox-config.json содержит `inbounds[].tls.reality.private_key`.
+2. **Prevention (MED-015):** `internal/db/servers.go` UpdateServer обернул `reality_public_key`, `reality_private_key`, `provider_password` в `COALESCE(NULLIF($N, ''), <column>)` — пустой payload-string preserve'ит сохранённое значение. Mirrors guard уже стоявший в `UpsertServerByKey`. Regression test `TestUpdateServerPreservesSecrets` пинит.
+
+### Грабли
+- **Не ротировать как fix.** Если делать rotation key пара когда backend в restart-loop, новый pub_key не доходит до клиентов (/config API down) → они продолжат handshake'ать со старым pub_key → silent auth fail. Сначала restore, потом если нужно — rotate с живым API.
+- **Singbox + chameleon хранят private_key отдельно.** Singbox config файл — single source operational; DB — copy для chameleon. Cluster sync специально НЕ передаёт private_key между peers (см. `cluster/models.go SyncServer`). Bug сидел в одном-единственном UPDATE handler.
+- **Sensitive fields в формах admin** — если не показываем (за re-auth), не отправляй пустой строкой. Лучший паттерн: не включать поле в payload вообще (omitempty) ИЛИ серверный guard как сейчас.
+
+### Verify
+```sql
+SELECT key, length(reality_private_key) AS priv_len, length(reality_public_key) AS pub_len, updated_at
+  FROM vpn_servers WHERE is_active = true;
+```
+Все priv_len должны быть > 0 (для VLESS Reality keypair ровно 43, base64url).
+
+## 2026-05-27: Все юзеры с last_ip = MSK relay IP, last_country пустой
+
+### Симптом
+В админке у всех 78 юзеров `last_ip=217.198.5.52` (= MSK relay), `last_country=""`. Невозможно отличить юзеров по гео или real client IP для саппорта.
+
+### Причина
+1. **Real IP:** iOS race: при CF-throttling RU юзеры дополнительно ходят через `api.madfrog.online` (DNS-only → 217.198.5.52 MSK relay → NL). SPB relay forward'ил `X-Forwarded-For: client_ip`, но NL nginx не доверял SPB IP (`set_real_ip_from` только CF ranges + `127.0.0.1`), а коммит `b7f09c2` дополнительно жёстко перетёр `X-Forwarded-For` на `$remote_addr` = MSK IP. Echo `c.RealIP()` возвращал 217.198.5.52 для всех.
+2. **Country:** ip-api.com был отключён на hot-path 2026-04-14 (Apple privacy). Initial_country пишется один раз на `/auth/register` — у юзеров зарегистрированных через MSK путь геолокация делалась по MSK IP, итог: пустота или Россия для всех.
+
+### Решение (USR-01 + USR-02, commits `3709501`, `cea665b`)
+1. `backend/nginx.conf`: добавлены MSK (217.198.5.52) и SPB (185.218.0.43) в `set_real_ip_from`; `real_ip_header` переключён с `CF-Connecting-IP` на `X-Forwarded-For` чтобы единый header работал и для CF (madfrog.online), и для SPB relay (api.madfrog.online). `recursive on` сохранён.
+2. `internal/api/mobile/config.go touchDevice()`: country читается из `CF-IPCountry` header — free, no external API, no privacy disclosure. ip-api.com продолжает работать ТОЛЬКО на `/auth/register`. SPB-relay path не получает CF-IPCountry — last_country остаётся прежним (CASE-WHEN-empty guard в `TouchUserDevice` сохраняет старое значение).
+
+### Грабли
+- **`real_ip_header X-Forwarded-For` ВМЕСТО `CF-Connecting-IP`** работает потому что мы доверяем только known proxies (CF ranges + SPB IPs) в `set_real_ip_from`. Атакер с непосредственным connection IP не в trusted set → real_ip header игнорируется. См. nginx docs про recursive=on.
+- **Existing 78 rows с last_ip=217.198.5.52** ничего не fixим — на следующем `/config` fetch организм перепишет на реальный IP. last_country same.
+- **CF-IPCountry sentinels:** "XX" (non-country IP) и "T1" (Tor exit) — оба считаем пустыми, см. `cfCountryCode()` + `cf_country_test.go`.
+
+### Verify
+```bash
+# Должно показывать real residential IPs, не 217.198.5.52
+ssh root@147.45.252.234 'docker logs --tail 30 chameleon | grep -E "\"ip\":\"[0-9]" | head -5'
+```
+
 ## 2026-05-25: DE окончательно отключён (OVH retired, не продлевался)
 
 ### Состояние

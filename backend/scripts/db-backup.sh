@@ -66,3 +66,10 @@ DELETED=$(find "$BACKUP_DIR" -name "chameleon_*.sql.gz" -mtime +${RETENTION_DAYS
 [ "$DELETED" -gt 0 ] && echo "[$(date)] Cleaned up $DELETED old local backup(s)"
 
 echo "[$(date)] Backup complete"
+
+# Sentinel — health-check.sh reads the mtime of this file to alert when
+# the latest successful backup is more than 30h old. Touching it last
+# means a failed local pg_dump (which exits 1 above) won't reset the
+# clock, but a B2 push failure (non-fatal) will still update it since
+# the local backup itself succeeded.
+touch /var/log/chameleon-backup.ok 2>/dev/null || true

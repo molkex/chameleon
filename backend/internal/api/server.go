@@ -5,6 +5,7 @@ package api
 import (
 	"context"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -15,6 +16,7 @@ import (
 	adminAPI "github.com/chameleonvpn/chameleon/internal/api/admin"
 	mw "github.com/chameleonvpn/chameleon/internal/api/middleware"
 	"github.com/chameleonvpn/chameleon/internal/api/mobile"
+	"github.com/chameleonvpn/chameleon/internal/asc"
 	"github.com/chameleonvpn/chameleon/internal/auth"
 	"github.com/chameleonvpn/chameleon/internal/cluster"
 	"github.com/chameleonvpn/chameleon/internal/config"
@@ -204,6 +206,19 @@ func (s *Server) setupRoutes(e *echo.Echo) {
 	e.GET("/sub/:token/:mode", mobileHandler.GetConfigLegacy, subRL)
 	e.GET("/sub/:token", mobileHandler.GetConfigLegacy, subRL)
 
+	// App Store Connect API client — optional. asc.New() returns nil
+	// (nil, nil) when ASC_KEY_ID / ASC_ISSUER_ID / ASC_KEY_PATH env vars
+	// are unset, which is the right shape for the dev-without-creds case.
+	// Failure to PARSE configured creds (bad path, malformed PEM) IS
+	// fatal at startup — that's a misconfiguration the operator wants
+	// loud, not a silent "Apple section is blank in admin".
+	ascClient, err := asc.New()
+	if err != nil {
+		s.Logger.Warn("ASC client init failed — Apple state will be unavailable in admin", zap.Error(err))
+	} else if ascClient != nil {
+		s.Logger.Info("ASC client initialised — Apple state available in admin")
+	}
+
 	// Admin API served under /api/v1/admin (React SPA) and /api/admin (legacy).
 	adminHandler := &adminAPI.Handler{
 		DB:            s.DB,
@@ -214,6 +229,8 @@ func (s *Server) setupRoutes(e *echo.Echo) {
 		Config:        s.Config,
 		Logger:        s.Logger,
 		ClusterSecret: s.Config.Cluster.Secret,
+		ASC:           ascClient,
+		ASCAppID:      os.Getenv("ASC_APP_ID"),
 	}
 
 	// Primary admin routes: /api/v1/admin/* (matches React SPA base path)

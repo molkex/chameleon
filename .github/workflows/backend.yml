@@ -31,9 +31,17 @@ jobs:
         run: go vet ./...
 
       - name: Lint (golangci-lint)
-        uses: golangci/golangci-lint-action@v6
+        # v7 of the action is required for golangci-lint v2.x. v6 errors
+        # with "golangci-lint v2 is not supported by golangci-lint-action
+        # v6, you must update to golangci-lint-action v7".
+        uses: golangci/golangci-lint-action@v7
         with:
-          version: latest
+          # Pinned to a v2.x release that supports Go 1.25.
+          # `latest` previously resolved to a stale v1.x binary that
+          # fails with "Go language version (go1.24) ... is lower than
+          # the targeted Go version (1.25.4)". v2.12.2 was published
+          # 2026-05-06.
+          version: v2.12.2
           working-directory: backend
           args: --timeout=5m
 
@@ -60,6 +68,26 @@ jobs:
 
       - name: Integration tests
         run: go test -tags=integration -timeout=10m ./tests/integration/...
+
+  scripts:
+    name: ops scripts (shell regression tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Watchdog filter regression
+        run: bash scripts/test/watchdog-filter-test.sh
+
+      - name: Bash syntax sanity (all scripts/*.sh)
+        run: |
+          set -e
+          for f in scripts/*.sh; do
+            bash -n "$f"
+            echo "OK  $f"
+          done
 
   e2e:
     name: e2e (sing-box config check)

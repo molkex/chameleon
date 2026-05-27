@@ -1,6 +1,10 @@
 package admin
 
 import (
+	"net/http"
+	"strconv"
+	"time"
+
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 
@@ -44,6 +48,114 @@ func (h *Handler) recordAudit(c echo.Context, action, details string) {
 			zap.String("action", action),
 			zap.Error(err))
 	}
+}
+
+// auditRowResponse is the SPA-facing shape for one admin_audit_log row.
+// All fields are JSON-safe (no *int64 / *time.Time on the wire) so the
+// React side can render without null-juggling.
+type auditRowResponse struct {
+	ID            int64  `json:"id"`
+	AdminUserID   *int64 `json:"admin_user_id"`
+	AdminUsername string `json:"admin_username"`
+	Action        string `json:"action"`
+	IP            string `json:"ip"`
+	UserAgent     string `json:"user_agent"`
+	Details       string `json:"details"`
+	CreatedAt     string `json:"created_at"`
+}
+
+type listAuditResponse struct {
+	Events   []auditRowResponse `json:"events"`
+	Total    int64              `json:"total"`
+	Page     int                `json:"page"`
+	PageSize int                `json:"page_size"`
+}
+
+// ListAuditEvents handles GET /api/v1/admin/audit
+//
+// Query params: page, page_size (clamped backend-side), admin_id, action,
+// since (RFC3339), until (RFC3339). Bad query values fall through to the
+// unfiltered default rather than 400 — operators paste timestamps from
+// chat all day and we don't want them to learn the parser rules.
+func (h *Handler) ListAuditEvents(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	page, _ := strconv.Atoi(c.QueryParam("page"))
+	pageSize, _ := strconv.Atoi(c.QueryParam("page_size"))
+
+	var filter db.AuditFilter
+	if s := c.QueryParam("admin_id"); s != "" {
+		if id, err := strconv.ParseInt(s, 10, 64); err == nil {
+			filter.AdminUserID = &id
+		}
+	}
+	if s := c.QueryParam("action"); s != "" {
+		filter.Action = s
+	}
+	if s := c.QueryParam("since"); s != "" {
+		if t, err := time.Parse(time.RFC3339, s); err == nil {
+			filter.Since = &t
+		}
+	}
+	if s := c.QueryParam("until"); s != "" {
+		if t, err := time.Parse(time.RFC3339, s); err == nil {
+			filter.Until = &t
+		}
+	}
+
+	events, total, err := h.DB.ListAuditEvents(ctx, filter, page, pageSize)
+	if err != nil {
+		h.Logger.Error("admin: list audit events", zap.Error(err))
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to list audit events")
+	}
+
+	out := make([]auditRowResponse, 0, len(events))
+	for _, e := range events {
+		row := auditRowResponse{
+			ID:          e.ID,
+			AdminUserID: e.AdminUserID,
+			Action:      e.Action,
+			IP:          e.IP,
+			UserAgent:   e.UserAgent,
+			Details:     e.Details,
+			CreatedAt:   e.CreatedAt.UTC().Format(time.RFC3339),
+		}
+		if e.AdminUsername != nil {
+			row.AdminUsername = *e.AdminUsername
+		}
+		out = append(out, row)
+	}
+
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 50
+	}
+	if pageSize > 200 {
+		pageSize = 200
+	}
+
+	return c.JSON(http.StatusOK, listAuditResponse{
+		Events:   out,
+		Total:    total,
+		Page:     page,
+		PageSize: pageSize,
+	})
+}
+
+// ListAuditActions handles GET /api/v1/admin/audit/actions
+//
+// Returns the distinct `action` values seen in the last 90 days, used to
+// populate the filter dropdown in the SPA without making the operator
+// remember the exact verb-object string.
+func (h *Handler) ListAuditActions(c echo.Context) error {
+	actions, err := h.DB.ListAuditActions(c.Request().Context())
+	if err != nil {
+		h.Logger.Error("admin: list audit actions", zap.Error(err))
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to list audit actions")
+	}
+	return c.JSON(http.StatusOK, map[string][]string{"actions": actions})
 }
 
 // recordAuditForAdmin is the variant used during login flows where the

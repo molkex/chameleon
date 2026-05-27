@@ -1,10 +1,31 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Users, Activity, TrendingUp, Clock } from "lucide-react";
+import { Users, Activity, TrendingUp, Clock, Flame } from "lucide-react";
 import { STATUS_COLORS } from "@/lib/constants";
+
+interface TrafficOutliersResponse {
+  users: Array<{
+    user_id: number;
+    vpn_username: string;
+    gb: number;
+    last_seen: string | null;
+    last_country: string;
+    is_active: boolean;
+  }>;
+  days: number;
+  limit: number;
+}
+
+function countryFlag(code: string): string {
+  if (!code || code.length !== 2) return "";
+  const base = 0x1f1e6;
+  const A = "A".charCodeAt(0);
+  return String.fromCodePoint(base + code.charCodeAt(0) - A) + String.fromCodePoint(base + code.charCodeAt(1) - A);
+}
 
 interface DashboardStats {
   total_users: number;
@@ -82,10 +103,20 @@ function Skeleton() {
 }
 
 export default function DashboardPage() {
+  const [outlierDays, setOutlierDays] = useState<number>(7);
+
   const { data, isLoading } = useQuery({
     queryKey: ["dashboard"],
     queryFn: () => api.get<DashboardResponse>("/admin/stats/dashboard"),
     refetchInterval: 30_000,
+  });
+
+  const { data: outliers } = useQuery<TrafficOutliersResponse>({
+    queryKey: ["traffic-outliers", outlierDays],
+    queryFn: () => api.get(`/admin/stats/traffic-outliers?days=${outlierDays}&limit=10`),
+    refetchInterval: 60_000,
+    // Outliers shouldn't block the dashboard render; degrade gracefully on error.
+    retry: 1,
   });
 
   if (isLoading || !data) return <Skeleton />;
@@ -142,6 +173,63 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Traffic outliers — top-N users by traffic in the window. Helps spot
+          abuse (one user pulling 500GB+/week is either reselling our IPs or
+          torrenting) and identify power users worth keeping happy. */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-sm text-zinc-400 flex items-center gap-2">
+            <Flame className="h-4 w-4 text-orange-400" /> Top traffic
+          </CardTitle>
+          <select
+            className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-zinc-200"
+            value={outlierDays}
+            onChange={(e) => setOutlierDays(Number(e.target.value))}
+          >
+            <option value={1}>last 24h</option>
+            <option value={7}>last 7 days</option>
+            <option value={30}>last 30 days</option>
+            <option value={90}>last 90 days</option>
+          </select>
+        </CardHeader>
+        <CardContent className="p-0">
+          {!outliers || outliers.users.length === 0 ? (
+            <p className="text-sm text-zinc-500 px-6 py-4">No traffic recorded in window</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-10">#</TableHead>
+                  <TableHead>User</TableHead>
+                  <TableHead className="w-24">Country</TableHead>
+                  <TableHead className="w-32 text-right">Traffic (GB)</TableHead>
+                  <TableHead className="w-20">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {outliers.users.map((u, i) => (
+                  <TableRow key={u.vpn_username}>
+                    <TableCell className="text-xs text-zinc-500">{i + 1}</TableCell>
+                    <TableCell className="font-mono text-sm">{u.vpn_username}</TableCell>
+                    <TableCell className="text-sm">
+                      {u.last_country ? `${countryFlag(u.last_country)} ${u.last_country}` : "—"}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-sm tabular-nums">
+                      {u.gb.toFixed(2)}
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={u.is_active ? STATUS_COLORS.paid : STATUS_COLORS.pending}>
+                        {u.is_active ? "active" : "expired"}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
 
       {recent_transactions.length > 0 && (
         <Card>

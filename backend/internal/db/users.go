@@ -813,6 +813,74 @@ func (db *DB) UpdateInstallSecret(ctx context.Context, userID int64, secret stri
 	return err
 }
 
+// TrafficOutlier is one row of the "top users by traffic in window" report.
+// Bytes is the SUM of `used_traffic` (upload+download per snapshot) in the
+// requested time window; the traffic collector writes deltas, so SUM == real
+// traffic, not max-over-cumulative.
+type TrafficOutlier struct {
+	UserID       int64
+	VPNUsername  string
+	Bytes        int64
+	LastSeen     *time.Time
+	LastCountry  string
+	IsActive     bool
+}
+
+// TopTrafficUsers returns the top N users by traffic in the last `days` days.
+// Joined to users so the SPA can render flag/username/last-seen without
+// a second query. `days` clamped to [1, 90]; `limit` to [1, 100].
+//
+// LEFT JOIN — not INNER — so a vpn_username present in traffic_snapshots
+// but missing from users (legacy / migrated rows) still renders with a
+// blank user info instead of dropping out and confusing the operator.
+func (db *DB) TopTrafficUsers(ctx context.Context, days, limit int) ([]TrafficOutlier, error) {
+	ctx, cancel := defaultTimeout(ctx)
+	defer cancel()
+
+	if days < 1 {
+		days = 7
+	}
+	if days > 90 {
+		days = 90
+	}
+	if limit < 1 {
+		limit = 10
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	rows, err := db.Pool.Query(ctx, `
+		SELECT
+			COALESCE(u.id, 0)                    AS user_id,
+			ts.vpn_username                       AS vpn_username,
+			SUM(ts.used_traffic)::bigint          AS bytes,
+			u.last_seen                           AS last_seen,
+			COALESCE(u.last_country, '')          AS last_country,
+			COALESCE(u.is_active, false)          AS is_active
+		FROM traffic_snapshots ts
+		LEFT JOIN users u ON u.vpn_username = ts.vpn_username
+		WHERE ts.timestamp > NOW() - ($1::int || ' days')::interval
+		  AND ts.used_traffic > 0
+		GROUP BY ts.vpn_username, u.id, u.last_seen, u.last_country, u.is_active
+		ORDER BY bytes DESC
+		LIMIT $2`, days, limit)
+	if err != nil {
+		return nil, fmt.Errorf("top traffic users: %w", err)
+	}
+	defer rows.Close()
+
+	var out []TrafficOutlier
+	for rows.Next() {
+		var o TrafficOutlier
+		if err := rows.Scan(&o.UserID, &o.VPNUsername, &o.Bytes, &o.LastSeen, &o.LastCountry, &o.IsActive); err != nil {
+			return nil, fmt.Errorf("top traffic users scan: %w", err)
+		}
+		out = append(out, o)
+	}
+	return out, rows.Err()
+}
+
 // InsertTrafficSnapshot records a traffic measurement for the given vpn_username.
 func (db *DB) InsertTrafficSnapshot(ctx context.Context, vpnUsername string, upload, download int64) error {
 	ctx, cancel := defaultTimeout(ctx)

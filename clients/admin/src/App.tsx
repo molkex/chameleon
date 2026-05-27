@@ -58,6 +58,9 @@ const Shield = lazy(() => import("./pages/shield"));
 const Settings = lazy(() => import("./pages/settings"));
 const Servers = lazy(() => import("./pages/servers"));
 const Admins = lazy(() => import("./pages/admins"));
+const Audit = lazy(() => import("./pages/audit"));
+const Status = lazy(() => import("./pages/status"));
+const Funnel = lazy(() => import("./pages/funnel"));
 const Login = lazy(() => import("./pages/login"));
 
 // ── Routes ──
@@ -143,11 +146,30 @@ const adminsRoute = createRoute({
   },
 });
 
+const auditRoute = createRoute({
+  getParentRoute: () => layoutRoute,
+  path: "/audit",
+  component: Audit,
+});
+
+const statusRoute = createRoute({
+  getParentRoute: () => layoutRoute,
+  path: "/status",
+  component: Status,
+});
+
+const funnelRoute = createRoute({
+  getParentRoute: () => layoutRoute,
+  path: "/funnel",
+  component: Funnel,
+});
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
   layoutRoute.addChildren([
     indexRoute, usersRoute, nodesRoute, serversRoute, protocolsRoute,
-    shieldRoute, settingsRoute, adminsRoute,
+    shieldRoute, settingsRoute, adminsRoute, auditRoute, statusRoute,
+    funnelRoute,
   ]),
 ]);
 

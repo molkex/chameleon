@@ -1,4 +1,4 @@
-import { useState, useDeferredValue } from "react";
+import { useState, useDeferredValue, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, type User } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,8 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Search, Trash2, Clock, Link, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
+import { Search, Trash2, Clock, Link, ArrowUp, ArrowDown, ArrowUpDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { statusColor } from "@/lib/constants";
+import { deviceName } from "@/lib/devices";
+
+const PAGE_SIZES = [25, 50, 100, 200] as const;
+type PageSize = (typeof PAGE_SIZES)[number];
 
 // Sortable columns — must match the whitelist in
 // backend/internal/db/users.go resolveUserSort. Adding a column here
@@ -19,8 +23,34 @@ type SortColumn =
   | "cumulative_traffic"
   | "last_seen"
   | "subscription_expiry"
-  | "last_country";
+  | "last_country"
+  | "created_at";
 type SortOrder = "asc" | "desc";
+
+// IPs that previously hosted GeoIP lookups at /auth/register for the
+// users that arrived via the api.madfrog.online (MSK relay) path before
+// USR-01 landed. Every signup before 2026-05-27 18:00 UTC that went
+// through the relay had its initial_country/city computed against ONE
+// of these IPs (the relay's own IP), not the real client — which is
+// why the admin sees 18 rows stamped "RU / Moscow" that aren't actually
+// from Moscow. Marking them so the operator doesn't make business
+// decisions on lies.
+const PRE_USR01_RELAY_IPS = new Set<string>(["217.198.5.52", "185.218.0.43"]);
+
+function formatRegistered(iso: string | null): { age: string; date: string } {
+  if (!iso) return { age: "—", date: "" };
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return { age: iso, date: iso };
+  const diff = Date.now() - then;
+  const min = Math.floor(diff / 60000);
+  const date = new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "2-digit" });
+  if (min < 60) return { age: `${min}m ago`, date };
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return { age: `${hr}h ago`, date };
+  const day = Math.floor(hr / 24);
+  if (day < 30) return { age: `${day}d ago`, date };
+  return { age: date, date };
+}
 
 function StatusBadge({ active }: { active: boolean }) {
   return <Badge className={statusColor(active)}>{active ? "Active" : "Expired"}</Badge>;
@@ -82,6 +112,8 @@ export default function UsersPage() {
   const deferredSearch = useDeferredValue(search);
   const [sortColumn, setSortColumn] = useState<SortColumn>("id");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<PageSize>(50);
   const queryClient = useQueryClient();
 
   // Toggle sort: same column flips direction, new column resets to desc
@@ -95,18 +127,33 @@ export default function UsersPage() {
     }
   };
 
-  const { data: users = [], isLoading } = useQuery({
-    queryKey: ["users", deferredSearch, sortColumn, sortOrder],
+  // Search/sort/page-size change → reset to page 1. A filter shrinks the
+  // result set; staying on page 12 of a now-empty list is just an empty
+  // table with no obvious way to recover.
+  useEffect(() => { setPage(1); }, [deferredSearch, sortColumn, sortOrder, pageSize]);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["users", deferredSearch, sortColumn, sortOrder, page, pageSize],
     queryFn: () => {
       const params = new URLSearchParams({
-        page_size: "100",
+        page: String(page),
+        page_size: String(pageSize),
         sort: sortColumn,
         order: sortOrder,
       });
       if (deferredSearch) params.set("search", deferredSearch);
-      return api.get<{ users: User[] }>(`/admin/users?${params.toString()}`).then((r) => r.users || []);
+      return api.get<{ users: User[]; total: number; page: number; page_size: number }>(
+        `/admin/users?${params.toString()}`,
+      );
     },
+    placeholderData: (prev) => prev, // keep showing previous page while next loads
   });
+
+  const users = data?.users ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const firstShown = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const lastShown = Math.min(page * pageSize, total);
 
   const deleteMutation = useMutation({
     mutationFn: (username: string) => api.del(`/admin/users/${username}`),
@@ -148,6 +195,7 @@ export default function UsersPage() {
               <TableRow>
                 <SortHead label="Username" col="vpn_username" sortColumn={sortColumn} sortOrder={sortOrder} onSort={toggleSort} />
                 <TableHead>Status</TableHead>
+                <SortHead label="Registered" col="created_at" sortColumn={sortColumn} sortOrder={sortOrder} onSort={toggleSort} />
                 <SortHead label="Traffic (GB)" col="cumulative_traffic" sortColumn={sortColumn} sortOrder={sortOrder} onSort={toggleSort} />
                 <TableHead>Device</TableHead>
                 <SortHead label="Location" col="last_country" sortColumn={sortColumn} sortOrder={sortOrder} onSort={toggleSort} />
@@ -167,19 +215,43 @@ export default function UsersPage() {
                 ))
               ) : users.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-zinc-500 py-8">No users found</TableCell>
+                  <TableCell colSpan={9} className="text-center text-zinc-500 py-8">No users found</TableCell>
                 </TableRow>
               ) : (
                 users.map((user) => (
                   <TableRow key={user.id}>
                     <TableCell className="font-mono text-sm">{user.vpn_username}</TableCell>
                     <TableCell><StatusBadge active={user.is_active} /></TableCell>
+                    <TableCell className="text-sm">
+                      {(() => {
+                        const reg = formatRegistered(user.created_at);
+                        const country = user.initial_country || "";
+                        const city = user.initial_city || user.initial_country_name || "";
+                        const isFakeMoscow = PRE_USR01_RELAY_IPS.has(user.initial_ip || "");
+                        return (
+                          <div className="flex flex-col leading-tight" title={`Registered ${reg.date}${user.initial_ip ? " from " + user.initial_ip : ""}`}>
+                            <span className="text-zinc-200">{reg.age}</span>
+                            {isFakeMoscow ? (
+                              <span className="text-xs text-amber-400" title={`initial_ip=${user.initial_ip} was a relay IP before USR-01 (2026-05-27). The Moscow stamp here is bogus.`}>
+                                ⚠ via legacy relay
+                              </span>
+                            ) : country ? (
+                              <span className="text-xs text-zinc-500">
+                                {countryFlag(country)} {city || country}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-zinc-600">unknown origin</span>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </TableCell>
                     <TableCell className="font-mono text-sm">{user.cumulative_traffic}</TableCell>
                     <TableCell className="text-sm">
                       {user.device_model || user.os_name || user.app_version ? (
                         <div className="flex flex-col leading-tight">
-                          <span className="text-zinc-200">
-                            {user.device_model || user.os_name || "—"}
+                          <span className="text-zinc-200" title={user.device_model || ""}>
+                            {deviceName(user.device_model) !== "—" ? deviceName(user.device_model) : user.os_name || "—"}
                           </span>
                           <span className="text-xs text-zinc-500">
                             {user.os_name && (user.ios_version || user.os_version) ? `${user.os_name} ${user.ios_version || user.os_version}` : user.os_name || ""}
@@ -195,11 +267,14 @@ export default function UsersPage() {
                         const realCountry = user.initial_country || "";
                         const realCity = user.initial_city || user.initial_country_name || "";
                         const realIP = user.initial_ip || "";
+                        const initialIsBogus = PRE_USR01_RELAY_IPS.has(realIP);
                         if (user.is_via_vpn) {
                           return (
                             <div className="flex flex-col leading-tight" title={`via ${user.via_vpn_node || "VPN"} (${user.last_ip})`}>
                               <span className="text-zinc-200">
-                                {realCountry ? `${countryFlag(realCountry)} ${realCity}` : (user.timezone || "—")}
+                                {initialIsBogus
+                                  ? (user.timezone || "unknown (legacy relay)")
+                                  : realCountry ? `${countryFlag(realCountry)} ${realCity}` : (user.timezone || "—")}
                               </span>
                               <span className="text-xs text-cyan-400">🛡 via {user.via_vpn_node || "VPN"}</span>
                               {realIP && <span className="font-mono text-xs text-zinc-500">{realIP}</span>}
@@ -257,6 +332,49 @@ export default function UsersPage() {
           </Table>
         </CardContent>
       </Card>
+
+      <div className="flex items-center justify-between text-sm text-zinc-400">
+        <div>
+          {total === 0 ? (
+            <span>0 users</span>
+          ) : (
+            <span>
+              <span className="text-zinc-200">{firstShown.toLocaleString()}–{lastShown.toLocaleString()}</span>
+              {" "}of{" "}
+              <span className="text-zinc-200">{total.toLocaleString()}</span>
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-4">
+          <label className="flex items-center gap-2">
+            <span className="text-zinc-500">Per page</span>
+            <select
+              className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-zinc-200"
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value) as PageSize)}
+            >
+              {PAGE_SIZES.map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </label>
+
+          <div className="flex items-center gap-1">
+            <Button size="icon" variant="ghost" className="h-7 w-7" disabled={page <= 1} onClick={() => setPage(1)} title="First">
+              <ChevronsLeft className="h-4 w-4" />
+            </Button>
+            <Button size="icon" variant="ghost" className="h-7 w-7" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))} title="Previous">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="px-2 tabular-nums text-zinc-200">{page} / {totalPages}</span>
+            <Button size="icon" variant="ghost" className="h-7 w-7" disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))} title="Next">
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Button size="icon" variant="ghost" className="h-7 w-7" disabled={page >= totalPages} onClick={() => setPage(totalPages)} title="Last">
+              <ChevronsRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
