@@ -93,4 +93,10 @@ func RegisterRoutes(g *echo.Group, h *Handler) {
 	// iOS TrafficHealthMonitor: which country went dark, which leaves were
 	// tried, what network type. Append-only structured log; ops greps it.
 	g.POST("/diagnostic", h.PostDiagnostic)
+
+	// Event-tracking endpoint — JWT-required batch sink for the iOS
+	// EventTracker (USR-09 Phase 2). Receives paywall.view /
+	// purchase.* / vpn.connect.* batches and writes rows to app_events
+	// with server-enriched ip/country/app_version.
+	g.POST("/events/batch", h.PostEvents, requireAuth)
 }

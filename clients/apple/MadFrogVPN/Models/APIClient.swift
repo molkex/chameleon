@@ -955,4 +955,71 @@ class APIClient {
         // unauthenticated diagnostics if it wants. Caller never throws.
         _ = try? await URLSession.shared.data(for: applyTelemetry(to: request))
     }
+
+    /// POST /api/v1/mobile/events/batch — drain the EventTracker queue.
+    ///
+    /// USR-09 Phase 2 (2026-05-28). The body shape mirrors what the Go
+    /// `eventBatchRequest` expects:
+    ///
+    ///     { "events": [
+    ///         { "name": "paywall.view",
+    ///           "occurred_at": "2026-05-28T00:00:00Z",
+    ///           "properties": { ... },
+    ///           "device_id": "iPhone14,7" } ] }
+    ///
+    /// Returns the number of rows the server reports as accepted.
+    /// `-1` is returned when the call failed outright (network error or
+    /// non-2xx) — the tracker uses that signal to keep the batch in its
+    /// in-memory queue for the next flush.
+    ///
+    /// Auth required: the endpoint is JWT-gated. Without a token we
+    /// simply skip; pre-signup analytics will need a separate endpoint
+    /// when there are pre-signup events to send (none today).
+    func sendEventBatch(
+        _ events: [[String: Any]],
+        accessToken: String?,
+        appVersion: String,
+        platform: String,
+        deviceID: String?
+    ) async -> Int {
+        guard !events.isEmpty else { return 0 }
+        guard let token = accessToken, !token.isEmpty else { return -1 }
+        guard let url = URL(string: "\(AppConstants.baseURL)/api/v1/mobile/events/batch") else {
+            return -1
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 15
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue(appVersion, forHTTPHeaderField: "X-App-Version")
+        request.setValue(platform, forHTTPHeaderField: "X-Platform")
+        if let deviceID, !deviceID.isEmpty {
+            request.setValue(deviceID, forHTTPHeaderField: "X-Device-Model")
+        }
+
+        let payload: [String: Any] = ["events": events]
+        guard let body = try? JSONSerialization.data(withJSONObject: payload) else {
+            return -1
+        }
+        request.httpBody = body
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: applyTelemetry(to: request))
+            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+                return -1
+            }
+            if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let accepted = obj["accepted"] as? Int {
+                return accepted
+            }
+            // 2xx with unparseable body — treat as "server received it"
+            // so the queue drains. iOS keeps no copy; the server log is
+            // the source of truth.
+            return events.count
+        } catch {
+            return -1
+        }
+    }
 }

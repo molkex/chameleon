@@ -58,6 +58,7 @@ struct MadFrogVPNApp: App {
             .onChange(of: scenePhase) { _, newPhase in
                 let isActive = (newPhase == .active)
                 appState.handleScenePhaseActive(isActive)
+                Task { await appState.handleScenePhaseChange(active: isActive) }
                 if isActive {
                     Task { await appState.handleForeground() }
                 }

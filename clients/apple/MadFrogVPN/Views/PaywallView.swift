@@ -77,6 +77,17 @@ struct PaywallView: View {
             }
             .task {
                 if sub.products.isEmpty { await sub.loadProducts() }
+                // USR-09 Phase 2 — paywall impression. Logged after
+                // products load so the property bag can carry the count
+                // (zero is a real signal: storefront failure or empty
+                // app store config).
+                await app.eventTracker.log(
+                    name: "paywall.view",
+                    properties: [
+                        "products": sub.products.count,
+                        "storefront": "storekit",
+                    ]
+                )
             }
             .onChange(of: sub.isPremium) { _, newValue in
                 if newValue {
@@ -127,7 +138,22 @@ struct PaywallView: View {
                     isSelected: product.id == selectedProductID,
                     theme: theme
                 )
-                .onTapGesture { selectedProductID = product.id }
+                .onTapGesture {
+                    selectedProductID = product.id
+                    // USR-09 Phase 2 — product tap. The funnel needs to
+                    // know which product the user reached for before
+                    // pressing the buy button, especially when the buy
+                    // button click never happens.
+                    Task {
+                        await app.eventTracker.log(
+                            name: "paywall.product.tap",
+                            properties: [
+                                "product_id": product.id,
+                                "price": "\(product.price)",
+                            ]
+                        )
+                    }
+                }
             }
         }
     }
@@ -136,8 +162,33 @@ struct PaywallView: View {
         Button {
             guard let product = sub.product(for: selectedProductID) else { return }
             Task {
+                // USR-09 Phase 2 — purchase intent.
+                await app.eventTracker.log(
+                    name: "purchase.start",
+                    properties: ["product_id": product.id]
+                )
                 let ok = await sub.purchase(product)
-                if ok { dismiss() }
+                // Outcome event. `ok == false` may mean cancel,
+                // pending (Ask to Buy), or fail with an error; we
+                // disambiguate via `purchaseError`.
+                if ok {
+                    await app.eventTracker.log(
+                        name: "purchase.success",
+                        properties: ["product_id": product.id]
+                    )
+                    dismiss()
+                } else if let err = sub.purchaseError, !err.isEmpty {
+                    await app.eventTracker.log(
+                        name: "purchase.fail",
+                        properties: ["product_id": product.id, "reason": err]
+                    )
+                } else {
+                    // No error → user cancelled or Ask-to-Buy pending.
+                    await app.eventTracker.log(
+                        name: "purchase.cancel",
+                        properties: ["product_id": product.id]
+                    )
+                }
             }
         } label: {
             HStack {

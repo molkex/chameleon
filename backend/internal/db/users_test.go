@@ -106,6 +106,13 @@ func applyTestMigrations(ctx context.Context, database *DB) error {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".sql") || e.Name() == "init.sql" {
 			continue
 		}
+		// Prod-data seed migrations (filenames containing "_seed_") are
+		// skipped: they INSERT rows that reference production user ids
+		// and would violate FK constraints on an empty test DB.
+		// Schema-only migrations next to them still run.
+		if strings.Contains(e.Name(), "_seed_") {
+			continue
+		}
 		if err := exec(e.Name()); err != nil {
 			return err
 		}
