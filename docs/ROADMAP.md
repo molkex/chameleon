@@ -152,7 +152,7 @@ Qupra DC outage (Amsterdam, 27 May) выявил пробелы: мы узнал
 
 - **MON-01:** Внешний uptime monitor (Uptime Kuma self-hosted OR UptimeRobot free). 5 чеков от 3+ географий: `https://api.madfrog.online/health` (200/json), `https://madfrog.online/` (200), SPB:2098 TCP probe, NL:443 TCP probe, MSK:443 TCP probe. Telegram alert при > 2 fails подряд. Отдельный хост (НЕ на Timeweb).
 - ✓ **MON-02 (2026-05-27):** `health-check.sh` расширен: postgres `pg_isready`, redis-cli PING (с auth из .env), disk / >= 85%, RAM >= 90%, swap >= 10% (memory pressure), backup age >= 30h (sentinel `/var/log/chameleon-backup.ok` пишется db-backup.sh на успехе). Также **fix:** singbox container detection через exact-name match (`grep -qE '^singbox$'` вместо substring filter — старый код матчил `singbox-ss-ws`).
-- ✓ **MON-03 fix (2026-05-27, `a7457b0`):** Singbox watchdog name-filter regex anchored — `name=singbox` больше не матчит `singbox-ss-ws`. **Regression test остаётся открытым** — добавить cron-driven dry-run проверку что watchdog видит singbox down и реактирует.
+- ✓ **MON-03 (2026-05-27):** Singbox watchdog name-filter regex anchored (`a7457b0`, `--filter "name=^singbox$"`) + регрессионный тест `backend/scripts/test/watchdog-filter-test.sh` пинит anchored regex против 6 сценариев (singbox alone, singbox-ss-ws alone, both, singbox-shadow, empty, singbox-fork). Wired в GitHub Actions backend.yml как новый `scripts` job — каждый PR проверяет watchdog filter + bash-syntax всех scripts/*.sh.
 - **MON-04:** **Per-service метрики** в Prometheus / OpenObserve. Сейчас metrics-agent шлёт node-level (CPU/RAM/disk) — нет per-service: singbox handshakes/sec (success + fail), postgres connections active/idle, redis memory used %, chameleon API latency p50/p95/p99 per endpoint, nginx upstream timeouts. Дешевле всего: добавить /metrics endpoint в chameleon (Prometheus format), scrape с metrics-agent.
 - **MON-05:** **Dashboard в admin SPA** — Real-time из metrics-agent collected stats: график CPU/RAM/traffic per node за 24ч, список последних 50 alert-событий из admin_audit_log + bot logs (нужен log shipper), статус каждого node (last health-check timestamp + green/yellow/red).
 - **MON-06:** **Distributed tracing для VPN handshake failures** — сейчас в singbox logs видны `REALITY: processed invalid connection` без контекста (кто, с каким клиентом, на каком этапе). Структурированный лог с device_id (если знаем), client SNI, фаза handshake. Помогает дебажить юзер-репорты «не подключается».
@@ -174,7 +174,7 @@ Qupra DC outage (Amsterdam, 27 May) выявил пробелы: мы узнал
 **Filters / search (после USR-04):** добавить `is_active`, `auth_provider`, `subscription_expiry < 7д`, country, has-paid-subscription. Search by email/device_id (vpn_username + username + full_name уже есть).
 
 ### Admin SPA
-- **ADM-05:** Cookie missing `SameSite=Strict`
+- ✓ **ADM-05 (verified 2026-05-27):** `auth.go` login/refresh/logout cookies все используют `SameSite: http.SameSiteStrictMode` + `Secure: isHTTPS(c)` + `HttpOnly: true` (см. строки 209/230). Старый pending item.
 - **ADM-06:** Form validation отсутствует (JSON, URL, numeric)
 
 ---
