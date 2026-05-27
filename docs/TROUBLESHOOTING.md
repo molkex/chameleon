@@ -2,6 +2,30 @@
 
 > 🤖 Mirror: [agent-readable YAML](troubleshooting.yaml) — keep in sync. Edit either, sync the other.
 
+## 2026-05-27: Все юзеры с last_ip = MSK relay IP, last_country пустой
+
+### Симптом
+В админке у всех 78 юзеров `last_ip=217.198.5.52` (= MSK relay), `last_country=""`. Невозможно отличить юзеров по гео или real client IP для саппорта.
+
+### Причина
+1. **Real IP:** iOS race: при CF-throttling RU юзеры дополнительно ходят через `api.madfrog.online` (DNS-only → 217.198.5.52 MSK relay → NL). SPB relay forward'ил `X-Forwarded-For: client_ip`, но NL nginx не доверял SPB IP (`set_real_ip_from` только CF ranges + `127.0.0.1`), а коммит `b7f09c2` дополнительно жёстко перетёр `X-Forwarded-For` на `$remote_addr` = MSK IP. Echo `c.RealIP()` возвращал 217.198.5.52 для всех.
+2. **Country:** ip-api.com был отключён на hot-path 2026-04-14 (Apple privacy). Initial_country пишется один раз на `/auth/register` — у юзеров зарегистрированных через MSK путь геолокация делалась по MSK IP, итог: пустота или Россия для всех.
+
+### Решение (USR-01 + USR-02, commits `3709501`, `cea665b`)
+1. `backend/nginx.conf`: добавлены MSK (217.198.5.52) и SPB (185.218.0.43) в `set_real_ip_from`; `real_ip_header` переключён с `CF-Connecting-IP` на `X-Forwarded-For` чтобы единый header работал и для CF (madfrog.online), и для SPB relay (api.madfrog.online). `recursive on` сохранён.
+2. `internal/api/mobile/config.go touchDevice()`: country читается из `CF-IPCountry` header — free, no external API, no privacy disclosure. ip-api.com продолжает работать ТОЛЬКО на `/auth/register`. SPB-relay path не получает CF-IPCountry — last_country остаётся прежним (CASE-WHEN-empty guard в `TouchUserDevice` сохраняет старое значение).
+
+### Грабли
+- **`real_ip_header X-Forwarded-For` ВМЕСТО `CF-Connecting-IP`** работает потому что мы доверяем только known proxies (CF ranges + SPB IPs) в `set_real_ip_from`. Атакер с непосредственным connection IP не в trusted set → real_ip header игнорируется. См. nginx docs про recursive=on.
+- **Existing 78 rows с last_ip=217.198.5.52** ничего не fixим — на следующем `/config` fetch организм перепишет на реальный IP. last_country same.
+- **CF-IPCountry sentinels:** "XX" (non-country IP) и "T1" (Tor exit) — оба считаем пустыми, см. `cfCountryCode()` + `cf_country_test.go`.
+
+### Verify
+```bash
+# Должно показывать real residential IPs, не 217.198.5.52
+ssh root@147.45.252.234 'docker logs --tail 30 chameleon | grep -E "\"ip\":\"[0-9]" | head -5'
+```
+
 ## 2026-05-25: DE окончательно отключён (OVH retired, не продлевался)
 
 ### Состояние

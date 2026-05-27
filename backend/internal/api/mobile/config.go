@@ -166,23 +166,27 @@ func (h *Handler) GetConfig(c echo.Context) error {
 // the request's headers. Runs in a background goroutine with a detached
 // context so it outlives the request but never blocks the response.
 //
-// GeoIP is resolved inside the goroutine — ip-api.com adds up to 5s, and
-// we don't want it on the hot path. We pass an empty Country/CountryName/
-// City when the resolver isn't wired or the IP isn't public, which keeps
-// TouchUserDevice's CASE-WHEN-empty guard from clobbering an existing
-// non-empty value.
+// Country comes from Cloudflare's `CF-IPCountry` header — free, no
+// external API call, no Apple privacy disclosure (we're just reading a
+// header CF set, not geolocating ourselves). The ip-api.com path is
+// reserved for /auth/register's `captureInitialContext`, where the cost
+// is one lookup per account lifetime; this was deliberately removed
+// from the hot path on 2026-04-14 (see TROUBLESHOOTING.md). When the
+// request didn't traverse CF (SPB-relay path on api.madfrog.online),
+// CF-IPCountry is absent and we leave last_country untouched —
+// `TouchUserDevice`'s CASE-WHEN-empty guard preserves the prior value.
 func (h *Handler) touchDevice(userID int64, c echo.Context) {
 	req := c.Request()
 	ua := req.UserAgent()
 	parsed := useragent.Parse(ua)
 
-	ip := c.RealIP()
 	info := db.DeviceInfo{
-		IP:             ip,
+		IP:             c.RealIP(),
 		UserAgent:      ua,
 		AppVersion:     parsed.AppVersion,
 		OSName:         parsed.OSName,
 		OSVersion:      parsed.OSVersion,
+		Country:        cfCountryCode(req.Header.Get("CF-IPCountry")),
 		Timezone:       firstValue(req.Header.Get("X-Timezone"), 64),
 		DeviceModel:    firstValue(req.Header.Get("X-Device-Model"), 64),
 		IOSVersion:     firstValue(req.Header.Get("X-iOS-Version"), 32),
@@ -190,20 +194,24 @@ func (h *Handler) touchDevice(userID int64, c echo.Context) {
 	}
 
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-
-		if h.GeoIP != nil && ip != "" {
-			geo := h.GeoIP.Lookup(ctx, ip)
-			info.Country = geo.Country
-			info.CountryName = geo.CountryName
-			info.City = geo.City
-		}
-
 		if err := h.DB.TouchUserDevice(ctx, userID, info); err != nil {
 			h.Logger.Warn("touch user device", zap.Error(err), zap.Int64("user_id", userID))
 		}
 	}()
+}
+
+// cfCountryCode normalises Cloudflare's CF-IPCountry header into a 2-letter
+// ISO code we want to persist. Returns "" for the sentinel values CF uses
+// when it can't resolve ("XX" — non-country IP, "T1" — Tor exit, empty —
+// header absent) so the column stays unchanged for those requests.
+func cfCountryCode(h string) string {
+	h = strings.TrimSpace(h)
+	if len(h) != 2 || h == "XX" || h == "T1" {
+		return ""
+	}
+	return strings.ToUpper(h)
 }
 
 // firstValue trims whitespace and truncates to max runes to avoid hostile

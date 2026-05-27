@@ -152,7 +152,7 @@ Qupra DC outage (Amsterdam, 27 May) выявил пробелы: мы узнал
 
 - **MON-01:** Внешний uptime monitor (Uptime Kuma self-hosted OR UptimeRobot free). 5 чеков от 3+ географий: `https://api.madfrog.online/health` (200/json), `https://madfrog.online/` (200), SPB:2098 TCP probe, NL:443 TCP probe, MSK:443 TCP probe. Telegram alert при > 2 fails подряд. Отдельный хост (НЕ на Timeweb).
 - **MON-02:** Расширить `backend/scripts/health-check.sh` — сейчас чекает только API + singbox container + VPN port. Добавить: postgres connect, redis ping, disk usage > 85%, RAM usage > 90%, ratio swap/total > 10%, время последнего успешного backup'а (warn если > 30ч от db-backup.sh log).
-- **MON-03:** **Singbox watchdog** — сейчас name-filter был broken (`name=singbox` matched `singbox-ss-ws` → false positive). Уже пофиксили в commit `a7457b0`. Добавить regression test: cron каждые 10 мин делает `stop singbox` если нужно тестить и watchdog должен поднять (или dry-run flag).
+- ✓ **MON-03 fix (2026-05-27, `a7457b0`):** Singbox watchdog name-filter regex anchored — `name=singbox` больше не матчит `singbox-ss-ws`. **Regression test остаётся открытым** — добавить cron-driven dry-run проверку что watchdog видит singbox down и реактирует.
 - **MON-04:** **Per-service метрики** в Prometheus / OpenObserve. Сейчас metrics-agent шлёт node-level (CPU/RAM/disk) — нет per-service: singbox handshakes/sec (success + fail), postgres connections active/idle, redis memory used %, chameleon API latency p50/p95/p99 per endpoint, nginx upstream timeouts. Дешевле всего: добавить /metrics endpoint в chameleon (Prometheus format), scrape с metrics-agent.
 - **MON-05:** **Dashboard в admin SPA** — Real-time из metrics-agent collected stats: график CPU/RAM/traffic per node за 24ч, список последних 50 alert-событий из admin_audit_log + bot logs (нужен log shipper), статус каждого node (last health-check timestamp + green/yellow/red).
 - **MON-06:** **Distributed tracing для VPN handshake failures** — сейчас в singbox logs видны `REALITY: processed invalid connection` без контекста (кто, с каким клиентом, на каком этапе). Структурированный лог с device_id (если знаем), client SNI, фаза handshake. Помогает дебажить юзер-репорты «не подключается».
@@ -162,14 +162,16 @@ Qupra DC outage (Amsterdam, 27 May) выявил пробелы: мы узнал
 
 Юзер пожаловался: «слишком мало данных у пользователей, нет сортировок». Конкретные пробелы которые видны прямо сейчас в админке (78 users) и в DB:
 
-- **USR-01:** **`last_ip` пишется MSK relay IP вместо реального юзера**. Все 78 юзеров с `last_ip=217.198.5.52`. Backend читает RealIP из echo который смотрит на X-Real-IP (поставлен nginx). nginx должен брать самый дальний IP из X-Forwarded-For chain (CF → MSK → NL). Конфиг nginx + `real_ip_recursive on` + `set_real_ip_from <CF/MSK ranges>`.
-- **USR-02:** **`last_country` пустой у всех сегодняшних регистраций.** GeoIP lookup сломан или MMDB старая. Проверить путь `internal/geoip/`, обновить MMDB, добавить fallback `CF-IPCountry` header который Cloudflare шлёт бесплатно.
-- **USR-03:** **Sortable / filterable users table в admin SPA**. Сейчас просто список без headers-click-to-sort. Нужно: сортировка по `created_at`, `last_seen`, `subscription_expiry`, `cumulative_traffic`, `last_country`. Фильтры: `is_active`, `auth_provider`, `subscription_expiry < 7д`, country, has-paid-subscription. Search by username/email/device_id (partial match).
+- ✓ **USR-01 (2026-05-27, `3709501`):** real client IP через nginx — добавлены MSK (217.198.5.52) + SPB (185.218.0.43) в `set_real_ip_from`, `real_ip_header` переключён с CF-Connecting-IP на X-Forwarded-For с `recursive on`. Echo логи теперь показывают real residential IPs вместо MSK relay.
+- ✓ **USR-02 (2026-05-27, `3709501` + followup):** `CF-IPCountry` header читается в `touchDevice` — `last_country` обновляется при каждом `/config` fetch через CF-proxied хост (madfrog.online). Free, no external API call, no Apple privacy disclosure issue. ip-api.com остаётся ТОЛЬКО на `/auth/register` (`captureInitialContext`) per 2026-04-14 решение в TROUBLESHOOTING.md. SPB-relay path (api.madfrog.online) не получает CF-IPCountry — last_country остаётся прежним.
+- ✓ **USR-03 (2026-05-27, `cea665b`):** sortable users table — backend `UserSort{Column, Direction}` whitelist в `internal/db/users.go` (7 колонок), admin SPA 5 clickable headers (Username, Traffic, Location, Last seen, Expiry) с ↑/↓/⇅ иконками. `TestResolveUserSort` пинит whitelist против SQL injection.
 - **USR-04:** **Пагинация + virtual scroll** — текущий `/api/admin/users` уже поддерживает `page` + `pageSize`, но в UI отсутствует. При росте до 1000+ юзеров браузер ляжет.
 - **USR-05:** **User detail page** — кликнуть на юзера → отдельная страница со всей историей: payments timeline, traffic graph за 7д/30д, device info (model, iOS version, app version), connection history (IPs + countries), audit log записи касающиеся этого юзера, кнопки «extend subscription», «reset device limit», «delete account».
 - **USR-06:** **Активность за период** — графики: signups per day за 30д, MAU/DAU, retention cohort, conversion device→Apple/Google sign-in. Сейчас только snapshot цифры (Total/Active/Online).
 - **USR-07:** **Per-user traffic breakdown** в `traffic_snapshots` уже копится — добавить агрегат «средний GB/мес per user» + outliers (top-10 by traffic last 7д) — помогает выявлять abuse.
 - **USR-08:** **Audit log в UI** — таблица `admin_audit_log` уже растёт (см. MED-014), нужен раздел в admin SPA «История действий» с фильтром по `action`, `admin_user_id`, date range.
+
+**Filters / search (после USR-04):** добавить `is_active`, `auth_provider`, `subscription_expiry < 7д`, country, has-paid-subscription. Search by email/device_id (vpn_username + username + full_name уже есть).
 
 ### Admin SPA
 - **ADM-05:** Cookie missing `SameSite=Strict`
@@ -220,6 +222,13 @@ Qupra DC outage (Amsterdam, 27 May) выявил пробелы: мы узнал
 ---
 
 ## Done
+
+### 2026-05-27 (USR overhaul + audit followup + ops)
+- ✓ **USR-01..03** (PR [#1](https://github.com/molkex/chameleon/pull/1), commits `3709501`+`cea665b`): real client IP via nginx (MSK/SPB trusted, real_ip_header=XFF), `last_country` per-fetch GeoIP refresh, sortable admin users table (5 columns + whitelist + SQL-injection test). Deployed NL.
+- ✓ **Audit followup** (18 commits folded from `strange-bhabha-4f2c93`): MED-001/002/010/011/012/013/014 (install_secret server-issued, docker-socket-proxy, SyncConfig audit, login.failed sanitize), H-001..H-011 (Apple receipt replay reject, refresh, admin, timeouts, singbox check, cert validation). All shipped via PR #1.
+- ✓ **Ops:** singbox-watchdog name-filter regex anchored (`a7457b0`), health-check.sh env-driven VPN_PORT=443 (`dcd5e85`), NL Reality keypair rotated, B2 off-host backup (`520d8eb`), SPB nginx→NL (`0eda66d`), spb-relay mirror в repo.
+- ✓ **Apple:** 1.0.26 build 75 LIVE 175 territories (Apple auto-removed China), 4 IAPs WAITING_FOR_REVIEW, build 89 (1.0.27) uploaded TestFlight Internal+External, 2 Resolution Center threads acknowledged.
+- ✓ **Incident response:** Qupra DC outage (Amsterdam, ~5-6h NL down) — lesson learned recorded as MON-* section.
 
 ### 2026-04
 - ✓ SPB relay mapping fixed (de+nl targets updated)
