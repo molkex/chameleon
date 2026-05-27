@@ -441,7 +441,7 @@ func TestSearchUsers(t *testing.T) {
 	}
 
 	// Search by partial vpn_username.
-	users, total, err := database.SearchUsers(ctx, "alpha", 1, 50)
+	users, total, err := database.SearchUsers(ctx, "alpha", 1, 50, UserSort{})
 	if err != nil {
 		t.Fatalf("SearchUsers(alpha): %v", err)
 	}
@@ -450,7 +450,7 @@ func TestSearchUsers(t *testing.T) {
 	}
 
 	// Search by device_id.
-	users, total, err = database.SearchUsers(ctx, "device-id-beta", 1, 50)
+	users, total, err = database.SearchUsers(ctx, "device-id-beta", 1, 50, UserSort{})
 	if err != nil {
 		t.Fatalf("SearchUsers(device-id-beta): %v", err)
 	}
@@ -461,7 +461,7 @@ func TestSearchUsers(t *testing.T) {
 	// Oversized search term — must be truncated to maxSearchLen (100) and
 	// still execute. We pad with 'a' so the truncated prefix matches alpha.
 	huge := strings.Repeat("a", 200)
-	users, total, err = database.SearchUsers(ctx, huge, 1, 50)
+	users, total, err = database.SearchUsers(ctx, huge, 1, 50, UserSort{})
 	if err != nil {
 		t.Fatalf("SearchUsers(huge): %v", err)
 	}
@@ -494,7 +494,7 @@ func TestSearchUsersPageSizeClamp(t *testing.T) {
 	}
 
 	// Negative page → clamped to 1; pageSize 0 → defaulted to 20.
-	users, total, err := database.SearchUsers(ctx, "device_clamp", -5, 0)
+	users, total, err := database.SearchUsers(ctx, "device_clamp", -5, 0, UserSort{})
 	if err != nil {
 		t.Fatalf("SearchUsers: %v", err)
 	}
@@ -503,6 +503,33 @@ func TestSearchUsersPageSizeClamp(t *testing.T) {
 	}
 	if len(users) != 3 {
 		t.Errorf("len(users): want 3, got %d", len(users))
+	}
+}
+
+// TestResolveUserSort pins the whitelist so a typo in the admin SPA or a
+// hostile query string can't sneak SQL through the ORDER BY clause.
+// Adding a new sortable column to admin/users requires extending the map
+// in resolveUserSort plus a new entry here so regressions are loud.
+func TestResolveUserSort(t *testing.T) {
+	cases := []struct {
+		name string
+		in   UserSort
+		want string
+	}{
+		{"default", UserSort{}, "id DESC NULLS LAST, id DESC"},
+		{"id asc", UserSort{Column: "id", Direction: "asc"}, "id ASC NULLS LAST, id DESC"},
+		{"last_seen desc", UserSort{Column: "last_seen", Direction: "desc"}, "last_seen DESC NULLS LAST, id DESC"},
+		{"traffic asc", UserSort{Column: "cumulative_traffic", Direction: "asc"}, "cumulative_traffic ASC NULLS LAST, id DESC"},
+		{"unknown column", UserSort{Column: "password_hash", Direction: "asc"}, "id ASC NULLS LAST, id DESC"},
+		{"injection attempt", UserSort{Column: "id; DROP TABLE users; --", Direction: "desc"}, "id DESC NULLS LAST, id DESC"},
+		{"injection direction", UserSort{Column: "id", Direction: "asc; DROP"}, "id DESC NULLS LAST, id DESC"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := resolveUserSort(tc.in); got != tc.want {
+				t.Errorf("resolveUserSort(%+v) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
 	}
 }
 

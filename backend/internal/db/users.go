@@ -351,9 +351,46 @@ func (db *DB) ListActiveVPNUsers(ctx context.Context) ([]User, error) {
 	return scanUsers(rows)
 }
 
+// UserSort describes a sort order for the user listing endpoints.
+// Column must come from the whitelist resolved by resolveUserSort — any
+// other value collapses to "id". Direction is "ASC" or "DESC".
+type UserSort struct {
+	Column    string
+	Direction string
+}
+
+// resolveUserSort whitelists user-controllable sort input into a safe
+// `column direction` SQL fragment. Anything outside the allowed columns
+// falls back to "id" so a typo or hostile query param can't inject SQL
+// or sort on a column that's expensive (e.g. last_user_agent text scan).
+//
+// `NULLS LAST` keeps users with no data (e.g. never-seen accounts) at
+// the bottom regardless of direction, which matches operator intuition
+// when sorting by last_seen or subscription_expiry.
+func resolveUserSort(s UserSort) string {
+	col, ok := map[string]string{
+		"id":                  "id",
+		"created_at":          "created_at",
+		"last_seen":           "last_seen",
+		"subscription_expiry": "subscription_expiry",
+		"cumulative_traffic":  "cumulative_traffic",
+		"vpn_username":        "vpn_username",
+		"last_country":        "last_country",
+	}[s.Column]
+	if !ok {
+		col = "id"
+	}
+	dir := "DESC"
+	if s.Direction == "asc" || s.Direction == "ASC" {
+		dir = "ASC"
+	}
+	return col + " " + dir + " NULLS LAST, id DESC"
+}
+
 // ListUsers returns a paginated list of users and the total count.
-// page is 1-based. pageSize is clamped to [1, 500].
-func (db *DB) ListUsers(ctx context.Context, page, pageSize int) ([]User, int64, error) {
+// page is 1-based. pageSize is clamped to [1, 500]. sort selects the
+// ORDER BY column (whitelisted, see resolveUserSort).
+func (db *DB) ListUsers(ctx context.Context, page, pageSize int, sort UserSort) ([]User, int64, error) {
 	ctx, cancel := defaultTimeout(ctx)
 	defer cancel()
 
@@ -378,7 +415,7 @@ func (db *DB) ListUsers(ctx context.Context, page, pageSize int) ([]User, int64,
 	rows, err := db.Pool.Query(ctx, `
 		SELECT `+userColumns+`
 		FROM users
-		ORDER BY id DESC
+		ORDER BY `+resolveUserSort(sort)+`
 		LIMIT $1 OFFSET $2`, pageSize, offset)
 	if err != nil {
 		return nil, 0, err
@@ -437,7 +474,7 @@ const maxSearchLen = 100
 // SearchUsers returns a paginated list of users matching the search term (by vpn_username or device_id)
 // and the total count. page is 1-based. pageSize is clamped to [1, 500].
 // search is truncated to maxSearchLen characters.
-func (db *DB) SearchUsers(ctx context.Context, search string, page, pageSize int) ([]User, int64, error) {
+func (db *DB) SearchUsers(ctx context.Context, search string, page, pageSize int, sort UserSort) ([]User, int64, error) {
 	ctx, cancel := defaultTimeout(ctx)
 	defer cancel()
 
@@ -470,7 +507,7 @@ func (db *DB) SearchUsers(ctx context.Context, search string, page, pageSize int
 		SELECT `+userColumns+`
 		FROM users
 		WHERE vpn_username ILIKE $1 OR device_id ILIKE $1 OR username ILIKE $1 OR full_name ILIKE $1
-		ORDER BY id DESC
+		ORDER BY `+resolveUserSort(sort)+`
 		LIMIT $2 OFFSET $3`, pattern, pageSize, offset)
 	if err != nil {
 		return nil, 0, err

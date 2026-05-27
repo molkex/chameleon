@@ -93,6 +93,10 @@ func (h *Handler) ListUsers(c echo.Context) error {
 	}
 
 	search := c.QueryParam("search")
+	sort := db.UserSort{
+		Column:    c.QueryParam("sort"),
+		Direction: c.QueryParam("order"),
+	}
 
 	var (
 		users []db.User
@@ -101,9 +105,9 @@ func (h *Handler) ListUsers(c echo.Context) error {
 	)
 
 	if search != "" {
-		users, total, err = h.DB.SearchUsers(ctx, search, page, pageSize)
+		users, total, err = h.DB.SearchUsers(ctx, search, page, pageSize, sort)
 	} else {
-		users, total, err = h.DB.ListUsers(ctx, page, pageSize)
+		users, total, err = h.DB.ListUsers(ctx, page, pageSize, sort)
 	}
 
 	if err != nil {
