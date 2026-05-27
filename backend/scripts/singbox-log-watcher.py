@@ -56,6 +56,17 @@ PATTERN = re.compile(
     r"process connection from ([\d.]+):\d+: TLS handshake: REALITY: processed invalid connection"
 )
 
+# IPs to drop on sight — they belong to OUR infra and produce hits via
+# legitimate probes / forwarding, not real "someone is failing" signal.
+#   127.0.0.1   — chameleon's own /status probe TCP-dials :443 every 30s
+#                 to verify the singbox container is listening. The dial
+#                 doesn't speak Reality so sing-box logs the failure.
+# 185.218.0.43 is INTENTIONALLY NOT here: when a real user goes through
+# the SPB relay's TCP forwarder, their connection arrives at NL with
+# source IP == relay's. A Reality failure on that route IS a real
+# event we want to see (could mean SPB→NL bridging broke).
+IGNORED_IPS = {"127.0.0.1"}
+
 
 def main() -> int:
     try:
@@ -75,8 +86,12 @@ def main() -> int:
     by_ip: Counter[str] = Counter()
     for line in combined.splitlines():
         m = PATTERN.search(line)
-        if m:
-            by_ip[m.group(1)] += 1
+        if not m:
+            continue
+        ip = m.group(1)
+        if ip in IGNORED_IPS:
+            continue
+        by_ip[ip] += 1
 
     # Phase 2: batch-lookup all observed IPs against users.last_ip in a
     # single psql call. Empty input short-circuits to {} so an idle tick
