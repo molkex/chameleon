@@ -6,13 +6,37 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
+	"unicode"
 
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 
 	"github.com/chameleonvpn/chameleon/internal/auth"
 )
+
+// auditSafeUsername sanitizes a user-supplied username before it lands in
+// the admin_audit_log.details column. Audit MED-014 followup:
+//   - caps at 64 chars so an accidentally-pasted password (or attacker-
+//     crafted huge input) doesn't bloat the row
+//   - strips non-printable / control characters so log shippers can't be
+//     fooled by embedded newlines, ANSI escapes, or terminal control codes
+//
+// The result still distinguishes legitimate distinct usernames for
+// forensics, but blunts the worst footguns.
+func auditSafeUsername(s string) string {
+	cleaned := strings.Map(func(r rune) rune {
+		if unicode.IsPrint(r) {
+			return r
+		}
+		return -1
+	}, s)
+	if len(cleaned) > 64 {
+		cleaned = cleaned[:64] + "...(truncated)"
+	}
+	return cleaned
+}
 
 // loginRequest is the expected JSON body for POST /api/admin/auth/login.
 type loginRequest struct {
@@ -71,15 +95,17 @@ func (h *Handler) Login(c echo.Context) error {
 	if adminUser == nil {
 		// Audit MED-014: record the attempt with the attempted username
 		// so brute-force attempts are visible. Admin ID is nil — the
-		// caller is unauthenticated by definition.
-		h.recordAuditForAdmin(c, nil, "login.failed", "username="+req.Username+" reason=unknown_user")
+		// caller is unauthenticated by definition. Sanitize the username
+		// so a user who fat-fingered their password into the username
+		// field doesn't leak it as cleartext into admin_audit_log.
+		h.recordAuditForAdmin(c, nil, "login.failed", "username="+auditSafeUsername(req.Username)+" reason=unknown_user")
 		return echo.NewHTTPError(http.StatusUnauthorized, "invalid credentials")
 	}
 
 	// Verify password (supports argon2, bcrypt, SHA-256).
 	matches, needsRehash := auth.VerifyPassword(req.Password, adminUser.PasswordHash)
 	if !matches {
-		h.recordAuditForAdmin(c, &adminUser.ID, "login.failed", "username="+req.Username+" reason=bad_password")
+		h.recordAuditForAdmin(c, &adminUser.ID, "login.failed", "username="+auditSafeUsername(req.Username)+" reason=bad_password")
 		return echo.NewHTTPError(http.StatusUnauthorized, "invalid credentials")
 	}
 

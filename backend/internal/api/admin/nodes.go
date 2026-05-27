@@ -142,6 +142,12 @@ func (h *Handler) SyncConfig(c echo.Context) error {
 	h.Logger.Info("admin: config synced",
 		zap.Int("active_users", activeCount))
 
+	// Audit MED-014 followup (security-review 2026-05-27): mass sync is
+	// exactly the kind of event we want a clean trail for during incident
+	// response. The other mutating admin handlers already record audit;
+	// this was the only gap in the wired set.
+	h.recordAudit(c, "node.sync_config", fmt.Sprintf("active_users=%d", activeCount))
+
 	return c.JSON(http.StatusOK, syncResponse{
 		Status:      "ok",
 		ActiveUsers: activeCount,

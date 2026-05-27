@@ -34,10 +34,16 @@ exists because we already shipped the inverse mistake at least once.
   signed JWS receipts, or device-bound credentials without passing
   `sensitive: true` to `APIClient.dataWithFallback`. The flag opts out of
   HTTP:80 cleartext legs (H-001) *and* direct-IP TLS legs (H-002).
-- **Never** weaken the `sensitive=true → no HTTP:80 + no direct-IP` invariant
-  in `APIClient.raceLegPlan` without first making `DirectConnection` validate
-  the cert chain (already done as of H-002b — but if the chain validation is
-  ever stripped again, restore the gate).
+- **Never** weaken the `sensitive=true → no HTTP:80` invariant in
+  `APIClient.raceLegPlan` — HTTP:80 carries Bearer/refresh/JWS over
+  cleartext, no fix exists short of removing the leg.
+- **The direct-IP gate** is now relaxable per-endpoint as of H-002b
+  (`DirectConnection` validates cert chain against SNI via
+  `SecPolicyCreateSSL` + `SecTrustEvaluateWithError`). Specifically
+  `refreshAccessToken` could safely allow direct-IP fallback so RU users
+  on Cloudflare-blocked networks can refresh tokens. Still keep direct-IP
+  blocked for `requestMagicLink` / `registerDevice` / `verifySubscription`
+  until each is individually reasoned through.
 - **Always** add a `APIClientSensitiveFlagTests` case for any new endpoint
   introduced with `sensitive: true`. The regression test costs ~10 lines and
   has caught two regressions already.
@@ -120,6 +126,12 @@ exists because we already shipped the inverse mistake at least once.
 - **Never** include the request body (passwords, tokens, refresh_token,
   full JWT) in the `details` field of an audit row. The table is plain
   TEXT and an audit table leak becomes a credentials leak.
+- **Always** pass user-supplied strings through `auditSafeUsername` (or an
+  equivalent strip-nonprintable + length-cap) before they land in the
+  `details` field. A user who types their password into the username
+  field would otherwise leak it cleartext into `login.failed` audit rows;
+  control characters in the input could let a log shipper interpret
+  embedded newlines as separate log lines (log injection).
 
 ### Apple receipt verification (`internal/payments/apple/`)
 
@@ -229,4 +241,9 @@ hook that runs alongside the upstream plugin.
 
 - 2026-05-27 — initial file, distilling CRIT-001 + H-001..H-011 +
   MED-001..MED-014 audit findings from build 86 cycle.
+- 2026-05-27 (later same day) — security-reviewer agent pass found
+  `SyncConfig` missing audit call (fixed) + recommended `auditSafeUsername`
+  for `login.failed` rows (added). H-002b cert validation note clarified —
+  direct-IP gate now relaxable per-endpoint after cert chain validation
+  landed.
 - _Add an entry every time a rule is added or revised._
