@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "sonner";
 import { Search, Trash2, Clock, Link, ArrowUp, ArrowDown, ArrowUpDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { statusColor } from "@/lib/constants";
+import { deviceName } from "@/lib/devices";
 
 const PAGE_SIZES = [25, 50, 100, 200] as const;
 type PageSize = (typeof PAGE_SIZES)[number];
@@ -198,8 +199,8 @@ export default function UsersPage() {
                     <TableCell className="text-sm">
                       {user.device_model || user.os_name || user.app_version ? (
                         <div className="flex flex-col leading-tight">
-                          <span className="text-zinc-200">
-                            {user.device_model || user.os_name || "—"}
+                          <span className="text-zinc-200" title={user.device_model || ""}>
+                            {deviceName(user.device_model) !== "—" ? deviceName(user.device_model) : user.os_name || "—"}
                           </span>
                           <span className="text-xs text-zinc-500">
                             {user.os_name && (user.ios_version || user.os_version) ? `${user.os_name} ${user.ios_version || user.os_version}` : user.os_name || ""}
