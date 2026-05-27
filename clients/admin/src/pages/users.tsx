@@ -23,8 +23,34 @@ type SortColumn =
   | "cumulative_traffic"
   | "last_seen"
   | "subscription_expiry"
-  | "last_country";
+  | "last_country"
+  | "created_at";
 type SortOrder = "asc" | "desc";
+
+// IPs that previously hosted GeoIP lookups at /auth/register for the
+// users that arrived via the api.madfrog.online (MSK relay) path before
+// USR-01 landed. Every signup before 2026-05-27 18:00 UTC that went
+// through the relay had its initial_country/city computed against ONE
+// of these IPs (the relay's own IP), not the real client — which is
+// why the admin sees 18 rows stamped "RU / Moscow" that aren't actually
+// from Moscow. Marking them so the operator doesn't make business
+// decisions on lies.
+const PRE_USR01_RELAY_IPS = new Set<string>(["217.198.5.52", "185.218.0.43"]);
+
+function formatRegistered(iso: string | null): { age: string; date: string } {
+  if (!iso) return { age: "—", date: "" };
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return { age: iso, date: iso };
+  const diff = Date.now() - then;
+  const min = Math.floor(diff / 60000);
+  const date = new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "2-digit" });
+  if (min < 60) return { age: `${min}m ago`, date };
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return { age: `${hr}h ago`, date };
+  const day = Math.floor(hr / 24);
+  if (day < 30) return { age: `${day}d ago`, date };
+  return { age: date, date };
+}
 
 function StatusBadge({ active }: { active: boolean }) {
   return <Badge className={statusColor(active)}>{active ? "Active" : "Expired"}</Badge>;
@@ -169,6 +195,7 @@ export default function UsersPage() {
               <TableRow>
                 <SortHead label="Username" col="vpn_username" sortColumn={sortColumn} sortOrder={sortOrder} onSort={toggleSort} />
                 <TableHead>Status</TableHead>
+                <SortHead label="Registered" col="created_at" sortColumn={sortColumn} sortOrder={sortOrder} onSort={toggleSort} />
                 <SortHead label="Traffic (GB)" col="cumulative_traffic" sortColumn={sortColumn} sortOrder={sortOrder} onSort={toggleSort} />
                 <TableHead>Device</TableHead>
                 <SortHead label="Location" col="last_country" sortColumn={sortColumn} sortOrder={sortOrder} onSort={toggleSort} />
@@ -188,13 +215,37 @@ export default function UsersPage() {
                 ))
               ) : users.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-zinc-500 py-8">No users found</TableCell>
+                  <TableCell colSpan={9} className="text-center text-zinc-500 py-8">No users found</TableCell>
                 </TableRow>
               ) : (
                 users.map((user) => (
                   <TableRow key={user.id}>
                     <TableCell className="font-mono text-sm">{user.vpn_username}</TableCell>
                     <TableCell><StatusBadge active={user.is_active} /></TableCell>
+                    <TableCell className="text-sm">
+                      {(() => {
+                        const reg = formatRegistered(user.created_at);
+                        const country = user.initial_country || "";
+                        const city = user.initial_city || user.initial_country_name || "";
+                        const isFakeMoscow = PRE_USR01_RELAY_IPS.has(user.initial_ip || "");
+                        return (
+                          <div className="flex flex-col leading-tight" title={`Registered ${reg.date}${user.initial_ip ? " from " + user.initial_ip : ""}`}>
+                            <span className="text-zinc-200">{reg.age}</span>
+                            {isFakeMoscow ? (
+                              <span className="text-xs text-amber-400" title={`initial_ip=${user.initial_ip} was a relay IP before USR-01 (2026-05-27). The Moscow stamp here is bogus.`}>
+                                ⚠ via legacy relay
+                              </span>
+                            ) : country ? (
+                              <span className="text-xs text-zinc-500">
+                                {countryFlag(country)} {city || country}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-zinc-600">unknown origin</span>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </TableCell>
                     <TableCell className="font-mono text-sm">{user.cumulative_traffic}</TableCell>
                     <TableCell className="text-sm">
                       {user.device_model || user.os_name || user.app_version ? (
@@ -216,11 +267,14 @@ export default function UsersPage() {
                         const realCountry = user.initial_country || "";
                         const realCity = user.initial_city || user.initial_country_name || "";
                         const realIP = user.initial_ip || "";
+                        const initialIsBogus = PRE_USR01_RELAY_IPS.has(realIP);
                         if (user.is_via_vpn) {
                           return (
                             <div className="flex flex-col leading-tight" title={`via ${user.via_vpn_node || "VPN"} (${user.last_ip})`}>
                               <span className="text-zinc-200">
-                                {realCountry ? `${countryFlag(realCountry)} ${realCity}` : (user.timezone || "—")}
+                                {initialIsBogus
+                                  ? (user.timezone || "unknown (legacy relay)")
+                                  : realCountry ? `${countryFlag(realCountry)} ${realCity}` : (user.timezone || "—")}
                               </span>
                               <span className="text-xs text-cyan-400">🛡 via {user.via_vpn_node || "VPN"}</span>
                               {realIP && <span className="font-mono text-xs text-zinc-500">{realIP}</span>}
