@@ -7,11 +7,52 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Search, Trash2, Clock, Link } from "lucide-react";
+import { Search, Trash2, Clock, Link, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { statusColor } from "@/lib/constants";
+
+// Sortable columns — must match the whitelist in
+// backend/internal/db/users.go resolveUserSort. Adding a column here
+// without adding it on the backend silently degrades to ORDER BY id.
+type SortColumn =
+  | "id"
+  | "vpn_username"
+  | "cumulative_traffic"
+  | "last_seen"
+  | "subscription_expiry"
+  | "last_country";
+type SortOrder = "asc" | "desc";
 
 function StatusBadge({ active }: { active: boolean }) {
   return <Badge className={statusColor(active)}>{active ? "Active" : "Expired"}</Badge>;
+}
+
+function SortHead({
+  label,
+  col,
+  sortColumn,
+  sortOrder,
+  onSort,
+}: {
+  label: string;
+  col: SortColumn;
+  sortColumn: SortColumn;
+  sortOrder: SortOrder;
+  onSort: (c: SortColumn) => void;
+}) {
+  const active = sortColumn === col;
+  const Icon = active ? (sortOrder === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown;
+  return (
+    <TableHead>
+      <button
+        type="button"
+        onClick={() => onSort(col)}
+        className={`inline-flex items-center gap-1 hover:text-zinc-100 transition-colors ${active ? "text-cyan-400" : "text-zinc-400"}`}
+      >
+        {label}
+        <Icon className="h-3 w-3" />
+      </button>
+    </TableHead>
+  );
 }
 
 function countryFlag(code: string): string {
@@ -39,12 +80,29 @@ function formatLastSeen(iso: string | null): string {
 export default function UsersPage() {
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
+  const [sortColumn, setSortColumn] = useState<SortColumn>("id");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const queryClient = useQueryClient();
 
+  // Toggle sort: same column flips direction, new column resets to desc
+  // (the natural "newest/biggest first" default for every column we expose).
+  const toggleSort = (col: SortColumn) => {
+    if (col === sortColumn) {
+      setSortOrder((o) => (o === "asc" ? "desc" : "asc"));
+    } else {
+      setSortColumn(col);
+      setSortOrder("desc");
+    }
+  };
+
   const { data: users = [], isLoading } = useQuery({
-    queryKey: ["users", deferredSearch],
+    queryKey: ["users", deferredSearch, sortColumn, sortOrder],
     queryFn: () => {
-      const params = new URLSearchParams({ page_size: "100" });
+      const params = new URLSearchParams({
+        page_size: "100",
+        sort: sortColumn,
+        order: sortOrder,
+      });
       if (deferredSearch) params.set("search", deferredSearch);
       return api.get<{ users: User[] }>(`/admin/users?${params.toString()}`).then((r) => r.users || []);
     },
@@ -88,13 +146,13 @@ export default function UsersPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Username</TableHead>
+                <SortHead label="Username" col="vpn_username" sortColumn={sortColumn} sortOrder={sortOrder} onSort={toggleSort} />
                 <TableHead>Status</TableHead>
-                <TableHead>Traffic (GB)</TableHead>
+                <SortHead label="Traffic (GB)" col="cumulative_traffic" sortColumn={sortColumn} sortOrder={sortOrder} onSort={toggleSort} />
                 <TableHead>Device</TableHead>
-                <TableHead>Location</TableHead>
-                <TableHead>Last seen</TableHead>
-                <TableHead>Expiry</TableHead>
+                <SortHead label="Location" col="last_country" sortColumn={sortColumn} sortOrder={sortOrder} onSort={toggleSort} />
+                <SortHead label="Last seen" col="last_seen" sortColumn={sortColumn} sortOrder={sortOrder} onSort={toggleSort} />
+                <SortHead label="Expiry" col="subscription_expiry" sortColumn={sortColumn} sortOrder={sortOrder} onSort={toggleSort} />
                 <TableHead className="w-24">Actions</TableHead>
               </TableRow>
             </TableHeader>

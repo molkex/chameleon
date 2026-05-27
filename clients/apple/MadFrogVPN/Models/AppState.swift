@@ -3,6 +3,7 @@ import SwiftUI
 import NetworkExtension
 import AuthenticationServices
 import UserNotifications
+import WidgetKit
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -868,6 +869,15 @@ class AppState {
         // in the background for next time. Only block on refresh when there is
         // no cache at all (first launch, offline).
         if configStore.hasConfig() {
+            // iOS multi-VPN handling: only one NEPacketTunnelProvider can be
+            // active at a time, BUT Apple's framework auto-displaces the
+            // current owner when we call setEnabled(true) + saveToPreferences +
+            // startTunnel (see vpnManager.connect). So we DON'T short-circuit
+            // here — let iOS try the takeover first. If it fails (e.g. user
+            // declined the system permission dialog, or the other VPN uses
+            // On-Demand and immediately reclaims the device), the catch /
+            // watchdog branches below detect the still-active foreign tunnel
+            // and surface the actionable "disable other VPN" message.
             TunnelFileLogger.log("toggleVPN: have cached config, running preconnect race + building", category: "ui")
             let config: String? = await configForStartupWithRace() ?? configStore.loadConfig()
             TunnelFileLogger.log("toggleVPN: config built, running preflight probe", category: "ui")
@@ -896,7 +906,11 @@ class AppState {
                 TunnelFileLogger.log("toggleVPN: vpnManager.connect returned OK", category: "ui")
             } catch {
                 TunnelFileLogger.log("toggleVPN: vpnManager.connect FAILED: \(error)", category: "ui")
-                errorMessage = VPNErrorMapper.humanMessage(error)
+                if VPNErrorMapper.anotherVPNActive() {
+                    errorMessage = L10n.Error.anotherVPNActive
+                } else {
+                    errorMessage = VPNErrorMapper.humanMessage(error)
+                }
                 return
             }
 
@@ -922,7 +936,9 @@ class AppState {
             case .failed:
                 TunnelFileLogger.log("toggleVPN: watchdog — extension rejected connection", category: "ui")
                 vpnManager.disconnect()
-                errorMessage = L10n.Error.serverRejected
+                errorMessage = VPNErrorMapper.anotherVPNActive()
+                    ? L10n.Error.anotherVPNActive
+                    : L10n.Error.serverRejected
                 return
             case .permissionDenied:
                 TunnelFileLogger.log("toggleVPN: watchdog — permission denied", category: "ui")
@@ -1342,7 +1358,18 @@ class AppState {
 
             let chain = self.resolveSelectionChain(target: selectedTag)
             guard !chain.isEmpty else {
-                TunnelFileLogger.log("applyServerSelectionIfLive: empty chain for '\(selectedTag)' — keeping baked-in default", category: "ui")
+                // Build-85: target no longer exists in the current config
+                // (the server / country was retired backend-side, e.g. DE
+                // shutdown 2026-05-25). The baked-in default is Auto so
+                // traffic still flows, but the UI keeps showing "🇩🇪 Германия"
+                // forever otherwise. Reset both the persisted tag and the
+                // mirrored @Observable copy so the chip / picker reflect
+                // reality on the next render.
+                TunnelFileLogger.log("applyServerSelectionIfLive: empty chain for '\(selectedTag)' — resetting to Auto", category: "ui")
+                if selectedTag != "Auto", self.configStore.selectedServerTag != nil {
+                    self.configStore.selectedServerTag = nil
+                    self.selectedServerTag = nil
+                }
                 return
             }
             let chainStr = chain.map { "\($0.group)→\($0.target)" }.joined(separator: " / ")
@@ -1472,6 +1499,12 @@ class AppState {
 
     private func handleStatus() {
         TunnelFileLogger.log("handleStatus: vpn status=\(vpnManager.status.rawValue)", category: "ui")
+        // Build-84: nudge the widget timeline so the Home/Lock-Screen widget
+        // re-reads App Group state immediately after the main app sees a
+        // status transition. Without this the widget can show stale "Защищено"
+        // for up to 15 min after disconnect (own timeline policy is the only
+        // refresh signal). Cheap: WidgetCenter rate-limits internally.
+        WidgetCenter.shared.reloadAllTimelines()
         let sharedDefaults = UserDefaults(suiteName: AppConstants.appGroupID)
 
         switch vpnManager.status {
@@ -1627,7 +1660,17 @@ class AppState {
                     await HealthProbeURLSession.probe(url: url, timeout: timeout)
                 },
                 onStallDetected: { [weak self] in
-                    await self?.performFallbackForCurrentLeg()
+                    // 2026-05-26 (audit P0-C): main-app monitor no longer
+                    // performs a fallback. PacketTunnel's
+                    // `RealTrafficStallDetector` is the sole authority for
+                    // stall-triggered recovery — running two competing
+                    // detectors created a `selectOutbound` storm that tore
+                    // in-flight sockets. We still nudge the widget so any
+                    // UI uptime/state stays fresh on observed stall.
+                    TunnelFileLogger.log("ui.stall: TrafficHealthMonitor saw stall — deferring to extension (no fallback here)", category: "ui")
+                    Task { @MainActor in
+                        WidgetCenter.shared.reloadAllTimelines()
+                    }
                 },
                 onProbeSuccess: { [weak self] in
                     await MainActor.run {
@@ -1738,15 +1781,18 @@ class AppState {
         let candidates = country.serverTags.filter { !deadLeavesInCurrentCascade.contains($0) }
         if let next = candidates.first {
             TunnelFileLogger.log("fallback: '\(pinned)' leaf '\(activeLeaf ?? "?")' → '\(next)' (same country)", category: "ui")
-            // selectOutbound on Proxy with a leaf tag bypasses the country
-            // urltest entirely — sing-box honours the explicit pick until
-            // we set it back via another selectOutbound or the user picks
-            // a country/Auto. The country pin in selectedServerTag is
-            // preserved at the iOS state level so leaving and returning
-            // re-pins.
+            // Audit P1-3 (2026-05-26): the previous version called
+            // selectOutbound directly and left `configStore.selectedServerTag`
+            // pointing at the country pin — `selectOutbound` is a live-tunnel
+            // override that doesn't survive restart, so the live leaf and
+            // the persisted intent diverged. Now both are written so a
+            // cold start re-honors the same leaf.
+            //
             // selectOutbound itself closes existing connections so in-flight
             // sockets get re-dialled through the new leaf.
             commandClient.selectOutbound(groupTag: group.tag, outboundTag: next)
+            configStore.selectedServerTag = next
+            selectedServerTag = next
             fallbackToastMessage = L10n.Recovery.switchedLeg(country.name)
             return
         }
@@ -1764,6 +1810,36 @@ class AppState {
         let parts = leaf.split(separator: "-")
         guard let first = parts.first else { return nil }
         return first.uppercased()
+    }
+
+    /// build-85 testability extract (P1-3): the pure leaf-pick the
+    /// `fallbackFromCountry` cascade uses. Given the country the user is
+    /// pinned to and the set of leaves marked dead this cascade, return
+    /// the next leaf the cascade should try (the first not-dead leaf in
+    /// `country.serverTags`), or nil when every leaf has been tried.
+    /// Free of CommandClient / ConfigStore / AppState references so it
+    /// can be unit-tested without standing up the @MainActor object graph.
+    static func nextLeafForCountry(country: CountryGroup,
+                                   deadLeaves: Set<String>) -> String? {
+        country.serverTags.first { !deadLeaves.contains($0) }
+    }
+
+    /// build-85 testability extract (audit P0-B): decides whether
+    /// `performFallbackForCurrentLeg` should escalate beyond the pinned
+    /// country. The architectural contract after the build-42 backend
+    /// strict-country fix is "this country or fail" — at a single-country
+    /// topology (only one country has any leaves) we must NOT auto-jump,
+    /// because there is nowhere else to legitimately go. Likewise when
+    /// every other country is already in the dead set.
+    static func shouldEscalateBeyondCountry(group: ServerGroup,
+                                            currentCountry: String,
+                                            deadCountries: Set<String>) -> Bool {
+        let alive = group.countries.filter { country in
+            country.tag != currentCountry &&
+            !deadCountries.contains(country.tag) &&
+            !country.serverTags.isEmpty
+        }
+        return !alive.isEmpty
     }
 
     private func fallbackOnAuto(group: ServerGroup) async {
@@ -1810,59 +1886,33 @@ class AppState {
         return demote
     }
 
-    /// Pick the next-best country (or SPB relay), pin it, force its
-    /// urltest to probe under current network. Called once per cascade
-    /// step. Caller is responsible for marking the previous country dead.
+    /// 2026-05-26 (audit P0-B): the prior implementation silently switched
+    /// COUNTRY and even promoted the user to SPB whitelist-bypass on a
+    /// stall — that's the "переключилось куда-то, не знаю зачем" the
+    /// user reports. After the backend strict-country build-42 fix the
+    /// architectural contract is: picking a country means "this country
+    /// or fail". Cross-country failover stays opt-in via the explicit
+    /// "Auto" group.
+    ///
+    /// New behaviour: when the same-country leaf cycling in
+    /// `fallbackFromLeaf` / `fallbackFromCountry` is exhausted, we report
+    /// the country as unreachable and stop. The user sees a toast
+    /// suggesting they pick another country manually. We never persist
+    /// a different country into `configStore.selectedServerTag` behind
+    /// the user's back, and we never auto-jump to whitelist-bypass.
     private func escalateBeyondCountry(
         group: ServerGroup,
         exhaustedCountry: CountryGroup?,
         reason: String
     ) async {
-        // Cascade depth check — bound how many countries we'll try before
-        // jumping straight to SPB. Without this a network with widespread
-        // DPI could have us thrash through every country.
-        let directCountries = group.countries.filter { $0.section == .direct && $0.id != "other" }
-        let triedDirect = deadCountriesInCurrentCascade.intersection(Set(directCountries.map(\.tag))).count
-
-        // Step A: try next direct country (sorted by best ping, dead-skipped)
-        if triedDirect < maxCascadeDepth {
-            let candidates = directCountries
-                .filter { !deadCountriesInCurrentCascade.contains($0.tag) }
-                .sorted { lhs, rhs in
-                    // bestDelay 0 = unknown, push to end. Otherwise ascending.
-                    let l = lhs.bestDelay > 0 ? Int(lhs.bestDelay) : Int.max
-                    let r = rhs.bestDelay > 0 ? Int(rhs.bestDelay) : Int.max
-                    return l < r
-                }
-            if let nextCountry = candidates.first {
-                TunnelFileLogger.log("fallback: ESCALATE → country '\(nextCountry.tag)' (depth=\(triedDirect + 1)/\(maxCascadeDepth), reason: \(reason))", category: "ui")
-                selectServer(groupTag: group.tag, serverTag: nextCountry.tag, clearCascade: false)
-                if let from = exhaustedCountry {
-                    fallbackToastMessage = L10n.Recovery.switchedFromTo(from.name, nextCountry.name)
-                } else {
-                    fallbackToastMessage = L10n.Recovery.switchedTo(nextCountry.name)
-                }
-                return
-            }
+        if let from = exhaustedCountry {
+            TunnelFileLogger.log("fallback: country '\(from.tag)' exhausted, NO cross-country jump (audit P0-B); reason=\(reason)", category: "ui")
+            fallbackToastMessage = L10n.Error.selectedUnreachable(from.name)
+        } else {
+            TunnelFileLogger.log("fallback: leg exhausted, NO cross-country jump (audit P0-B); reason=\(reason)", category: "ui")
+            fallbackToastMessage = L10n.Error.allServersUnreachable
         }
-
-        // Step B: try SPB whitelist-bypass relays as last resort
-        let bypassCountries = group.countries.filter { $0.section == .whitelistBypass }
-        let allBypassLeaves = bypassCountries.flatMap(\.serverTags)
-        let bypassLeavesAlive = allBypassLeaves.filter { !deadLeavesInCurrentCascade.contains($0) }
-        if let firstBypassLeaf = bypassLeavesAlive.first {
-            TunnelFileLogger.log("fallback: ESCALATE → SPB relay '\(firstBypassLeaf)' (last resort, reason: \(reason))", category: "ui")
-            selectServer(groupTag: group.tag, serverTag: firstBypassLeaf, clearCascade: false)
-            fallbackToastMessage = L10n.Recovery.switchedToBypass
-            return
-        }
-
-        // Step C: nothing left
-        TunnelFileLogger.log("fallback: ALL COUNTRIES + SPB DEAD — giving up (reason: \(reason))", category: "ui")
-        reportDiagnostic(event: "all_dead", country: "*", deadLeaves: Array(deadLeavesInCurrentCascade))
-        fallbackToastMessage = L10n.Recovery.allDead
-        // Don't reset cascade — let the cooldown elapse, next stall will
-        // start a fresh sequence (cascade sets are wiped on selectServer).
+        reportDiagnostic(event: "country_exhausted_no_jump", country: exhaustedCountry?.tag ?? "*", deadLeaves: Array(deadLeavesInCurrentCascade))
     }
 
     /// Fire-and-forget diagnostic POST to backend. Catches network errors

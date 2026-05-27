@@ -137,7 +137,9 @@ func TestCookieOrBearerAuthRejects(t *testing.T) {
 			rec := httptest.NewRecorder()
 			c := e.NewContext(req, rec)
 
-			h := CookieOrBearerAuth(jwtMgr)(func(c echo.Context) error {
+			// Audit H-010: pass nil DB — these tests cover token+role checks
+			// only; is_active is exercised in db_test (out of scope here).
+			h := CookieOrBearerAuth(jwtMgr, nil)(func(c echo.Context) error {
 				return c.NoContent(http.StatusOK)
 			})
 			if err := h(c); err != nil {

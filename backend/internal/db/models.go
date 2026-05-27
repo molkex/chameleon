@@ -52,6 +52,10 @@ type User struct {
 	Email                  *string    `db:"email"                    json:"email,omitempty"`
 	EmailVerifiedAt        *time.Time `db:"email_verified_at"        json:"email_verified_at,omitempty"`
 	PasswordHash           *string    `db:"password_hash"            json:"-"`
+	// InstallSecret — MED-012 (2026-05-27): server-issued credential to
+	// replace device_id-as-bearer. Null for legacy users until they
+	// re-register with a new-enough iOS build.
+	InstallSecret          *string    `db:"install_secret"           json:"-"`
 	CreatedAt              time.Time  `db:"created_at"               json:"created_at"`
 	UpdatedAt              time.Time  `db:"updated_at"               json:"updated_at"`
 }

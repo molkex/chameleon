@@ -130,6 +130,27 @@ func (s *Service) CreditDays(ctx context.Context, c Credit) (alreadyApplied bool
 	return false, nil
 }
 
+// HasCharge returns true iff the payments ledger already contains a completed
+// row for the given (source, charge_id) pair. Used by the Apple verify path
+// (audit H-008) to distinguish a fresh expired-receipt replay attempt from a
+// legitimate Restore Purchases call against an old purchase that's already
+// in our books — only the latter should be allowed through.
+func (s *Service) HasCharge(ctx context.Context, source Source, chargeID string) (bool, error) {
+	if source == "" || chargeID == "" {
+		return false, errors.New("payments: HasCharge requires source and charge_id")
+	}
+	var exists bool
+	err := s.pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM payments
+			WHERE source = $1 AND charge_id = $2 AND status = 'completed'
+		)`, string(source), chargeID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("payments: HasCharge query: %w", err)
+	}
+	return exists, nil
+}
+
 // ReconcileFromLedger recomputes users.subscription_expiry for a single Apple
 // subscription from the payments ledger. Used by Restore Purchases when the
 // user was previously wiped (account deletion) — the original payment row is

@@ -14,8 +14,8 @@ func fixture() (EngineConfig, VPNUser, []ServerEntry, []ChainedEntry) {
 	engine := EngineConfig{
 		ListenPort: 443,
 		Reality: RealityConfig{
-			PrivateKey: "mMQQZciNtcjfln0jBddIclm_HM8M3C8KALzHPfR0WVQ",
-			PublicKey:  "ug2jX3uFFdLXih4t0O-PTRElQpAkO6v74RiRVJVvpzE",
+			PrivateKey: "KNNykKLLBlq7Jj_wO4UF8OTMJn3whOm4yvqXPgy6b1Y",
+			PublicKey:  "YFdu6tIo4524vI0q3eSXLJdySAwBJ2toXbr_NSKYQQs",
 			ShortIDs:   []string{""},
 			SNI:        "ads.adfox.ru",
 		},
@@ -33,7 +33,7 @@ func fixture() (EngineConfig, VPNUser, []ServerEntry, []ChainedEntry) {
 			Port:             443,
 			Hysteria2Port:    443,
 			TUICPort:         8443,
-			RealityPublicKey: "ug2jX3uFFdLXih4t0O-PTRElQpAkO6v74RiRVJVvpzE",
+			RealityPublicKey: "YFdu6tIo4524vI0q3eSXLJdySAwBJ2toXbr_NSKYQQs",
 			Role:             "exit",
 			CountryCode:      "DE",
 			Category:         "standard",
@@ -45,7 +45,7 @@ func fixture() (EngineConfig, VPNUser, []ServerEntry, []ChainedEntry) {
 			Port:             443,
 			Hysteria2Port:    443,
 			TUICPort:         8443,
-			RealityPublicKey: "99tZNtOBXlY4XhbHrmdXuXmZ7DBzRV0m5GKVlXaNOR8",
+			RealityPublicKey: "QTC2XRuUaiWO2A1CNbps_9wJp-vaQ2zMYu0VPrS65QM",
 			Role:             "exit",
 			CountryCode:      "NL",
 			Category:         "standard",
@@ -55,7 +55,7 @@ func fixture() (EngineConfig, VPNUser, []ServerEntry, []ChainedEntry) {
 			Name:             "SPB-DE",
 			Host:             "185.218.0.43",
 			Port:             443,
-			RealityPublicKey: "ug2jX3uFFdLXih4t0O-PTRElQpAkO6v74RiRVJVvpzE",
+			RealityPublicKey: "YFdu6tIo4524vI0q3eSXLJdySAwBJ2toXbr_NSKYQQs",
 			Role:             "exit",
 			Category:         "whitelist_bypass",
 		},
@@ -64,7 +64,7 @@ func fixture() (EngineConfig, VPNUser, []ServerEntry, []ChainedEntry) {
 			Name:             "SPB-NL",
 			Host:             "185.218.0.43",
 			Port:             2098,
-			RealityPublicKey: "99tZNtOBXlY4XhbHrmdXuXmZ7DBzRV0m5GKVlXaNOR8",
+			RealityPublicKey: "QTC2XRuUaiWO2A1CNbps_9wJp-vaQ2zMYu0VPrS65QM",
 			Role:             "exit",
 			Category:         "whitelist_bypass",
 		},
@@ -74,7 +74,7 @@ func fixture() (EngineConfig, VPNUser, []ServerEntry, []ChainedEntry) {
 			RelayKey:        "msk",
 			RelayHost:       "217.198.5.52",
 			RelayListenPort: 2096,
-			RelayRealityPub: "OJSR6FJytgohcFEUU4YD_IBdc3X83SUuez0n5tskTUs",
+			RelayRealityPub: "I84vSWkXXJGJU3KreRsR1ztmy1u6PyeYXCKMrYXX_zY",
 			RelaySNI:        "music.yandex.ru",
 			ExitKey:         "de",
 			ExitCountryCode: "DE",
@@ -83,7 +83,7 @@ func fixture() (EngineConfig, VPNUser, []ServerEntry, []ChainedEntry) {
 			RelayKey:        "msk",
 			RelayHost:       "217.198.5.52",
 			RelayListenPort: 2097,
-			RelayRealityPub: "OJSR6FJytgohcFEUU4YD_IBdc3X83SUuez0n5tskTUs",
+			RelayRealityPub: "I84vSWkXXJGJU3KreRsR1ztmy1u6PyeYXCKMrYXX_zY",
 			RelaySNI:        "music.yandex.ru",
 			ExitKey:         "nl2",
 			ExitCountryCode: "NL",
@@ -233,13 +233,12 @@ func TestUrltestGroupsHaveProbeURL(t *testing.T) {
 // Field log 2026-04-26 confirmed 1m23s/1m24s/1m41s stuck connections to
 // dead 162.19.242.30 after urltest had already switched to de-via-msk.
 //
-// Build-41 split: outer country groups (🇩🇪 Германия / 🇳🇱 Нидерланды) now
-// use different parameters (interval=15s, tolerance=65000) — see
-// TestCountryGroupsHaveCrossCountryFallback. The leaf-level fast-recovery
-// rules tested here apply to Auto and the inner _<cc>_leaves groups.
+// Build-42 simplification: country urltests are flat single-country groups
+// again — all urltests in the config (Auto + per-country) share the same
+// fast-recovery parameters.
 func TestUrltestGroupsRecoverFast(t *testing.T) {
 	cfg := parseGenerated(t)
-	for _, tag := range []string{"Auto", "_de_leaves", "_nl_leaves"} {
+	for _, tag := range []string{"Auto", "🇩🇪 Германия", "🇳🇱 Нидерланды"} {
 		g := outboundByTag(cfg, tag)
 		if g == nil {
 			t.Errorf("urltest group %q not emitted", tag)
@@ -269,99 +268,65 @@ func TestUrltestGroupsRecoverFast(t *testing.T) {
 	}
 }
 
-// TestCountryGroupsHaveCrossCountryFallback asserts the build-41 nested-urltest
-// architecture: the user-visible country group "🇩🇪 Германия" is itself a
-// urltest whose members are the per-country inner urltests, with own-country
-// first and other countries listed as fallback. The outer tolerance is high
-// (65000) so the urltest sticks to the user's chosen country and only
-// switches when that country's inner group returns "no member available" —
-// e.g. RU LTE + OVH ASN block where all 4 DE leaves time out simultaneously
-// (field log 2026-04-26 23:58 confirmed 4/4 DE leaves dead, only de-via-msk
-// crawling at 4500ms probe). With tolerance=65000, switching to the NL
-// inner is triggered ONLY by full-DE-failure, never by latency drift.
-func TestCountryGroupsHaveCrossCountryFallback(t *testing.T) {
+// TestCountryGroupsAreStrictSingleCountry asserts the build-42 strict-country
+// architecture: each user-visible country group ("🇩🇪 Германия" /
+// "🇳🇱 Нидерланды") is a flat urltest whose members are ONLY leaves of that
+// country. No cross-country fallback — picking a country means "exit via this
+// country or fail" (Google-geo correctness over best-effort reachability).
+// Cross-country failover is opt-in via the explicit "Auto" urltest.
+//
+// Regression guard: build-41 wrapped country groups in nested urltests with
+// other countries as fallback members; that silently re-routed users (e.g.
+// DE→NL when DE-side leaves all timed out under RU LTE OVH-ASN block), and
+// Google geo-targeted the exit country instead of the user's pin.
+func TestCountryGroupsAreStrictSingleCountry(t *testing.T) {
 	cfg := parseGenerated(t)
 
-	// Inner per-country urltest groups must exist with `_<cc>_leaves` tag
-	// (the leading underscore lets iOS UI filter them from the picker).
+	// No build-41 inner `_<cc>_leaves` groups must exist anymore — they're
+	// the smoking gun for the cross-country wrapper architecture.
 	for _, innerTag := range []string{"_de_leaves", "_nl_leaves"} {
-		g := outboundByTag(cfg, innerTag)
-		if g == nil {
-			t.Errorf("inner urltest %q not emitted", innerTag)
-			continue
-		}
-		if g["type"] != "urltest" {
-			t.Errorf("inner %q type=%v, want urltest", innerTag, g["type"])
+		if g := outboundByTag(cfg, innerTag); g != nil {
+			t.Errorf("inner urltest %q must NOT be emitted (build-42 strict-country regression)", innerTag)
 		}
 	}
 
-	// Outer "🇩🇪 Германия": members must be [_de_leaves, _nl_leaves] in that
-	// order — own country first, others as fallback in alpha order.
-	deOuter := outboundByTag(cfg, "🇩🇪 Германия")
-	if deOuter == nil {
-		t.Fatal("outer country group 🇩🇪 Германия not emitted")
+	// "🇩🇪 Германия": flat urltest, members are DE leaves only.
+	deGroup := outboundByTag(cfg, "🇩🇪 Германия")
+	if deGroup == nil {
+		t.Fatal("country group 🇩🇪 Германия not emitted")
 	}
-	if deOuter["type"] != "urltest" {
-		t.Errorf("🇩🇪 Германия type=%v, want urltest", deOuter["type"])
+	if deGroup["type"] != "urltest" {
+		t.Errorf("🇩🇪 Германия type=%v, want urltest", deGroup["type"])
 	}
 	deMembers := outboundMembers(cfg, "🇩🇪 Германия")
-	wantDE := []string{"_de_leaves", "_nl_leaves"}
-	if !slices.Equal(deMembers, wantDE) {
-		t.Errorf("🇩🇪 Германия members=%v, want %v (own country first, others as fallback)", deMembers, wantDE)
+	for _, want := range []string{"de-direct-de", "de-h2-de", "de-tuic-de", "de-via-msk"} {
+		if !slices.Contains(deMembers, want) {
+			t.Errorf("🇩🇪 Германия missing DE leaf %q; got %v", want, deMembers)
+		}
 	}
-	if iv, _ := deOuter["interval"].(string); iv != "15s" {
-		t.Errorf("🇩🇪 Германия interval=%q, want 15s (build-41 outer)", iv)
-	}
-	if tol, _ := deOuter["tolerance"].(float64); tol != 65000 {
-		t.Errorf("🇩🇪 Германия tolerance=%v, want 65000 (sticky country pin)", tol)
-	}
-	if iec, _ := deOuter["interrupt_exist_connections"].(bool); !iec {
-		t.Errorf("🇩🇪 Германия missing interrupt_exist_connections=true (build 40 chain rule)")
+	for _, leaf := range deMembers {
+		if !startsWith(leaf, "de-") {
+			t.Errorf("🇩🇪 Германия contains non-DE leaf %q (cross-country leak)", leaf)
+		}
 	}
 
-	// Outer "🇳🇱 Нидерланды": members must be [_nl_leaves, _de_leaves] —
-	// NL first because it's own country.
-	nlOuter := outboundByTag(cfg, "🇳🇱 Нидерланды")
-	if nlOuter == nil {
-		t.Fatal("outer country group 🇳🇱 Нидерланды not emitted")
+	// "🇳🇱 Нидерланды": flat urltest, members are NL leaves only.
+	nlGroup := outboundByTag(cfg, "🇳🇱 Нидерланды")
+	if nlGroup == nil {
+		t.Fatal("country group 🇳🇱 Нидерланды not emitted")
+	}
+	if nlGroup["type"] != "urltest" {
+		t.Errorf("🇳🇱 Нидерланды type=%v, want urltest", nlGroup["type"])
 	}
 	nlMembers := outboundMembers(cfg, "🇳🇱 Нидерланды")
-	wantNL := []string{"_nl_leaves", "_de_leaves"}
-	if !slices.Equal(nlMembers, wantNL) {
-		t.Errorf("🇳🇱 Нидерланды members=%v, want %v (own country first, others as fallback)", nlMembers, wantNL)
-	}
-	if iv, _ := nlOuter["interval"].(string); iv != "15s" {
-		t.Errorf("🇳🇱 Нидерланды interval=%q, want 15s (build-41 outer)", iv)
-	}
-	if tol, _ := nlOuter["tolerance"].(float64); tol != 65000 {
-		t.Errorf("🇳🇱 Нидерланды tolerance=%v, want 65000 (sticky country pin)", tol)
-	}
-	if iec, _ := nlOuter["interrupt_exist_connections"].(bool); !iec {
-		t.Errorf("🇳🇱 Нидерланды missing interrupt_exist_connections=true (build 40 chain rule)")
-	}
-
-	// Inner _de_leaves must contain all DE leaves (direct + via + h2 + tuic),
-	// none from other countries. Same shape for _nl_leaves.
-	deInner := outboundMembers(cfg, "_de_leaves")
-	for _, want := range []string{"de-direct-de", "de-h2-de", "de-tuic-de", "de-via-msk"} {
-		if !slices.Contains(deInner, want) {
-			t.Errorf("_de_leaves missing %q; got %v", want, deInner)
-		}
-	}
-	for _, leaf := range deInner {
-		if !startsWith(leaf, "de-") {
-			t.Errorf("_de_leaves contains non-DE leaf %q", leaf)
-		}
-	}
-	nlInner := outboundMembers(cfg, "_nl_leaves")
 	for _, want := range []string{"nl-direct-nl2", "nl-h2-nl2", "nl-tuic-nl2", "nl-via-msk"} {
-		if !slices.Contains(nlInner, want) {
-			t.Errorf("_nl_leaves missing %q; got %v", want, nlInner)
+		if !slices.Contains(nlMembers, want) {
+			t.Errorf("🇳🇱 Нидерланды missing NL leaf %q; got %v", want, nlMembers)
 		}
 	}
-	for _, leaf := range nlInner {
+	for _, leaf := range nlMembers {
 		if !startsWith(leaf, "nl-") {
-			t.Errorf("_nl_leaves contains non-NL leaf %q", leaf)
+			t.Errorf("🇳🇱 Нидерланды contains non-NL leaf %q (cross-country leak)", leaf)
 		}
 	}
 }

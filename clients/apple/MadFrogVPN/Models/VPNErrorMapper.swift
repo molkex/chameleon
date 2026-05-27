@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import NetworkExtension
 
@@ -57,5 +58,40 @@ enum VPNErrorMapper {
     /// Message when permission was never granted (status stuck at .invalid).
     static var permissionMissing: String {
         L10n.Error.permission
+    }
+
+    /// True iff another VPN extension (not ours) currently owns a tunnel
+    /// interface. iOS lets only one NEPacketTunnelProvider be active at a
+    /// time — when a third-party VPN is on, our startVPNTunnel fails fast
+    /// with a generic .connectionFailed, which the watchdog reports as
+    /// "server rejected". This check exposes the real cause so the toast
+    /// can tell the user to disable the other VPN.
+    ///
+    /// Detection scans BSD interfaces for utun*/ipsec* devices that hold
+    /// an IPv4 address outside our own 172.19.0.0/30 TUN range (set in
+    /// backend/internal/vpn/clientconfig.go).
+    static func anotherVPNActive() -> Bool {
+        var ifaddrPtr: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&ifaddrPtr) == 0 else { return false }
+        defer { freeifaddrs(ifaddrPtr) }
+
+        var ptr = ifaddrPtr
+        while let cur = ptr {
+            defer { ptr = cur.pointee.ifa_next }
+            let name = String(cString: cur.pointee.ifa_name)
+            guard name.hasPrefix("utun") || name.hasPrefix("ipsec") else { continue }
+            guard let sa = cur.pointee.ifa_addr else { continue }
+            guard sa.pointee.sa_family == sa_family_t(AF_INET) else { continue }
+
+            var sin = sockaddr_in()
+            memcpy(&sin, UnsafeRawPointer(sa), MemoryLayout<sockaddr_in>.size)
+            var buf = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
+            guard inet_ntop(AF_INET, &sin.sin_addr, &buf, socklen_t(INET_ADDRSTRLEN)) != nil else { continue }
+            let ip = String(cString: buf)
+            if !ip.hasPrefix("172.19.") {
+                return true
+            }
+        }
+        return false
     }
 }

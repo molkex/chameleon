@@ -2,7 +2,15 @@
 
 > 🤖 Mirror: [agent-readable YAML](operations.yaml) — keep in sync. Edit either, sync the other.
 
-> Последнее обновление: 2026-04-10
+> ⚠️ **STATUS 2026-05-26 — SINGLE-NL WORLD**: DE OVH `162.19.242.30` retired
+> 2026-05-25 (договор истёк, не продлён). Production traffic = NL Timeweb
+> `147.45.252.234` only + MSK relay `217.198.5.52` fronts api.madfrog.online.
+> **Multiple recipes/diagrams below still reference DE** — those are historical.
+> Do NOT SSH to / deploy to / DNS-point at `162.19.242.30`. Detailed line-by-line
+> cleanup pending. Single source of truth: `infrastructure/topology.yaml`
+> (also updated 2026-05-26).
+
+> Последнее обновление: 2026-05-26 (DE retirement + audit P0 fixes)
 
 ---
 

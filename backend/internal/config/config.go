@@ -331,6 +331,11 @@ func (c *Config) resolveAllEnvVars() {
 	// Email + Google
 	c.Email.APIKey = resolveEnvVars(c.Email.APIKey)
 	c.Google.IOSClientID = resolveEnvVars(c.Google.IOSClientID)
+
+	// Audit MED-013: provider-credentials KEK. Without this resolution
+	// step the YAML "${CHAMELEON_PROVIDERS_ENCRYPTION_KEY}" stays literal
+	// and the provider cipher falls back to no-op (plaintext in DB).
+	c.Secrets.EncryptionKey = resolveEnvVars(c.Secrets.EncryptionKey)
 }
 
 // applyDefaults sets sensible default values for fields that were not

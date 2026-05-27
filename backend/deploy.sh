@@ -147,14 +147,19 @@ cp config.production.yaml config.yaml
 sed -i "s/node_id: \"\"/node_id: \"${NODE_ID}\"/" config.yaml
 sed -i "s/default: \"ads.adfox.ru\"/default: \"${NODE_SNI}\"/" config.yaml
 
-# Set cluster peers (each node points to all other nodes)
+# Set cluster peers (each node points to all other nodes).
+# 2026-05-26: DE retired (OVH expired) — single-NL world. nl2-1 has no
+# peers. Empty array short-circuits cluster.Start() and stops the
+# reconcileLoop from hammering a dead peer every 5 min. Re-add real
+# peers when a 2nd node is provisioned (and INFRA-SYNC-01 is fixed
+# so payments/id_aliases actually replicate).
 case "$NODE_ID" in
     de-1) PEER_BLOCK='  peers:\n    - id: "nl2-1"\n      url: "http://147.45.252.234:8000"' ;;
-    nl2-1) PEER_BLOCK='  peers:\n    - id: "de-1"\n      url: "http://162.19.242.30:8000"' ;;
+    nl2-1) PEER_BLOCK='  peers: []' ;;
     *) PEER_BLOCK='  peers: []' ;;
 esac
 sed -i "s|  peers: \[\]|${PEER_BLOCK}|" config.yaml
-echo ">>> Cluster sync enabled (node=${NODE_ID}, peers configured)"
+echo ">>> Cluster sync configured (node=${NODE_ID}, peers per above)"
 
 # Per-node UDP protocol overrides (Hysteria2 + TUIC v5)
 case "$NODE_ID" in
@@ -223,6 +228,17 @@ fi
 # Docker layer cache makes a no-op rebuild fast, so always rebuild.
 echo ">>> Building nginx (admin SPA)..."
 docker compose build nginx 2>&1 | tail -5
+
+# ── Ensure docker-socket-proxy is up (MED-010) ────────────────────────────
+# chameleon depends on this proxy for `docker ps` (metrics) and
+# `docker kill` (singbox HUP/TERM) since the direct /var/run/docker.sock
+# bind was removed. Pull image + start before chameleon so the dependency
+# is satisfied at chameleon startup.
+echo ">>> Starting docker-socket-proxy..."
+docker compose up -d --no-deps docker-socket-proxy
+# Brief wait for proxy to be listening on :2375 before chameleon tries to
+# connect during its own boot.
+sleep 2
 
 # ── Restart chameleon ONLY (singbox is standalone, compose can't touch it) ─
 echo ">>> Starting chameleon + nginx..."
