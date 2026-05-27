@@ -323,6 +323,24 @@ if [ -f "$HEALTHCHECK" ]; then
     echo ">>> Health check cron installed (root)"
 fi
 
+# MON-06: singbox-log-watcher cron (every minute) — scrapes the last 65s of
+# `docker logs singbox` for VLESS Reality TLS handshake failures and writes
+# a per-tick JSONL summary to /var/log/singbox-events.jsonl. The admin
+# /status/handshake-errors endpoint reads that file and renders a chart.
+SINGBOX_WATCH="${REMOTE_DIR}/backend/scripts/singbox-log-watcher.py"
+if [ -f "$SINGBOX_WATCH" ]; then
+    # Pre-create the log file with the right perms so the chameleon
+    # container's ro bind-mount succeeds and the cron-as-root writer
+    # can append. mode 644 is fine — file contains aggregate counts,
+    # no per-user PII.
+    sudo touch /var/log/singbox-events.jsonl
+    sudo chmod 644 /var/log/singbox-events.jsonl
+    CRON_LINE="* * * * * /usr/bin/python3 ${SINGBOX_WATCH} >> /var/log/singbox-watcher.err 2>&1"
+    sudo bash -c "(crontab -l 2>/dev/null | grep -v 'singbox-log-watcher' ; echo '$CRON_LINE') | crontab -"
+    (crontab -l 2>/dev/null | grep -v "singbox-log-watcher") | crontab - 2>/dev/null || true
+    echo ">>> Singbox log watcher cron installed (root)"
+fi
+
 # Log monitor cron (every minute) — scans docker logs for critical patterns and
 # alerts via Telegram. Motivated by 2026-05-12 NL Postgres read-only incident:
 # traffic-collector + cluster sync failed silently for 12+ hours.

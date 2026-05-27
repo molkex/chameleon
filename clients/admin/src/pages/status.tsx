@@ -3,7 +3,7 @@ import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { CheckCircle2, XCircle, Activity, ExternalLink, History, Apple } from "lucide-react";
+import { CheckCircle2, XCircle, Activity, ExternalLink, History, Apple, ShieldAlert } from "lucide-react";
 
 interface ProbeStatus {
   name: string;
@@ -61,6 +61,23 @@ interface AppleState {
   builds?: AppleBuildRow[];
   error?: string;
   fetched_at?: string;
+}
+
+interface HandshakeHourBucket {
+  hour_start: string;
+  errors: number;
+}
+interface HandshakeTopIP {
+  ip: string;
+  errors: number;
+}
+interface HandshakeErrors {
+  window_hours: number;
+  total: number;
+  hourly: HandshakeHourBucket[];
+  top_ips: HandshakeTopIP[];
+  watcher_ok: boolean;
+  watcher_note?: string;
 }
 
 // Apple state → colour map. State names come directly from ASC API
@@ -188,6 +205,16 @@ export default function StatusPage() {
     retry: 0, // ASC outages shouldnt block the page
   });
 
+  // Handshake errors — separate query, refreshes every 60s. Filesystem-
+  // backed by /var/log/singbox-events.jsonl which a cron updates every
+  // minute. Slow file IO would hold the whole page, so it's separated.
+  const { data: hs } = useQuery<HandshakeErrors>({
+    queryKey: ["status-handshake"],
+    queryFn: () => api.get<HandshakeErrors>("/admin/status/handshake-errors?hours=24"),
+    refetchInterval: 60_000,
+    retry: 0,
+  });
+
   if (isLoading || !data) {
     return (
       <div className="animate-pulse space-y-6">
@@ -308,6 +335,76 @@ export default function StatusPage() {
                   </div>
                 )}
               </>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {hs && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm text-zinc-400 flex items-center gap-2">
+              <ShieldAlert className="h-4 w-4 text-orange-400" /> VLESS handshake failures
+              <span className="ml-2 text-xs text-zinc-600">last {hs.window_hours}h</span>
+              {!hs.watcher_ok && (
+                <Badge className="ml-auto bg-amber-900 text-amber-300">⚠ watcher</Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {!hs.watcher_ok && (
+              <p className="text-xs text-amber-400">⚠ {hs.watcher_note}</p>
+            )}
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-zinc-400">Total in window:</span>
+              <span className="text-2xl font-bold text-zinc-200 tabular-nums">{hs.total.toLocaleString()}</span>
+            </div>
+            {/* Mini sparkline-style bars per hour. Hand-rolled to avoid
+                pulling Recharts on the Status page (kept off the
+                critical-render path of the most-visited admin route). */}
+            <div className="flex items-end gap-0.5 h-16 border-b border-zinc-800">
+              {hs.hourly.map((b) => {
+                const maxErrors = Math.max(1, ...hs.hourly.map((x) => x.errors));
+                const heightPct = (b.errors / maxErrors) * 100;
+                const bgClass =
+                  b.errors === 0 ? "bg-zinc-800" :
+                  b.errors < maxErrors * 0.3 ? "bg-emerald-900" :
+                  b.errors < maxErrors * 0.7 ? "bg-yellow-700" : "bg-red-700";
+                return (
+                  <div
+                    key={b.hour_start}
+                    className={`flex-1 ${bgClass} rounded-sm`}
+                    style={{ height: `${heightPct}%` }}
+                    title={`${b.hour_start.slice(11, 16)} UTC: ${b.errors} errors`}
+                  />
+                );
+              })}
+            </div>
+            <div className="flex justify-between text-xs text-zinc-600">
+              <span>{hs.hourly[0]?.hour_start.slice(0, 16)} UTC</span>
+              <span>now</span>
+            </div>
+
+            {hs.top_ips.length > 0 && (
+              <div>
+                <div className="text-xs uppercase tracking-wide text-zinc-500 mb-2">Top sources</div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-xs">IP</TableHead>
+                      <TableHead className="text-right text-xs">Errors</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {hs.top_ips.map((row) => (
+                      <TableRow key={row.ip}>
+                        <TableCell className="font-mono text-sm text-zinc-300">{row.ip}</TableCell>
+                        <TableCell className="text-right font-mono text-sm tabular-nums">{row.errors.toLocaleString()}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>

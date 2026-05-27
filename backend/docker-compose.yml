@@ -81,6 +81,11 @@ services:
       # bind mount creates an empty dir/file, asc.New() returns nil and
       # the admin Status page renders an "ASC not configured" placeholder.
       - /etc/chameleon/asc-key.p8:/etc/chameleon/asc-key.p8:ro
+      # MON-06: singbox handshake-failure aggregated log, written by
+      # scripts/singbox-log-watcher.py via cron every minute. Mounted RO
+      # so the admin endpoint reads but never writes (avoids accidental
+      # truncation from inside the container).
+      - /var/log/singbox-events.jsonl:/var/log/singbox-events.jsonl:ro
     environment:
       # sslmode=disable is safe here: PostgreSQL listens on 127.0.0.1 only (see ports below).
       # If DB is ever moved to an external host, MUST enable sslmode=require or sslmode=verify-full.

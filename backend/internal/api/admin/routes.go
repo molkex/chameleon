@@ -135,6 +135,7 @@ func RegisterRoutes(g *echo.Group, h *Handler, jwtManager *auth.JWTManager) {
 	// doesn't stall the entire page load.
 	g.GET("/status", h.GetStatus, adminMW)
 	g.GET("/status/apple", h.GetAppleState, adminMW)
+	g.GET("/status/handshake-errors", h.GetHandshakeErrors, adminMW)
 }
 
 // RequireAdmin returns middleware that allows only `admin` role through.
