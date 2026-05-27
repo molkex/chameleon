@@ -76,13 +76,29 @@ func (h *Handler) GetStatus(c echo.Context) error {
 		"singbox-tls":   h.probeSingboxPort,
 		"chameleon-api": h.probeSelf,
 	}
+	// Probe URLs picked to actually hit each integration end-to-end:
+	//   - cloudflare-edge: madfrog.online is CF-proxied; 200 = CF up + origin up.
+	//   - msk-relay: probes the full DNS → relay → NL backend chain via HTTPS,
+	//     same path real iOS clients use, so a 200 here means the entire RU
+	//     CF-bypass route is healthy. Direct `http://217.198.5.52/...` returned
+	//     404 because nginx's default_server matched (no Host header) — wrong
+	//     probe URL, fixed.
+	//   - spb-relay: TLS on :2098 (Reality VLESS endpoint). A 400 from TLS-
+	//     terminated nginx is the expected response when we don't speak Reality
+	//     handshake — that IS the "reachable" signal. expectStatus=0 accepts any
+	//     non-5xx as reachable.
+	//   - apple-asc-api: /v1/apps requires our JWT; 401 = endpoint reachable.
+	//   - apple-storekit: /inApps/v1/transactions/0 requires JWT too; 401 ok.
+	//   - FreeKassa: removed. They geo-block non-RU IPs, so any probe from NL
+	//     Timeweb (EU) reliably times out. Webhook-receive health is better
+	//     tracked via "MAX(created_at) from payments WHERE source='freekassa'"
+	//     in a future enhancement.
 	integrations := map[string]probeFn{
-		"cloudflare-edge":  h.probeHTTP("https://madfrog.online/", 200),
-		"msk-relay":        h.probeHTTP("http://217.198.5.52/api/v1/mobile/healthcheck", 200),
-		"spb-relay":        h.probeHTTP("http://185.218.0.43/api/v1/mobile/healthcheck", 200),
-		"apple-asc-api":    h.probeHTTP("https://api.appstoreconnect.apple.com/", 401), // 401 = reachable, just unauth
-		"apple-storekit":   h.probeHTTP("https://api.storekit.itunes.apple.com/", 404), // 404 = reachable
-		"freekassa":        h.probeHTTP("https://api.freekassa.ru/", 0),                // any 2xx/4xx counts
+		"cloudflare-edge": h.probeHTTP("https://madfrog.online/", 200),
+		"msk-relay":       h.probeHTTP("https://api.madfrog.online/api/v1/mobile/healthcheck", 200),
+		"spb-relay-tls":   h.probeHTTPInsecure("https://185.218.0.43:2098/", 0),
+		"apple-asc-api":   h.probeHTTP("https://api.appstoreconnect.apple.com/v1/apps", 0),
+		"apple-storekit":  h.probeHTTP("https://api.storekit.itunes.apple.com/inApps/v1/transactions/0", 0),
 	}
 
 	var (
@@ -127,8 +143,8 @@ func (h *Handler) GetStatus(c echo.Context) error {
 	// 30s refresh.
 	serviceOrder := []string{"chameleon-api", "postgres", "redis", "singbox-tls"}
 	integrationOrder := []string{
-		"cloudflare-edge", "msk-relay", "spb-relay",
-		"apple-asc-api", "apple-storekit", "freekassa",
+		"cloudflare-edge", "msk-relay", "spb-relay-tls",
+		"apple-asc-api", "apple-storekit",
 	}
 
 	resp := statusResponse{
@@ -234,16 +250,35 @@ func (h *Handler) probeSelf(_ context.Context) probeStatus {
 	return probeStatus{OK: true, LatencyMS: 0, Details: "this handler"}
 }
 
-// probeHTTP returns a closure that GETs the given URL and asserts a status
-// code. expectStatus=0 means "any 2xx-4xx is reachable" (used for hosts
-// that need credentials we don't carry — 401/403 still proves reachability).
-// Uses a shared client with a short timeout + InsecureSkipVerify=false.
+// probeHTTP — see probeHTTPWithTLS. Validates the server cert.
 func (h *Handler) probeHTTP(url string, expectStatus int) func(context.Context) probeStatus {
+	return h.probeHTTPWithTLS(url, expectStatus, false)
+}
+
+// probeHTTPInsecure — same probe but with InsecureSkipVerify=true. Use
+// for IP-direct TLS endpoints where the certificate's CN/SAN won't match
+// the IP (e.g. SPB relay's :2098 serves a Reality cert keyed to madfrog
+// hostnames, not its raw IP). We only care about TCP+TLS handshake
+// completing; the cert chain is intentionally bypassed because the
+// indirect-IP probe has no good way to validate it.
+func (h *Handler) probeHTTPInsecure(url string, expectStatus int) func(context.Context) probeStatus {
+	return h.probeHTTPWithTLS(url, expectStatus, true)
+}
+
+// probeHTTPWithTLS returns a closure that GETs the given URL and asserts
+// a status code. expectStatus=0 means "any 2xx-4xx is reachable" (used
+// for hosts that need credentials we don't carry — 401/403 still proves
+// reachability). insecureTLS=true skips server-cert validation; only
+// turn it on for IP-direct probes where we control the target.
+func (h *Handler) probeHTTPWithTLS(url string, expectStatus int, insecureTLS bool) func(context.Context) probeStatus {
 	return func(ctx context.Context) probeStatus {
 		client := &http.Client{
 			Timeout: 3 * time.Second,
 			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
+				TLSClientConfig: &tls.Config{
+					MinVersion:         tls.VersionTLS12,
+					InsecureSkipVerify: insecureTLS, //nolint:gosec
+				},
 				// No keep-alive: each probe is independent and we don't
 				// want a stale CONN to a host that's flapping.
 				DisableKeepAlives: true,

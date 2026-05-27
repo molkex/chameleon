@@ -9,6 +9,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
+	"github.com/chameleonvpn/chameleon/internal/asc"
 	"github.com/chameleonvpn/chameleon/internal/auth"
 	"github.com/chameleonvpn/chameleon/internal/config"
 	"github.com/chameleonvpn/chameleon/internal/db"
@@ -26,6 +27,13 @@ type Handler struct {
 	Config         *config.Config
 	Logger         *zap.Logger
 	ClusterSecret  string // shared secret for cluster peer requests
+
+	// ASC may be nil when ASC_KEY_ID/ASC_ISSUER_ID/ASC_KEY_PATH env are
+	// unset (e.g. dev box without Apple creds). Handlers should
+	// degrade gracefully — Status page renders "ASC not configured"
+	// rather than 500.
+	ASC          *asc.Client
+	ASCAppID     string // ASC_APP_ID — the App Store id for queries
 }
 
 // RegisterRoutes adds admin API routes to the echo group.
@@ -126,6 +134,7 @@ func RegisterRoutes(g *echo.Group, h *Handler, jwtManager *auth.JWTManager) {
 	// behind the handler's request context so a single hung dependency
 	// doesn't stall the entire page load.
 	g.GET("/status", h.GetStatus, adminMW)
+	g.GET("/status/apple", h.GetAppleState, adminMW)
 }
 
 // RequireAdmin returns middleware that allows only `admin` role through.

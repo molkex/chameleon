@@ -3,7 +3,7 @@ import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { CheckCircle2, XCircle, Activity, ExternalLink, History } from "lucide-react";
+import { CheckCircle2, XCircle, Activity, ExternalLink, History, Apple } from "lucide-react";
 
 interface ProbeStatus {
   name: string;
@@ -30,6 +30,56 @@ interface StatusResponse {
   generated_at: string;
 }
 
+interface AppleVersionRow {
+  id: string;
+  version_string: string;
+  platform: string;
+  state: string;
+  release_type: string;
+  created_date: string;
+}
+interface AppleIAPRow {
+  id: string;
+  product_id: string;
+  name: string;
+  type: string;
+  state: string;
+}
+interface AppleBuildRow {
+  id: string;
+  version: string;
+  processing_state: string;
+  expired: boolean;
+  uploaded_date: string;
+  expiration_date: string;
+}
+interface AppleState {
+  configured: boolean;
+  app_id?: string;
+  versions?: AppleVersionRow[];
+  iaps?: AppleIAPRow[];
+  builds?: AppleBuildRow[];
+  error?: string;
+  fetched_at?: string;
+}
+
+// Apple state → colour map. State names come directly from ASC API
+// (READY_FOR_SALE / WAITING_FOR_REVIEW / IN_REVIEW / etc). Green only
+// when the row is actually live or testable; orange while Apple is
+// looking at it; red for explicit reject states.
+function appleStateColor(state: string): string {
+  if (state === "READY_FOR_SALE" || state === "APPROVED" || state === "READY_FOR_DISTRIBUTION") {
+    return "bg-emerald-900 text-emerald-300";
+  }
+  if (state.includes("WAITING") || state.includes("REVIEW") || state === "PROCESSING") {
+    return "bg-amber-900 text-amber-300";
+  }
+  if (state.includes("REJECTED") || state.includes("METADATA") || state.includes("DEVELOPER_ACTION")) {
+    return "bg-red-900 text-red-300";
+  }
+  return "bg-zinc-800 text-zinc-300";
+}
+
 // Friendly labels for the probe names. Backend keys are stable and
 // machine-readable; this map is purely cosmetic so an operator scanning
 // the page doesn't have to translate "singbox-tls" mentally.
@@ -40,10 +90,9 @@ const PROBE_LABELS: Record<string, string> = {
   "singbox-tls":     "Singbox :443",
   "cloudflare-edge": "Cloudflare madfrog.online",
   "msk-relay":       "MSK relay api.madfrog.online",
-  "spb-relay":       "SPB relay :80",
+  "spb-relay-tls":   "SPB relay :2098 (Reality)",
   "apple-asc-api":   "Apple App Store Connect API",
   "apple-storekit":  "Apple StoreKit API",
-  "freekassa":       "FreeKassa API",
 };
 
 function StatusBadge({ ok }: { ok: boolean }) {
@@ -130,6 +179,15 @@ export default function StatusPage() {
     refetchOnWindowFocus: true,
   });
 
+  // Apple state has its own cache key + cadence (60s vs 30s) so the
+  // 5-min backend ASC cache isn't trampled by the page's 30s refresh.
+  const { data: apple } = useQuery<AppleState>({
+    queryKey: ["status-apple"],
+    queryFn: () => api.get<AppleState>("/admin/status/apple"),
+    refetchInterval: 60_000,
+    retry: 0, // ASC outages shouldnt block the page
+  });
+
   if (isLoading || !data) {
     return (
       <div className="animate-pulse space-y-6">
@@ -173,6 +231,87 @@ export default function StatusPage() {
           <ProbeTable rows={data.services} />
         </CardContent>
       </Card>
+
+      {apple && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm text-zinc-400 flex items-center gap-2">
+              <Apple className="h-4 w-4 text-zinc-300" /> Apple App Store state
+              {apple.fetched_at && (
+                <span className="ml-2 text-xs text-zinc-600">
+                  fetched {formatAge(apple.fetched_at)}
+                </span>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {!apple.configured ? (
+              <p className="text-sm text-amber-400">
+                ⚠ ASC API not configured ({apple.error})
+              </p>
+            ) : (
+              <>
+                {apple.error && (
+                  <p className="text-xs text-amber-400">⚠ partial: {apple.error}</p>
+                )}
+                {/* App Store versions */}
+                {apple.versions && apple.versions.length > 0 && (
+                  <div>
+                    <div className="text-xs uppercase tracking-wide text-zinc-500 mb-2">App Store versions</div>
+                    <div className="space-y-1">
+                      {apple.versions.map((v) => (
+                        <div key={v.id} className="flex items-center justify-between text-sm">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-zinc-200">{v.version_string}</span>
+                            <span className="text-xs text-zinc-500">{v.platform}</span>
+                          </div>
+                          <Badge className={appleStateColor(v.state)}>{v.state}</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* IAPs */}
+                {apple.iaps && apple.iaps.length > 0 && (
+                  <div>
+                    <div className="text-xs uppercase tracking-wide text-zinc-500 mb-2">In-App Purchases</div>
+                    <div className="space-y-1">
+                      {apple.iaps.map((p) => (
+                        <div key={p.id} className="flex items-center justify-between text-sm">
+                          <div className="flex flex-col">
+                            <span className="font-mono text-xs text-zinc-300">{p.product_id}</span>
+                            <span className="text-xs text-zinc-600">{p.name}</span>
+                          </div>
+                          <Badge className={appleStateColor(p.state)}>{p.state}</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* Recent TestFlight builds */}
+                {apple.builds && apple.builds.length > 0 && (
+                  <div>
+                    <div className="text-xs uppercase tracking-wide text-zinc-500 mb-2">Recent TestFlight builds</div>
+                    <div className="space-y-1">
+                      {apple.builds.map((b) => (
+                        <div key={b.id} className="flex items-center justify-between text-sm">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-zinc-200">build {b.version}</span>
+                            <span className="text-xs text-zinc-600">uploaded {formatAge(b.uploaded_date)}</span>
+                          </div>
+                          <Badge className={appleStateColor(b.processing_state)}>
+                            {b.processing_state}{b.expired ? " · expired" : ""}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

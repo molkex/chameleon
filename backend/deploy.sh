@@ -91,6 +91,20 @@ rsync -avz --delete \
     "${PROJECT_DIR}/" \
     "${NODE_SSH}:${NODE_DIR}/"
 
+# ── ASC API key (BE-01b) ───────────────────────────────────────────────────
+# Provision the App Store Connect .p8 file at /etc/chameleon/asc-key.p8
+# on the remote so docker-compose's bind mount has something to read.
+# Skip cleanly if ASC_KEY_PATH isn't set locally — the chameleon side
+# detects missing creds and renders an "ASC not configured" placeholder.
+if [ -n "${ASC_KEY_PATH:-}" ] && [ -f "${ASC_KEY_PATH}" ]; then
+    echo ">>> Pushing ASC .p8 key to ${NODE_SSH}:/etc/chameleon/asc-key.p8 ..."
+    ssh "${NODE_SSH}" "mkdir -p /etc/chameleon && touch /etc/chameleon/asc-key.p8 && chmod 600 /etc/chameleon/asc-key.p8"
+    scp -q "${ASC_KEY_PATH}" "${NODE_SSH}:/etc/chameleon/asc-key.p8"
+    ssh "${NODE_SSH}" "chmod 600 /etc/chameleon/asc-key.p8"
+else
+    echo ">>> ASC_KEY_PATH not set or file missing — Apple state will be unavailable in admin"
+fi
+
 # ── Remote deploy ──────────────────────────────────────────────────────────
 echo ">>> Running deploy on ${NODE_SSH}..."
 ssh "${NODE_SSH}" bash -s -- \
@@ -115,6 +129,9 @@ ssh "${NODE_SSH}" bash -s -- \
     "${GOOGLE_IOS_CLIENT_ID:-}" \
     "${CHAMELEON_PROVIDERS_ENCRYPTION_KEY:-}" \
     "${CHAMELEON_MSK_USER_API_SECRET:-}" \
+    "${ASC_KEY_ID:-}" \
+    "${ASC_ISSUER_ID:-}" \
+    "${ASC_APP_ID:-}" \
     <<'REMOTE'
 set -euo pipefail
 
@@ -139,6 +156,9 @@ RESEND_API_KEY="${18}"
 GOOGLE_IOS_CLIENT_ID="${19}"
 CHAMELEON_PROVIDERS_ENCRYPTION_KEY="${20}"
 CHAMELEON_MSK_USER_API_SECRET="${21}"
+ASC_KEY_ID="${22}"
+ASC_ISSUER_ID="${23}"
+ASC_APP_ID="${24}"
 
 cd "${REMOTE_DIR}/backend"
 
@@ -190,6 +210,9 @@ RESEND_API_KEY=${RESEND_API_KEY}
 GOOGLE_IOS_CLIENT_ID=${GOOGLE_IOS_CLIENT_ID}
 CHAMELEON_PROVIDERS_ENCRYPTION_KEY=${CHAMELEON_PROVIDERS_ENCRYPTION_KEY}
 CHAMELEON_MSK_USER_API_SECRET=${CHAMELEON_MSK_USER_API_SECRET}
+ASC_KEY_ID=${ASC_KEY_ID}
+ASC_ISSUER_ID=${ASC_ISSUER_ID}
+ASC_APP_ID=${ASC_APP_ID}
 EOF
 chmod 600 .env
 

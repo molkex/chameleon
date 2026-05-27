@@ -72,6 +72,15 @@ services:
       # talks to docker via docker-socket-proxy on 127.0.0.1:2375 with a
       # narrow whitelist (containers read + POST for kill). See service
       # `docker-socket-proxy` above.
+      #
+      # BE-01b: ASC API .p8 key mounted read-only. The host-side path
+      # /etc/chameleon/asc-key.p8 is provisioned out-of-band by deploy.sh
+      # (scp from operator's ASC_KEY_PATH), chmod 600. The container path
+      # matches the default ASC_KEY_PATH env var below so asc.New() finds
+      # it without bespoke config. Optional: when the file is absent the
+      # bind mount creates an empty dir/file, asc.New() returns nil and
+      # the admin Status page renders an "ASC not configured" placeholder.
+      - /etc/chameleon/asc-key.p8:/etc/chameleon/asc-key.p8:ro
     environment:
       # sslmode=disable is safe here: PostgreSQL listens on 127.0.0.1 only (see ports below).
       # If DB is ever moved to an external host, MUST enable sslmode=require or sslmode=verify-full.
@@ -88,6 +97,15 @@ services:
       - GOOGLE_IOS_CLIENT_ID=${GOOGLE_IOS_CLIENT_ID}
       - CHAMELEON_PROVIDERS_ENCRYPTION_KEY=${CHAMELEON_PROVIDERS_ENCRYPTION_KEY}
       - CHAMELEON_MSK_USER_API_SECRET=${CHAMELEON_MSK_USER_API_SECRET}
+      # BE-01b: ASC API credentials. Optional — chameleon's asc.New()
+      # returns nil when these are unset, and the admin's /status/apple
+      # endpoint then renders an "ASC not configured" placeholder. Path
+      # is the container-side mount above; the file itself is provisioned
+      # by deploy.sh from the operator's local ASC_KEY_PATH.
+      - ASC_KEY_ID=${ASC_KEY_ID:-}
+      - ASC_ISSUER_ID=${ASC_ISSUER_ID:-}
+      - ASC_KEY_PATH=/etc/chameleon/asc-key.p8
+      - ASC_APP_ID=${ASC_APP_ID:-}
       # MED-010: routes `docker` CLI in this container to the local proxy.
       - DOCKER_HOST=tcp://127.0.0.1:2375
     deploy:
