@@ -39,17 +39,21 @@ servers:
     ip: 147.45.252.234
     hosting: Timeweb
     provider: Timeweb
-    role: secondary vpn node
+    role: sole production vpn node (post-2026-05-25 DE retirement)
     location: Netherlands
-    sni: from-db  # SELECT sni FROM vpn_servers WHERE id=<nl_id>
+    sni: ads.adfox.ru  # verified 2026-05-27: vpn_servers row id=93 key=nl2
     sni_fallback: ads.adfox.ru
     inbounds:
+      # 2026-05-27 correction: actual listening port is 443 (verified via
+      # `ss -tlnp` on the node), not 2096. iOS DB row vpn_servers.port=443
+      # matches. MadFrogRobot bot on MSK still hardcodes 2096 and spams
+      # "VPN port 2096 NOT LISTENING" — bot fix tracked separately.
       - protocol: vless-reality
-        port: 2096
+        port: 443
         transport: tcp
       # No Hysteria2/TUIC on NL per memory (NULL in DB)
     client_outbound_ports:
-      vless_port: 2096
+      vless_port: 443
 
   spb_relay:
     ip: 185.218.0.43
@@ -57,10 +61,10 @@ servers:
     role: tcp relay (russia-side) for users behind gfw
     location: Saint Petersburg, Russia
     relay_mapping:
-      tcp_443: de:443       # VLESS Reality to DE
-      tcp_2096: de:2096     # VLESS to DE
-      tcp_2098: nl:2096     # VLESS to NL (sprayed as :2098 on relay)
-      http_80: de:80        # fallback http to DE
+      # Updated 2026-05-27: DE retired, NL port is 443 not 2096. The relay
+      # spray-port 2098 still maps to NL but to the correct upstream :443.
+      tcp_2098: nl:443      # VLESS to NL (sprayed as :2098 on relay → NL:443)
+      # tcp_443 / tcp_2096 / http_80 to DE deleted — DE node retired 2026-05-25
 
   msk_api_relay:
     status: active            # 2026-05-22 migration — see project_de_nl_migration.md
@@ -246,9 +250,9 @@ ui_servers:
     flag: 🇳🇱
     type: relay
     relay_via: spb_relay
-    relay_target: nl:2096
+    relay_target: nl:443
     outbound_base: "VLESS 🇳🇱 Netherlands (via relay)"
-    note: "SPB(185.218.0.43):2098 → NL:2096 — bypass-leaf for gfw-restricted regions"
+    note: "SPB(185.218.0.43):2098 → NL:443 — bypass-leaf for gfw-restricted regions"
 
 # Auto selector membership (urltest group)
 # Updated 2026-05-27: single-NL world. With one country in the pool the
