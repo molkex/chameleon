@@ -117,6 +117,14 @@ func RegisterRoutes(g *echo.Group, h *Handler, jwtManager *auth.JWTManager) {
 	audit := g.Group("/audit", adminMW)
 	audit.GET("", h.ListAuditEvents)
 	audit.GET("/actions", h.ListAuditActions)
+
+	// Service status overview — MON-08. Aggregates live probes of internal
+	// services (postgres / redis / singbox port) + outbound integrations
+	// (Cloudflare-fronted hosts, SPB relay, Telegram bot) + recent infra
+	// audit events. Each probe runs in parallel with its own 3s timeout
+	// behind the handler's request context so a single hung dependency
+	// doesn't stall the entire page load.
+	g.GET("/status", h.GetStatus, adminMW)
 }
 
 // RequireAdmin returns middleware that allows only `admin` role through.

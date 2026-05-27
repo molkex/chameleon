@@ -4,16 +4,17 @@ import {
   SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton,
 } from "@/components/ui/sidebar";
 import {
-  LayoutDashboard, Users, Server, Globe, Shield, Zap, Settings, UserCog, ScrollText,
+  LayoutDashboard, Users, Server, Globe, Shield, Zap, Settings, UserCog, ScrollText, Activity,
 } from "lucide-react";
 
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  LayoutDashboard, Users, Server, Globe, Shield, Zap, Settings, UserCog, ScrollText,
+  LayoutDashboard, Users, Server, Globe, Shield, Zap, Settings, UserCog, ScrollText, Activity,
 };
 
 const NAV_ITEMS = [
   { group: "Overview", items: [
     { path: "/admin/app/", label: "Dashboard", icon: "LayoutDashboard" },
+    { path: "/admin/app/status", label: "Status", icon: "Activity" },
     { path: "/admin/app/users", label: "Users", icon: "Users" },
   ]},
   { group: "VPN", items: [

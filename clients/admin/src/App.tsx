@@ -59,6 +59,7 @@ const Settings = lazy(() => import("./pages/settings"));
 const Servers = lazy(() => import("./pages/servers"));
 const Admins = lazy(() => import("./pages/admins"));
 const Audit = lazy(() => import("./pages/audit"));
+const Status = lazy(() => import("./pages/status"));
 const Login = lazy(() => import("./pages/login"));
 
 // ── Routes ──
@@ -150,11 +151,17 @@ const auditRoute = createRoute({
   component: Audit,
 });
 
+const statusRoute = createRoute({
+  getParentRoute: () => layoutRoute,
+  path: "/status",
+  component: Status,
+});
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
   layoutRoute.addChildren([
     indexRoute, usersRoute, nodesRoute, serversRoute, protocolsRoute,
-    shieldRoute, settingsRoute, adminsRoute, auditRoute,
+    shieldRoute, settingsRoute, adminsRoute, auditRoute, statusRoute,
   ]),
 ]);
 
