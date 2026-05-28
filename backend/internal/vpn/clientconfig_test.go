@@ -1,7 +1,10 @@
 package vpn
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
+	"math"
 	"slices"
 	"testing"
 )
@@ -476,4 +479,145 @@ func startsWith(s, prefix string) bool {
 		return false
 	}
 	return s[:len(prefix)] == prefix
+}
+
+// ---------------------------------------------------------------------------
+// LAUNCH-12 — uTLS fingerprint rotation
+// ---------------------------------------------------------------------------
+
+// TestSelectFingerprintDistribution asserts that selectFingerprint produces
+// a distribution within ±2% of the configured target (chrome 65 / safari 20
+// / firefox 10 / edge 5) over 10,000 random user IDs. Catches both:
+//   - bucket-table typos (e.g. 0..50 instead of 0..64 → chrome under-represented)
+//   - hash family regressions (swapping FNV for something with bad lower-bit
+//     uniformity)
+//
+// 2% slack is wide enough that 10k samples don't flake from random variance
+// (binomial std dev for 65% over n=10000 is ~0.48% → ±2% is >4σ headroom).
+func TestSelectFingerprintDistribution(t *testing.T) {
+	const n = 10000
+	counts := map[string]int{}
+	for i := 0; i < n; i++ {
+		// 16 random bytes → 32-char hex, mirrors realistic vpn_username shape
+		// (device_<hex> in production).
+		var buf [16]byte
+		if _, err := rand.Read(buf[:]); err != nil {
+			t.Fatalf("rand.Read: %v", err)
+		}
+		counts[selectFingerprint("device_"+hex.EncodeToString(buf[:]))]++
+	}
+
+	targets := map[string]float64{
+		fpChrome:  0.65,
+		fpSafari:  0.20,
+		fpFirefox: 0.10,
+		fpEdge:    0.05,
+	}
+	const slack = 0.02 // ±2% — see comment above for rationale.
+
+	for fp, target := range targets {
+		got := float64(counts[fp]) / float64(n)
+		if math.Abs(got-target) > slack {
+			t.Errorf("fingerprint %q: got %.4f, want %.4f ±%.2f (n=%d, count=%d)",
+				fp, got, target, slack, n, counts[fp])
+		}
+	}
+
+	// Every output across n=10000 must be in the valid sing-box set —
+	// guards against a typo bucket emitting e.g. "Chrome" or "safari ".
+	for fp := range counts {
+		if _, ok := validUTLSFingerprints[fp]; !ok {
+			t.Errorf("emitted fingerprint %q not in valid sing-box 1.13 set", fp)
+		}
+	}
+}
+
+// TestSelectFingerprintDeterministic — same user ID must always yield the
+// same fingerprint. CRITICAL: the iOS session caches its sing-box config,
+// so a single session keeps one fingerprint. But the reconnect path
+// re-fetches /config, and we MUST hand the same fingerprint back or we'd
+// be effectively rotating mid-session-pair — which would itself be a
+// distinctive pattern.
+func TestSelectFingerprintDeterministic(t *testing.T) {
+	cases := []string{
+		"",                                  // empty → fallback path
+		"device_testuser",                   // shape from fixture()
+		"device_abc123def456",               // typical
+		"device_ffffffffffffffffffffffffff", // edge byte values
+		"user_42",
+	}
+	for _, id := range cases {
+		first := selectFingerprint(id)
+		for i := 0; i < 5; i++ {
+			if got := selectFingerprint(id); got != first {
+				t.Errorf("non-deterministic for %q: first=%q got=%q on call %d", id, first, got, i+2)
+			}
+		}
+	}
+}
+
+// TestSelectFingerprintOnlyValidValues — every possible output value must
+// be one of sing-box 1.13's accepted utls.fingerprint values. A regression
+// here (e.g. someone adding "chromium" to the bucket table) would silently
+// break ALL users — sing-box rejects the config at parse, the iOS tunnel
+// fails to start, no traffic flows.
+func TestSelectFingerprintOnlyValidValues(t *testing.T) {
+	// Empty + a sweep of inputs that ensures we hit every bucket band at
+	// least once (verified via distribution test above).
+	for i := 0; i < 200; i++ {
+		var buf [16]byte
+		if _, err := rand.Read(buf[:]); err != nil {
+			t.Fatalf("rand.Read: %v", err)
+		}
+		fp := selectFingerprint(hex.EncodeToString(buf[:]))
+		if _, ok := validUTLSFingerprints[fp]; !ok {
+			t.Errorf("emitted %q which is not a valid sing-box 1.13 fingerprint", fp)
+		}
+	}
+	// Empty input must also produce a valid value (chrome fallback).
+	if fp := selectFingerprint(""); fp != fpChrome {
+		t.Errorf("selectFingerprint(\"\") = %q, want %q (chrome fallback)", fp, fpChrome)
+	}
+}
+
+// TestGenerateClientConfigUsesSelectedFingerprint — integration check that
+// every VLESS leaf in the generated config has tls.utls.fingerprint set
+// to the value selectFingerprint picks for the fixture user. Guards against
+// a future refactor accidentally re-hardcoding "chrome" in some VLESS path
+// (e.g. relay chains) and breaking the rotation for that subset of leaves.
+func TestGenerateClientConfigUsesSelectedFingerprint(t *testing.T) {
+	cfg := parseGenerated(t)
+	_, user, _, _ := fixture()
+	wantFP := selectFingerprint(user.Username)
+
+	obs, _ := cfg["outbounds"].([]any)
+	var vlessCount int
+	for _, o := range obs {
+		m, ok := o.(map[string]any)
+		if !ok {
+			continue
+		}
+		if m["type"] != "vless" {
+			continue
+		}
+		vlessCount++
+		tag, _ := m["tag"].(string)
+		tls, _ := m["tls"].(map[string]any)
+		if tls == nil {
+			t.Errorf("vless leaf %q missing tls block", tag)
+			continue
+		}
+		utls, _ := tls["utls"].(map[string]any)
+		if utls == nil {
+			t.Errorf("vless leaf %q missing tls.utls block", tag)
+			continue
+		}
+		gotFP, _ := utls["fingerprint"].(string)
+		if gotFP != wantFP {
+			t.Errorf("vless leaf %q utls.fingerprint=%q, want %q (per-user selectFingerprint)", tag, gotFP, wantFP)
+		}
+	}
+	if vlessCount == 0 {
+		t.Fatal("fixture produced no VLESS leaves — test ineffective")
+	}
 }
