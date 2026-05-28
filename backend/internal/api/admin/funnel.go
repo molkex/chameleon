@@ -46,13 +46,18 @@ type cohortCellResp struct {
 }
 
 type funnelResponse struct {
-	WindowDays  int                 `json:"window_days"`
-	Signups     []dailyCountResp    `json:"signups_per_day"`
-	DAU         []dailyCountResp    `json:"dau_per_day"`
-	Auth        []authBreakdownResp `json:"auth_breakdown"`
-	Conversion  conversionResp      `json:"conversion"`
-	Cohorts     []cohortCellResp    `json:"cohorts"`
-	GeneratedAt string              `json:"generated_at"`
+	WindowDays          int                 `json:"window_days"`
+	Signups             []dailyCountResp    `json:"signups_per_day"`
+	DAU                 []dailyCountResp    `json:"dau_per_day"`
+	// FirstPaymentsPerDay is the daily count of users whose first
+	// non-admin completed payment landed on that day — same calendar
+	// shape as signups_per_day, so the SPA can plot all three lines
+	// on a shared x-axis.
+	FirstPaymentsPerDay []dailyCountResp    `json:"first_payments_per_day"`
+	Auth                []authBreakdownResp `json:"auth_breakdown"`
+	Conversion          conversionResp      `json:"conversion"`
+	Cohorts             []cohortCellResp    `json:"cohorts"`
+	GeneratedAt         string              `json:"generated_at"`
 }
 
 // Funnel handles GET /api/v1/admin/stats/funnel?days=N.
@@ -76,6 +81,10 @@ func (h *Handler) Funnel(c echo.Context) error {
 	dau := make([]dailyCountResp, 0, len(summary.DAU))
 	for _, d := range summary.DAU {
 		dau = append(dau, dailyCountResp{Day: d.Day.Format("2006-01-02"), Count: d.Count})
+	}
+	firstPay := make([]dailyCountResp, 0, len(summary.FirstPaymentsPerDay))
+	for _, d := range summary.FirstPaymentsPerDay {
+		firstPay = append(firstPay, dailyCountResp{Day: d.Day.Format("2006-01-02"), Count: d.Count})
 	}
 	auth := make([]authBreakdownResp, 0, len(summary.Auth))
 	for _, a := range summary.Auth {
@@ -108,12 +117,13 @@ func (h *Handler) Funnel(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, funnelResponse{
-		WindowDays:  summary.WindowDays,
-		Signups:     signups,
-		DAU:         dau,
-		Auth:        auth,
-		Conversion:  conv,
-		Cohorts:     cohorts,
-		GeneratedAt: summary.GeneratedAt.Format(time.RFC3339),
+		WindowDays:          summary.WindowDays,
+		Signups:             signups,
+		DAU:                 dau,
+		FirstPaymentsPerDay: firstPay,
+		Auth:                auth,
+		Conversion:          conv,
+		Cohorts:             cohorts,
+		GeneratedAt:         summary.GeneratedAt.Format(time.RFC3339),
 	})
 }
