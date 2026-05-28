@@ -97,6 +97,9 @@ func (h *Handler) GoogleSignIn(c echo.Context) error {
 			h.Logger.Error("google: create user", zap.Error(err))
 			return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
 		}
+		if h.Metrics != nil {
+			h.Metrics.CountSignup("google")
+		}
 	}
 
 	// Persist Google identity + email on the user row.

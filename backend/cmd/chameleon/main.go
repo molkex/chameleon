@@ -40,6 +40,7 @@ import (
 	"github.com/chameleonvpn/chameleon/internal/config"
 	"github.com/chameleonvpn/chameleon/internal/db"
 	"github.com/chameleonvpn/chameleon/internal/email"
+	"github.com/chameleonvpn/chameleon/internal/metrics"
 	"github.com/chameleonvpn/chameleon/internal/secrets"
 	"github.com/chameleonvpn/chameleon/internal/vpn"
 )
@@ -314,6 +315,14 @@ func run() error {
 	// Start background traffic collector (every 60 seconds).
 	go runTrafficCollector(ctx, logger, database, engine, 60*time.Second)
 
+	// MON-04: Prometheus collectors + background refreshers for live-VPN
+	// gauges (15s) and DAU gauge (60s). Both goroutines exit when ctx is
+	// cancelled (the defer cancel() at function top).
+	metricsRegistry := metrics.New()
+	go metricsRegistry.RefreshVPNStats(ctx, engine, "eth0", 15*time.Second, logger)
+	go metricsRegistry.RefreshDAU(ctx, database.Pool, 60*time.Second, logger)
+	logger.Info("prometheus metrics initialised", zap.String("endpoint", "/metrics"))
+
 	// Initialize relay user syncer — pushes active VPN users to remote
 	// sing-box-fork User API endpoints for role='relay' servers (e.g. MSK).
 	// Nil-safe: if no relay secrets are configured, syncer becomes a no-op.
@@ -339,6 +348,7 @@ func run() error {
 		Email:   emailSender,
 		VPN:     engine,
 		Syncer:  syncer,
+		Metrics: metricsRegistry,
 		Logger:  logger,
 	}
 

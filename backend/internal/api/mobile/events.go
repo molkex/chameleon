@@ -145,6 +145,11 @@ func (h *Handler) PostEvents(c echo.Context) error {
 			Properties: ev.Properties,
 			DeviceID:   deviceID,
 		})
+		// MON-04: bump the funnel counter for every accepted event.
+		// AppEventName() bounds cardinality to a fixed whitelist + "other".
+		if h.Metrics != nil {
+			h.Metrics.CountAppEvent(ev.Name)
+		}
 	}
 
 	// Server-enriched context — same conventions as touchDevice in

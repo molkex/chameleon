@@ -65,9 +65,6 @@ next:
     - id: MON-01
       title: External uptime monitor (UptimeRobot or self-hosted Uptime Kuma)
       notes: 5 checks from 3+ geos. NOT on Timeweb to avoid correlated outage.
-    - id: MON-04
-      title: Prometheus /metrics endpoint
-      notes: prometheus/client_golang lib; deferred until Prometheus/Grafana actually wired.
     - id: MON-07
       title: Synthetic VPN connect test every 15 min
       notes: External script doing real VLESS handshake — catches Reality config drift TCP probe misses.
@@ -154,6 +151,48 @@ deferred:
 # ============================================================
 done:
   "2026-05-28":
+    - id: MON-04
+      title: Prometheus /metrics endpoint with 4-category instrumentation
+      files:
+        - backend/internal/metrics/metrics.go
+        - backend/internal/metrics/metrics_test.go
+        - backend/internal/api/server.go
+        - backend/internal/api/mobile/routes.go
+        - backend/internal/api/mobile/auth.go
+        - backend/internal/api/mobile/auth_google.go
+        - backend/internal/api/mobile/auth_magic.go
+        - backend/internal/api/mobile/events.go
+        - backend/internal/api/mobile/payment_webhook.go
+        - backend/internal/api/mobile/subscription.go
+        - backend/internal/api/middleware/idempotency.go
+        - backend/cmd/chameleon/main.go
+      notes: |
+        Endpoint: GET /metrics (outside auth chain; :8000 is 127.0.0.1-bound).
+        Library: github.com/prometheus/client_golang v1.23.2.
+        Registered metrics (all label cardinality bounded — see *_Bounded tests):
+          live-vpn:
+            - chameleon_vpn_users_online (gauge)
+            - chameleon_vpn_throughput_bytes_total{direction=rx|tx} (counter)
+            - chameleon_vpn_tcp_retransmit_total (counter)
+            - chameleon_vpn_tcp_segments_sent_total (counter)
+            - chameleon_vpn_active_connections (gauge)
+          funnel:
+            - chameleon_signups_total{provider=apple|google|device|telegram|email|other} (counter)
+            - chameleon_payments_total{source=apple_iap|freekassa|admin|other, status=completed|pending|failed|refunded|other} (counter)
+            - chameleon_app_events_total{name=<whitelist>|other} (counter)
+            - chameleon_dau_users (gauge, refreshed 60s)
+          backend:
+            - chameleon_http_request_duration_seconds{method,route,status_class} (histogram, route=c.Path())
+            - chameleon_db_query_duration_seconds{operation=SELECT|INSERT|UPDATE|DELETE|other} (histogram)
+            - chameleon_redis_cache_hit_total{op} (counter)
+            - chameleon_redis_cache_miss_total{op} (counter)
+          system: default GoCollector + ProcessCollector (go_goroutines, go_memstats_*, process_*).
+        Two background goroutines from main.go (15s vpn refresh + 60s DAU)
+        clean-shutdown on ctx cancel. Counter increments wired at:
+          - signups: mobile/auth.go (device+apple), auth_google.go, auth_magic.go
+          - payments: subscription.go (apple_iap), payment_webhook.go (freekassa)
+          - app events: events.go (per accepted event row)
+          - cache hit/miss: middleware/idempotency.go (op="idempotency")
     - id: LAUNCH-07
       title: Auto-connect on untrusted Wi-Fi via NEOnDemandRule (+ optional cellular)
       pr: 11
@@ -337,7 +376,7 @@ done:
 # ============================================================
 stats:
   open_now: 1                 # IAP-APPROVE
-  open_next: ~8               # LAUNCH-01/03/07/08/11/12 all closed 2026-05-28
+  open_next: ~7               # LAUNCH-01/03/07/08/11/12 + MON-04 closed 2026-05-28
   tech_debt_items: 1          # TD-LINT-01/02/DE-PRUNE all closed 2026-05-28; only TD-LIBBOX-FETCH remains
   decisions_documented: 8     # ADRs in decisions/ (added 0007-sentry-eu + 0008-utls-fingerprint-rotation)
   incidents_documented: 2     # MED-015 + Apple 2.3

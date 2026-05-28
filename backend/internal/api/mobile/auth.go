@@ -103,6 +103,9 @@ func (h *Handler) Register(c echo.Context) error {
 			zap.Int64("user_id", user.ID),
 			zap.String("device_id", req.DeviceID),
 		)
+		if h.Metrics != nil {
+			h.Metrics.CountSignup("device")
+		}
 	} else {
 		h.Logger.Info("existing user login",
 			zap.Int64("user_id", user.ID),
@@ -305,6 +308,9 @@ func (h *Handler) AppleSignIn(c echo.Context) error {
 			zap.Int64("user_id", user.ID),
 			zap.String("apple_id", appleID),
 		)
+		if h.Metrics != nil {
+			h.Metrics.CountSignup("apple")
+		}
 	} else {
 		// Existing user — reactivate if previously soft-deleted, and update
 		// device_id if changed. Reactivation on Sign-in is the standard soft-

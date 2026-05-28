@@ -223,7 +223,16 @@ func (h *Handler) VerifySubscription(c echo.Context) error {
 			zap.Int64("user_id", claims.UserID),
 			zap.String("charge_id", chargeID),
 		)
+		if h.Metrics != nil {
+			h.Metrics.CountPayment("apple_iap", "failed")
+		}
 		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "failed to apply subscription"})
+	}
+	// alreadyApplied=true is a duplicate delivery — the payment already
+	// landed and was counted once; don't double-count. Fresh credit ⇒
+	// completed.
+	if h.Metrics != nil && !alreadyApplied {
+		h.Metrics.CountPayment("apple_iap", "completed")
 	}
 
 	// Restore Purchases after account wipe: the payment row is already in

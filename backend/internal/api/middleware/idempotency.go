@@ -42,6 +42,15 @@ type idempotencyEntry struct {
 	Body        []byte `json:"b,omitempty"`
 }
 
+// CacheCounter is the subset of *metrics.Metrics the idempotency
+// middleware needs. Kept narrow so the middleware package doesn't import
+// the metrics package directly (would risk a cycle with future metrics
+// helpers calling middleware utilities).
+type CacheCounter interface {
+	CacheHit(op string)
+	CacheMiss(op string)
+}
+
 // Idempotency caches successful responses (status < 500) to mutating
 // requests, keyed by the client-supplied Idempotency-Key header. Duplicate
 // requests with the same key — typically arriving from hedged client legs
@@ -51,7 +60,10 @@ type idempotencyEntry struct {
 //
 // Bypass conditions: GET/HEAD/OPTIONS, missing header, response status >= 500
 // (don't pin transient errors), Redis unreachable (log + pass through).
-func Idempotency(rdb *redis.Client, logger *zap.Logger) echo.MiddlewareFunc {
+//
+// If counter is non-nil, every Redis lookup bumps either the hit or miss
+// counter (op="idempotency"). Pass nil in tests that don't care.
+func Idempotency(rdb *redis.Client, logger *zap.Logger, counter CacheCounter) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			switch c.Request().Method {
@@ -74,6 +86,9 @@ func Idempotency(rdb *redis.Client, logger *zap.Logger) echo.MiddlewareFunc {
 				var entry idempotencyEntry
 				jerr := json.Unmarshal(cached, &entry)
 				if jerr == nil {
+					if counter != nil {
+						counter.CacheHit("idempotency")
+					}
 					c.Response().Header().Set(IdempotencyReplayedHeader, "true")
 					ct := entry.ContentType
 					if ct == "" {
@@ -91,6 +106,9 @@ func Idempotency(rdb *redis.Client, logger *zap.Logger) echo.MiddlewareFunc {
 				)
 			case errors.Is(err, redis.Nil):
 				// Cache miss — proceed to handler below.
+				if counter != nil {
+					counter.CacheMiss("idempotency")
+				}
 			default:
 				logger.Warn("idempotency: redis GET failed, bypassing",
 					zap.String("key", key),
