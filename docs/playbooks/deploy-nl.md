@@ -13,7 +13,21 @@ NL is the sole production node (see [`../decisions/0004-single-nl-spof.md`](../d
 
 ## Prerequisites
 
-- SSH key for `root@147.45.252.234` (Timeweb NL).
+- SSH key for `root@147.45.252.234` (Timeweb NL) = `~/.ssh/claude-code-ssh-key`
+  (Timeweb ssh-key id 557329). **Pin it in `~/.ssh/config` with `IdentitiesOnly
+  yes`** — otherwise ssh offers wrong default keys, fails auth on every deploy
+  connection, and fail2ban bans your IP. See
+  [`../incidents/2026-05-28-fail2ban-ssh-deploy-block.md`](../incidents/2026-05-28-fail2ban-ssh-deploy-block.md).
+  ```
+  Host 147.45.252.234 chameleon-nl nl
+      HostName 147.45.252.234
+      User root
+      IdentityFile ~/.ssh/claude-code-ssh-key
+      IdentitiesOnly yes
+  ```
+  If you get `kex_exchange_identification: Connection closed` (TCP connects but
+  no banner) you're banned: deploy from another IP (phone hotspot) or unban via
+  the Timeweb web-VNC console (`fail2ban-client set sshd unbanip <IP>`).
 - `~/.secrets.env` sourced (contains `ASC_*` keys, B2 credentials for backups).
 - Backend code committed (deploy.sh rsync's the working tree).
 

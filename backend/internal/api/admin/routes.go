@@ -28,6 +28,13 @@ type Handler struct {
 	Logger         *zap.Logger
 	ClusterSecret  string // shared secret for cluster peer requests
 
+	// PrometheusURL is the base URL of the local Prometheus (MON-04). Used
+	// by the /stats/infra endpoint to surface host + backend health in the
+	// admin dashboard. Empty → defaults to http://127.0.0.1:9091 (the NL
+	// bind from docker-compose). On boxes without Prometheus the endpoint
+	// degrades to "unknown" fields rather than failing.
+	PrometheusURL string
+
 	// ASC may be nil when ASC_KEY_ID/ASC_ISSUER_ID/ASC_KEY_PATH env are
 	// unset (e.g. dev box without Apple creds). Handlers should
 	// degrade gracefully — Status page renders "ASC not configured"
@@ -104,6 +111,10 @@ func RegisterRoutes(g *echo.Group, h *Handler, jwtManager *auth.JWTManager) {
 	g.GET("/stats/dashboard", h.GetDashboard, adminMW)
 	g.GET("/stats/traffic-outliers", h.TrafficOutliers, adminMW)
 	g.GET("/stats/funnel", h.Funnel, adminMW)
+	// MON-04: infra/health strip for the dashboard — host CPU/RAM/disk +
+	// backend golden signals (p95 latency, req/s, 5xx) + live VPN, all
+	// sourced from the local Prometheus. See infra.go.
+	g.GET("/stats/infra", h.GetInfra, adminMW)
 
 	// Servers. Read open; CRUD admin-only.
 	g.GET("/servers", h.ListServers, adminMW)
