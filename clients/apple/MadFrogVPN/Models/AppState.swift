@@ -16,6 +16,10 @@ class AppState {
     let vpnManager = VPNManager()
     let commandClient = CommandClientWrapper()
     let pingService = PingService()
+    /// LAUNCH-08 — local-notification helper. Owned here because it has to
+    /// see every NEVPNStatus transition, and `handleStatus()` is the single
+    /// place those land.
+    let disconnectNotifier = DisconnectNotifier()
 
     /// USR-09 Phase 2 — client-side event sink. See EventTracker.swift.
     /// Lazy because we need configStore.accessToken accessible from the
@@ -1572,6 +1576,98 @@ class AppState {
         }
     }
 
+    // MARK: - LAUNCH-07 Auto-connect (NEOnDemandRule) wiring
+
+    /// Last user-facing error from an `applyAutoConnect…` call. Surfaced as
+    /// a toast over Settings. Cleared on the next successful apply or when
+    /// the user explicitly dismisses the toast.
+    var autoConnectErrorMessage: String?
+
+    /// Apply whatever the persisted auto-connect preference is. Called from
+    /// `handleStatus(.connected)` so the rule chain is re-installed after
+    /// every connect (VPNManager.connect() clears On-Demand defensively —
+    /// see comment in VPNManager.swift).
+    private func applyAutoConnectFromPreferences() async {
+        let enabled = configStore.autoConnectOnUntrustedWiFi
+        let trusted = configStore.trustedWiFiSSIDs
+        let cellular = configStore.autoConnectOnCellular
+        do {
+            try await vpnManager.applyAutoConnectRules(
+                enabled: enabled,
+                trustedSSIDs: trusted,
+                includeCellular: cellular
+            )
+        } catch VPNManager.OnDemandError.noManager {
+            // Expected when the user toggled the pref before ever connecting.
+            // Will be re-applied on the next .connected transition.
+            AppLogger.app.info("applyAutoConnect: no manager yet, deferring")
+        } catch {
+            AppLogger.app.error("applyAutoConnect: failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Called by SettingsView when the user flips any of the auto-connect
+    /// controls. Persists the new value to ConfigStore + tries to push the
+    /// rules to the live VPN profile (if any). When the profile doesn't
+    /// exist yet — first-launch user toggles the setting before ever
+    /// connecting — we silently persist and surface a hint in Settings
+    /// instructing the user to connect once so iOS prompts for VPN config.
+    func setAutoConnectOnUntrustedWiFi(_ enabled: Bool) async {
+        configStore.autoConnectOnUntrustedWiFi = enabled
+        await pushAutoConnectRules()
+    }
+
+    func setAutoConnectOnCellular(_ enabled: Bool) async {
+        configStore.autoConnectOnCellular = enabled
+        await pushAutoConnectRules()
+    }
+
+    /// Add a trusted SSID and re-apply rules if a profile exists. Returns
+    /// the new list so the UI can update without re-reading.
+    @discardableResult
+    func addTrustedSSID(_ ssid: String) async -> [String] {
+        let updated = configStore.addTrustedSSID(ssid)
+        await pushAutoConnectRules()
+        return updated
+    }
+
+    @discardableResult
+    func removeTrustedSSID(_ ssid: String) async -> [String] {
+        let updated = configStore.removeTrustedSSID(ssid)
+        await pushAutoConnectRules()
+        return updated
+    }
+
+    /// Internal shared helper — pushes the current preferences down to
+    /// NETunnelProviderManager. Surfaces `saveFailed` errors via
+    /// `autoConnectErrorMessage` so Settings can show a toast; silently
+    /// no-ops the `noManager` case because that's a normal "you haven't
+    /// connected once yet" state.
+    private func pushAutoConnectRules() async {
+        let enabled = configStore.autoConnectOnUntrustedWiFi
+        let trusted = configStore.trustedWiFiSSIDs
+        let cellular = configStore.autoConnectOnCellular
+        do {
+            try await vpnManager.applyAutoConnectRules(
+                enabled: enabled,
+                trustedSSIDs: trusted,
+                includeCellular: cellular
+            )
+            autoConnectErrorMessage = nil
+        } catch VPNManager.OnDemandError.noManager {
+            // Common path: user toggled before first connect. The pref is
+            // still persisted so the rules will be applied on the next
+            // .connected transition (see handleStatus).
+            AppLogger.app.info("pushAutoConnectRules: no manager (will apply after first connect)")
+        } catch VPNManager.OnDemandError.saveFailed(let err) {
+            AppLogger.app.error("pushAutoConnectRules: saveFailed \(err.localizedDescription)")
+            autoConnectErrorMessage = "Failed to save auto-connect settings: \(err.localizedDescription)"
+        } catch {
+            AppLogger.app.error("pushAutoConnectRules: \(error.localizedDescription)")
+            autoConnectErrorMessage = "Failed to save auto-connect settings"
+        }
+    }
+
     // MARK: - Status
 
     private func startObservingVPNStatus() {
@@ -1585,6 +1681,13 @@ class AppState {
 
     private func handleStatus() {
         TunnelFileLogger.log("handleStatus: vpn status=\(vpnManager.status.rawValue)", category: "ui")
+        // LAUNCH-08: surface OS-initiated drops as local notifications. Done
+        // first so the snapshot of `userInitiatedDisconnect` is captured
+        // before any downstream work might clobber it.
+        disconnectNotifier.record(
+            status: vpnManager.status,
+            userInitiatedDisconnect: vpnManager.userInitiatedDisconnect
+        )
         // Build-84: nudge the widget timeline so the Home/Lock-Screen widget
         // re-reads App Group state immediately after the main app sees a
         // status transition. Without this the widget can show stale "Защищено"
@@ -1629,6 +1732,19 @@ class AppState {
                 if Task.isCancelled { return }
                 self?.applyRoutingModeIfLive(mode)
                 self?.applyServerSelectionIfLive()
+                // LAUNCH-07: VPNManager.connect() defensively clears
+                // isOnDemandEnabled so the user can disable VPN from iOS
+                // Settings (an unconditional Connect rule would re-enable it
+                // immediately). Re-install the user's auto-connect rules now
+                // that the tunnel is up — without this the toggle would be
+                // ON in Settings yet On-Demand would be off on the profile.
+                await self?.applyAutoConnectFromPreferences()
+                // LAUNCH-08: ask for notification authorisation on the first
+                // successful connect. Idempotent — once asked, this no-ops.
+                // First connect is the most contextual moment to surface the
+                // system permission alert (the user just enabled the VPN and
+                // is paying attention).
+                await self?.disconnectNotifier.requestAuthorizationIfNeeded()
             }
             startTrafficHealthMonitorIfEligible()
         case .disconnected, .invalid:
@@ -1664,6 +1780,14 @@ class AppState {
     func handleScenePhaseActive(_ active: Bool) {
         let wasActive = isAppActive
         isAppActive = active
+        // LAUNCH-08: foreground = no notifications; let the notifier know.
+        disconnectNotifier.setAppActive(active)
+        // Clear any in-flight banner when the user opens the app — by the
+        // time they see the home view, the "VPN disconnected" alert is
+        // redundant.
+        if active {
+            disconnectNotifier.dismissDelivered()
+        }
         TunnelFileLogger.log("scene phase: active=\(active)", category: "ui")
         if active && !wasActive {
             // Build-38: clear stale error banner from a previous foreground

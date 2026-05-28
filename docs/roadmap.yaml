@@ -32,12 +32,6 @@ next:
     - id: LAUNCH-02
       title: Family Sharing flag enabled on subscriptions in ASC
       priority: P0
-    - id: LAUNCH-07
-      title: Auto-connect on untrusted WiFi (NEOnDemandRule)
-      priority: P0
-    - id: LAUNCH-08
-      title: Disconnect notification (UNUserNotificationCenter + NEVPNStatus observer)
-      priority: P0
     - id: LAUNCH-09
       title: Live traffic sparkline on home (up/down last 5 min)
       priority: P1
@@ -167,6 +161,42 @@ deferred:
 # ============================================================
 done:
   "2026-05-28":
+    - id: LAUNCH-07
+      title: Auto-connect on untrusted Wi-Fi via NEOnDemandRule (+ optional cellular)
+      files:
+        - clients/apple/MadFrogVPN/Models/VPNManager.swift
+        - clients/apple/MadFrogVPN/Models/AppState.swift
+        - clients/apple/MadFrogVPN/Models/ConfigStore.swift
+        - clients/apple/MadFrogVPN/Views/SettingsView.swift
+        - clients/apple/Shared/Constants.swift
+        - clients/apple/Tests/UnitTests/VPNManagerOnDemandRulesTests.swift
+      notes: |
+        Settings → Auto-connect section. Toggle "Connect on untrusted Wi-Fi"
+        + companion "Also connect on cellular" (default OFF, separate opt-in
+        for battery / data-cap reasons). "Trusted networks" list user adds
+        SSIDs to manually (no CoreLocation — Apple restricts live SSID
+        introspection since iOS 13, deliberately not requested).
+        VPNManager.buildOnDemandRules produces [Ignore(.wiFi, ssidMatch),
+        Connect(.wiFi), Connect(.cellular)?]. Rules re-applied after every
+        successful connect because VPNManager.connect() defensively clears
+        isOnDemandEnabled to honour iOS Settings off-switch.
+    - id: LAUNCH-08
+      title: Disconnect notification on OS-initiated drops (UNUserNotificationCenter)
+      files:
+        - clients/apple/MadFrogVPN/Models/DisconnectNotifier.swift
+        - clients/apple/MadFrogVPN/Models/AppState.swift
+        - clients/apple/MadFrogVPN/MadFrogVPNApp.swift
+        - clients/apple/Shared/Constants.swift
+        - clients/apple/Tests/UnitTests/DisconnectNotifierTests.swift
+      notes: |
+        Pure-decision DisconnectNotifier.decide(prev,next,snapshot,live,active)
+        gates on .connected→.disconnected (or via .disconnecting). Suppressed
+        when (a) userInitiatedDisconnect=true at the .disconnecting edge —
+        snapshot captured to survive a fast reconnect resetting the live
+        flag — (b) app is foreground — (c) handshake failure (.connecting →
+        .disconnected). Authorization requested once on first successful
+        connect; AppNotificationDelegate posts .vpnReconnectRequested when
+        the "Reconnect" action fires, scene observer routes to AppState.toggleVPN().
     - id: TD-LINT-02
       title: react-hooks 7.0.1 strict rules — promoted purity + set-state-in-effect to `error`
       pr: 7
@@ -277,7 +307,7 @@ done:
 # ============================================================
 stats:
   open_now: 1                 # IAP-APPROVE
-  open_next: ~12              # LAUNCH-01 + LAUNCH-03 both closed 2026-05-28
+  open_next: ~10              # LAUNCH-01/03/07/08 all closed 2026-05-28
   tech_debt_items: 1          # TD-LINT-01/02/DE-PRUNE all closed 2026-05-28; only TD-LIBBOX-FETCH remains
   decisions_documented: 7     # ADRs in decisions/ (added 0007-sentry-eu-crash-reporting)
   incidents_documented: 2     # MED-015 + Apple 2.3

@@ -16,6 +16,14 @@ struct SettingsView: View {
     @State private var showAccount = false
     @State private var showTerms = false
     @State private var showPrivacy = false
+    // LAUNCH-07 — Auto-connect on untrusted Wi-Fi state.
+    // Local mirrors of the persisted prefs so the toggles feel snappy; AppState
+    // writes through to ConfigStore + NETunnelProviderManager on change.
+    @State private var autoConnectOn: Bool = false
+    @State private var autoConnectCellular: Bool = false
+    @State private var trustedSSIDs: [String] = []
+    @State private var showAddSSIDAlert = false
+    @State private var pendingSSIDInput: String = ""
     /// Hidden Diagnostics unlock — 5 taps on the version row reveals
     /// DebugLogs in Release builds (it is always visible in DEBUG).
     /// Production testers can dump logs without us shipping the section
@@ -107,6 +115,147 @@ struct SettingsView: View {
                                     ))
                                     .labelsHidden()
                                     .tint(theme.accent)
+                                }
+                            }
+                            .padding(16)
+                        }
+
+                        // LAUNCH-07 — Auto-connect on untrusted Wi-Fi via
+                        // NEOnDemandRule. Strings are intentionally plain
+                        // English for the first ship; localization arrives in
+                        // a follow-up pass.
+                        sectionHeader("Auto-connect")
+                        card {
+                            VStack(alignment: .leading, spacing: 14) {
+                                HStack(spacing: 14) {
+                                    iconCircle("wifi.exclamationmark")
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Connect on untrusted Wi-Fi")
+                                            .font(theme.font(size: 16, weight: .medium))
+                                            .foregroundStyle(theme.textPrimary)
+                                        Text("VPN turns on automatically whenever you join a Wi-Fi network that isn't in your Trusted list below.")
+                                            .font(theme.font(size: 12))
+                                            .foregroundStyle(theme.textSecondary)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                    Spacer()
+                                    Toggle("", isOn: Binding(
+                                        get: { autoConnectOn },
+                                        set: { newValue in
+                                            autoConnectOn = newValue
+                                            Task { await app.setAutoConnectOnUntrustedWiFi(newValue) }
+                                        }
+                                    ))
+                                    .labelsHidden()
+                                    .tint(theme.accent)
+                                }
+
+                                Divider().background(theme.textSecondary.opacity(0.15))
+
+                                HStack(spacing: 14) {
+                                    iconCircle("antenna.radiowaves.left.and.right")
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Also connect on cellular")
+                                            .font(theme.font(size: 16, weight: .medium))
+                                            .foregroundStyle(theme.textPrimary)
+                                        Text("Off by default. Turn on if you're in a censored region and want the VPN up on LTE/5G too.")
+                                            .font(theme.font(size: 12))
+                                            .foregroundStyle(theme.textSecondary)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                    Spacer()
+                                    Toggle("", isOn: Binding(
+                                        get: { autoConnectCellular },
+                                        set: { newValue in
+                                            autoConnectCellular = newValue
+                                            Task { await app.setAutoConnectOnCellular(newValue) }
+                                        }
+                                    ))
+                                    .labelsHidden()
+                                    .tint(theme.accent)
+                                    .disabled(!autoConnectOn)
+                                    .opacity(autoConnectOn ? 1 : 0.5)
+                                }
+
+                                Divider().background(theme.textSecondary.opacity(0.15))
+
+                                HStack(spacing: 14) {
+                                    iconCircle("checkmark.shield")
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Trusted networks")
+                                            .font(theme.font(size: 16, weight: .medium))
+                                            .foregroundStyle(theme.textPrimary)
+                                        Text("Add the names of Wi-Fi networks you trust (home, office). The VPN won't auto-connect on these.")
+                                            .font(theme.font(size: 12))
+                                            .foregroundStyle(theme.textSecondary)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                    Spacer()
+                                    Button {
+                                        pendingSSIDInput = ""
+                                        showAddSSIDAlert = true
+                                    } label: {
+                                        Image(systemName: "plus.circle.fill")
+                                            .font(.system(size: 24))
+                                            .foregroundStyle(theme.accent)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .disabled(!autoConnectOn)
+                                    .opacity(autoConnectOn ? 1 : 0.5)
+                                }
+
+                                if trustedSSIDs.isEmpty {
+                                    Text("No trusted networks yet.")
+                                        .font(theme.font(size: 13))
+                                        .foregroundStyle(theme.textSecondary)
+                                        .padding(.leading, 46)
+                                } else {
+                                    VStack(spacing: 6) {
+                                        ForEach(trustedSSIDs, id: \.self) { ssid in
+                                            HStack(spacing: 10) {
+                                                Image(systemName: "wifi")
+                                                    .font(.system(size: 13))
+                                                    .foregroundStyle(theme.textSecondary)
+                                                Text(ssid)
+                                                    .font(theme.font(size: 15))
+                                                    .foregroundStyle(theme.textPrimary)
+                                                    .lineLimit(1)
+                                                Spacer()
+                                                Button {
+                                                    Task {
+                                                        trustedSSIDs = await app.removeTrustedSSID(ssid)
+                                                    }
+                                                } label: {
+                                                    Image(systemName: "minus.circle.fill")
+                                                        .font(.system(size: 18))
+                                                        .foregroundStyle(theme.textSecondary.opacity(0.7))
+                                                }
+                                                .buttonStyle(.plain)
+                                            }
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 8)
+                                            .background(theme.background.opacity(0.5),
+                                                        in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                        }
+                                    }
+                                    .padding(.leading, 46)
+                                }
+
+                                // Comment for code readers (NOT shown to users):
+                                // Apple has restricted live SSID introspection
+                                // since iOS 13 — requires CoreLocation auth +
+                                // active location use, and returns
+                                // _undefined on the simulator. We deliberately
+                                // do NOT request CoreLocation; the user enters
+                                // network names manually. The On-Demand
+                                // engine inside NetworkExtension still gets
+                                // to compare the live SSID against the list
+                                // we install on the profile.
+                                if app.autoConnectErrorMessage != nil {
+                                    Text(app.autoConnectErrorMessage ?? "")
+                                        .font(theme.font(size: 12))
+                                        .foregroundStyle(.red)
+                                        .padding(.leading, 46)
                                 }
                             }
                             .padding(16)
@@ -234,6 +383,31 @@ struct SettingsView: View {
                     LegalView(title: L10n.Legal.privacyTitle, body: L10n.Legal.privacyBody)
                 }
                 .macSheetSize()
+            }
+            .alert("Add trusted network", isPresented: $showAddSSIDAlert) {
+                TextField("Wi-Fi name (SSID)", text: $pendingSSIDInput)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled(true)
+                Button("Cancel", role: .cancel) {
+                    pendingSSIDInput = ""
+                }
+                Button("Add") {
+                    let ssid = pendingSSIDInput
+                    pendingSSIDInput = ""
+                    Task {
+                        trustedSSIDs = await app.addTrustedSSID(ssid)
+                    }
+                }
+            } message: {
+                Text("Type the network name exactly as it appears in iOS Settings → Wi-Fi.")
+            }
+            .task {
+                // Hydrate local state from the persisted prefs whenever the
+                // sheet appears. Keeps the toggles correct after the user
+                // opens Settings a second time within the same app session.
+                autoConnectOn = app.configStore.autoConnectOnUntrustedWiFi
+                autoConnectCellular = app.configStore.autoConnectOnCellular
+                trustedSSIDs = app.configStore.trustedWiFiSSIDs
             }
         }
     }
