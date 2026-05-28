@@ -250,7 +250,7 @@ func (d *Duration) UnmarshalYAML(value *yaml.Node) error {
 
 // MarshalYAML serializes a Duration back to its string representation.
 func (d Duration) MarshalYAML() (interface{}, error) {
-	return d.Duration.String(), nil
+	return d.String(), nil
 }
 
 // envVarPattern matches ${VAR_NAME} placeholders in configuration values.

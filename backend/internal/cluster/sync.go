@@ -289,7 +289,7 @@ func (s *Syncer) pullFromPeer(ctx context.Context, peer config.PeerConfig, since
 	if err != nil {
 		return nil, fmt.Errorf("http request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
@@ -365,7 +365,7 @@ func (s *Syncer) pushToPeer(ctx context.Context, peer config.PeerConfig, users [
 		if err != nil {
 			return fmt.Errorf("http request: %w", err)
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
 			return fmt.Errorf("unexpected status %d from peer %s", resp.StatusCode, peer.ID)
@@ -407,7 +407,7 @@ func PeerHealth(ctx context.Context, peerURL string) error {
 	if err != nil {
 		return fmt.Errorf("peer %s unreachable: %w", peerURL, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("peer %s returned status %d", peerURL, resp.StatusCode)

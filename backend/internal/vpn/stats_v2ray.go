@@ -40,15 +40,18 @@ func newV2rayStatsClient(addr string, logger *zap.Logger) *v2rayStatsClient {
 	}
 }
 
-func (c *v2rayStatsClient) dial(ctx context.Context) error {
+func (c *v2rayStatsClient) dial(_ context.Context) error {
 	if c.stats != nil {
 		return nil
 	}
-	dialCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
-	conn, err := grpc.DialContext(dialCtx, c.addr,
+	// grpc.NewClient is the non-deprecated replacement for the older
+	// DialContext+WithBlock pair. NewClient itself doesn't dial — it
+	// builds a lazy ClientConn that connects on first RPC. We lose the
+	// upfront 3s sync handshake we had with WithBlock, but the caller
+	// (QueryStats below) already wraps every RPC in a 3s timeout and
+	// drops the conn on error, so the retry semantics are unchanged.
+	conn, err := grpc.NewClient(c.addr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(),
 	)
 	if err != nil {
 		return fmt.Errorf("dial %s: %w", c.addr, err)
@@ -56,16 +59,6 @@ func (c *v2rayStatsClient) dial(ctx context.Context) error {
 	c.conn = conn
 	c.stats = statscmd.NewStatsServiceClient(conn)
 	return nil
-}
-
-func (c *v2rayStatsClient) close() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.conn != nil {
-		_ = c.conn.Close()
-		c.conn = nil
-		c.stats = nil
-	}
 }
 
 // QueryUserTraffic returns per-user traffic deltas since the last call.

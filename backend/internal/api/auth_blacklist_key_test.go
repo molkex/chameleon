@@ -49,8 +49,10 @@ func TestRefreshBlacklistKey_StableForSameToken(t *testing.T) {
 	// Same token → same key. Without this property the "already used"
 	// check would never hit.
 	token := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ4eHgifQ.SIG"
-	if blacklistKey(token) != blacklistKey(token) {
-		t.Errorf("blacklist key derivation must be stable for identical input")
+	first := blacklistKey(token)
+	second := blacklistKey(token)
+	if first != second {
+		t.Errorf("blacklist key derivation must be stable for identical input: first=%q second=%q", first, second)
 	}
 }
 

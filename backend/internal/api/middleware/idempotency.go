@@ -135,10 +135,13 @@ func Idempotency(rdb *redis.Client, logger *zap.Logger) echo.MiddlewareFunc {
 				return handlerErr
 			}
 
-			// SetNX guarantees that if two siblings race past the GET miss,
-			// only the first to finish populates the cache. The other's
-			// SETNX silently no-ops; both clients still get a valid response.
-			if _, serr := rdb.SetNX(ctx, redisKey, payload, idempotencyTTL).Result(); serr != nil {
+			// SET ... NX guarantees that if two siblings race past the GET
+			// miss, only the first to finish populates the cache. The
+			// other's request silently no-ops (redis.Nil is the expected
+			// "key already exists" signal); both clients still get a valid
+			// response. SetArgs with Mode:"NX" is the non-deprecated
+			// replacement for SetNX as of Redis 2.6.12 / go-redis v9.
+			if _, serr := rdb.SetArgs(ctx, redisKey, payload, redis.SetArgs{Mode: "NX", TTL: idempotencyTTL}).Result(); serr != nil && !errors.Is(serr, redis.Nil) {
 				logger.Warn("idempotency: redis SETNX failed",
 					zap.String("key", key),
 					zap.Error(serr),

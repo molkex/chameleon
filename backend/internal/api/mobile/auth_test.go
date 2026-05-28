@@ -185,7 +185,7 @@ func TestGenerateShortID(t *testing.T) {
 		}
 		// Must be lowercase hex.
 		for _, ch := range got {
-			if !((ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f')) {
+			if (ch < '0' || ch > '9') && (ch < 'a' || ch > 'f') {
 				t.Errorf("non-hex char %q in %q", ch, got)
 				break
 			}

@@ -6,15 +6,16 @@
 # Go 1.25. Pinning to v2.x in the workflow and providing this minimal
 # config makes the step actually exercise real linters.
 #
-# Scope is intentionally conservative for the first pass:
+# Scope:
 # - govet, ineffassign, unconvert, misspell — cheap, high-signal,
-#   no false-positive flood on the existing code.
-# - errcheck / staticcheck / unused are NOT yet enabled. A first dry run
-#   surfaced ~22 pre-existing issues in older code (unchecked
-#   resp.Body.Close, deprecated grpc.DialContext / SetNX, dead consts).
-#   They are real tech-debt but cleaning them is out of scope for the PR
-#   that wired the lint step. Track separately and enable here once a
-#   cleanup pass lands.
+#   no false-positive flood.
+# - errcheck, staticcheck, unused — enabled 2026-05-28 after TD-LINT-01
+#   cleanup pass (40 pre-existing findings fixed: unchecked
+#   resp.Body.Close, deprecated grpc.DialContext / Redis SetNX / echo
+#   TimeoutWithConfig, SA4000 typo in auth_blacklist_key_test.go, dead
+#   configBuildMarker const + v2rayStatsClient.close method, unused test
+#   scaffolding fields).
+# - gocritic intentionally OFF — too opinionated for current codebase.
 
 version: "2"
 
@@ -29,6 +30,9 @@ linters:
     - ineffassign
     - unconvert
     - misspell
+    - errcheck
+    - staticcheck
+    - unused
 
 issues:
   max-issues-per-linter: 0

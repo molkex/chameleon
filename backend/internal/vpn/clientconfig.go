@@ -16,14 +16,6 @@ const (
 	// whitelist-bypass group in the Proxy selector. Localised to Russian
 	// since the feature is only useful inside RU.
 	whitelistBypassGroupTag = "🇷🇺 Россия (обход белых списков)"
-
-	// configBuildMarker is a human-readable identifier for THIS revision of
-	// the config-generation code. iOS surfaces this as `cfg:<marker>` in the
-	// debug footer so the user (and us) can tell at a glance which backend
-	// emitted the config currently in their cache. BUMP THIS on any
-	// behavioural change to clientconfig.go (new flag, new outbound, new
-	// rule). Format: "<build>.<patch>-<short-tag>" e.g. "40.2-chain-fix".
-	configBuildMarker = "42.0-strict-country"
 )
 
 // legSortKey returns a comparable string that orders leaf tags within a
@@ -385,9 +377,7 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 	if whitelistGroupTag != "" {
 		proxyMembers = append(proxyMembers, whitelistGroupTag)
 	}
-	for _, leaf := range whitelistLegs {
-		proxyMembers = append(proxyMembers, leaf)
-	}
+	proxyMembers = append(proxyMembers, whitelistLegs...)
 	// Build-40 (2026-04-26 evening): InterruptExistConnections=true on Proxy too.
 	// Previously was `false` to avoid killing in-flight connections on manual
 	// server-pin via Clash API. But that broke the urltest auto-recovery chain:

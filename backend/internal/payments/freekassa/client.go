@@ -118,7 +118,7 @@ func (c *Client) CreateOrder(ctx context.Context, in CreateOrderInput) (*CreateO
 	if err != nil {
 		return nil, fmt.Errorf("freekassa: call: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {

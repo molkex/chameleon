@@ -101,7 +101,7 @@ func (h *Handler) GetHandshakeErrors(c echo.Context) error {
 		}
 		return c.JSON(http.StatusOK, resp)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	type hourAgg struct{ total, user, bot int }
 	hourBuckets := make(map[string]*hourAgg)

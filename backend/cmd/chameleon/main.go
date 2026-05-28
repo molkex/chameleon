@@ -266,7 +266,7 @@ func run() error {
 		ClientMTU:       cfg.VPN.ClientMTU,
 		DNSRemote:       cfg.VPN.DNSRemote,
 		DNSDirect:       cfg.VPN.DNSDirect,
-		UrltestInterval: cfg.VPN.UrltestInterval.Duration.String(),
+		UrltestInterval: cfg.VPN.UrltestInterval.String(),
 		UserAPIPort:     cfg.VPN.UserAPIPort,
 		UserAPISecret:   cfg.VPN.UserAPISecret,
 		V2RayAPIPort:    cfg.VPN.V2RayAPIPort,

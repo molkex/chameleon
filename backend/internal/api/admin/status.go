@@ -295,7 +295,7 @@ func (h *Handler) probeHTTPWithTLS(url string, expectStatus int, insecureTLS boo
 		if err != nil {
 			return probeStatus{OK: false, LatencyMS: latency, Error: err.Error()}
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		ok := false
 		switch {

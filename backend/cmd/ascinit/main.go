@@ -306,7 +306,7 @@ func (c *client) do(method, path string, body any, out any) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	raw, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode >= 300 {
 		return fmt.Errorf("%s %s: HTTP %d: %s", method, path, resp.StatusCode, string(raw))
@@ -870,7 +870,7 @@ func (c *client) uploadChunks(data []byte, ops []uploadOperation) error {
 			return err
 		}
 		raw, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		if resp.StatusCode >= 300 {
 			return fmt.Errorf("upload chunk: HTTP %d: %s", resp.StatusCode, string(raw))
 		}
