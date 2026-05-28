@@ -4,7 +4,7 @@
 # this file blindly — see playbooks/asc-api-checks.md for a 5-line
 # bash snippet to re-fetch state.
 
-verified: 2026-05-28T11:50:00Z
+verified: 2026-05-28T13:30:00Z
 
 app:
   bundle_id: com.madfrog.vpn
@@ -46,7 +46,7 @@ versions:
 # When all 4 = APPROVED, the live paywall starts working.
 iaps:
   type: NON_RENEWING_SUBSCRIPTION   # no auto-renew, no Subscription Group
-  state_verified: 2026-05-28T12:10:00Z
+  state_verified: 2026-05-28T13:30:00Z   # all 4 still WAITING_FOR_REVIEW (~1.5h in, expected 1-6h)
   products:
     - product_id: com.madfrog.vpn.sub.30days
       apple_id: 6762097906
