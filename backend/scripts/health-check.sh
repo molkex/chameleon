@@ -42,9 +42,11 @@ else
     alert "singbox" "🔴 <b>$HOSTNAME</b>: singbox container NOT RUNNING"
 fi
 
-# Check VPN port
-if ss -tlnp 2>/dev/null | grep -q ':2096' || netstat -tlnp 2>/dev/null | grep -q ':2096'; then
+# Check VPN port. NL listens on 443 (sing-box VLESS Reality TCP primary).
+# DE used 2096 historically but was retired 2026-05-25 — script kept alerting
+# 2096 after the DE→NL migration and spammed Telegram every minute.
+if ss -tlnp 2>/dev/null | grep -q ':443 ' || netstat -tlnp 2>/dev/null | grep -q ':443 '; then
     clear_alert "vpn-port"
 else
-    alert "vpn-port" "🔴 <b>$HOSTNAME</b>: VPN port 2096 NOT LISTENING"
+    alert "vpn-port" "🔴 <b>$HOSTNAME</b>: VPN port 443 NOT LISTENING"
 fi

@@ -115,6 +115,7 @@ ssh "${NODE_SSH}" bash -s -- \
     "${GOOGLE_IOS_CLIENT_ID:-}" \
     "${CHAMELEON_PROVIDERS_ENCRYPTION_KEY:-}" \
     "${CHAMELEON_MSK_USER_API_SECRET:-}" \
+    "${SHADOWSOCKS_PASSWORD:-}" \
     <<'REMOTE'
 set -euo pipefail
 
@@ -139,6 +140,7 @@ RESEND_API_KEY="${18}"
 GOOGLE_IOS_CLIENT_ID="${19}"
 CHAMELEON_PROVIDERS_ENCRYPTION_KEY="${20}"
 CHAMELEON_MSK_USER_API_SECRET="${21}"
+SHADOWSOCKS_PASSWORD="${22}"
 
 cd "${REMOTE_DIR}/backend"
 
@@ -170,6 +172,18 @@ case "$NODE_ID" in
         ;;
 esac
 
+# Per-node Shadowsocks TCP override. Enabled on nodes that need to accept
+# router clients (Keenetic+kvas etc.) over plain shadowsocks-libev.
+case "$NODE_ID" in
+    nl2-1)
+        sed -i 's/shadowsocks_port: 0/shadowsocks_port: 8488/' config.yaml
+        echo ">>> Shadowsocks TCP enabled: port=8488"
+        ;;
+    *)
+        echo ">>> Shadowsocks TCP disabled on this node"
+        ;;
+esac
+
 # .env — Reality keys are in DB now, not here
 cat > .env <<EOF
 DB_PASSWORD=${DB_PASSWORD}
@@ -185,6 +199,7 @@ RESEND_API_KEY=${RESEND_API_KEY}
 GOOGLE_IOS_CLIENT_ID=${GOOGLE_IOS_CLIENT_ID}
 CHAMELEON_PROVIDERS_ENCRYPTION_KEY=${CHAMELEON_PROVIDERS_ENCRYPTION_KEY}
 CHAMELEON_MSK_USER_API_SECRET=${CHAMELEON_MSK_USER_API_SECRET}
+SHADOWSOCKS_PASSWORD=${SHADOWSOCKS_PASSWORD}
 EOF
 chmod 600 .env
 
@@ -348,11 +363,12 @@ else
     echo "║ ✗ User API (15380): NOT RESPONDING"
 fi
 
-# Check VPN port
-if ss -tlnp 2>/dev/null | grep -q ':2096' || netstat -tlnp 2>/dev/null | grep -q ':2096'; then
-    echo "║ ✓ VPN port 2096: LISTENING"
+# Check VPN port. NL listens on 443 (VLESS Reality TCP primary); DE used
+# 2096 but was retired 2026-05-25.
+if ss -tlnp 2>/dev/null | grep -q ':443 ' || netstat -tlnp 2>/dev/null | grep -q ':443 '; then
+    echo "║ ✓ VPN port 443: LISTENING"
 else
-    echo "║ ✗ VPN port 2096: NOT LISTENING"
+    echo "║ ✗ VPN port 443: NOT LISTENING"
 fi
 
 # Check clash API
