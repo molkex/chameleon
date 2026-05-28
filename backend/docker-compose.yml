@@ -113,6 +113,8 @@ services:
       - ASC_APP_ID=${ASC_APP_ID:-}
       # MED-010: routes `docker` CLI in this container to the local proxy.
       - DOCKER_HOST=tcp://127.0.0.1:2375
+      # Shadowsocks inbound (WIP) — credential for /admin/ss-ws issuance.
+      - SHADOWSOCKS_PASSWORD=${SHADOWSOCKS_PASSWORD}
     deploy:
       resources:
         limits:
@@ -203,6 +205,102 @@ services:
       chameleon:
         condition: service_healthy
 
+  # ---------- node-exporter (host system metrics for Prometheus) ----------
+  # MON-04: exposes CPU / RAM / disk / network counters from the HOST (not
+  # the container) on :9100. host networking + /proc + /sys + / read-only
+  # mounts are the documented setup for node_exporter — without them the
+  # numbers reflect container PID-1 only.
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: chameleon-node-exporter
+    restart: unless-stopped
+    network_mode: host
+    security_opt:
+      - no-new-privileges:true
+    pid: host
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: '0.2'
+    command:
+      - '--path.rootfs=/host'
+      - '--web.listen-address=127.0.0.1:9100'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+      - '--no-collector.ipvs'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host:ro,rslave
+
+  # ---------- Prometheus (metric scraping + 7-day TSDB) ----------
+  # MON-04: scrapes chameleon (/metrics on 8000), node-exporter (9100), and
+  # sing-box clash-api (9090). 7-day retention is enough to cover weekly
+  # patterns without bloating the 1.9 GiB NL box. memory cap 128M is
+  # comfortable for our cardinality (~50 series, 15s scrape).
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: chameleon-prometheus
+    restart: unless-stopped
+    network_mode: host
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.3'
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=7d'
+      - '--web.listen-address=127.0.0.1:9091'
+      - '--web.external-url=http://127.0.0.1:9091'
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      chameleon:
+        condition: service_healthy
+      node-exporter:
+        condition: service_started
+
+  # ---------- Grafana (dashboards) ----------
+  # MON-04: dashboards provisioned from ./grafana/. UI bound to 127.0.0.1
+  # — nginx terminates external traffic at grafana.madfrog.online and
+  # proxies in. Admin password from CHAMELEON_GRAFANA_PASSWORD env (set
+  # by deploy.sh from ~/.secrets.env).
+  grafana:
+    image: grafana/grafana-oss:11.3.1
+    container_name: chameleon-grafana
+    restart: unless-stopped
+    network_mode: host
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.3'
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${CHAMELEON_GRAFANA_PASSWORD}
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SERVER_HTTP_ADDR=127.0.0.1
+      - GF_SERVER_HTTP_PORT=3000
+      - GF_SERVER_DOMAIN=grafana.madfrog.online
+      - GF_SERVER_ROOT_URL=https://grafana.madfrog.online/
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      prometheus:
+        condition: service_started
+
 volumes:
   pgdata:
     name: chameleon-pgdata
@@ -213,3 +311,7 @@ volumes:
   singbox-config:
     name: chameleon-singbox-config
     external: true
+  prometheus-data:
+    name: chameleon-prometheus-data
+  grafana-data:
+    name: chameleon-grafana-data

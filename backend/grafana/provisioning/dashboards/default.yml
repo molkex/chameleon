@@ -1,0 +1,20 @@
+# Grafana dashboard auto-load — MON-04
+#
+# Reads every *.json file from /var/lib/grafana/dashboards (mounted from
+# backend/grafana/dashboards/) and registers them under the "Chameleon"
+# folder. Editable=false means UI changes don't survive container restart
+# — dashboards live in the repo, not in Grafana's sqlite.
+
+apiVersion: 1
+
+providers:
+  - name: 'Chameleon'
+    orgId: 1
+    folder: 'Chameleon'
+    type: file
+    disableDeletion: true
+    editable: false
+    updateIntervalSeconds: 60
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

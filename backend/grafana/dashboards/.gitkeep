@@ -1,0 +1,4 @@
+# Grafana dashboard JSON files live here. Auto-loaded by Grafana via
+# /etc/grafana/provisioning/dashboards/default.yml on container boot.
+#
+# Add files: chameleon-overview.json, vpn-load.json, funnel.json, etc.
