@@ -1,0 +1,98 @@
+# app-store.yaml — App Store Connect state for MadFrog VPN iOS.
+#
+# Re-verify via ASC API before claiming anything changed. Don't trust
+# this file blindly — see playbooks/asc-api-checks.md for a 5-line
+# bash snippet to re-fetch state.
+
+verified: 2026-05-28T11:50:00Z
+
+app:
+  bundle_id: com.madfrog.vpn
+  apple_id: 6761008632
+  team_id: 99W3C374T2
+  developer_org: "ИП Tkachuk Maksim Nikolaevich"
+  duns: "94245265"
+
+asc_api:
+  key_id: 6HX3DA4P2Y
+  issuer_id: bcb0c156-fec7-4fcd-994e-fd7cc81b5242
+  key_path: ~/private_keys/AuthKey_6HX3DA4P2Y.p8
+  # JWT generation snippet: see playbooks/asc-api-checks.md
+
+# Live App Store version. `READY_FOR_SALE` = users can install via App Store.
+versions:
+  current:
+    version: "1.0.27"
+    build: 90
+    asc_version_id: 857045e1-2b09-4d20-9af1-95c9f28285bf
+    asc_build_id: 8920a880-da7d-49b5-82ea-9e539466ceee
+    appStoreState: READY_FOR_SALE     # auto-released after approval 2026-05-28
+    releaseType: AFTER_APPROVAL
+    submitted_at: 2026-05-28T07:49:10Z
+    review_outcome: APPROVED          # build 89 was rejected under 2.3 → build 90 with explicit arm64 passed
+    review_submission_id: c32658c5-5807-4c5a-952e-a0b8bd89d73b
+    ships:
+      - widgets (LAUNCH-04/05/06)
+      - USR-09 Phase 2 EventTracker
+      - explicit UIRequiredDeviceCapabilities=[arm64] (Apple 2.3 fix)
+
+  previous:
+    version: "1.0.26"
+    build: 75
+    appStoreState: superseded
+    was_live: 2026-05-15..2026-05-28
+
+# Non-renewing subscription IAPs. **These are the revenue blocker.**
+# When all 4 = APPROVED, the live paywall starts working.
+iaps:
+  type: NON_RENEWING_SUBSCRIPTION   # no auto-renew, no Subscription Group
+  state_verified: 2026-05-28T12:10:00Z
+  products:
+    - product_id: com.madfrog.vpn.sub.30days
+      apple_id: 6762097906
+      state: WAITING_FOR_REVIEW
+      last_submitted: 2026-05-28T12:10:00Z   # 2nd submission — 1st (2026-05-27) stalled
+    - product_id: com.madfrog.vpn.sub.90days
+      apple_id: 6762098097
+      state: WAITING_FOR_REVIEW
+      last_submitted: 2026-05-28T12:10:00Z
+    - product_id: com.madfrog.vpn.sub.180days
+      apple_id: 6762098056
+      state: WAITING_FOR_REVIEW
+      last_submitted: 2026-05-28T12:10:00Z
+    - product_id: com.madfrog.vpn.sub.365days
+      apple_id: 6762097872
+      state: WAITING_FOR_REVIEW
+      last_submitted: 2026-05-28T12:10:00Z
+  notes: |
+    First submission (2026-05-27 via /v1/inAppPurchaseSubmissions) silently
+    stalled — likely because Apple bundles first-IAP review with first
+    app-version review, and build 89 got rejected. Re-submitted standalone
+    2026-05-28 after build 90 went live. Expected: 1-6h to APPROVED.
+
+# Storefront routing decision lives in decisions/0003-storefront-routing.md.
+# Short version: RU/CIS storefronts → WebPaywallView (FreeKassa/SBP),
+# everyone else → StoreKit. Driven by Storefront.current.countryCode,
+# not Locale.
+storefront_routing:
+  storekit_route: non_cis_storefronts
+  web_paywall_route: [RUS, KAZ, BLR, UZB, UKR, AZE, ARM, GEO, KGZ, TJK, TKM, MDA]
+
+# App Privacy data types declared in ASC.
+# Verified via Chrome MCP 2026-05-28 (App Privacy section).
+# Public ASC API has no endpoint for this — must check web UI.
+privacy:
+  declared_data_types:
+    contact_info:
+      - Email Address      # linked, app_functionality
+      - Name               # linked, app_functionality
+    identifiers:
+      - User ID            # linked, app_functionality
+      - Device ID          # linked, app_functionality
+    purchases:
+      - Purchase History   # linked, app_functionality
+    usage_data:
+      - Product Interaction   # linked, analytics — covers EventTracker paywall.* / app.*
+    diagnostics:
+      - Other Diagnostic Data # linked, analytics+app_functionality — covers EventTracker vpn.connect.*
+  tracking_disclosed: false              # we don't share with 3rd parties for tracking

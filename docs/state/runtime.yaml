@@ -1,0 +1,95 @@
+# runtime.yaml — what's running where in production.
+#
+# When deploy targets change, when a service is added or retired, update
+# here first. backend/deploy.sh + docker-compose.yml are the actual
+# moving parts; this file is the at-a-glance map.
+
+verified: 2026-05-28
+
+# NL is the only production node since DE retirement (2026-05-25).
+# See state/servers.yaml for the full mesh.
+nl_147_45_252_234:
+  os: Linux (Ubuntu)
+  ssh: root@147.45.252.234
+  install_path: /opt/chameleon
+  docker_compose: backend/docker-compose.yml
+
+  containers:
+    chameleon:
+      image: backend-chameleon:latest    # built from backend/Dockerfile.prebuilt (NL has 2GB RAM, can't compile Go in Docker)
+      role: Go API backend
+      ports: ["80:8080", "443:8443"]     # nginx fronts both
+      depends_on: [chameleon-postgres, chameleon-redis, docker-socket-proxy]
+      env_from: /opt/chameleon/.env
+      health: GET /health → 200 within 8s
+    chameleon-nginx:
+      image: nginx + admin SPA bundle    # vite build → /usr/share/nginx/html
+      role: TLS termination + admin SPA + /api/* upstream → chameleon
+      ports: ["80:80", "443:443"]
+      cert: Let's Encrypt for madfrog.online + api.madfrog.online
+    chameleon-postgres:
+      image: postgres:16-alpine
+      volume: chameleon-pgdata
+      role: primary store (users, payments, vpn_servers, app_events, audit_log)
+      backups: db-backup.sh (cron daily) → Backblaze B2
+    chameleon-redis:
+      image: redis:7-alpine
+      volume: chameleon-redisdata
+      role: pub/sub + idempotency cache + magic-link tokens
+    docker-socket-proxy:
+      image: tecnativa/docker-socket-proxy
+      role: MED-010 — replaces raw /var/run/docker.sock mount for chameleon
+      exposed_apis: [containers, info]
+    singbox:
+      role: VLESS Reality on :443/tcp, sole VPN traffic handler
+      important: |
+        Runs OUTSIDE docker-compose as a standalone container so normal
+        chameleon deploys never touch it. VPN sessions survive backend
+        restarts. Restart only with `--with-singbox` flag.
+      config: /etc/singbox/singbox-config.json
+      logs: docker logs singbox
+    singbox-log-watcher:
+      role: MON-06 — cron(*/1) Python parser of singbox logs
+      output: /var/log/singbox-events.jsonl
+      consumed_by: chameleon admin /api/v1/admin/status/handshake-errors
+    metrics-agent:
+      role: node-level metrics (CPU/RAM/disk) → chameleon DB
+      consumed_by: admin /dashboard
+
+  cron:
+    "0 3 * * *":  db-backup.sh         # daily 03:00 UTC → B2 off-host
+    "*/1 * * * *": singbox-log-watcher  # handshake-error aggregation
+    "*/5 * * * *": health-check.sh     # MON-02 → Telegram alert on 2-consecutive failures
+
+# Russian-side relay (see state/servers.yaml#msk_relay).
+# Not a docker host — bare nginx forwarder.
+msk_217_198_5_52:
+  ssh: root@217.198.5.52
+  role: nginx upstream → nl:80 for api.madfrog.online traffic
+  config_in_repo: NONE (modifications happen on-box)
+  fronts: api.madfrog.online
+
+# Secondary relay for blocked-NL-direct cases.
+spb_185_218_0_43:
+  ssh: root@185.218.0.43
+  role: nginx tcp/stream + http forwarder → NL
+  config_in_repo: infrastructure/spb-relay/
+  forwards_to: nl:443 (former DE ports redirected post-2026-05-27)
+
+# Misc external dependencies.
+external:
+  cloudflare:
+    role: DNS for madfrog.online + proxy for landing/admin (NOT api subdomain)
+    zone: madfrog.online
+  backblaze_b2:
+    role: off-host DB backup destination
+    bucket: chameleon-pgdumps (verify name on B2 console)
+  apple_asc:
+    role: App Store Connect API access for releases / IAP / privacy
+    key_id: 6HX3DA4P2Y                # see state/app-store.yaml
+  freekassa:
+    role: payment processor for web paywall (RU/CIS storefronts)
+    integration: backend/internal/payments/freekassa
+  telemetry:
+    role: structured logs only (zap); no external APM yet
+    crash_reporting: NOT WIRED — LAUNCH-03 pending
