@@ -2,6 +2,41 @@
 
 > 🤖 Mirror: [agent-readable YAML](troubleshooting.yaml) — keep in sync. Edit either, sync the other.
 
+## ⚠ 2026-05-28: USR-09 Phase 2 — App Privacy disclosure MUST be updated before next iOS build submit
+
+### Why
+v1.0.27 (build 89) is currently WAITING_FOR_REVIEW. The **next** build (90+) will be the first to ship the `EventTracker`-based client-side event collection added in USR-09 Phase 2 (paywall views, product taps, purchase outcomes, vpn-connect failures, app lifecycle).
+
+The App Store Connect "App Privacy" section currently lists ONLY the existing disclosures (device identifier + crash data). If a build that collects `paywall.product.tap` / `vpn.connect.fail` reaches review without updating App Privacy first, Apple rejects under Guideline 5.1.1 — "the data your app collects does not match what you declared".
+
+### Pre-submit checklist (ASC UI → App Privacy → Data Types)
+Add the following before clicking Submit on the build that includes `clients/apple/MadFrogVPN/Models/EventTracker.swift`:
+
+1. **Product Interaction**
+   - Linked to user: **Yes** (we have user_id)
+   - Used for tracking: **No** (first-party analytics only; we do not share IDFA or device IDs with third parties)
+   - Purpose: **Analytics** + **Product Personalization**
+   - Reason in declaration: "Funnel analysis for in-app subscription paywall. Events: paywall view, product tap."
+
+2. **Other Usage Data**
+   - Linked to user: **Yes**
+   - Used for tracking: **No**
+   - Purpose: **Analytics** + **App Functionality**
+   - Reason: "Diagnostics for VPN connection failures and app lifecycle events to surface incidents in our admin console."
+
+### Where the data flows
+- Client: `EventTracker` actor in main app process, persisted JSON in Application Support, drained over HTTPS to `POST /api/v1/mobile/events/batch` (JWT-gated).
+- Server: `app_events` table on the NL backend node (Timeweb DE peer is dormant). 90-day retention informally; no off-host export. Schema in `backend/migrations/017_app_events.sql`.
+
+### Verify the next build before submitting
+- Run app once in TestFlight, open paywall, force-quit, reopen — `SELECT count(*) FROM app_events WHERE user_id = ?` on NL should show ≥ 3 events.
+- Check `/admin/app/events` page renders rows with the test user's user_id.
+
+### If you forget and get a 5.1.1 rejection
+Apple sends a Resolution Center message naming the missing data type. Update App Privacy, **then** reply to the rejection — there's no need to resubmit a new build, the metadata is re-reviewed in-place. Lead time 1-3 days extra.
+
+---
+
 ## 2026-05-27: Chameleon в restart-loop — `reality_private_key` wiped (MED-015)
 
 ### Симптом

@@ -61,6 +61,7 @@ const Admins = lazy(() => import("./pages/admins"));
 const Audit = lazy(() => import("./pages/audit"));
 const Status = lazy(() => import("./pages/status"));
 const Funnel = lazy(() => import("./pages/funnel"));
+const Events = lazy(() => import("./pages/events"));
 const Login = lazy(() => import("./pages/login"));
 
 // ── Routes ──
@@ -164,12 +165,18 @@ const funnelRoute = createRoute({
   component: Funnel,
 });
 
+const eventsRoute = createRoute({
+  getParentRoute: () => layoutRoute,
+  path: "/events",
+  component: Events,
+});
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
   layoutRoute.addChildren([
     indexRoute, usersRoute, nodesRoute, serversRoute, protocolsRoute,
     shieldRoute, settingsRoute, adminsRoute, auditRoute, statusRoute,
-    funnelRoute,
+    funnelRoute, eventsRoute,
   ]),
 ]);
 

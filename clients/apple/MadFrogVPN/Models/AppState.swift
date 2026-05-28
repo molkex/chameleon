@@ -17,6 +17,35 @@ class AppState {
     let commandClient = CommandClientWrapper()
     let pingService = PingService()
 
+    /// USR-09 Phase 2 — client-side event sink. See EventTracker.swift.
+    /// Lazy because we need configStore.accessToken accessible from the
+    /// tracker's flush closure, and the store is set up before AppState
+    /// is fully built only via the closure-capture dance below.
+    @ObservationIgnored
+    private(set) lazy var eventTracker: EventTracker = {
+        let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
+        let versionString = "\(appVersion) (\(build))"
+        #if os(macOS)
+        let platform = "macos"
+        #else
+        let platform = "ios"
+        #endif
+        let storage: URL = {
+            let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+                ?? FileManager.default.temporaryDirectory
+            return support.appendingPathComponent("madfrog-events.json")
+        }()
+        return EventTracker(
+            api: apiClient,
+            storage: storage,
+            appVersion: versionString,
+            platform: platform,
+            deviceID: PlatformDevice.identifier,
+            tokenProvider: { [weak self] in self?.configStore.accessToken }
+        )
+    }()
+
     @ObservationIgnored private(set) lazy var subscriptionManager: SubscriptionManager = {
         SubscriptionManager { [weak self] signedJWS in
             guard let self, let token = self.configStore.accessToken else {
@@ -223,9 +252,33 @@ class AppState {
         hasInitialized = true
         isInitialized = true
 
+        // USR-09 Phase 2 — start the event tracker. Restores any persisted
+        // queue and schedules the foreground flush timer. The launch event
+        // is logged once per cold start so we can chart DAU vs MAU from
+        // app-side instead of relying purely on /config touches.
+        await eventTracker.start()
+        await eventTracker.log(
+            name: "app.launch",
+            properties: ["authenticated": isAuthenticated]
+        )
+
         // Refresh config silently on app launch (only if already signed in)
         if configStore.username != nil {
             await silentConfigUpdate()
+        }
+    }
+
+    /// Forwarded from the SwiftUI scene's `.onChange(of: scenePhase)`.
+    /// USR-09 Phase 2 — every foreground/background transition is a good
+    /// flush trigger: we want batches sent before the OS suspends us, and
+    /// we want a quick top-up while the user is actively using the app.
+    func handleScenePhaseChange(active: Bool) async {
+        if active {
+            await eventTracker.flushNow()
+            await eventTracker.log(name: "app.foreground", properties: nil)
+        } else {
+            await eventTracker.log(name: "app.background", properties: nil)
+            await eventTracker.flushNow()
         }
     }
 
@@ -901,6 +954,16 @@ class AppState {
 
             TunnelFileLogger.log("toggleVPN: preflight OK, calling vpnManager.connect", category: "ui")
 
+            // USR-09 Phase 2 — record connect intent. server tag is the
+            // selected country/leaf urltest the cascade will start from.
+            await eventTracker.log(
+                name: "vpn.connect.start",
+                properties: [
+                    "server": selectedServerTag ?? "",
+                    "routing": routingMode.rawValue,
+                ]
+            )
+
             do {
                 try await vpnManager.connect(configJSON: config)
                 TunnelFileLogger.log("toggleVPN: vpnManager.connect returned OK", category: "ui")
@@ -911,6 +974,13 @@ class AppState {
                 } else {
                     errorMessage = VPNErrorMapper.humanMessage(error)
                 }
+                await eventTracker.log(
+                    name: "vpn.connect.fail",
+                    properties: [
+                        "stage": "vpnmanager_connect",
+                        "reason": "\(error)",
+                    ]
+                )
                 return
             }
 
@@ -932,6 +1002,10 @@ class AppState {
                 // first connect (without this, the chip stayed blank until the
                 // user backgrounded + foregrounded the app).
                 handleStatus()
+                await eventTracker.log(
+                    name: "vpn.connect.success",
+                    properties: ["server": selectedServerTag ?? ""]
+                )
                 break
             case .failed:
                 TunnelFileLogger.log("toggleVPN: watchdog — extension rejected connection", category: "ui")
@@ -939,15 +1013,27 @@ class AppState {
                 errorMessage = VPNErrorMapper.anotherVPNActive()
                     ? L10n.Error.anotherVPNActive
                     : L10n.Error.serverRejected
+                await eventTracker.log(
+                    name: "vpn.connect.fail",
+                    properties: ["stage": "watchdog", "reason": "rejected"]
+                )
                 return
             case .permissionDenied:
                 TunnelFileLogger.log("toggleVPN: watchdog — permission denied", category: "ui")
                 vpnManager.disconnect()
                 errorMessage = VPNErrorMapper.permissionMissing
+                await eventTracker.log(
+                    name: "vpn.connect.fail",
+                    properties: ["stage": "watchdog", "reason": "permission_denied"]
+                )
                 return
             case .timedOut:
                 vpnManager.disconnect()
                 errorMessage = VPNErrorMapper.watchdogTimeout
+                await eventTracker.log(
+                    name: "vpn.connect.fail",
+                    properties: ["stage": "watchdog", "reason": "timeout"]
+                )
                 return
             }
 

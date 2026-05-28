@@ -136,6 +136,14 @@ func RegisterRoutes(g *echo.Group, h *Handler, jwtManager *auth.JWTManager) {
 	g.GET("/status", h.GetStatus, adminMW)
 	g.GET("/status/apple", h.GetAppleState, adminMW)
 	g.GET("/status/handshake-errors", h.GetHandshakeErrors, adminMW)
+
+	// App-event stream — USR-09 Phase 2 (2026-05-28). Reads from the
+	// app_events table the mobile /events/batch endpoint populates.
+	// Read-only; visible to admin/operator/viewer.
+	events := g.Group("/events", adminMW)
+	events.GET("", h.ListAppEvents)
+	events.GET("/counts", h.AppEventCounts)
+	events.GET("/names", h.AppEventNames)
 }
 
 // RequireAdmin returns middleware that allows only `admin` role through.
