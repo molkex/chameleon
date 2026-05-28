@@ -153,14 +153,26 @@ if [ -n "${MEM_TOTAL:-}" ] && [ "${MEM_TOTAL:-0}" -gt 0 ]; then
 fi
 
 # ── swap ───────────────────────────────────────────────────────────────────
-# Heavy swap use = memory pressure even when free shows headroom. Threshold
-# 10% catches the early sign without alerting on the rounding-induced 0-50MB
-# baseline some kernels keep. Skip cleanly when swap is disabled (total=0).
-read -r SWAP_TOTAL SWAP_USED < <(free -b 2>/dev/null | awk '/^Swap:/ {print $2, $3}')
+# Heavy swap use = memory pressure, but ONLY when paired with low available
+# RAM. The kernel proactively swaps out idle pages on container hosts after
+# every `docker compose up` (dockerd's heap, sleeping process anon pages),
+# even though Mem is still healthy — `available > 700 MiB` and `cache > 500
+# MiB` together mean we have plenty of room. A solo 10% threshold spammed
+# every deploy with false "memory pressure" alerts (2026-05-28 incident).
+#
+# Real pressure looks like: swap > 40% AND available < 200 MiB. Both
+# conditions must hold — either alone is harmless on a 1.9 GiB Docker host.
+# Skip cleanly when swap is disabled (total=0).
+read -r SWAP_TOTAL SWAP_USED MEM_AVAIL < <(
+    free -b 2>/dev/null | awk '
+        /^Mem:/  {avail=$7}
+        /^Swap:/ {print $2, $3, avail}'
+)
 if [ -n "${SWAP_TOTAL:-}" ] && [ "${SWAP_TOTAL:-0}" -gt 0 ]; then
     SWAP_PCT=$((SWAP_USED * 100 / SWAP_TOTAL))
-    if [ "$SWAP_PCT" -ge 10 ]; then
-        alert "swap" "⚠️ <b>$HOSTNAME</b>: swap usage ${SWAP_PCT}% (memory pressure, threshold 10%)"
+    AVAIL_MB=$((${MEM_AVAIL:-0} / 1024 / 1024))
+    if [ "$SWAP_PCT" -ge 40 ] && [ "$AVAIL_MB" -lt 200 ]; then
+        alert "swap" "⚠️ <b>$HOSTNAME</b>: memory pressure — swap ${SWAP_PCT}%, available ${AVAIL_MB} MiB"
     else
         clear_alert "swap"
     fi
