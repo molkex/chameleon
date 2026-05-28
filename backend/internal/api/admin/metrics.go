@@ -44,7 +44,7 @@ func collectSystemMetrics() systemMetrics {
 
 	// RAM: parse /proc/meminfo
 	if f, err := os.Open("/proc/meminfo"); err == nil {
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 		var totalKB, availKB int64
 		scanner := bufio.NewScanner(f)
 		for scanner.Scan() {

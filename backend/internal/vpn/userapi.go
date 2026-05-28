@@ -82,7 +82,7 @@ func (c *UserAPIClient) AddUser(ctx context.Context, user VPNUser) error {
 	if err != nil {
 		return fmt.Errorf("user-api: request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusCreated {
 		return nil
@@ -104,7 +104,7 @@ func (c *UserAPIClient) RemoveUser(ctx context.Context, username string) error {
 	if err != nil {
 		return fmt.Errorf("user-api: request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusOK {
 		return nil
@@ -145,7 +145,7 @@ func (c *UserAPIClient) ReplaceUsers(ctx context.Context, users []VPNUser) error
 	if err != nil {
 		return fmt.Errorf("user-api: request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusOK {
 		return nil
@@ -167,7 +167,7 @@ func (c *UserAPIClient) Health(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusOK {
 		return nil

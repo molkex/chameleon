@@ -196,7 +196,7 @@ func (v *GoogleVerifier) fetchJWKS(wantKID string) error {
 	if err != nil {
 		return fmt.Errorf("auth/google: fetch JWKS: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("auth/google: JWKS status %d", resp.StatusCode)

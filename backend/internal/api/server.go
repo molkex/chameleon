@@ -123,7 +123,11 @@ func (s *Server) setupMiddleware(e *echo.Echo) {
 	}))
 
 	// 6. Timeout — abort request processing after 30 seconds.
-	e.Use(echomw.TimeoutWithConfig(echomw.TimeoutConfig{
+	// ContextTimeoutWithConfig is the non-deprecated replacement for the
+	// older TimeoutWithConfig middleware (which had architectural data-race
+	// issues; see echo docs). It uses Go's context cancellation so handlers
+	// observe the deadline via c.Request().Context().
+	e.Use(echomw.ContextTimeoutWithConfig(echomw.ContextTimeoutConfig{
 		Timeout: 30 * time.Second,
 	}))
 }

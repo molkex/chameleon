@@ -80,7 +80,7 @@ func (s *ResendSender) Send(ctx context.Context, msg Message) error {
 	if err != nil {
 		return fmt.Errorf("resend http: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode >= 400 {

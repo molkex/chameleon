@@ -89,7 +89,7 @@ func main() {
 
 	http.HandleFunc("/health", auth(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	}))
 
 	http.HandleFunc("/api/cluster/node-status", auth(func(w http.ResponseWriter, r *http.Request) {
@@ -130,7 +130,7 @@ func main() {
 		// Detect running services.
 		resp.Containers = detectServices()
 
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 
 	addr := fmt.Sprintf("%s:%d", *bindAddr, *port)
@@ -172,7 +172,7 @@ func ramMB() (used, total float64) {
 	if err != nil {
 		return 0, 0
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var totalKB, availKB int64
 	scanner := bufio.NewScanner(f)

@@ -5,12 +5,14 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/labstack/echo/v4"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
 	"github.com/chameleonvpn/chameleon/internal/db"
@@ -470,14 +472,16 @@ func (h *Handler) RefreshToken(c echo.Context) error {
 	key := fmt.Sprintf("mrt:used:%s", hex.EncodeToString(rtHash[:]))
 	ttl := 30 * 24 * time.Hour // Keep blacklist entry for 30 days
 
-	ok, err := h.Redis.SetNX(ctx, key, "1", ttl).Result()
-	if err != nil {
-		h.Logger.Error("mobile refresh: redis error", zap.Error(err))
+	// SetArgs with Mode:"NX" is the non-deprecated replacement for SetNX
+	// (as of Redis 2.6.12 / go-redis v9). On condition-failed Redis returns
+	// (nil), which surfaces as redis.Nil in go-redis.
+	if _, serr := h.Redis.SetArgs(ctx, key, "1", redis.SetArgs{Mode: "NX", TTL: ttl}).Result(); serr != nil {
+		if errors.Is(serr, redis.Nil) {
+			h.Logger.Warn("mobile refresh: token reuse attempt", zap.Int64("user_id", claims.UserID))
+			return c.JSON(http.StatusUnauthorized, ErrorResponse{Error: "refresh token already used"})
+		}
+		h.Logger.Error("mobile refresh: redis error", zap.Error(serr))
 		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
-	}
-	if !ok {
-		h.Logger.Warn("mobile refresh: token reuse attempt", zap.Int64("user_id", claims.UserID))
-		return c.JSON(http.StatusUnauthorized, ErrorResponse{Error: "refresh token already used"})
 	}
 
 	tokens, err := h.JWT.CreateTokenPair(claims.UserID, claims.Username, claims.Role)

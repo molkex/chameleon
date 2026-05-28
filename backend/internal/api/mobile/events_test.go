@@ -25,15 +25,14 @@ import (
 // caller. We don't use a mock framework because Echo handlers are
 // trivially testable with httptest.
 
-// fakeBatchInserter captures InsertAppEvents calls for assertions. It
-// satisfies the parts of *db.DB the handler touches when the handler is
-// invoked via the test seam below.
-type fakeBatchInserter struct {
-	called    bool
-	got       []eventInsertSnapshot
-	returnN   int64
-	returnErr error
-}
+// fakeBatchInserter is a placeholder for a future test seam that captures
+// InsertAppEvents calls for assertions. The current event_test.go suite
+// short-circuits the DB pathway by leaving Handler.DB nil and only
+// exercises the handler's input validation surface, so this struct
+// currently has no fields. When DB-side assertions are wired in, add
+// fields like `got []eventInsertSnapshot` / `returnErr error` here and
+// have the test seam populate them on call.
+type fakeBatchInserter struct{}
 
 type eventInsertSnapshot struct {
 	UserID     int64

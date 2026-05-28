@@ -471,7 +471,7 @@ func (h *Handler) buildRelayNodes(ctx context.Context) []nodeResponse {
 		start := time.Now()
 		conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", ri.ip, ri.ports[0]), 2*time.Second)
 		if err == nil {
-			conn.Close()
+			_ = conn.Close()
 			active = true
 			ms := int(time.Since(start).Milliseconds())
 			latency = &ms
@@ -510,7 +510,7 @@ func fetchPeerStatus(ctx context.Context, peerURL string, clusterSecret string) 
 	if err != nil {
 		return nodeResponse{}, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 256))

@@ -147,21 +147,6 @@ later:
 # TECH-DEBT — known smells, cataloged but not blocking
 # ============================================================
 tech_debt:
-  - id: TD-LINT-01
-    title: golangci-lint full set (errcheck / staticcheck / unused)
-    status: deferred
-    surfaced: 2026-05-28
-    findings: ~22 pre-existing
-    breakdown:
-      errcheck: 9    # mostly defer resp.Body.Close() / defer f.Close()
-      staticcheck_deprecations: 8   # redis.SetNX, echomw.TimeoutWithConfig, grpc.DialContext
-      staticcheck_style: 3          # QF1008 embedded field, S1011 loop→append, QF1001 De Morgan
-      unused: 2                     # configBuildMarker const, v2rayStatsClient.close method
-      sa4000_real_bug: 1            # auth_blacklist_key_test.go:52 identical expressions
-    current_config:
-      file: backend/.golangci.yml
-      enabled: [govet, ineffassign, unconvert, misspell]   # conservative; extend after cleanup pass
-
   - id: TD-LIBBOX-FETCH
     title: Wire scripts/fetch-libbox.sh
     status: workaround_in_place
@@ -197,6 +182,7 @@ done:
   "2026-05-28":
     - id: TD-LINT-02
       title: react-hooks 7.0.1 strict rules — promoted purity + set-state-in-effect to `error`
+      pr: 7
       notes: |
         Refactored 4 set-state-in-effect findings (users / audit / events / settings)
         into handler-driven page-1 resets; settings.tsx uses the React 19
@@ -204,6 +190,15 @@ done:
         form from TanStack Query. Fixed 1 purity finding in components/ui/sidebar.tsx
         skeleton (Math.random in useMemo → useState lazy initializer).
         eslint.config.js promotes both rules to error.
+    - id: TD-LINT-01
+      title: Closed Go lint debt — fixed 40 pre-existing findings, enabled errcheck/staticcheck/unused in backend/.golangci.yml
+      pr: 6
+      notes: |
+        errcheck 23 (defer resp.Body.Close / f.Close / conn.Close + 2 json.Encode);
+        staticcheck deprecations 6 (redis.SetNX → SetArgs Mode:NX in admin/auth.go, mobile/auth.go, middleware/idempotency.go; echomw.TimeoutWithConfig → ContextTimeoutWithConfig in api/server.go; grpc.DialContext+WithBlock → grpc.NewClient in vpn/stats_v2ray.go);
+        staticcheck style 4 (QF1008 embedded Duration field x2, S1011 loop→append, QF1001 De Morgan);
+        unused 6 (configBuildMarker const, v2rayStatsClient.close method, 4 unused fields on fakeBatchInserter test struct);
+        SA4000 real bug 1 (auth_blacklist_key_test.go:52 — stable-key test was tautological, now stores into separate vars so the regression assertion actually compares two calls).
     - id: USR-09-Phase-2
       title: iOS EventTracker → backend app_events → admin /events page (full vertical)
       pr: 3
@@ -261,7 +256,7 @@ done:
 stats:
   open_now: 1                 # IAP-APPROVE
   open_next: ~14
-  tech_debt_items: 3
+  tech_debt_items: 2
   decisions_documented: 6     # ADRs in decisions/
   incidents_documented: 2     # MED-015 + Apple 2.3
   playbooks_documented: 3     # apple-reject-recovery, ios-cli-release, deploy-nl
