@@ -185,6 +185,24 @@ deferred:
 # ============================================================
 done:
   "2026-05-28":
+    - id: MON-04-HEALTH
+      title: Dashboard System Health strip + golden-signal Telegram alerts (5xx/p95/monitoring)
+      files:
+        - backend/internal/api/admin/infra.go
+        - backend/internal/api/admin/infra_test.go
+        - backend/scripts/health-check.sh
+        - clients/admin/src/pages/dashboard.tsx
+      notes: |
+        Surfaces MON-04 data natively in the admin instead of an iframe.
+        New GET /admin/stats/infra proxies 11 instant PromQL to local
+        Prometheus (127.0.0.1:9091) → compact "System Health" strip atop the
+        dashboard (Four Golden Signals + host CPU/RAM/disk + live VPN +
+        scrape-target health). Never 500s: Prometheus-down → muted state.
+        Alerts: extended host-level health-check.sh (NOT Grafana alerting —
+        follows the existing telegram-alert.sh → @MadFrogRobot convention)
+        with the two golden signals it couldn't see — Errors (5xx ≥5%) and
+        Latency (p95 ≥2000ms) — plus monitoring-stack self-health (Prometheus
+        unreachable / scrape target down). Fail-open if python3 absent.
     - id: PAYWALL-TRACKING
       title: Instrument WebPaywallView + PaywallRouter with EventTracker (close RU funnel blind spot)
       pr: 23

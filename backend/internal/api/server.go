@@ -253,6 +253,10 @@ func (s *Server) setupRoutes(e *echo.Echo) {
 		ClusterSecret: s.Config.Cluster.Secret,
 		ASC:           ascClient,
 		ASCAppID:      os.Getenv("ASC_APP_ID"),
+		// MON-04: local Prometheus for the dashboard health strip. Env
+		// override for non-default binds; empty falls back to the
+		// docker-compose bind (127.0.0.1:9091) inside infra.go.
+		PrometheusURL: os.Getenv("PROMETHEUS_URL"),
 	}
 
 	// Primary admin routes: /api/v1/admin/* (matches React SPA base path)

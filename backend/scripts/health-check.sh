@@ -194,3 +194,89 @@ if [ -f "$BACKUP_OK" ]; then
 fi
 # If the sentinel doesn't exist yet (first deploy on this host), don't
 # alert — db-backup.sh will create it on first successful run.
+
+# ── Prometheus-backed golden signals (MON-04) ────────────────────────────────
+# The checks above cover liveness + saturation (USE). The two signals they
+# can't see from the host alone are Errors and Latency (the "RED" of the Four
+# Golden Signals) — those live in Prometheus. We also alert if the monitoring
+# stack itself goes blind (Prometheus unreachable or a scrape target down),
+# because a dead Prometheus means the dashboard health strip and these very
+# checks stop meaning anything.
+#
+# Entirely fail-open: if python3 is missing the whole block is skipped, so a
+# host without it keeps all the checks above. Queries that return no data
+# (idle backend, metric not yet observed) neither alert nor clear — they're
+# simply inconclusive. Reuses the same alert()/MIN_FAILS/rate-limit machinery,
+# so a Prometheus restart during deploy won't page.
+PROM_URL="${PROM_URL:-http://127.0.0.1:9091}"
+
+if command -v python3 >/dev/null 2>&1; then
+    # prom_scalar <promql> → prints the first sample's value, or "" on any
+    # failure / empty result / NaN. Does fetch + parse in one python3 call so
+    # we don't depend on curl/wget URL-encoding of PromQL special chars.
+    prom_scalar() {
+        PROM_URL="$PROM_URL" python3 - "$1" <<'PY'
+import sys, os, json, urllib.parse, urllib.request
+base = os.environ.get("PROM_URL", "http://127.0.0.1:9091")
+url = base + "/api/v1/query?" + urllib.parse.urlencode({"query": sys.argv[1]})
+try:
+    with urllib.request.urlopen(url, timeout=4) as r:
+        d = json.load(r)
+    res = d.get("data", {}).get("result", [])
+    v = res[0]["value"][1] if res else ""
+    print("" if v in ("NaN", "", None) else v)
+except Exception:
+    print("")
+PY
+    }
+
+    # Reachability probe — exits 0 when Prometheus answers a trivial query.
+    if PROM_URL="$PROM_URL" python3 - <<'PY'
+import os, sys, urllib.request
+base = os.environ.get("PROM_URL", "http://127.0.0.1:9091")
+try:
+    urllib.request.urlopen(base + "/api/v1/query?query=1", timeout=4).read()
+    sys.exit(0)
+except Exception:
+    sys.exit(1)
+PY
+    then
+        clear_alert "prometheus"
+
+        # Scrape targets up — count(up == 0) is the number of DOWN targets.
+        # An empty result means zero down (count over no matching series is
+        # empty, not 0), so normalise "" → 0.
+        DOWN=$(prom_scalar 'count(up == 0)')
+        [ -z "$DOWN" ] && DOWN=0
+        if awk "BEGIN{exit !(${DOWN%.*} >= 1)}"; then
+            alert "monitoring" "⚠️ <b>$HOSTNAME</b>: ${DOWN%.*} Prometheus scrape target(s) DOWN"
+        else
+            clear_alert "monitoring"
+        fi
+
+        # HTTP 5xx error rate over 5m (percent of all requests). clamp_min
+        # guards divide-by-zero on an idle backend → 0%, not NaN.
+        ERR5XX=$(prom_scalar '100 * sum(rate(chameleon_http_request_duration_seconds_count{status_class="5xx"}[5m])) / clamp_min(sum(rate(chameleon_http_request_duration_seconds_count[5m])), 1)')
+        if [ -n "$ERR5XX" ]; then
+            if awk "BEGIN{exit !($ERR5XX >= 5)}"; then
+                alert "http-5xx" "⚠️ <b>$HOSTNAME</b>: HTTP 5xx error rate $(printf '%.1f' "$ERR5XX")% (threshold 5%)"
+            else
+                clear_alert "http-5xx"
+            fi
+        fi
+
+        # p95 request latency over 5m, in milliseconds. 2000ms is well above
+        # this API's normal p95 (<100ms) — a sustained breach means real
+        # degradation, not jitter.
+        P95=$(prom_scalar 'histogram_quantile(0.95, sum(rate(chameleon_http_request_duration_seconds_bucket[5m])) by (le)) * 1000')
+        if [ -n "$P95" ]; then
+            if awk "BEGIN{exit !($P95 >= 2000)}"; then
+                alert "http-latency" "⚠️ <b>$HOSTNAME</b>: HTTP p95 latency $(printf '%.0f' "$P95")ms (threshold 2000ms)"
+            else
+                clear_alert "http-latency"
+            fi
+        fi
+    else
+        alert "prometheus" "⚠️ <b>$HOSTNAME</b>: Prometheus not responding on ${PROM_URL}"
+    fi
+fi
