@@ -171,6 +171,13 @@
 "servers.ping.ms"                = "%d ms";
 "servers.ping.unknown"           = "— ms";
 "servers.refresh"                = "Refresh pings";
+"servers.ping.button"            = "Ping";
+"servers.ping.all"               = "Ping all";
+"servers.ping.failed"            = "—";
+"servers.ping.measuring"         = "Measuring ping";
+"servers.ping.button.a11y"       = "Measure ping";
+"servers.ping.refresh.a11y"      = "Re-measure ping";
+"servers.ping.all.a11y"          = "Re-measure ping for every server";
 "servers.country.nl"             = "Netherlands";
 "servers.country.de"             = "Germany";
 "servers.country.ru"             = "Russia";

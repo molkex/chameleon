@@ -171,6 +171,13 @@
 "servers.ping.ms"                = "%d мс";
 "servers.ping.unknown"           = "— мс";
 "servers.refresh"                = "Обновить пинги";
+"servers.ping.button"            = "Пинг";
+"servers.ping.all"               = "Пинг всех";
+"servers.ping.failed"            = "—";
+"servers.ping.measuring"         = "Измеряется пинг";
+"servers.ping.button.a11y"       = "Измерить пинг";
+"servers.ping.refresh.a11y"      = "Перемерить пинг";
+"servers.ping.all.a11y"          = "Перемерить пинг всех серверов";
 "servers.country.nl"             = "Нидерланды";
 "servers.country.de"             = "Германия";
 "servers.country.ru"             = "Россия";

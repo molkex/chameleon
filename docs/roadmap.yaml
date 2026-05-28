@@ -38,9 +38,6 @@ next:
     - id: LAUNCH-10
       title: Live Activity / Dynamic Island for active VPN session
       priority: P1
-    - id: LAUNCH-11
-      title: Manual per-server ping in server picker
-      priority: P1
     - id: LAUNCH-12
       title: uTLS fingerprint rotation (chrome → firefox / safari / random)
       priority: P1
@@ -163,6 +160,7 @@ done:
   "2026-05-28":
     - id: LAUNCH-07
       title: Auto-connect on untrusted Wi-Fi via NEOnDemandRule (+ optional cellular)
+      pr: 11
       files:
         - clients/apple/MadFrogVPN/Models/VPNManager.swift
         - clients/apple/MadFrogVPN/Models/AppState.swift
@@ -182,6 +180,7 @@ done:
         isOnDemandEnabled to honour iOS Settings off-switch.
     - id: LAUNCH-08
       title: Disconnect notification on OS-initiated drops (UNUserNotificationCenter)
+      pr: 11
       files:
         - clients/apple/MadFrogVPN/Models/DisconnectNotifier.swift
         - clients/apple/MadFrogVPN/Models/AppState.swift
@@ -197,6 +196,24 @@ done:
         .disconnected). Authorization requested once on first successful
         connect; AppNotificationDelegate posts .vpnReconnectRequested when
         the "Reconnect" action fires, scene observer routes to AppState.toggleVPN().
+    - id: LAUNCH-11
+      title: Manual per-server ping in server picker (per-row button + "Ping all" toolbar)
+      pr: 12
+      files:
+        - clients/apple/MadFrogVPN/Models/PingResult.swift
+        - clients/apple/MadFrogVPN/Models/PingService.swift
+        - clients/apple/MadFrogVPN/Views/MainView.swift
+      notes: |
+        New PingStatus enum (idle / measuring / success / failed) layered on
+        top of the existing PingService cache. probeSingle(server) and
+        probeManualAll(servers) run best-of-3 sequential probes with 200 ms
+        gaps; minimum non-zero RTT wins. UI state machine in CountryServersView:
+        idle+cached → badge + ↻, idle+empty → "Ping" CTA, measuring → spinner,
+        success → badge + ↻, failed → "—" with red dot. "Ping all" toolbar
+        button next to the config-refresh button — separate so users can
+        re-measure without hammering backend. VPN-up case handled by the
+        existing prohibitedInterfaceTypes=[.other] bypass in measureTCP /
+        measureQUIC — probes never go through the tunnel.
     - id: TD-LINT-02
       title: react-hooks 7.0.1 strict rules — promoted purity + set-state-in-effect to `error`
       pr: 7
@@ -307,7 +324,7 @@ done:
 # ============================================================
 stats:
   open_now: 1                 # IAP-APPROVE
-  open_next: ~10              # LAUNCH-01/03/07/08 all closed 2026-05-28
+  open_next: ~9               # LAUNCH-01/03/07/08/11 all closed 2026-05-28
   tech_debt_items: 1          # TD-LINT-01/02/DE-PRUNE all closed 2026-05-28; only TD-LIBBOX-FETCH remains
   decisions_documented: 7     # ADRs in decisions/ (added 0007-sentry-eu-crash-reporting)
   incidents_documented: 2     # MED-015 + Apple 2.3
