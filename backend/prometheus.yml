@@ -3,11 +3,19 @@
 # Scrapes:
 #   - chameleon backend /metrics (port 8000, 127.0.0.1) — all our custom
 #     instrumentation: VPN throughput, signups, payments, HTTP/DB latency,
-#     Redis cache hit/miss, Go runtime.
+#     Redis cache hit/miss, Go runtime. The backend ALSO polls sing-box's
+#     clash API every 15s and re-emits the data as `chameleon_vpn_*`
+#     metrics — so we get sing-box visibility through this single scrape.
 #   - node_exporter (port 9100, 127.0.0.1) — host CPU / RAM / disk /
 #     network from /proc + /sys.
-#   - sing-box clash API (port 9090, 127.0.0.1) — Prometheus-compatible
-#     metrics endpoint emitting active proxy / connection counts.
+#
+# sing-box's clash API on :9090 emits JSON (/version, /connections,
+# /traffic), NOT Prometheus text. We tried scraping it directly and
+# Prometheus logged "404 Not Found" every 15s. The right path is via
+# chameleon's MetricsRegistry.RefreshVPNStats() goroutine — already
+# covered above. If we ever need raw sing-box internals (handshake
+# durations etc.), add a sidecar exporter rather than expecting
+# sing-box to grow a Prometheus endpoint.
 #
 # 15s scrape interval is comfortable for our cardinality (~50 series),
 # and 7-day retention (set on the container command line) covers weekly
@@ -36,12 +44,3 @@ scrape_configs:
       - targets: ['127.0.0.1:9100']
         labels:
           service: 'node-exporter'
-
-  # sing-box clash API — exposes /metrics in Prometheus format (since
-  # sing-box 1.10+). Connection counts + interface throughput.
-  - job_name: 'singbox'
-    metrics_path: '/metrics'
-    static_configs:
-      - targets: ['127.0.0.1:9090']
-        labels:
-          service: 'singbox'
