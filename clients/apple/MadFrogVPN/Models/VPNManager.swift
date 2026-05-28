@@ -104,6 +104,116 @@ class VPNManager {
         }
     }
 
+    // MARK: - LAUNCH-07 Auto-connect on Untrusted Wi-Fi
+
+    /// Errors thrown by `applyAutoConnectRules` so the UI can show a real
+    /// reason rather than a generic toast. `noManager` happens when the user
+    /// hasn't approved the VPN profile yet — the Settings toggle still lets
+    /// them queue their preference, but we can't install rules until the
+    /// tunnel exists, so the call no-ops here. `saveFailed` wraps the
+    /// underlying NEVPNError so the toast can include the system message.
+    enum OnDemandError: Error {
+        case noManager
+        case saveFailed(Error)
+    }
+
+    /// Build + apply the LAUNCH-07 NEOnDemandRule chain. Pure no-op when no
+    /// `NETunnelProviderManager` has been saved yet — the rules can't exist
+    /// without a tunnel profile to attach them to, so the Settings UI is
+    /// free to flip the toggle pre-permission; the rules will be installed
+    /// the first time the user connects.
+    ///
+    /// Rule shape when `enabled == true`:
+    ///   1. `NEOnDemandRuleIgnore` { interfaceTypeMatch: .wiFi, ssidMatch: trusted }
+    ///        — On a known SSID, do nothing. We chose Ignore over Disconnect
+    ///        so a manually-started session on the home network isn't torn.
+    ///   2. `NEOnDemandRuleConnect` { interfaceTypeMatch: .wiFi }
+    ///        — Any other Wi-Fi: bring the tunnel up.
+    ///   3. (only if `includeCellular`) `NEOnDemandRuleConnect`
+    ///      { interfaceTypeMatch: .cellular }
+    ///        — Default OFF: cellular is opt-in (battery, data cap).
+    ///
+    /// When `enabled == false` we set `isOnDemandEnabled = false` AND clear
+    /// `onDemandRules = []`. Apple's docs say `isOnDemandEnabled = false`
+    /// alone is sufficient, but iOS has a long history of stale-rule bugs
+    /// — leaving an unused chain on the profile has bitten users on iOS 14
+    /// + iOS 15. Empty array is the safe state.
+    func applyAutoConnectRules(
+        enabled: Bool,
+        trustedSSIDs: [String],
+        includeCellular: Bool
+    ) async throws {
+        guard let m = manager else {
+            // Caller already persisted the user's preference via ConfigStore;
+            // VPNManager will pick the rules up on the first `connect()` call.
+            throw OnDemandError.noManager
+        }
+
+        let rules = Self.buildOnDemandRules(
+            enabled: enabled,
+            trustedSSIDs: trustedSSIDs,
+            includeCellular: includeCellular
+        )
+        m.onDemandRules = rules
+        m.isOnDemandEnabled = enabled
+
+        do {
+            try await m.saveToPreferences()
+            // saveToPreferences invalidates the existing in-memory snapshot;
+            // re-load to keep .connection observers wired.
+            try await m.loadFromPreferences()
+            Self.logger.info("applyAutoConnectRules: enabled=\(enabled) trusted=\(trustedSSIDs.count) cellular=\(includeCellular)")
+        } catch {
+            throw OnDemandError.saveFailed(error)
+        }
+    }
+
+    /// Pure rule-array builder. Public + `nonisolated` so unit tests can
+    /// drive it without standing up a full VPNManager. Apple's `NEOnDemandRule`
+    /// types are Sendable-compatible enough for use here (they're NSObject
+    /// subclasses with simple property setters).
+    nonisolated static func buildOnDemandRules(
+        enabled: Bool,
+        trustedSSIDs: [String],
+        includeCellular: Bool
+    ) -> [NEOnDemandRule] {
+        guard enabled else { return [] }
+
+        var rules: [NEOnDemandRule] = []
+
+        // Trim + dedupe defensively — ConfigStore.addTrustedSSID already does
+        // this on write, but we can be invoked with externally-supplied data
+        // (tests, future watchOS sync) so don't trust the input shape.
+        let trimmed = trustedSSIDs
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        // Rule 1: trusted SSID → ignore. Skipped entirely when the list is
+        // empty — an Ignore rule with `ssidMatch = []` would mean "match no
+        // SSID" and the Connect rule below would fire on every Wi-Fi anyway,
+        // but pruning the empty rule keeps the rule chain tidy.
+        if !trimmed.isEmpty {
+            let ignore = NEOnDemandRuleIgnore()
+            ignore.interfaceTypeMatch = .wiFi
+            ignore.ssidMatch = trimmed
+            rules.append(ignore)
+        }
+
+        // Rule 2: any other Wi-Fi → connect.
+        let connectWiFi = NEOnDemandRuleConnect()
+        connectWiFi.interfaceTypeMatch = .wiFi
+        rules.append(connectWiFi)
+
+        // Rule 3 (optional): cellular → connect.
+        if includeCellular {
+            let connectCellular = NEOnDemandRuleConnect()
+            connectCellular.interfaceTypeMatch = .cellular
+            rules.append(connectCellular)
+        }
+
+        return rules
+    }
+
     func disconnect() {
         userInitiatedDisconnect = true
         // Disable On Demand so iOS doesn't auto-reconnect after explicit disconnect

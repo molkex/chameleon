@@ -1,5 +1,6 @@
 import SwiftUI
 import Libbox
+import UserNotifications
 
 @main
 struct MadFrogVPNApp: App {
@@ -35,6 +36,12 @@ struct MadFrogVPNApp: App {
         } else {
             TunnelFileLogger.logSync("MadFrogVPNApp: LibboxSetup OK base=\(opts.basePath)", category: "ui")
         }
+
+        // LAUNCH-08: claim the notification center delegate slot before any
+        // notification request lands. iOS routes "Reconnect" taps through
+        // this delegate; without it our action button would just open the
+        // app with no follow-through.
+        UNUserNotificationCenter.current().delegate = AppNotificationDelegate.shared
     }
 
     var body: some Scene {
@@ -52,12 +59,30 @@ struct MadFrogVPNApp: App {
             .environment(themeManager)
             .task { await appState.initialize() }
             .task {
+                // LAUNCH-08: register the notification category once so the
+                // disconnect alert lands with a "Reconnect" action button.
+                // Idempotent; safe to re-run on every launch.
+                appState.disconnectNotifier.registerCategory()
+            }
+            .task {
                 // Wire best-effort server sync: local is source of truth,
                 // so errors are swallowed and the UI is never blocked.
                 themeManager.remoteSync = { [weak appState] themeID in
                     guard let token = appState?.configStore.accessToken else { return }
                     Task.detached {
                         try? await appState?.apiClient.setTheme(themeID, accessToken: token)
+                    }
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .vpnReconnectRequested)) { _ in
+                // LAUNCH-08: action button → AppNotificationDelegate posted
+                // a Darwin-free NotificationCenter event. Re-enter via
+                // toggleVPN() so the same single-flight guard + preflight
+                // probe a manual tap goes through is honoured.
+                Task { @MainActor in
+                    appState.disconnectNotifier.dismissDelivered()
+                    if !appState.vpnManager.isConnected {
+                        await appState.toggleVPN()
                     }
                 }
             }
@@ -138,6 +163,71 @@ struct MadFrogVPNApp: App {
 
 extension Notification.Name {
     static let paymentReturnFromLink = Notification.Name("madfrog.paymentReturnFromLink")
+    /// LAUNCH-08 — posted by `AppNotificationDelegate` when the user taps
+    /// the "Reconnect" action on the disconnect banner. The SwiftUI scene
+    /// listens via `.onReceive(...)` and calls `AppState.toggleVPN()`.
+    static let vpnReconnectRequested = Notification.Name("madfrog.vpnReconnectRequested")
+}
+
+/// LAUNCH-08 — `UNUserNotificationCenterDelegate` for the main app. iOS
+/// invokes `didReceive` when the user taps the disconnect banner or its
+/// "Reconnect" action. We forward to a `NotificationCenter` event so the
+/// SwiftUI scene (which owns `AppState`) can drive the actual reconnect on
+/// the MainActor — the delegate itself runs on a background queue by default,
+/// and we don't want to capture the AppState reference here.
+final class AppNotificationDelegate: NSObject, UNUserNotificationCenterDelegate, @unchecked Sendable {
+    /// Singleton — `UNUserNotificationCenter.delegate` is `weak`, so storing
+    /// it as a per-app `@State` would let ARC reap it before iOS routes a
+    /// tap. The shared instance lives for the process lifetime.
+    static let shared = AppNotificationDelegate()
+
+    override init() {
+        super.init()
+    }
+
+    /// Foreground delivery: if the user happens to be looking at the app
+    /// while a notification fires, prefer NOT showing the OS banner — the
+    /// in-app UI already reflects the disconnected state and a banner is
+    /// redundant. `DisconnectNotifier.record(...)` also gates on
+    /// `isAppActive` and shouldn't schedule when foreground, so this is a
+    /// belt-and-braces guard for the race where a status update arrives
+    /// after a background→foreground transition.
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping @Sendable (UNNotificationPresentationOptions) -> Void
+    ) {
+        let id = notification.request.identifier
+        if id == AppConstants.disconnectNotificationID {
+            completionHandler([])
+        } else {
+            completionHandler([.banner, .sound])
+        }
+    }
+
+    /// Tap handler. For the disconnect notification: if the user tapped the
+    /// "Reconnect" action OR the body of the banner (defaultActionIdentifier
+    /// — implicit "open the app"), we kick off a reconnect via the
+    /// NotificationCenter relay. Other identifiers are ignored.
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping @Sendable () -> Void
+    ) {
+        defer { completionHandler() }
+        let id = response.notification.request.identifier
+        guard id == AppConstants.disconnectNotificationID else { return }
+
+        let actionID = response.actionIdentifier
+        let shouldReconnect =
+            actionID == AppConstants.disconnectNotificationReconnectActionID ||
+            actionID == UNNotificationDefaultActionIdentifier
+        guard shouldReconnect else { return }
+
+        // Cross the process-affinity boundary via NotificationCenter — the
+        // SwiftUI scene observer picks this up on the MainActor.
+        NotificationCenter.default.post(name: .vpnReconnectRequested, object: nil)
+    }
 }
 
 private extension View {

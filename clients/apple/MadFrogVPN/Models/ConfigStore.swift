@@ -116,6 +116,70 @@ class ConfigStore {
         set { sharedDefaults?.set(newValue, forKey: AppConstants.autoRecoverEnabledKey) }
     }
 
+    // MARK: - LAUNCH-07 Auto-connect on Untrusted Wi-Fi
+
+    /// User-visible "Connect on untrusted Wi-Fi" toggle. Default OFF so we
+    /// never silently install On-Demand rules — the user must opt in. When
+    /// flipped ON, VPNManager rebuilds `manager.onDemandRules` to:
+    ///   1. Ignore rule for `.wiFi` matching `trustedWiFiSSIDs` (home/office)
+    ///   2. Connect rule for any other `.wiFi`
+    ///   3. (Optional) Connect rule for `.cellular` — gated by
+    ///      `autoConnectOnCellular`.
+    /// Default OFF on first read.
+    var autoConnectOnUntrustedWiFi: Bool {
+        get { sharedDefaults?.bool(forKey: AppConstants.autoConnectUntrustedWiFiKey) ?? false }
+        set { sharedDefaults?.set(newValue, forKey: AppConstants.autoConnectUntrustedWiFiKey) }
+    }
+
+    /// Optional cellular companion to `autoConnectOnUntrustedWiFi`. When ON
+    /// the On-Demand rule set also covers `.cellular` — i.e. the VPN comes
+    /// up on LTE/5G automatically. Kept independent of the Wi-Fi flag so a
+    /// user who wants Wi-Fi-only auto-connect (the common case) isn't forced
+    /// into the cellular battery hit. Default OFF.
+    var autoConnectOnCellular: Bool {
+        get { sharedDefaults?.bool(forKey: AppConstants.autoConnectCellularKey) ?? false }
+        set { sharedDefaults?.set(newValue, forKey: AppConstants.autoConnectCellularKey) }
+    }
+
+    /// SSIDs the user trusts (home Wi-Fi, office) — VPN is NOT auto-connected
+    /// when the device joins one of these. Stored as a `[String]` in App Group
+    /// UserDefaults so the future PacketTunnel-side hooks can read the same
+    /// list. Order-preserving for UI; duplicate/blank entries are filtered on
+    /// add (see `addTrustedSSID`).
+    ///
+    /// Apple restricts live SSID introspection since iOS 13 (requires
+    /// CoreLocation auth + active location use, and even then returns
+    /// `_undefined` on the simulator). We do NOT detect the current SSID
+    /// programmatically — the user enters these strings manually. The
+    /// On-Demand rule engine in NetworkExtension still gets to read the
+    /// real SSID OS-side; we only have to provide the trusted list.
+    var trustedWiFiSSIDs: [String] {
+        get { sharedDefaults?.stringArray(forKey: AppConstants.trustedWiFiSSIDsKey) ?? [] }
+        set { sharedDefaults?.set(newValue, forKey: AppConstants.trustedWiFiSSIDsKey) }
+    }
+
+    /// Append `ssid` if not blank and not already present. Returns the new
+    /// list. Pulled out so the Settings UI doesn't have to re-implement the
+    /// "trim + dedupe" rules and so unit tests can exercise them.
+    @discardableResult
+    func addTrustedSSID(_ ssid: String) -> [String] {
+        let trimmed = ssid.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return trustedWiFiSSIDs }
+        var current = trustedWiFiSSIDs
+        guard !current.contains(trimmed) else { return current }
+        current.append(trimmed)
+        trustedWiFiSSIDs = current
+        return current
+    }
+
+    @discardableResult
+    func removeTrustedSSID(_ ssid: String) -> [String] {
+        var current = trustedWiFiSSIDs
+        current.removeAll { $0 == ssid }
+        trustedWiFiSSIDs = current
+        return current
+    }
+
     // MARK: - Config Save/Load
 
     func saveConfig(_ jsonString: String) throws {

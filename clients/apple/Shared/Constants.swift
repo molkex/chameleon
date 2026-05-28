@@ -153,4 +153,37 @@ enum AppConstants {
     // One-shot migration guards. Each key, once set, prevents the migration
     // from running again on subsequent launches. Bumped per release.
     static let migrationLeafToCountryV32Key = "migration.leafToCountry.v32"
+
+    // LAUNCH-07: Auto-connect on untrusted Wi-Fi via NEOnDemandRule.
+    // All three live in App Group UserDefaults so the PacketTunnel extension
+    // could read them in the future (today only the main app writes the rules).
+    /// Bool, default OFF. When ON the manager carries On-Demand rules that
+    /// auto-trigger the VPN on any Wi-Fi whose SSID is NOT in the trusted list.
+    static let autoConnectUntrustedWiFiKey = "autoConnect.untrustedWiFi"
+    /// Bool, default OFF. Separate opt-in for cellular. When ON the rule set
+    /// also includes a `.cellular` Connect rule so the VPN comes up on LTE/5G.
+    /// Kept separate from the Wi-Fi toggle because the UX implications differ
+    /// (battery, mobile data cap) — users in censored countries can enable it,
+    /// everyone else leaves it OFF.
+    static let autoConnectCellularKey = "autoConnect.cellular"
+    /// `[String]` of SSIDs the user trusts (home, office). When the device is
+    /// on one of these networks, the On-Demand rules tell iOS to NOT bring up
+    /// the VPN. Stored verbatim — Apple has restricted live SSID introspection
+    /// since iOS 13, so the user enters these manually rather than us
+    /// auto-detecting the current network's name.
+    static let trustedWiFiSSIDsKey = "autoConnect.trustedSSIDs"
+
+    // LAUNCH-08: Disconnect notification.
+    /// Persistent flag set after we've asked the user for notification
+    /// authorisation at least once. Used so we don't keep retrying the
+    /// authorisation request every connect attempt.
+    static let disconnectNotifyAuthRequestedKey = "disconnectNotify.authRequested"
+    /// UNNotificationCategory identifier for the "VPN disconnected" alert
+    /// with its "Reconnect" action button.
+    static let disconnectNotificationCategoryID = "vpn-disconnect"
+    /// UNNotificationRequest identifier for the disconnect alert. Reused so
+    /// a repeated drop while one is still on screen replaces in place.
+    static let disconnectNotificationID = "vpn-disconnect"
+    /// Action identifier for the "Reconnect" button on the disconnect alert.
+    static let disconnectNotificationReconnectActionID = "RECONNECT"
 }
