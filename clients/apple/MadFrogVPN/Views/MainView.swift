@@ -409,6 +409,27 @@ struct ServerListView: View {
                         Image(systemName: "arrow.clockwise")
                     }
                 }
+                // LAUNCH-11 — manual "Ping all". Separate from the config
+                // refresh button because that one talks to the backend +
+                // libbox; this one only re-runs our out-of-band TCP/QUIC
+                // probe (best-of-3 per server) and is what the user
+                // actually wants when they don't trust the cached ms
+                // numbers.
+                ToolbarItem(placement: PlatformToolbarPlacement.leading.resolved) {
+                    Button {
+                        TunnelFileLogger.log("TAP: manual ping all (\(allServers.count) servers)", category: "ui")
+                        Task { await app.pingService.probeManualAll(allServers) }
+                    } label: {
+                        if app.pingService.isProbing {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Image(systemName: "wave.3.right")
+                        }
+                    }
+                    .disabled(app.pingService.isProbing || allServers.isEmpty)
+                    .accessibilityLabel(Text("servers.ping.all.a11y", comment: "VoiceOver: re-measure latency for every server"))
+                }
             }
         }
     }
@@ -592,38 +613,45 @@ private struct CountryServersView: View {
     var body: some View {
         List {
             ForEach(sortedServers, id: \.tag) { server in
-                Button {
-                    TunnelFileLogger.log("TAP: server row '\(server.tag)'", category: "ui")
-                    if let group = app.servers.first(where: { $0.type == "selector" && $0.selectable }) {
-                        app.selectServer(groupTag: group.tag, serverTag: server.tag)
+                // Split into two regions inside the row:
+                //   - selection area on the left (icon + label + spacer)
+                //     wrapped in a Button that picks the server and dismisses
+                //   - a separate per-row PingControl that captures its own
+                //     taps for manual probing without selecting the row.
+                // Nesting two Buttons inside a single List row works as long
+                // as both use a non-bordered/plain style and the outer one
+                // doesn't claim the inner's hit region via contentShape.
+                HStack(spacing: 12) {
+                    Button {
+                        TunnelFileLogger.log("TAP: server row '\(server.tag)'", category: "ui")
+                        if let group = app.servers.first(where: { $0.type == "selector" && $0.selectable }) {
+                            app.selectServer(groupTag: group.tag, serverTag: server.tag)
+                        }
+                        dismiss()
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: server.isHysteria ? "bolt.horizontal.fill" : "network")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 28)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(server.displayLabel)
+                                    .font(.body.weight(.medium))
+                                    .foregroundStyle(.primary)
+                            }
+                            Spacer(minLength: 8)
+                        }
+                        .contentShape(Rectangle())
                     }
-                    dismiss()
-                } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: server.isHysteria ? "bolt.horizontal.fill" : "network")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 28)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(server.displayLabel)
-                                .font(.body.weight(.medium))
-                                .foregroundStyle(.primary)
-                        }
-                        Spacer()
-                        let ms = ping(server)
-                        if ms > 0 {
-                            PingBadge(ms: ms)
-                        } else {
-                            PingSkeleton()
-                        }
-                        if app.selectedServerTag == server.tag {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(Color.accentColor)
-                        }
+                    .buttonStyle(.plain)
+
+                    PingControl(server: server, pingService: app.pingService)
+
+                    if app.selectedServerTag == server.tag {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(Color.accentColor)
                     }
-                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
             }
         }
         .platformInsetGroupedList()
@@ -668,5 +696,118 @@ private struct PingBadge: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
             .background(color.opacity(0.15), in: Capsule())
+    }
+}
+
+/// Per-server manual-ping control (LAUNCH-11).
+///
+/// Renders one of four UI states based on `PingService.status(for:)`:
+///   - `.idle` with no cached RTT → "Ping" button
+///   - `.idle` with cached RTT     → cached PingBadge + small refresh button
+///   - `.measuring`                → ProgressView spinner
+///   - `.success(ms)`              → PingBadge + small refresh button
+///   - `.failed`                   → "—" with a red dot
+///
+/// Tapping kicks off `pingService.probeSingle(server)` in a detached task so
+/// the row stays responsive. The plain `let` reference is enough — SwiftUI
+/// auto-tracks any `@Observable` property the view reads, so changes to
+/// `pingService.statuses[server.tag]` (or `.results[server.tag]`) trigger
+/// a row re-render without any explicit binding.
+private struct PingControl: View {
+    let server: ServerItem
+    let pingService: PingService
+
+    private var status: PingStatus { pingService.status(for: server.tag) }
+    private var cachedMs: Int { pingService.latency(for: server.tag) }
+
+    var body: some View {
+        // Single switch over the manual lifecycle. Cached "best-known" RTT
+        // from the bulk probe is shown when no manual probe is in flight
+        // and no manual probe has yet failed — so the user sees their
+        // last-good number until they explicitly tap to re-measure.
+        switch status {
+        case .measuring:
+            ProgressView()
+                .controlSize(.small)
+                .frame(width: 60, height: 24)
+                .accessibilityLabel(Text("servers.ping.measuring", comment: "VoiceOver: probe in flight"))
+        case .success(let ms):
+            HStack(spacing: 4) {
+                PingBadge(ms: ms)
+                refreshButton
+            }
+        case .failed:
+            HStack(spacing: 4) {
+                FailedBadge()
+                refreshButton
+            }
+        case .idle:
+            if cachedMs > 0 {
+                HStack(spacing: 4) {
+                    PingBadge(ms: cachedMs)
+                    refreshButton
+                }
+            } else {
+                pingButton
+            }
+        }
+    }
+
+    /// Primary "Ping" call-to-action shown when there's no value to display.
+    /// Sized to roughly match a PingBadge so rows stay aligned across states.
+    private var pingButton: some View {
+        Button {
+            TunnelFileLogger.log("TAP: manual ping '\(server.tag)'", category: "ui")
+            Task { await pingService.probeSingle(server) }
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: "wave.3.right")
+                    .font(.caption2.weight(.semibold))
+                Text(L10n.Servers.pingButton)
+                    .font(.caption.weight(.semibold))
+            }
+            .foregroundStyle(Color.accentColor)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(Color.accentColor.opacity(0.15), in: Capsule())
+        }
+        .buttonStyle(.borderless)
+        .accessibilityLabel(Text("servers.ping.button.a11y", comment: "VoiceOver: re-measure latency"))
+    }
+
+    /// Compact arrow-clockwise that appears next to a badge once we have any
+    /// value to show. Lets the user re-measure without touching the row.
+    private var refreshButton: some View {
+        Button {
+            TunnelFileLogger.log("TAP: manual ping refresh '\(server.tag)'", category: "ui")
+            Task { await pingService.probeSingle(server) }
+        } label: {
+            Image(systemName: "arrow.clockwise")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .padding(5)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+        .accessibilityLabel(Text("servers.ping.refresh.a11y", comment: "VoiceOver: re-measure latency"))
+    }
+}
+
+/// "Failed" pill — replaces PingBadge when the most recent manual probe
+/// timed out. Red dot to draw attention without the loud full-red background
+/// of the error toast.
+private struct FailedBadge: View {
+    var body: some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(Color.red)
+                .frame(width: 6, height: 6)
+            Text(L10n.Servers.pingFailed)
+                .font(.caption.monospaced().weight(.semibold))
+                .foregroundStyle(.red)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .background(Color.red.opacity(0.12), in: Capsule())
     }
 }

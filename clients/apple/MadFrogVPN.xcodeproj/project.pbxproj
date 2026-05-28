@@ -45,6 +45,7 @@
 		257EBD7478C60BBF3249C4D4 /* MadFrogControlWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 162DBA8410559B43321EB197 /* MadFrogControlWidget.swift */; };
 		27118EF86F80BE16990516DF /* StringUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = D231623164FE9FECAD770789 /* StringUtils.swift */; };
 		29395303030F6B15D4E0F443 /* ServerTagShapeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA66DA58C2FEC081307F44D9 /* ServerTagShapeTests.swift */; };
+		293CDB56B03F408A3A8B6D0F /* PingResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13544CC236C9C3C6C0D6366 /* PingResult.swift */; };
 		2AA4A088C59F575FA98E5305 /* WebPaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F6C0D910C8814F24440E9B4 /* WebPaywallView.swift */; };
 		2B7F76187D6350C135133CFF /* TunnelStallProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B77B8C83804315DF2505934 /* TunnelStallProbe.swift */; };
 		2C7219DBE9E489EF766980D5 /* ConfigSanitizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E043C787773D9E89FA561E25 /* ConfigSanitizer.swift */; };
@@ -111,6 +112,7 @@
 		760F21B10CA8DDD0C31D1379 /* GoogleAuthCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85938B035247DB5D54633361 /* GoogleAuthCoordinator.swift */; };
 		771D7D152382CD54123F1A34 /* SingBoxConfigPatcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B0F8A49025B0790BD2D4EC7 /* SingBoxConfigPatcherTests.swift */; };
 		784370B2D90EDC4B68A5B75C /* Libbox.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C18C942EF28864C26636822B /* Libbox.xcframework */; };
+		79F2C7E77EF95A509AFDA477 /* PingResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13544CC236C9C3C6C0D6366 /* PingResult.swift */; };
 		7A67986856838A6A79A77E10 /* WidgetVPNSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DF255FC3085B56FF435958B /* WidgetVPNSnapshot.swift */; };
 		7C73E2608B0041FD1CABB1B0 /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9165FAC1D21DF4F01B68654F /* PaywallView.swift */; };
 		7CAC52EDD7D631FEED620424 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 52F25CA4945E63F7C3CB0355 /* PrivacyInfo.xcprivacy */; };
@@ -383,6 +385,7 @@
 		9BFE7E8B5C268A8B4E1F44C8 /* SingBoxConfigPatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SingBoxConfigPatcher.swift; sourceTree = "<group>"; };
 		9DAE6BD983F80C55AB4D1F5F /* VPNControlIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VPNControlIntents.swift; sourceTree = "<group>"; };
 		9E3E0B15FC93A31007046BA1 /* UniformTypeIdentifiers.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UniformTypeIdentifiers.framework; path = System/Library/Frameworks/UniformTypeIdentifiers.framework; sourceTree = SDKROOT; };
+		A13544CC236C9C3C6C0D6366 /* PingResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PingResult.swift; sourceTree = "<group>"; };
 		A630BB5B9993A8152A622ED3 /* CoreWLAN.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreWLAN.framework; path = System/Library/Frameworks/CoreWLAN.framework; sourceTree = SDKROOT; };
 		A68B252ED056950D8E56A513 /* CrashReporterSanitizeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashReporterSanitizeTests.swift; sourceTree = "<group>"; };
 		AAC8BAE4A43BD5B41A19063D /* CrashReporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashReporter.swift; sourceTree = "<group>"; };
@@ -655,6 +658,7 @@
 				FCCF7452218980C7681CEDA6 /* Haptics.swift */,
 				F48680996CDA6DA1906F2747 /* L10n.swift */,
 				6F0B078C63922A356A8633EF /* PathPicker.swift */,
+				A13544CC236C9C3C6C0D6366 /* PingResult.swift */,
 				233EE0ACC559229ABE75CF28 /* PingService.swift */,
 				157CE480F9510B6FCF6A5C00 /* PlatformMainApp.swift */,
 				DF2F273346C080E186A4A490 /* ServerGroup.swift */,
@@ -1022,6 +1026,7 @@
 				13082BC2A19418CDE5ED74CC /* PathPicker.swift in Sources */,
 				3BF98D7ADE7ABDDECE5AE129 /* PaywallRouter.swift in Sources */,
 				17B4D7844403A6DDB8F9CE93 /* PaywallView.swift in Sources */,
+				79F2C7E77EF95A509AFDA477 /* PingResult.swift in Sources */,
 				FB39ED8E57B4542A46C56166 /* PingService.swift in Sources */,
 				23ED595CF63572E126B9C141 /* PlatformDevice.swift in Sources */,
 				22B86C4525296EE55F075B77 /* PlatformMainApp.swift in Sources */,
@@ -1114,6 +1119,7 @@
 				EF5E827749DD0C1EA3B794CF /* PathPicker.swift in Sources */,
 				7357B9F5EF2917364CD9F875 /* PaywallRouter.swift in Sources */,
 				7C73E2608B0041FD1CABB1B0 /* PaywallView.swift in Sources */,
+				293CDB56B03F408A3A8B6D0F /* PingResult.swift in Sources */,
 				C7E3D59FFCDB47DD245F2449 /* PingService.swift in Sources */,
 				5CD7449941DEE7DDF53F8C06 /* PlatformDevice.swift in Sources */,
 				84989A41436A64D9E3293095 /* PlatformMainApp.swift in Sources */,

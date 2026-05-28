@@ -21,6 +21,12 @@ final class PingService {
     /// True while at least one probe is in flight.
     var isProbing = false
 
+    /// Per-server manual-probe lifecycle state. Distinct from `results` —
+    /// see `PingStatus` doc-comment. Only the entries the user has
+    /// explicitly tapped (or that the "Ping all" toolbar action enqueued)
+    /// live here; everything else is implicitly `.idle`.
+    var statuses: [String: PingStatus] = [:]
+
     private let timeout: TimeInterval = 2.0
     // Bump key when measurement semantics change so cached numbers from old
     // builds (which sometimes got stuck at sub-10ms localhost-relayed values)
@@ -115,6 +121,124 @@ final class PingService {
     /// Latency for a given server tag, or 0 if not yet measured / failed.
     func latency(for tag: String) -> Int {
         results[tag] ?? 0
+    }
+
+    // MARK: - Manual probe (LAUNCH-11)
+
+    /// Manual-probe lifecycle status for a server. Always defined — a server
+    /// the user has never touched manually reports `.idle`.
+    func status(for tag: String) -> PingStatus {
+        statuses[tag] ?? .idle
+    }
+
+    /// User-initiated re-measure of a single server. Sets status to
+    /// `.measuring` immediately (so the UI can swap the button for a
+    /// spinner), then runs best-of-3 sequential probes with 200 ms gaps
+    /// to smooth out TCP-handshake noise, and reports `.success(ms:)`
+    /// (the minimum non-zero RTT) or `.failed` if every attempt failed.
+    ///
+    /// The "best of 3" rule:
+    ///   - TCP SYN/ACK timing on a busy iOS device has ~10–40 ms of jitter
+    ///     from scheduler hiccups and Wi-Fi PSP wake delays. A single sample
+    ///     can mislead users into thinking a server is worse than it is.
+    ///   - We sample 3 times with 200 ms gaps (enough for the kernel to
+    ///     release the previous socket and for any AP power-save cycle to
+    ///     not bunch the samples) and report the minimum — the best the
+    ///     server can do over the user's current physical link.
+    ///   - A successful sample (`ms > 0`) is enough; we don't average so a
+    ///     single failure among 3 doesn't blow up the result.
+    ///
+    /// Cancels itself cleanly via `Task.checkCancellation()` checkpoints so
+    /// the view dismissing (and cancelling its `.task`) doesn't keep
+    /// sockets open in the background.
+    func probeSingle(_ server: ServerItem) async {
+        guard !server.host.isEmpty, server.port > 0 else {
+            statuses[server.tag] = .failed
+            return
+        }
+        statuses[server.tag] = .measuring
+        let result = await Self.bestOfThree(host: server.host,
+                                            port: server.port,
+                                            type: server.type,
+                                            timeout: timeout)
+        if Task.isCancelled {
+            // Task was cancelled mid-flight (typically the parent view's
+            // `.task` got cancelled by view dismissal). Roll status back so
+            // a stale spinner doesn't haunt the row next time the view
+            // appears with this PingService instance still alive.
+            statuses[server.tag] = .idle
+            return
+        }
+        if result > 0 {
+            statuses[server.tag] = .success(ms: result)
+            results[server.tag] = result
+            saveCache()
+        } else {
+            statuses[server.tag] = .failed
+            // Don't clobber a previously-good cached value — the user can
+            // still see the last-known number alongside the red dot if they
+            // dig in via the country list (which reads `results`, not
+            // `statuses`).
+        }
+    }
+
+    /// Fan-out manual re-measure of every server in `targets`. Runs the
+    /// per-server `probeSingle` flows in parallel via TaskGroup — each
+    /// server still gets best-of-3 internally, but countries fan out so
+    /// the "Ping all" button finishes in roughly worst-case-server time
+    /// rather than sum-of-servers.
+    func probeManualAll(_ targets: [ServerItem]) async {
+        let filtered = targets.filter { !$0.host.isEmpty && $0.port > 0 }
+        guard !filtered.isEmpty else { return }
+        isProbing = true
+        defer { isProbing = false }
+        // Mark every target as .measuring up-front so the whole list flips
+        // to spinners atomically; otherwise rows would light up one by one
+        // as their async task happened to grab the main actor.
+        for server in filtered {
+            statuses[server.tag] = .measuring
+        }
+        await withTaskGroup(of: Void.self) { group in
+            for server in filtered {
+                group.addTask { [weak self] in
+                    await self?.probeSingle(server)
+                }
+            }
+        }
+    }
+
+    /// Best-of-3 sequential probes with a 200 ms gap. Returns the minimum
+    /// non-zero RTT, or 0 if all 3 attempts failed. Picks the right
+    /// transport (TCP / QUIC) via `transportFor(type:)`.
+    nonisolated private static func bestOfThree(host: String,
+                                                port: Int,
+                                                type: String,
+                                                timeout: TimeInterval) async -> Int {
+        let transport = transportFor(type: type)
+        var best = 0
+        for attempt in 0..<3 {
+            if Task.isCancelled { break }
+            let ms: Int
+            switch transport {
+            case .tcp:
+                ms = await measureTCP(host: host, port: port, timeout: timeout)
+            case .quic:
+                // Same fallback logic as the bulk probe — TUIC's silent-drop
+                // on unauthenticated Initials looks like a 0-RTT failure;
+                // fall back to TCP :443 on the same host for a real RTT.
+                let quicMs = await measureQUIC(host: host, port: port, timeout: timeout + 3.0)
+                ms = quicMs > 0 ? quicMs : await measureTCP(host: host, port: 443, timeout: timeout)
+            }
+            if ms > 0, best == 0 || ms < best {
+                best = ms
+            }
+            // 200 ms gap between attempts. Skip the gap after the last
+            // attempt to keep the manual ping snappy.
+            if attempt < 2 {
+                try? await Task.sleep(nanoseconds: 200_000_000)
+            }
+        }
+        return best
     }
 
     // MARK: - Persistence
