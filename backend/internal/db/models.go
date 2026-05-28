@@ -82,6 +82,12 @@ type VPNServer struct {
 	Notes            string    `db:"notes"              json:"notes"`
 	Hysteria2Port    *int      `db:"hysteria2_port"     json:"hysteria2_port,omitempty"`
 	TUICPort         *int      `db:"tuic_port"          json:"tuic_port,omitempty"`
+	// Shadowsocks (chacha20-ietf-poly1305). Server-wide password — classic SS
+	// in sing-box has no multi-user support on chacha20 (only SS-2022 does).
+	// Used by routers (Keenetic+kvas, OpenWrt) that can't run VLESS Reality.
+	// Both nullable; both must be set for the inbound to come up.
+	ShadowsocksPort     *int    `db:"shadowsocks_port"     json:"shadowsocks_port,omitempty"`
+	ShadowsocksPassword *string `db:"shadowsocks_password" json:"-"`
 	// Role distinguishes exit nodes (foreign, direct egress — existing
 	// behaviour) from relay nodes (RU-whitelisted entry points that chain
 	// via WireGuard to exits). See migration 010 and

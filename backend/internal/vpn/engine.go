@@ -63,6 +63,11 @@ type EngineConfig struct {
 	TUICPort      int    // TUIC v5 UDP listen port; 0 = disabled
 	UDPCertPath   string // path to TLS certificate PEM for Hysteria2/TUIC (inside container)
 	UDPKeyPath    string // path to TLS private key PEM for Hysteria2/TUIC (inside container)
+	// Shadowsocks TCP — server-wide password (classic chacha20 in sing-box has
+	// no multi-user). Inbound only comes up when port>0 AND password!="".
+	// Used by routers (Keenetic+kvas etc.) that can't natively run VLESS Reality.
+	ShadowsocksPort     int    // Shadowsocks TCP listen port; 0 = disabled
+	ShadowsocksPassword string // shared password; empty = disabled
 }
 
 // RealityConfig holds VLESS Reality TLS settings.

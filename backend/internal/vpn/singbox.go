@@ -726,6 +726,21 @@ func (e *SingboxEngine) buildInboundsLocked(users []singboxUser, sni string, sho
 		})
 	}
 
+	// Shadowsocks (chacha20-ietf-poly1305) — server-wide password mode.
+	// Lives outside the VLESS/H2/TUIC trio because it's not consumed by the
+	// mobile app (the app uses VLESS Reality). Sole consumer is home routers
+	// (Keenetic+kvas, OpenWrt) that ship with shadowsocks-libev natively.
+	if e.cfg.ShadowsocksPort > 0 && e.cfg.ShadowsocksPassword != "" {
+		inbounds = append(inbounds, singboxShadowsocksInbound{
+			Type:       "shadowsocks",
+			Tag:        "shadowsocks-in",
+			Listen:     "::",
+			ListenPort: e.cfg.ShadowsocksPort,
+			Method:     "chacha20-ietf-poly1305",
+			Password:   e.cfg.ShadowsocksPassword,
+		})
+	}
+
 	return inbounds
 }
 
@@ -985,6 +1000,15 @@ type singboxTUICUser struct {
 	Name     string `json:"name"`
 	UUID     string `json:"uuid"`
 	Password string `json:"password"`
+}
+
+type singboxShadowsocksInbound struct {
+	Type       string `json:"type"`
+	Tag        string `json:"tag"`
+	Listen     string `json:"listen"`
+	ListenPort int    `json:"listen_port"`
+	Method     string `json:"method"`
+	Password   string `json:"password"`
 }
 
 type singboxUDPTLS struct {

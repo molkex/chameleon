@@ -154,7 +154,6 @@ deferred:
 # ============================================================
 done:
   "2026-05-28":
-<<<<<<< HEAD
     - id: LAUNCH-07
       title: Auto-connect on untrusted Wi-Fi via NEOnDemandRule (+ optional cellular)
       pr: 11

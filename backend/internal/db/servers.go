@@ -13,6 +13,7 @@ import (
 const serverColumns = `id, key, name, flag, host, port, domain, sni, reality_public_key, reality_private_key, is_active, sort_order,
 	provider_name, cost_monthly, provider_url, provider_login, provider_password, notes,
 	hysteria2_port, tuic_port,
+	shadowsocks_port, shadowsocks_password,
 	role, country_code, user_api_url, category,
 	created_at, updated_at`
 
@@ -57,6 +58,7 @@ func (db *DB) scanServers(rows pgx.Rows) ([]VPNServer, error) {
 			&s.Domain, &s.SNI, &s.RealityPublicKey, &s.RealityPrivateKey, &s.IsActive, &s.SortOrder,
 			&s.ProviderName, &s.CostMonthly, &s.ProviderURL, &s.ProviderLogin, &s.ProviderPassword, &s.Notes,
 			&s.Hysteria2Port, &s.TUICPort,
+			&s.ShadowsocksPort, &s.ShadowsocksPassword,
 			&s.Role, &s.CountryCode, &s.UserAPIURL, &s.Category,
 			&s.CreatedAt, &s.UpdatedAt,
 		)
@@ -176,6 +178,7 @@ func (db *DB) CreateServer(ctx context.Context, s *VPNServer) (*VPNServer, error
 		&created.Domain, &created.SNI, &created.RealityPublicKey, &created.RealityPrivateKey, &created.IsActive, &created.SortOrder,
 		&created.ProviderName, &created.CostMonthly, &created.ProviderURL, &created.ProviderLogin, &created.ProviderPassword, &created.Notes,
 		&created.Hysteria2Port, &created.TUICPort,
+		&created.ShadowsocksPort, &created.ShadowsocksPassword,
 		&created.Role, &created.CountryCode, &created.UserAPIURL, &created.Category,
 		&created.CreatedAt, &created.UpdatedAt,
 	)
@@ -226,6 +229,7 @@ func (db *DB) UpdateServer(ctx context.Context, id int64, s *VPNServer) (*VPNSer
 		&updated.Domain, &updated.SNI, &updated.RealityPublicKey, &updated.RealityPrivateKey, &updated.IsActive, &updated.SortOrder,
 		&updated.ProviderName, &updated.CostMonthly, &updated.ProviderURL, &updated.ProviderLogin, &updated.ProviderPassword, &updated.Notes,
 		&updated.Hysteria2Port, &updated.TUICPort,
+		&updated.ShadowsocksPort, &updated.ShadowsocksPassword,
 		&updated.Role, &updated.CountryCode, &updated.UserAPIURL, &updated.Category,
 		&updated.CreatedAt, &updated.UpdatedAt,
 	)
@@ -262,6 +266,7 @@ func (db *DB) FindServerByKey(ctx context.Context, key string) (*VPNServer, erro
 		&s.Domain, &s.SNI, &s.RealityPublicKey, &s.RealityPrivateKey, &s.IsActive, &s.SortOrder,
 		&s.ProviderName, &s.CostMonthly, &s.ProviderURL, &s.ProviderLogin, &s.ProviderPassword, &s.Notes,
 		&s.Hysteria2Port, &s.TUICPort,
+		&s.ShadowsocksPort, &s.ShadowsocksPassword,
 		&s.Role, &s.CountryCode, &s.UserAPIURL, &s.Category,
 		&s.CreatedAt, &s.UpdatedAt,
 	)
@@ -289,6 +294,7 @@ func (db *DB) FindServerByID(ctx context.Context, id int64) (*VPNServer, error) 
 		&s.Domain, &s.SNI, &s.RealityPublicKey, &s.RealityPrivateKey, &s.IsActive, &s.SortOrder,
 		&s.ProviderName, &s.CostMonthly, &s.ProviderURL, &s.ProviderLogin, &s.ProviderPassword, &s.Notes,
 		&s.Hysteria2Port, &s.TUICPort,
+		&s.ShadowsocksPort, &s.ShadowsocksPassword,
 		&s.Role, &s.CountryCode, &s.UserAPIURL, &s.Category,
 		&s.CreatedAt, &s.UpdatedAt,
 	)

@@ -57,6 +57,12 @@ vpn:
   udp_cert_path: ""
   udp_key_path: ""
 
+  # Shadowsocks TCP — used by routers (Keenetic+kvas, OpenWrt) that ship with
+  # shadowsocks-libev natively and can't run VLESS Reality. Port set per-node
+  # in deploy.sh; password sourced from env (single server-wide secret).
+  shadowsocks_port: 0
+  shadowsocks_password: "${SHADOWSOCKS_PASSWORD}"
+
   reality:
     # Keys loaded from vpn_servers DB table at startup (per-node).
     # Env var fallback: REALITY_PRIVATE_KEY, REALITY_PUBLIC_KEY (deprecated).

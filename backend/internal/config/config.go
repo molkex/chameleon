@@ -165,6 +165,11 @@ type VPNConfig struct {
 	TUICPort      int    `yaml:"tuic_port"`       // 0 = disabled
 	UDPCertPath   string `yaml:"udp_cert_path"`   // path inside container, e.g. /etc/singbox/server.crt
 	UDPKeyPath    string `yaml:"udp_key_path"`    // path inside container, e.g. /etc/singbox/server.key
+	// Shadowsocks TCP (chacha20-ietf-poly1305) — server-wide password.
+	// Used by routers (Keenetic+kvas etc.) without VLESS Reality support.
+	// Inbound only comes up when BOTH port>0 AND password is set.
+	ShadowsocksPort     int    `yaml:"shadowsocks_port"`     // 0 = disabled
+	ShadowsocksPassword string `yaml:"shadowsocks_password"` // supports ${ENV_VAR}; empty = disabled
 }
 
 // RealityConfig holds VLESS Reality protocol settings.
@@ -313,6 +318,9 @@ func (c *Config) resolveAllEnvVars() {
 
 	// VPN User API
 	c.VPN.UserAPISecret = resolveEnvVars(c.VPN.UserAPISecret)
+
+	// VPN Shadowsocks
+	c.VPN.ShadowsocksPassword = resolveEnvVars(c.VPN.ShadowsocksPassword)
 
 	// Cluster
 	c.Cluster.Secret = resolveEnvVars(c.Cluster.Secret)
