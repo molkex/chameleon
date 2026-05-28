@@ -3,14 +3,10 @@
 <plist version="1.0">
 <dict>
     <!--
-        PacketTunnel extension privacy manifest — bundled with both
-        PacketTunnel (iOS) and PacketTunnelMac (macOS), which share
-        this source folder via XcodeGen.
-
-        The extension does NOT collect data on its own; it only reads
-        UserDefaults to coordinate with the main app via the App Group
-        (config, VPN state timestamps, stall-probe signals). Data
-        collection is declared by the main app's manifest.
+        MadFrogWidget privacy manifest — Home/Lock-screen widget +
+        iOS-18 ControlWidget. Reads App Group UserDefaults to render
+        current VPN connection state (see WidgetVPNSnapshot.swift).
+        No data collection from this binary on its own.
     -->
 
     <key>NSPrivacyTracking</key>
@@ -25,10 +21,9 @@
     <key>NSPrivacyAccessedAPITypes</key>
     <array>
         <!--
-            UserDefaults — reason CA92.1: read/write App Group
-            UserDefaults to share VPN connection state, persisted
-            sing-box config and stall-probe timestamps with the main
-            app (see TunnelStallProbe.swift, ExtensionProvider.swift).
+            UserDefaults — reason CA92.1: read App Group UserDefaults
+            to surface connected/disconnected state and selected server
+            in the widget UI.
         -->
         <dict>
             <key>NSPrivacyAccessedAPIType</key>

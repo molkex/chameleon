@@ -53,15 +53,9 @@
 		<false/>
 		<key>NSExceptionDomains</key>
 		<dict>
-			<key>162.19.242.30</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<true/>
-				<key>NSExceptionRequiresForwardSecrecy</key>
-				<false/>
-				<key>NSExceptionMinimumTLSVersion</key>
-				<string>TLSv1.2</string>
-			</dict>
+			<!-- TD-DE-PRUNE 2026-05-28: 162.19.242.30 (DE/OVH Frankfurt)
+			     ATS exception removed — DE retired 2026-05-25 and is no
+			     longer in AppConfig.directBackendIPs. -->
 			<key>147.45.252.234</key>
 			<dict>
 				<key>NSExceptionAllowsInsecureHTTPLoads</key>

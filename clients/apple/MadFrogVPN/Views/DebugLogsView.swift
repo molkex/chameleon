@@ -408,16 +408,15 @@ struct DebugLogsView: View {
     }
 
     private func testAllEndpoints() async {
+        // TD-DE-PRUNE 2026-05-28: DE (162.19.242.30) retired, removed from
+        // probe list — those endpoints are guaranteed to fail and would just
+        // produce confusing red ❌ in the diagnostics report.
         let tcpEndpoints: [(name: String, host: String, port: UInt16)] = [
             // SPB Relay
-            ("SPB Relay → DE :443",     "185.218.0.43", 443),
-            ("SPB Relay → DE :2096",    "185.218.0.43", 2096),
             ("SPB Relay → NL (VLESS)",  "185.218.0.43", 2098),
             ("SPB Relay HTTP",          "185.218.0.43", 80),
             ("SPB Relay HTTPS",         "185.218.0.43", 443),
             // Direct servers
-            ("DE Direct (VLESS)",       "162.19.242.30", 2096),
-            ("DE Direct HTTP",          "162.19.242.30", 80),
             ("NL Direct (VLESS)",       "147.45.252.234", 2096),
             // General internet
             ("Cloudflare DNS",          "1.1.1.1",       443),
@@ -426,7 +425,6 @@ struct DebugLogsView: View {
         ]
 
         let udpEndpoints: [(name: String, host: String, port: UInt16)] = [
-            ("DE Hysteria2 (UDP)",      "162.19.242.30", 8443),
             ("NL Hysteria2 (UDP)",      "147.45.252.234", 8443),
         ]
 
@@ -460,7 +458,8 @@ struct DebugLogsView: View {
             ("Google generate_204",  "https://www.gstatic.com/generate_204"),
             ("Cloudflare trace",     "https://1.1.1.1/cdn-cgi/trace"),
             ("Backend health",       "https://madfrog.online/health"),
-            ("Backend health (direct IP)", "http://162.19.242.30/health"),
+            // TD-DE-PRUNE 2026-05-28: DE retired; direct-IP probe now hits NL.
+            ("Backend health (direct IP)", "http://147.45.252.234/health"),
         ]
 
         for test in httpTests {

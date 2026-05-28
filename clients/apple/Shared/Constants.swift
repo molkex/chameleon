@@ -9,8 +9,9 @@ enum AppConfig {
     /// Your server's base URL (with https://)
     static let baseURL = "https://api.madfrog.online"
 
-    /// Fallback base URL (direct IP via HTTP, bypasses Cloudflare/RKN)
-    static let fallbackBaseURL = "http://162.19.242.30"
+    /// Fallback base URL (direct IP via HTTP, bypasses Cloudflare/RKN).
+    /// Points at NL (sole production backend as of 2026-05-25; DE retired).
+    static let fallbackBaseURL = "http://147.45.252.234"
 
     /// Russian relay (SPB) — highest priority fallback for users in Russia
     static let russianRelayURL = "http://185.218.0.43"
@@ -19,9 +20,12 @@ enum AppConfig {
     /// When Cloudflare stalls (RU SNI filtering), we race these as
     /// parallel NWConnection attempts carrying SNI = baseURL host, so
     /// nginx on the server still accepts the TLS handshake.
+    ///
+    /// NOTE: 162.19.242.30 (DE/OVH Frankfurt) was retired 2026-05-25
+    /// and removed from this pool as part of TD-DE-PRUNE. NL is now
+    /// the sole production backend; SPB is the RU relay.
     static let directBackendIPs: [String] = [
-        "162.19.242.30",  // DE (OVH Frankfurt, main)
-        "147.45.252.234", // NL (Timeweb)
+        "147.45.252.234", // NL (Timeweb) — sole production backend
         "185.218.0.43"    // SPB relay (RU) — HTTPS 443 may hijack, HTTP 80 untested
     ]
 
