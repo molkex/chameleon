@@ -94,5 +94,25 @@ privacy:
     usage_data:
       - Product Interaction   # linked, analytics — covers EventTracker paywall.* / app.*
     diagnostics:
-      - Other Diagnostic Data # linked, analytics+app_functionality — covers EventTracker vpn.connect.*
+      - Other Diagnostic Data # linked, analytics+app_functionality — covers EventTracker vpn.connect.* + crash reports via Sentry (EU region, no PII)
   tracking_disclosed: false              # we don't share with 3rd parties for tracking
+  notes: |
+    "Other Diagnostic Data" covers two things:
+      1. EventTracker app/vpn telemetry (USR-09 Phase 2, shipped 1.0.27).
+      2. Crash reports via Sentry — EU region (de.sentry.io), no PII,
+         sendDefaultPii=false, beforeSend scrubs user / queryString /
+         device.name / serverName. See decisions/0007 + LAUNCH-03 in
+         roadmap.yaml#done["2026-05-28"].
+    Apple App Privacy classifies "Crash logs and other technical
+    information" under "Other Diagnostic Data", so no new declared
+    data type was required when LAUNCH-03 shipped.
+  crash_reporting:
+    vendor: Sentry
+    region: EU (de.sentry.io, Frankfurt)
+    dsn_storage: Info.plist key SENTRY_DSN (build-time inject, never committed)
+    pii_disabled: true                # sendDefaultPii=false + beforeSend scrub
+    session_tracking: false           # enableAutoSessionTracking=false
+    performance_tracing: false        # tracesSampleRate=0
+    scope: [MadFrogVPN (iOS), MadFrogVPNMac]   # NOT PacketTunnel (NE memory limits)
+    reasoning_doc: decisions/0007-sentry-eu-crash-reporting.md
+    shipped: 2026-05-28               # version target: build 91+

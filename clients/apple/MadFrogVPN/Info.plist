@@ -89,5 +89,13 @@
 	</array>
 	<key>GIDClientID</key>
 	<string>111150560265-aao2f3qes3b442f14s3cjg3vl77qu2t8.apps.googleusercontent.com</string>
+	<!--
+	  SENTRY_DSN — populated at build time (xcconfig / CI secret), NOT committed.
+	  Empty string disables crash reporting (CrashReporter.start() is a no-op).
+	  See docs/decisions/0007-sentry-eu-crash-reporting.md.
+	  Region: EU (de.sentry.io) — GDPR-aligned for a privacy-focused VPN brand.
+	-->
+	<key>SENTRY_DSN</key>
+	<string></string>
 </dict>
 </plist>

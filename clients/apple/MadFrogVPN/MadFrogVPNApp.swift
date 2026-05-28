@@ -8,6 +8,12 @@ struct MadFrogVPNApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
+        // LAUNCH-03: bring up Sentry FIRST so a crash in any of the
+        // initialisers below is still captured. No-op when SENTRY_DSN
+        // Info.plist key is empty (dev / open-source clones) — see
+        // CrashReporter.swift for the strict-privacy posture.
+        CrashReporter.start()
+
         // Sync boot marker — proves TunnelFileLogger is writing to disk.
         // logSync ensures the line is on disk before init returns; if the
         // log file is empty after a launch we can rule out "missing call

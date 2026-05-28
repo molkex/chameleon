@@ -33,6 +33,15 @@ packages:
   GoogleSignIn:
     url: https://github.com/google/GoogleSignIn-iOS
     from: "7.1.0"
+  # Sentry (crash reporting). EU region — see docs/decisions/0007-sentry-eu-crash-reporting.md.
+  # Linked into MadFrogVPN (iOS) + MadFrogVPNMac only — NOT the PacketTunnel
+  # extensions (NE process has a ~15 MB memory limit and Sentry is non-trivial;
+  # crashes inside the tunnel are still surfaced as app-level errors when the
+  # extension dies and the main app handles the NEVPNStatus transition).
+  Sentry:
+    url: https://github.com/getsentry/sentry-cocoa
+    minVersion: "8.0.0"
+    maxVersion: "9.0.0"
 
 targets:
   MadFrogVPN:
@@ -64,6 +73,8 @@ targets:
         product: GoogleSignIn
       - package: GoogleSignIn
         product: GoogleSignInSwift
+      - package: Sentry
+        product: Sentry
 
   # Widget extension — pulls in Constants.swift + WidgetVPNSnapshot.swift
   # (App Group snapshot reader) and VPNControlIntents.swift (the AppIntents
@@ -165,6 +176,8 @@ targets:
         product: GoogleSignIn
       - package: GoogleSignIn
         product: GoogleSignInSwift
+      - package: Sentry
+        product: Sentry
 
   PacketTunnelMac:
     type: app-extension
@@ -211,6 +224,12 @@ targets:
       - path: Tests/UnitTests
     dependencies:
       - target: MadFrogVPN
+      # CrashReporterSanitizeTests imports Sentry directly to build
+      # Event/User/Request fixtures. Without this, the test target
+      # cannot see Sentry's module map at compile time even though
+      # the host app links it at runtime.
+      - package: Sentry
+        product: Sentry
     settings:
       base:
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/MadFrogVPN.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MadFrogVPN"
