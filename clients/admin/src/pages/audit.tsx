@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
@@ -57,7 +57,13 @@ export default function AuditPage() {
 
   // Any filter change resets to page 1. Same reason as users.tsx: paging
   // back to page 12 of a freshly-narrowed result is just an empty table.
-  useEffect(() => { setPage(1); }, [actionFilter, adminFilter, sinceFilter, untilFilter, pageSize]);
+  // Implemented as handler wrappers (instead of a useEffect on filters)
+  // because react-hooks/set-state-in-effect bans the effect-driven form.
+  const handleActionChange = (value: string) => { setActionFilter(value); setPage(1); };
+  const handleAdminChange = (value: string) => { setAdminFilter(value); setPage(1); };
+  const handleSinceChange = (value: string) => { setSinceFilter(value); setPage(1); };
+  const handleUntilChange = (value: string) => { setUntilFilter(value); setPage(1); };
+  const handlePageSizeChange = (value: PageSize) => { setPageSize(value); setPage(1); };
 
   // Dropdown values — distinct actions from the last 90 days. Cached for
   // 5 min so changing pages doesn't hammer the endpoint.
@@ -103,6 +109,7 @@ export default function AuditPage() {
     setAdminFilter("");
     setSinceFilter("");
     setUntilFilter("");
+    setPage(1);
   };
 
   return (
@@ -119,7 +126,7 @@ export default function AuditPage() {
             <select
               className="h-9 w-48 rounded border border-zinc-700 bg-zinc-900 px-2 text-sm text-zinc-200"
               value={actionFilter}
-              onChange={(e) => setActionFilter(e.target.value)}
+              onChange={(e) => handleActionChange(e.target.value)}
             >
               <option value="">All actions</option>
               {actions.map((a) => <option key={a} value={a}>{a}</option>)}
@@ -133,7 +140,7 @@ export default function AuditPage() {
               min={1}
               placeholder="e.g. 3"
               value={adminFilter}
-              onChange={(e) => setAdminFilter(e.target.value)}
+              onChange={(e) => handleAdminChange(e.target.value)}
               className="h-9 w-28"
             />
           </label>
@@ -143,7 +150,7 @@ export default function AuditPage() {
             <Input
               type="datetime-local"
               value={sinceFilter}
-              onChange={(e) => setSinceFilter(e.target.value)}
+              onChange={(e) => handleSinceChange(e.target.value)}
               className="h-9 w-52"
             />
           </label>
@@ -153,7 +160,7 @@ export default function AuditPage() {
             <Input
               type="datetime-local"
               value={untilFilter}
-              onChange={(e) => setUntilFilter(e.target.value)}
+              onChange={(e) => handleUntilChange(e.target.value)}
               className="h-9 w-52"
             />
           </label>
@@ -234,7 +241,7 @@ export default function AuditPage() {
             <select
               className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-zinc-200"
               value={pageSize}
-              onChange={(e) => setPageSize(Number(e.target.value) as PageSize)}
+              onChange={(e) => handlePageSizeChange(Number(e.target.value) as PageSize)}
             >
               {PAGE_SIZES.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>

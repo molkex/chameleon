@@ -162,20 +162,6 @@ tech_debt:
       file: backend/.golangci.yml
       enabled: [govet, ineffassign, unconvert, misspell]   # conservative; extend after cleanup pass
 
-  - id: TD-LINT-02
-    title: react-hooks 7.0.1 strict rules
-    status: warn_only
-    surfaced: 2026-05-28
-    findings:
-      react_hooks_set_state_in_effect:
-        - clients/admin/src/pages/users.tsx:133
-        - clients/admin/src/pages/audit.tsx:60
-        - clients/admin/src/pages/settings.tsx:43
-      react_hooks_purity: 1   # Math.random() in useMemo somewhere — placeholder data
-    fix_approach: |
-      Refactor each useEffect(() => setPage(1), [filters]) into event-handler-driven state reset.
-      React 19 docs explain the canonical pattern.
-
   - id: TD-LIBBOX-FETCH
     title: Wire scripts/fetch-libbox.sh
     status: workaround_in_place
@@ -209,6 +195,15 @@ deferred:
 # ============================================================
 done:
   "2026-05-28":
+    - id: TD-LINT-02
+      title: react-hooks 7.0.1 strict rules — promoted purity + set-state-in-effect to `error`
+      notes: |
+        Refactored 4 set-state-in-effect findings (users / audit / events / settings)
+        into handler-driven page-1 resets; settings.tsx uses the React 19
+        "store previous data + setState during render" pattern to hydrate the
+        form from TanStack Query. Fixed 1 purity finding in components/ui/sidebar.tsx
+        skeleton (Math.random in useMemo → useState lazy initializer).
+        eslint.config.js promotes both rules to error.
     - id: USR-09-Phase-2
       title: iOS EventTracker → backend app_events → admin /events page (full vertical)
       pr: 3
@@ -266,7 +261,7 @@ done:
 stats:
   open_now: 1                 # IAP-APPROVE
   open_next: ~14
-  tech_debt_items: 4
+  tech_debt_items: 3
   decisions_documented: 6     # ADRs in decisions/
   incidents_documented: 2     # MED-015 + Apple 2.3
   playbooks_documented: 3     # apple-reject-recovery, ios-cli-release, deploy-nl
