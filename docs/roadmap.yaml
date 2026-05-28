@@ -7,7 +7,7 @@
 # When something completes, MOVE the entry from now/next/later into done with the date.
 # Deferred = blocked by an external decision, parked.
 
-verified: 2026-05-28T13:30:00Z
+verified: 2026-05-28T23:00:00Z
 
 # ============================================================
 # NOW — active blockers, picked up in current session/sprint
@@ -47,9 +47,43 @@ next:
       title: iOS EventTracker validation end-to-end
       status: shipped_pending_verification    # live in 1.0.27 build 90, awaiting real-user data
       verify_path: GET /admin/app/events on NL — observe paywall.view / vpn.connect.success entries
+      notes: |
+        2026-05-28: confirmed app.* + vpn.connect.* events flowing (2151 rows,
+        89 users on build 90). paywall.* still 0 because every user is on an
+        active 3-day trial — nobody has hit the paywall yet. WebPaywall + Router
+        instrumentation added (PR #23) but needs a new build (1.0.28/91) to ship.
+        Re-verify after first trials expire (~2026-05-31) + build 91 ships.
     - id: USR-05
       title: User detail page in admin SPA
       notes: Click a user → full history (payments timeline, traffic graph 7d/30d, device info, audit log, action buttons)
+
+  support:
+    - id: SUPPORT-CHAT
+      title: Customer support chat (help desk, not team chat)
+      priority: high
+      status: design_done_awaiting_vps_approval
+      decision: |
+        Picked Chatwoot self-hosted on a dedicated Hetzner CX22 (4 GB/2vCPU,
+        ~€4.5/mo) over: SaaS (Intercom/Tawk = US servers, bad for a VPN
+        privacy brand), Rocket.Chat/Mattermost (team-chat tools, wrong
+        category), FreeScout (cheaper but live-chat is a paid addon + dated
+        UX). Chatwoot is omnichannel — web widget + Telegram bot + email all
+        land in one inbox. Do NOT self-host on NL: it's 1.9 GB and already
+        swapping; Chatwoot needs 2-4 GB.
+      synergy: |
+        The same CX22 box can later double as NL-RED-01 (Hetzner Helsinki
+        redundancy) — amortizes the cost. Keep the existing @MadFrogRobot
+        Telegram bot, wire it as a Chatwoot channel rather than replacing it.
+      blocked_on: user approval to provision + pay for the VPS
+      next_steps:
+        - Provision Hetzner CX22 (Helsinki region → also serves NL-RED-01)
+        - Chatwoot via docker-compose + nginx + chat.madfrog.online (CF DNS)
+        - Connect @MadFrogRobot as a Telegram inbox channel
+        - Embed web widget in iOS app + landing
+      fallback: |
+        If user wants $0/fast instead: in-app "Support" button deep-links to
+        the Telegram bot. ~1-2 days, zero infra. Measure volume first, build
+        Chatwoot only if Telegram becomes unwieldy.
 
   infrastructure:
     - id: NL-RED-01
@@ -151,6 +185,46 @@ deferred:
 # ============================================================
 done:
   "2026-05-28":
+    - id: PAYWALL-TRACKING
+      title: Instrument WebPaywallView + PaywallRouter with EventTracker (close RU funnel blind spot)
+      pr: 23
+      files:
+        - clients/apple/MadFrogVPN/Views/WebPaywallView.swift
+        - clients/apple/MadFrogVPN/Views/PaywallRouter.swift
+      notes: |
+        WebPaywallView (FreeKassa/SBP, every RU/CIS user) had 0 EventTracker
+        calls — explains why paywall.* was empty in app_events. Added
+        paywall.view / paywall.plan.tap / purchase.start / purchase.handoff /
+        purchase.success / purchase.fail (all storefront=web) + PaywallRouter
+        paywall.route {chosen_route, storefront_country, locale_region}.
+        PaywallView (StoreKit) was already instrumented in PR #3. Ships in the
+        next iOS build (1.0.28 / 91) — pending build+TestFlight+review.
+    - id: ADMIN-UX-FIX
+      title: Dashboard Active-24h/30d split + Funnel conversion line + tooltip readability + events explainer
+      pr: "19, 22"
+      notes: |
+        Dashboard: "Active Users" (was provisioned-count, misleading) → real
+        Active(24h)/Active(30d) via last_seen SQL. Funnel: added cyan
+        first_payments_per_day conversion line; Avg-days-to-pay dims to "—"
+        below 3 conversions; tooltip contrast fix. Events: inline explainer
+        with 3 use-cases. See backend CountActive24h/30d + firstPaymentsPerDay.
+    - id: WATCHDOG-FIXES
+      title: health-check.sh — 2096→443 VPN port + swap alert needs swap>40% AND available<200MiB
+      pr: "20, 21"
+      notes: |
+        Two false-positive alert sources killed: (1) port check still grepping
+        retired-DE :2096 instead of NL :443; (2) swap>10% tripped on benign
+        post-deploy lazy paging. Also dropped the broken sing-box Prometheus
+        scrape (clash API is JSON not /metrics).
+    - id: MON-04-INFRA
+      title: Prometheus + Grafana + node-exporter live on NL (grafana.madfrog.online)
+      pr: 18
+      notes: |
+        docker-compose +3 services (memory-capped: node-exporter 64M,
+        prometheus 128M/7d-retention, grafana 128M). nginx grafana.madfrog.online
+        + CF DNS. 17-panel dashboard auto-provisioned (Live VPN / System /
+        Funnel / Backend internals). Admin password in ~/.secrets.env
+        CHAMELEON_GRAFANA_PASSWORD. Prometheus scrapes chameleon + node (2/2 up).
     - id: MON-04
       title: Prometheus /metrics endpoint with 4-category instrumentation
       files:
@@ -376,7 +450,7 @@ done:
 # ============================================================
 stats:
   open_now: 1                 # IAP-APPROVE
-  open_next: ~7               # LAUNCH-01/03/07/08/11/12 + MON-04 closed 2026-05-28
+  open_next: ~8               # +SUPPORT-CHAT (awaiting VPS approval); LAUNCH-01/03/07/08/11/12 + MON-04 done
   tech_debt_items: 1          # TD-LINT-01/02/DE-PRUNE all closed 2026-05-28; only TD-LIBBOX-FETCH remains
   decisions_documented: 8     # ADRs in decisions/ (added 0007-sentry-eu + 0008-utls-fingerprint-rotation)
   incidents_documented: 2     # MED-015 + Apple 2.3
