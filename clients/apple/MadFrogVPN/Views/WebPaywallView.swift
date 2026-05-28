@@ -102,7 +102,24 @@ struct WebPaywallView: View {
                     isSelected: plan.id == selectedPlan,
                     theme: theme
                 )
-                .onTapGesture { selectedPlan = plan.id }
+                .onTapGesture {
+                    selectedPlan = plan.id
+                    // USR-09 Phase 2 — plan tap on web paywall. Mirrors
+                    // PaywallView.planCards' paywall.product.tap so the
+                    // funnel page can compare which products RU vs non-RU
+                    // users hover on (sub-flow analytics, not "what they
+                    // bought").
+                    Task {
+                        await app.eventTracker.log(
+                            name: "paywall.plan.tap",
+                            properties: [
+                                "plan_id": plan.id,
+                                "price_rub": plan.priceRub,
+                                "storefront": "web",
+                            ]
+                        )
+                    }
+                }
             }
         }
     }
@@ -256,8 +273,33 @@ struct WebPaywallView: View {
             if !methods.contains(selectedMethod), let first = methods.first {
                 selectedMethod = first
             }
+            // USR-09 Phase 2 — paywall impression. Fired after the plans
+            // call resolves so the property bag carries the actual count
+            // (zero is a real signal: backend rejected the request or the
+            // plans table is empty — we want both visible in the funnel).
+            // Mirrors PaywallView.task's paywall.view but with storefront="web".
+            await app.eventTracker.log(
+                name: "paywall.view",
+                properties: [
+                    "plans": resp.plans.count,
+                    "methods": resp.methods.count,
+                    "storefront": "web",
+                ]
+            )
         } catch {
             errorMessage = "webpaywall.error.plans".localized
+            // Failed fetch is still an impression — the user saw the
+            // paywall, just got an error screen. Tag it separately so we
+            // can spot a backend regression bricking the RU flow.
+            await app.eventTracker.log(
+                name: "paywall.view",
+                properties: [
+                    "plans": 0,
+                    "methods": 0,
+                    "storefront": "web",
+                    "error": "fetch_plans_failed",
+                ]
+            )
         }
     }
 
@@ -265,6 +307,16 @@ struct WebPaywallView: View {
     private func initiate() async {
         guard let token = app.configStore.accessToken else {
             errorMessage = "webpaywall.error.auth".localized
+            await app.eventTracker.log(
+                name: "purchase.fail",
+                properties: [
+                    "plan_id": selectedPlan,
+                    "method": selectedMethod,
+                    "storefront": "web",
+                    "stage": "preflight",
+                    "reason": "no_access_token",
+                ]
+            )
             return
         }
         // If we already have a pending payment, re-open Safari and poll.
@@ -280,6 +332,18 @@ struct WebPaywallView: View {
         isLoading = true
         defer { isLoading = false }
 
+        // USR-09 Phase 2 — purchase intent on the web flow. Mirrors
+        // PaywallView.purchaseButton's purchase.start so the funnel
+        // shows both flows side-by-side.
+        await app.eventTracker.log(
+            name: "purchase.start",
+            properties: [
+                "plan_id": selectedPlan,
+                "method": selectedMethod,
+                "storefront": "web",
+            ]
+        )
+
         do {
             let result = try await app.apiClient.initiatePayment(
                 plan: selectedPlan,
@@ -291,10 +355,44 @@ struct WebPaywallView: View {
             if let url = URL(string: result.paymentURL) {
                 await PlatformURLOpener.open(url)
             }
+            // Step 2 of the web flow — we successfully created the
+            // payment + handed off to Safari. The actual purchase
+            // success/fail comes later via pollStatus (when the user
+            // returns from the bank app). This is the "started checkout"
+            // signal: useful drop-off metric vs purchase.success.
+            await app.eventTracker.log(
+                name: "purchase.handoff",
+                properties: [
+                    "plan_id": selectedPlan,
+                    "method": selectedMethod,
+                    "storefront": "web",
+                    "payment_id": result.paymentId,
+                ]
+            )
         } catch APIError.unauthorized {
             errorMessage = "webpaywall.error.session".localized
+            await app.eventTracker.log(
+                name: "purchase.fail",
+                properties: [
+                    "plan_id": selectedPlan,
+                    "method": selectedMethod,
+                    "storefront": "web",
+                    "stage": "initiate",
+                    "reason": "unauthorized",
+                ]
+            )
         } catch {
             errorMessage = "webpaywall.error.payment".localized
+            await app.eventTracker.log(
+                name: "purchase.fail",
+                properties: [
+                    "plan_id": selectedPlan,
+                    "method": selectedMethod,
+                    "storefront": "web",
+                    "stage": "initiate",
+                    "reason": "\(error)",
+                ]
+            )
         }
     }
 
@@ -308,9 +406,23 @@ struct WebPaywallView: View {
                 pendingPaymentID = nil
                 await app.refreshAfterPurchase()
                 showSuccess = true
+                // USR-09 Phase 2 — terminal success event for the web flow.
+                await app.eventTracker.log(
+                    name: "purchase.success",
+                    properties: [
+                        "plan_id": selectedPlan,
+                        "method": selectedMethod,
+                        "storefront": "web",
+                        "payment_id": pid,
+                    ]
+                )
             }
         } catch {
-            // Swallow — user can tap the button again to retry.
+            // Swallow — user can tap the button again to retry. The
+            // fail event is intentionally NOT fired here — pollStatus
+            // is called from scenePhase changes and would spam.
+            // initiate()'s catch already fires purchase.fail for the
+            // real failure modes.
         }
     }
 }
