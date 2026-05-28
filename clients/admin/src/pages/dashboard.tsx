@@ -29,7 +29,14 @@ function countryFlag(code: string): string {
 
 interface DashboardStats {
   total_users: number;
+  // `active_users` here = provisioned (is_active && vpn_uuid IS NOT NULL).
+  // For a VPN app this is ~= total_users. NOT engagement — see
+  // `active_24h` / `active_30d` for that. The label "Active Users" was
+  // misleading and got renamed to "Provisioned" on the UI 2026-05-28.
   active_users: number;
+  // last_seen within window. These are real engagement counts.
+  active_24h?: number;
+  active_30d?: number;
   today_new: number;
   revenue_by_currency: Record<string, number>;
   today_revenue: Record<string, number>;
@@ -76,12 +83,12 @@ function StatCard({ title, value, sub, icon: Icon, color }: {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium text-zinc-400">{title}</CardTitle>
+        <CardTitle className="text-sm font-medium text-zinc-300">{title}</CardTitle>
         <Icon className={`h-4 w-4 ${color}`} />
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-bold">{value}</div>
-        {sub && <p className="text-xs text-zinc-500 mt-1">{sub}</p>}
+        {sub && <p className="text-xs text-zinc-400 mt-1">{sub}</p>}
       </CardContent>
     </Card>
   );
@@ -131,12 +138,17 @@ export default function DashboardPage() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard title="Total Users" value={stats.total_users}
-          sub={`+${stats.today_new ?? 0} today`} icon={Users} color="text-blue-400" />
-        <StatCard title="Active Users" value={stats.active_users}
+          sub={`+${stats.today_new ?? 0} today · ${stats.active_users} provisioned`}
+          icon={Users} color="text-blue-400" />
+        {/* "Active" = last_seen ≤ 24h. Matches the Funnel page's DAU semantics.
+            Sub shows the 30d window for context — same metric, longer lens. */}
+        <StatCard title="Active (24h)" value={stats.active_24h ?? 0}
+          sub={`${stats.active_30d ?? 0} active over 30d`}
           icon={Activity} color="text-emerald-400" />
         <StatCard title="VPN Traffic" value={`${trafficGB.toFixed(1)} GB`}
-          sub={`${vpn.vpn_users ?? 0} VPN users`} icon={TrendingUp} color="text-yellow-400" />
+          sub={`cumulative since launch`} icon={TrendingUp} color="text-yellow-400" />
         <StatCard title="Online" value={vpn.active_users ?? 0}
+          sub={`live VPN sessions right now`}
           icon={Activity} color="text-purple-400" />
       </div>
 

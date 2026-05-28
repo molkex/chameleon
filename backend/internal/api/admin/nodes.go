@@ -46,8 +46,17 @@ type dashboardStatsResponse struct {
 
 type dashboardStats struct {
 	TotalUsers  int64 `json:"total_users"`
+	// Provisioned = is_active && vpn_uuid IS NOT NULL. NOT engagement
+	// — for a VPN app this is ~= TotalUsers. Kept for backwards-compat
+	// with the SPA's existing DashboardResponse interface; new code
+	// should prefer Active24h / Active30d below.
 	ActiveUsers int64 `json:"active_users"`
 	TodayNew    int64 `json:"today_new"`
+	// Active24h / Active30d = users with last_seen within the window.
+	// These are the real engagement counts and what the dashboard
+	// surfaces as "Active (24h)" and "Active (30d)" cards (added 2026-05-28).
+	Active24h   int64 `json:"active_24h"`
+	Active30d   int64 `json:"active_30d"`
 }
 
 type vpnStats struct {
@@ -199,6 +208,18 @@ func (h *Handler) GetDashboard(c echo.Context) error {
 		activeUsers = 0
 	}
 
+	active24h, err := h.DB.CountActive24h(ctx)
+	if err != nil {
+		h.Logger.Error("admin: dashboard: count active 24h", zap.Error(err))
+		active24h = 0
+	}
+
+	active30d, err := h.DB.CountActive30d(ctx)
+	if err != nil {
+		h.Logger.Error("admin: dashboard: count active 30d", zap.Error(err))
+		active30d = 0
+	}
+
 	todayNew, err := h.DB.CountTodayUsers(ctx)
 	if err != nil {
 		h.Logger.Error("admin: dashboard: count today users", zap.Error(err))
@@ -228,6 +249,8 @@ func (h *Handler) GetDashboard(c echo.Context) error {
 			TotalUsers:  totalUsers,
 			ActiveUsers: activeUsers,
 			TodayNew:    todayNew,
+			Active24h:   active24h,
+			Active30d:   active30d,
 		},
 		VPN: vpnStats{
 			VPNUsers:       int(activeUsers),

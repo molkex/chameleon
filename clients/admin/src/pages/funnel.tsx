@@ -51,19 +51,23 @@ const PROVIDER_LABEL: Record<string, string> = {
   email:    "Email / magic link",
 };
 
-function StatCard({ title, value, sub, icon: Icon, color }: {
+function StatCard({ title, value, sub, icon: Icon, color, dim }: {
   title: string; value: string | number; sub?: string;
   icon: React.ComponentType<{ className?: string }>; color: string;
+  // dim=true greys out the card. Used for "not enough data" states like
+  // Avg-days-to-pay with only 1-2 conversions where the numeric average
+  // is statistically meaningless.
+  dim?: boolean;
 }) {
   return (
-    <Card>
+    <Card className={dim ? "opacity-60" : undefined}>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium text-zinc-400">{title}</CardTitle>
+        <CardTitle className="text-sm font-medium text-zinc-300">{title}</CardTitle>
         <Icon className={`h-4 w-4 ${color}`} />
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-bold">{value}</div>
-        {sub && <p className="text-xs text-zinc-500 mt-1">{sub}</p>}
+        {sub && <p className="text-xs text-zinc-400 mt-1">{sub}</p>}
       </CardContent>
     </Card>
   );
@@ -144,6 +148,11 @@ export default function FunnelPage() {
         </select>
       </div>
 
+      {/* Stat-bar — note that "Avg days to pay" stays dim until we have
+          ≥3 conversions; with N=1-2 the average is statistically a coin
+          flip (one user paying in 5 minutes drags it to 0.0, hiding the
+          real distribution). 3 is a hand-picked floor — enough that the
+          number stops looking like garbage. */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard title="Signups (window)" value={totalSignups}
           sub={`${(totalSignups / data.window_days).toFixed(1)}/day avg`}
@@ -155,15 +164,20 @@ export default function FunnelPage() {
           sub={`${data.conversion.converted_any} of ${data.conversion.signups} paid`}
           icon={TrendingUp} color="text-yellow-400" />
         <StatCard title="Avg days to pay"
-          value={data.conversion.avg_days_to_convert.toFixed(1)}
-          sub={`Apple: ${data.conversion.converted_apple} · FK: ${data.conversion.converted_freekassa}`}
-          icon={DollarSign} color="text-cyan-400" />
+          value={data.conversion.converted_any < 3
+            ? "—"
+            : data.conversion.avg_days_to_convert.toFixed(1)}
+          sub={data.conversion.converted_any < 3
+            ? `need ≥3 conversions (have ${data.conversion.converted_any}: Apple ${data.conversion.converted_apple} · FK ${data.conversion.converted_freekassa})`
+            : `based on ${data.conversion.converted_any} conversions · Apple ${data.conversion.converted_apple} · FK ${data.conversion.converted_freekassa}`}
+          icon={DollarSign} color="text-cyan-400"
+          dim={data.conversion.converted_any < 3} />
       </div>
 
       {/* Signups vs DAU line chart */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm text-zinc-400">Signups & DAU per day</CardTitle>
+          <CardTitle className="text-sm text-zinc-300">Signups & DAU per day</CardTitle>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={280}>
@@ -186,7 +200,7 @@ export default function FunnelPage() {
       {/* Auth provider bar chart */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm text-zinc-400">Auth provider mix</CardTitle>
+          <CardTitle className="text-sm text-zinc-300">Auth provider mix</CardTitle>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={200}>
@@ -213,7 +227,7 @@ export default function FunnelPage() {
       {/* Cohort retention matrix */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm text-zinc-400">Retention cohorts (week of signup)</CardTitle>
+          <CardTitle className="text-sm text-zinc-300">Retention cohorts (week of signup)</CardTitle>
         </CardHeader>
         <CardContent className="p-0 overflow-x-auto">
           {cohorts.length === 0 ? (

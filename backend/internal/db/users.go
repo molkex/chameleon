@@ -582,7 +582,13 @@ func (db *DB) DeleteUserByUsername(ctx context.Context, vpnUsername string) erro
 	return nil
 }
 
-// CountActiveUsers returns the number of active users with VPN credentials.
+// CountActiveUsers returns the number of users that are "provisioned" —
+// non-banned and holding VPN credentials. For a VPN app this is ~100% of
+// signed-up users; do NOT confuse with engagement. See CountActive24h /
+// CountActive30d for actual last_seen-based engagement counts.
+//
+// (The admin UI used to call this "Active Users" which was misleading
+// — 2026-05-28 rename pass surfaces both numbers separately.)
 func (db *DB) CountActiveUsers(ctx context.Context) (int64, error) {
 	ctx, cancel := defaultTimeout(ctx)
 	defer cancel()
@@ -591,6 +597,34 @@ func (db *DB) CountActiveUsers(ctx context.Context) (int64, error) {
 	err := db.Pool.QueryRow(ctx, `
 		SELECT count(*) FROM users
 		WHERE is_active = true AND vpn_uuid IS NOT NULL AND vpn_username IS NOT NULL`).Scan(&count)
+	return count, err
+}
+
+// CountActive24h returns users whose last_seen is within the last 24
+// hours. Real engagement signal — anyone whose app actually pinged the
+// backend recently. Excludes churned signups.
+func (db *DB) CountActive24h(ctx context.Context) (int64, error) {
+	ctx, cancel := defaultTimeout(ctx)
+	defer cancel()
+
+	var count int64
+	err := db.Pool.QueryRow(ctx, `
+		SELECT count(*) FROM users
+		WHERE last_seen >= NOW() - INTERVAL '24 hours'`).Scan(&count)
+	return count, err
+}
+
+// CountActive30d returns users whose last_seen is within the last 30
+// days. Used on the dashboard as the long-window engagement count, to
+// match the Funnel page's "signups window" window.
+func (db *DB) CountActive30d(ctx context.Context) (int64, error) {
+	ctx, cancel := defaultTimeout(ctx)
+	defer cancel()
+
+	var count int64
+	err := db.Pool.QueryRow(ctx, `
+		SELECT count(*) FROM users
+		WHERE last_seen >= NOW() - INTERVAL '30 days'`).Scan(&count)
 	return count, err
 }
 

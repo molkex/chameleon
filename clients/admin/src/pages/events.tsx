@@ -169,15 +169,48 @@ export default function EventsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">App Events</h1>
-        <span className="text-xs text-zinc-500">
-          USR-09 Phase 2 · client-side telemetry · auto-refresh 30s
+        <span className="text-xs text-zinc-400">
+          iOS telemetry stream · auto-refresh 30s
         </span>
       </div>
+
+      {/* What is this page — surfaced inline rather than in a separate
+          help drawer because the page's purpose isn't obvious from the
+          table alone. Three concrete use-cases keep the explainer from
+          turning into wallpaper. */}
+      <Card>
+        <CardContent className="p-4 text-sm text-zinc-300 space-y-2">
+          <p>
+            Every iOS app posts a batch of events to{" "}
+            <code className="text-zinc-200 bg-zinc-800 rounded px-1">/api/v1/mobile/events/batch</code>
+            {" "}on app launch / background / VPN action. This page surfaces that
+            raw stream so you can debug behaviour without poking the DB.
+          </p>
+          <p className="text-zinc-400">
+            <strong className="text-zinc-300">When to use it:</strong>
+            <span className="ml-2">
+              (1) <em>paywall conversion debug</em> — filter
+              {" "}<code className="text-zinc-200 bg-zinc-800 rounded px-1">paywall.purchase_start</code>
+              {" "}vs <code className="text-zinc-200 bg-zinc-800 rounded px-1">paywall.purchase_success</code>
+              {" "}to find drops.
+              {" "}(2) <em>crash hypothesis</em> — a user's
+              {" "}<code className="text-zinc-200 bg-zinc-800 rounded px-1">app.foreground</code>
+              {" "}without subsequent
+              {" "}<code className="text-zinc-200 bg-zinc-800 rounded px-1">app.background</code>
+              {" "}often = crash.
+              {" "}(3) <em>connect-success rate</em> —
+              {" "}<code className="text-zinc-200 bg-zinc-800 rounded px-1">vpn.connect.success</code>
+              {" "}/ <code className="text-zinc-200 bg-zinc-800 rounded px-1">vpn.connect.start</code>
+              {" "}per app version.
+            </span>
+          </p>
+        </CardContent>
+      </Card>
 
       {/* Per-day stacked bar chart — inline SVG, no heavy chart dep */}
       <Card>
         <CardContent className="p-4">
-          <div className="mb-2 flex items-center justify-between text-xs text-zinc-400">
+          <div className="mb-2 flex items-center justify-between text-xs text-zinc-300">
             <span>Events per day (last 14d, stacked by name)</span>
             <span>max/day: {chartData.max.toLocaleString()}</span>
           </div>
