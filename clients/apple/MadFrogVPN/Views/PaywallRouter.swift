@@ -15,6 +15,7 @@ import StoreKit
 /// A user with RU interface in Georgia on a US App Store account should
 /// see the StoreKit flow.
 struct PaywallRouter: View {
+    @Environment(AppState.self) private var app
     @State private var storefrontCountry: String?
     @State private var resolved = false
 
@@ -38,6 +39,22 @@ struct PaywallRouter: View {
             }
             // Debug override: check UserDefaults for "debug_paywall_force" = "web"|"storekit"
             resolved = true
+
+            // USR-09 Phase 2 — fired ONCE at routing time, before any
+            // paywall child view appears. Tells us the split of users
+            // who land on StoreKit vs the web flow. Combined with
+            // paywall.view (fired per child view's .task) we can see
+            // (a) how many even reached this screen, (b) where Apple
+            // routed them, (c) where they fell off after that.
+            let route = shouldUseWebPaywall ? "web" : "storekit"
+            await app.eventTracker.log(
+                name: "paywall.route",
+                properties: [
+                    "chosen_route": route,
+                    "storefront_country": storefrontCountry ?? "unknown",
+                    "locale_region": Locale.current.region?.identifier ?? "unknown",
+                ]
+            )
         }
     }
 
