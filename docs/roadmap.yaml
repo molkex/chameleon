@@ -29,10 +29,6 @@ now:
 # ============================================================
 next:
   launch_checklist:
-    - id: LAUNCH-01
-      title: PrivacyInfo.xcprivacy manifest
-      priority: P0
-      notes: Required by Apple since May 2024. Declare UserDefaults / DeviceName / SystemBootTime usage.
     - id: LAUNCH-02
       title: Family Sharing flag enabled on subscriptions in ASC
       priority: P0
@@ -156,11 +152,6 @@ tech_debt:
       CI link-time coverage, script must pull a built xcframework
       (artifact storage TBD).
 
-  - id: TD-DE-PRUNE
-    title: Remove 162.19.242.30 from iOS AppConfig.directBackendIPs
-    file: clients/apple/Shared/Constants.swift
-    surfaced: 2026-05-28
-    notes: DE retired; pruned from RU race via region carveout, but still in pool. Remove on next build.
 
 # ============================================================
 # DEFERRED — needs human decision before queueing
@@ -199,6 +190,31 @@ done:
         staticcheck style 4 (QF1008 embedded Duration field x2, S1011 loop→append, QF1001 De Morgan);
         unused 6 (configBuildMarker const, v2rayStatsClient.close method, 4 unused fields on fakeBatchInserter test struct);
         SA4000 real bug 1 (auth_blacklist_key_test.go:52 — stable-key test was tautological, now stores into separate vars so the regression assertion actually compares two calls).
+    - id: LAUNCH-01
+      title: PrivacyInfo.xcprivacy manifest — MadFrogVPN + PacketTunnel + MadFrogWidget aligned with ASC App Privacy
+      pr: 8
+      files:
+        - clients/apple/MadFrogVPN/PrivacyInfo.xcprivacy
+        - clients/apple/PacketTunnel/PrivacyInfo.xcprivacy
+        - clients/apple/MadFrogWidget/PrivacyInfo.xcprivacy
+      notes: |
+        Only UserDefaults (CA92.1) Required Reason API declared — code audit
+        shows no use of SystemBootTime, DiskSpace, or FileTimestamp APIs.
+        attributesOfItem callers read only .size (not creation/modification
+        date), so FileTimestamp is NOT triggered. Data types match
+        docs/state/app-store.yaml#privacy: Email/Name/UserID/DeviceID/
+        PurchaseHistory/ProductInteraction/OtherDiagnosticData. Mac targets
+        share manifests via shared source folders in project.yml.
+    - id: TD-DE-PRUNE
+      title: Removed 162.19.242.30 from iOS AppConfig.directBackendIPs (+ debug probes + ATS exception + fallbackBaseURL)
+      pr: 8
+      files:
+        - clients/apple/Shared/Constants.swift
+        - clients/apple/MadFrogVPN/Info.plist
+        - clients/apple/MadFrogVPN/Views/DebugLogsView.swift
+      notes: |
+        DE comments + APIClient defensive RU-filter retained as audit trail /
+        safety net (covered by APIClientSensitiveFlagTests).
     - id: USR-09-Phase-2
       title: iOS EventTracker → backend app_events → admin /events page (full vertical)
       pr: 3
@@ -255,8 +271,8 @@ done:
 # ============================================================
 stats:
   open_now: 1                 # IAP-APPROVE
-  open_next: ~14
-  tech_debt_items: 2
+  open_next: ~13              # LAUNCH-01 completed 2026-05-28
+  tech_debt_items: 1          # TD-LINT-01/02/DE-PRUNE all closed 2026-05-28; only TD-LIBBOX-FETCH remains
   decisions_documented: 6     # ADRs in decisions/
   incidents_documented: 2     # MED-015 + Apple 2.3
   playbooks_documented: 3     # apple-reject-recovery, ios-cli-release, deploy-nl
