@@ -38,10 +38,47 @@ type statsResponse struct {
 // dashboardStatsResponse is returned by GET /api/admin/stats/dashboard.
 // Compatible with the React SPA's DashboardResponse interface.
 type dashboardStatsResponse struct {
-	Stats              dashboardStats       `json:"stats"`
-	VPN                vpnStats             `json:"vpn"`
-	RecentTransactions []interface{}        `json:"recent_transactions"`
-	ExpiringUsers      []interface{}        `json:"expiring_users"`
+	Stats              dashboardStats         `json:"stats"`
+	VPN                vpnStats               `json:"vpn"`
+	RecentTransactions []recentTransactionDTO `json:"recent_transactions"`
+	ExpiringUsers      []interface{}          `json:"expiring_users"`
+	Payments           paymentsBlockDTO       `json:"payments"`
+}
+
+// paymentsBlockDTO carries the dashboard payments rollup. Periods is keyed by
+// window ("today"/"7d"/"30d"/"all") so the SPA can switch tabs client-side
+// without re-fetching. Revenue maps are major units keyed by ISO-4217.
+//
+// Note: Apple IAP rows currently carry no amount (price isn't in the StoreKit
+// JWS), so Apple shows in Count but not Revenue — only FreeKassa (RUB) money
+// lands in the Revenue maps today.
+type paymentsBlockDTO struct {
+	Periods map[string]paymentPeriodDTO `json:"periods"`
+}
+
+type paymentPeriodDTO struct {
+	Revenue      map[string]float64 `json:"revenue"`
+	Refunds      map[string]float64 `json:"refunds"`
+	Count        int                `json:"count"`
+	RefundCount  int                `json:"refund_count"`
+	UniquePayers int                `json:"unique_payers"`
+	BySource     []paymentSourceDTO `json:"by_source"`
+}
+
+type paymentSourceDTO struct {
+	Source  string             `json:"source"`
+	Count   int                `json:"count"`
+	Revenue map[string]float64 `json:"revenue"`
+}
+
+type recentTransactionDTO struct {
+	UserID       *int64  `json:"user_id"`
+	Amount       float64 `json:"amount"`
+	Currency     string  `json:"currency"`
+	Source       string  `json:"source"`
+	Days         int     `json:"days"`
+	Status       string  `json:"status"`
+	CreatedAtFmt string  `json:"created_at_fmt"`
 }
 
 type dashboardStats struct {
@@ -244,6 +281,26 @@ func (h *Handler) GetDashboard(c echo.Context) error {
 
 	trafficGB := float64(totalTraffic) / 1073741824 // bytes -> GB
 
+	// Payments rollup. Degrade gracefully: a stalled payments query must not
+	// take down the whole dashboard, so on error we serve empty blocks.
+	payments := paymentsBlockDTO{Periods: map[string]paymentPeriodDTO{}}
+	if block, err := h.DB.PaymentsBlock(ctx); err != nil {
+		h.Logger.Error("admin: dashboard: payments block", zap.Error(err))
+	} else {
+		for key, p := range block {
+			payments.Periods[key] = toPaymentPeriodDTO(p)
+		}
+	}
+
+	recent := []recentTransactionDTO{}
+	if rows, err := h.DB.RecentPayments(ctx, 10); err != nil {
+		h.Logger.Error("admin: dashboard: recent payments", zap.Error(err))
+	} else {
+		for _, r := range rows {
+			recent = append(recent, toRecentTransactionDTO(r))
+		}
+	}
+
 	return c.JSON(http.StatusOK, dashboardStatsResponse{
 		Stats: dashboardStats{
 			TotalUsers:  totalUsers,
@@ -257,9 +314,45 @@ func (h *Handler) GetDashboard(c echo.Context) error {
 			ActiveUsers:    onlineUsers,
 			TotalTrafficGB: trafficGB,
 		},
-		RecentTransactions: []interface{}{},
+		RecentTransactions: recent,
 		ExpiringUsers:      []interface{}{},
+		Payments:           payments,
 	})
+}
+
+func toPaymentPeriodDTO(p *db.PaymentPeriodStats) paymentPeriodDTO {
+	sources := make([]paymentSourceDTO, 0, len(p.BySource))
+	for _, s := range p.BySource {
+		sources = append(sources, paymentSourceDTO{
+			Source:  s.Source,
+			Count:   s.Count,
+			Revenue: s.Revenue,
+		})
+	}
+	return paymentPeriodDTO{
+		Revenue:      p.Revenue,
+		Refunds:      p.Refunds,
+		Count:        p.Count,
+		RefundCount:  p.RefundCount,
+		UniquePayers: p.UniquePayers,
+		BySource:     sources,
+	}
+}
+
+func toRecentTransactionDTO(r db.RecentPayment) recentTransactionDTO {
+	var amount float64
+	if r.AmountMinor != nil {
+		amount = float64(*r.AmountMinor) / 100.0
+	}
+	return recentTransactionDTO{
+		UserID:       r.UserID,
+		Amount:       amount,
+		Currency:     r.Currency,
+		Source:       r.Source,
+		Days:         r.Days,
+		Status:       r.Status,
+		CreatedAtFmt: r.CreatedAt.Format("2006-01-02 15:04"),
+	}
 }
 
 // ListNodes handles GET /api/admin/nodes
