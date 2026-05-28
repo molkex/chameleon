@@ -38,5 +38,13 @@
 	</dict>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.productivity</string>
+	<!--
+	  SENTRY_DSN — populated at build time (xcconfig / CI secret), NOT committed.
+	  Empty string disables crash reporting (CrashReporter.start() is a no-op).
+	  See docs/decisions/0007-sentry-eu-crash-reporting.md.
+	  Region: EU (de.sentry.io) — GDPR-aligned for a privacy-focused VPN brand.
+	-->
+	<key>SENTRY_DSN</key>
+	<string></string>
 </dict>
 </plist>
