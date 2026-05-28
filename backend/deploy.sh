@@ -79,6 +79,8 @@ ssh "${NODE_SSH}" "test -d ${NODE_DIR}/backend-go && test ! -d ${NODE_DIR}/backe
 echo ">>> Syncing files to ${NODE_SSH}:${NODE_DIR}..."
 rsync -avz --delete \
     --exclude='.git' \
+    --exclude='.claude' \
+    --exclude='clients/apple' \
     --exclude='backend/chameleon' \
     --exclude='backend/ascinit' \
     --exclude='.env' \
