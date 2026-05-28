@@ -14,6 +14,7 @@ import (
 	"github.com/chameleonvpn/chameleon/internal/db"
 	"github.com/chameleonvpn/chameleon/internal/email"
 	"github.com/chameleonvpn/chameleon/internal/geoip"
+	"github.com/chameleonvpn/chameleon/internal/metrics"
 	"github.com/chameleonvpn/chameleon/internal/payments"
 	"github.com/chameleonvpn/chameleon/internal/payments/apple"
 	"github.com/chameleonvpn/chameleon/internal/payments/freekassa"
@@ -34,6 +35,7 @@ type Handler struct {
 	Config        *config.Config
 	GeoIP         *geoip.Resolver
 	Email         email.Sender // transactional email sender (Resend or noop)
+	Metrics       *metrics.Metrics // Prometheus counters; may be nil in tests
 	Logger        *zap.Logger
 }
 

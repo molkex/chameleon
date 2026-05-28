@@ -23,6 +23,7 @@ import (
 	"github.com/chameleonvpn/chameleon/internal/db"
 	"github.com/chameleonvpn/chameleon/internal/email"
 	"github.com/chameleonvpn/chameleon/internal/geoip"
+	"github.com/chameleonvpn/chameleon/internal/metrics"
 	"github.com/chameleonvpn/chameleon/internal/payments"
 	"github.com/chameleonvpn/chameleon/internal/payments/apple"
 	"github.com/chameleonvpn/chameleon/internal/payments/freekassa"
@@ -44,9 +45,10 @@ type Server struct {
 	Apple  *auth.AppleVerifier
 	Google *auth.GoogleVerifier
 	Email  email.Sender
-	VPN    vpn.Engine // VPN engine interface (may be nil)
-	Syncer *cluster.Syncer
-	Logger *zap.Logger
+	VPN     vpn.Engine // VPN engine interface (may be nil)
+	Syncer  *cluster.Syncer
+	Metrics *metrics.Metrics // Prometheus collectors; may be nil in tests
+	Logger  *zap.Logger
 }
 
 // NewServer creates a fully configured Echo instance with all routes
@@ -71,6 +73,14 @@ func NewServer(s *Server) *echo.Echo {
 // setupMiddleware configures global middleware applied to every request.
 // Order matters: outermost middleware runs first.
 func (s *Server) setupMiddleware(e *echo.Echo) {
+	// 0. Prometheus HTTP latency histogram. Runs first so the timer brackets
+	//    every other middleware (recovery, body limit, CORS, etc.). Skips the
+	//    /metrics scrape itself to keep the dashboard clean and avoid a self-
+	//    referential noise loop.
+	if s.Metrics != nil {
+		e.Use(s.metricsMiddleware())
+	}
+
 	// 1. Recovery — catch panics, convert to 500, log stack trace.
 	e.Use(echomw.RecoverWithConfig(echomw.RecoverConfig{
 		DisableStackAll:   true,
@@ -138,6 +148,13 @@ func (s *Server) setupRoutes(e *echo.Echo) {
 	// Health check (no auth, no rate limit).
 	e.GET("/health", s.handleHealth)
 
+	// Prometheus scrape target. Outside any auth/CSRF/rate-limit group on
+	// purpose — Prometheus scrapes from localhost (:8000 is 127.0.0.1-bound
+	// in docker-compose). MON-04 (2026-05-28).
+	if s.Metrics != nil {
+		e.GET("/metrics", echo.WrapHandler(s.Metrics.Handler()))
+	}
+
 	// Single payments service shared across mobile + admin handlers.
 	paymentsSvc := payments.New(s.DB.Pool)
 
@@ -184,18 +201,19 @@ func (s *Server) setupRoutes(e *echo.Echo) {
 		Config:        s.Config,
 		GeoIP:         geoip.New(),
 		Email:         s.Email,
+		Metrics:       s.Metrics,
 		Logger:        s.Logger,
 	}
 
 	// Mobile API: /api/mobile/* and /api/v1/mobile/* (iOS app uses v1 prefix)
 	mobileGroup := e.Group("/api/mobile")
 	mobileGroup.Use(mw.RateLimit(s.Ctx, s.Config.RateLimit.MobilePerMinute))
-	mobileGroup.Use(mw.Idempotency(s.Redis, s.Logger))
+	mobileGroup.Use(mw.Idempotency(s.Redis, s.Logger, s.Metrics))
 	mobile.RegisterRoutes(mobileGroup, mobileHandler)
 
 	mobileV1 := e.Group("/api/v1/mobile")
 	mobileV1.Use(mw.RateLimit(s.Ctx, s.Config.RateLimit.MobilePerMinute))
-	mobileV1.Use(mw.Idempotency(s.Redis, s.Logger))
+	mobileV1.Use(mw.Idempotency(s.Redis, s.Logger, s.Metrics))
 	mobile.RegisterRoutes(mobileV1, mobileHandler)
 
 	// FreeKassa server-to-server webhook. Public, unauthenticated — trust
@@ -291,6 +309,38 @@ func (s *Server) handleHealth(c echo.Context) error {
 		"db":     dbStatus,
 		"redis":  redisStatus,
 	})
+}
+
+// metricsMiddleware returns Echo middleware that records
+// chameleon_http_request_duration_seconds for every request. Route label
+// uses c.Path() (route PATTERN like "/api/v1/mobile/auth/register"), NOT
+// the raw URL — this is the cardinality fence so a scanner hitting
+// /random-urls won't blow up the label set.
+//
+// /metrics itself is skipped so the scrape doesn't show up in its own
+// histogram (would invert the rate() during incidents).
+func (s *Server) metricsMiddleware() echo.MiddlewareFunc {
+	m := s.Metrics
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			if c.Request().URL.Path == "/metrics" {
+				return next(c)
+			}
+			start := time.Now()
+			err := next(c)
+			// c.Path() returns the registered route pattern (e.g.
+			// "/api/v1/mobile/auth/register") rather than the raw URL.
+			// Empty when the request didn't match any route — ObserveHTTP
+			// normalises that to "unmatched".
+			m.ObserveHTTP(
+				c.Request().Method,
+				c.Path(),
+				c.Response().Status,
+				time.Since(start),
+			)
+			return err
+		}
+	}
 }
 
 // requestLogger returns Echo middleware that logs every request with zap.

@@ -153,8 +153,14 @@ func (h *Handler) FreeKassaWebhook(c echo.Context) error {
 			zap.Int64("user_id", parsed.UserID),
 			zap.String("charge_id", chargeID),
 		)
+		if h.Metrics != nil {
+			h.Metrics.CountPayment("freekassa", "failed")
+		}
 		// Respond with non-YES so FK retries.
 		return c.String(http.StatusInternalServerError, "credit failed")
+	}
+	if h.Metrics != nil && !alreadyApplied {
+		h.Metrics.CountPayment("freekassa", "completed")
 	}
 
 	h.Logger.Info("freekassa webhook: credited",

@@ -166,6 +166,9 @@ func (h *Handler) MagicLinkVerify(c echo.Context) error {
 				h.Logger.Error("magic: create user", zap.Error(err))
 				return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
 			}
+			if h.Metrics != nil {
+				h.Metrics.CountSignup("email")
+			}
 		}
 		// Persist the email on the user.
 		if err := h.DB.SetUserEmail(ctx, user.ID, mt.Email); err != nil {

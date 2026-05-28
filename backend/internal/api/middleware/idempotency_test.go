@@ -22,7 +22,7 @@ func newTestRig(t *testing.T) (*echo.Echo, *redis.Client, *miniredis.Miniredis) 
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	t.Cleanup(func() { _ = rdb.Close() })
 	e := echo.New()
-	e.Use(Idempotency(rdb, zap.NewNop()))
+	e.Use(Idempotency(rdb, zap.NewNop(), nil))
 	return e, rdb, mr
 }
 
@@ -246,7 +246,7 @@ func TestRedisDownBypasses(t *testing.T) {
 	mr.Close() // simulate Redis crash before any traffic
 
 	e := echo.New()
-	e.Use(Idempotency(rdb, zap.NewNop()))
+	e.Use(Idempotency(rdb, zap.NewNop(), nil))
 	var hits int32
 	e.POST("/x", func(c echo.Context) error {
 		atomic.AddInt32(&hits, 1)
