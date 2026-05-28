@@ -121,6 +121,14 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 		defaultShortID = engineCfg.Reality.ShortIDs[0]
 	}
 
+	// LAUNCH-12: per-user deterministic uTLS fingerprint rotation.
+	// Same user always gets the same fingerprint (reconnect-stable, debuggable),
+	// but across the user base the distribution mimics real browser market
+	// share — so our aggregate ClientHello traffic blends into normal HTTPS
+	// instead of all looking like one fingerprint to RKN DPI. Hash input is
+	// the VPN username (stable per user). See clientconfig_fingerprint.go.
+	utlsFP := selectFingerprint(user.Username)
+
 	// Accumulators — every leaf outbound is registered here once, regardless
 	// of which group it lands in.
 	var allLeafOutbounds []clientOutbound
@@ -138,7 +146,7 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 			TLS: &clientTLS{
 				Enabled:    true,
 				ServerName: sni,
-				UTLS:       &clientUTLS{Enabled: true, Fingerprint: "chrome"},
+				UTLS:       &clientUTLS{Enabled: true, Fingerprint: utlsFP},
 				Reality:    &clientReality{Enabled: true, PublicKey: pub, ShortID: shortID},
 			},
 			PacketEncoding: "xudp",
