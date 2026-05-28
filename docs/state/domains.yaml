@@ -1,0 +1,59 @@
+# domains.yaml — DNS + SSL + CF state for owned domains.
+#
+# Update when adding/removing domains, switching CF proxy mode, or
+# rotating certs.
+
+verified: 2026-05-28
+
+# Primary production domain.
+madfrog.online:
+  registrar: Cloudflare (mgmt) — confirm renewal date
+  dns_provider: Cloudflare
+  zone_active: true
+
+  records:
+    # Apex — public marketing landing + admin SPA + iOS app config endpoint.
+    "@":
+      type: A
+      target_via: cloudflare_proxy
+      origin: nl (147.45.252.234)
+      ssl_mode: flexible             # CF terminates, hits origin HTTP
+    "www":
+      type: CNAME
+      target: madfrog.online
+
+    # api subdomain — bypasses Cloudflare (NOT proxied) so RU users hit
+    # MSK relay directly. CF wouldn't help anyway (RU CF throttling).
+    "api":
+      type: A
+      target: msk_relay (217.198.5.52)
+      target_via: direct_dns         # NO CF proxy — DNS-only
+      origin: nl:80 (via msk_relay nginx upstream)
+
+  ssl:
+    edge_cert: Cloudflare Universal SSL
+    origin_cert_nl: Let's Encrypt for madfrog.online + api.madfrog.online (renewed via certbot, see playbooks/letsencrypt-renew.md when written)
+
+# Legacy / backup / parked.
+mdfrog.site:
+  status: alias
+  target: nl
+  notes: backup short domain
+
+razblokirator.ru:
+  status: legacy_alias
+  target: nl
+  notes: old project name; kept so old QR codes keep working
+
+# Subdomains still on retired infra.
+# CLEANUP TASK — update DNS to point at NL or remove entirely.
+legacy_subdomains:
+  - "bot.madfrog.online":         # was telegram bot landing
+      points_to: 85.239.49.28      # retired MSK IP (different from msk_relay)
+      action: scrub or repoint
+  - "crew.madfrog.online":
+      points_to: 85.239.49.28
+      action: scrub or repoint
+  - "speedtest.madfrog.online":
+      points_to: 85.239.49.28
+      action: scrub or repoint

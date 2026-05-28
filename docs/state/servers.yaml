@@ -1,0 +1,65 @@
+# servers.yaml — canonical list of servers in the Chameleon mesh.
+#
+# Update whenever a server is added, removed, or its role changes.
+# Detailed historical context + protocol-level notes live in
+# `../../infrastructure/topology.yaml` (legacy, still authoritative for
+# deep details; migrate as touched).
+
+verified: 2026-05-28           # last time someone confirmed each field by hand
+spof_warning: |
+  Single-NL world since 2026-05-25 (DE retirement). If NL goes down,
+  there is no failover. NL redundancy is on roadmap (Hetzner Helsinki
+  is the front-runner candidate — AS24940, not in RU blocklists).
+
+# Production VPN node — sole authority for /api/* and /vpn (sing-box).
+nl:
+  status: production
+  ip: 147.45.252.234
+  hosting: Timeweb
+  location: Netherlands
+  role:
+    - vpn_node           # sing-box VLESS Reality on :443/tcp
+    - api_backend        # chameleon Go binary, :80 + :443 nginx
+    - admin_spa          # /admin/app via nginx
+  ssh: root@147.45.252.234
+  domain_apex: madfrog.online        # CF-proxied → here
+  domain_api: api.madfrog.online     # via MSK relay (not CF) → here:80
+
+# Russian-side relay fronting api.madfrog.online for RU users behind GFW.
+# Not a VPN node — pure nginx forwarder.
+msk_relay:
+  status: production
+  ip: 217.198.5.52
+  hosting: Timeweb MSK
+  location: Moscow, RU
+  role: api_relay
+  upstream: nl:80
+  fronts: api.madfrog.online
+  dns: A record points to msk_relay directly (NOT Cloudflare)
+
+# Secondary TCP relay for cases where direct NL :443 from RU is blocked.
+# nginx forwards every former-DE port to NL after 2026-05-27 rewrite.
+spb_relay:
+  status: production
+  ip: 185.218.0.43
+  hosting: unknown (provider unclear — see playbooks/spb-relay-audit.md when written)
+  location: Saint Petersburg, RU
+  role: tcp_relay
+  forwards:
+    443:  nl:443
+    2096: nl:443
+    2098: nl:443
+    80:   nl:80         # Host=api.madfrog.online
+  config_source: infrastructure/spb-relay/   # mirror of /etc/nginx/* on the box
+
+# RETIRED — kept for historical lookups.
+# DO NOT use in any deploy script, recipe, or active config.
+de:
+  status: retired
+  retired_at: 2026-05-25
+  retired_reason: OVH contract expired, not renewed (consolidating to single-NL)
+  ip: 162.19.242.30
+  hosting: OVH Frankfurt
+  former_role: [vpn_node, api_backend]
+  cleanup_pending:
+    - clients/apple/Shared/Constants.swift  # AppConfig.directBackendIPs still lists 162.19.242.30
