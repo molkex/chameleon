@@ -18,7 +18,14 @@ settings:
   base:
     SWIFT_VERSION: "5.10"
     MARKETING_VERSION: "1.0.27"
-    CURRENT_PROJECT_VERSION: "89"
+    # Build 89 was rejected under Guideline 2.3 with "the
+    # UIRequiredDeviceCapabilities key … will not install on the
+    # device used in review". Build 90 ships the same binary plus
+    # an explicit UIRequiredDeviceCapabilities=[arm64] declaration
+    # in MadFrogVPN/Info.plist (was previously auto-derived by
+    # Xcode 26 SDK, which the App Review tooling appears to be
+    # unhappy with).
+    CURRENT_PROJECT_VERSION: "90"
     DEVELOPMENT_TEAM: "99W3C374T2"
     TARGETED_DEVICE_FAMILY: "1"
 

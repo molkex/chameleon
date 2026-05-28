@@ -29,6 +29,22 @@
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 	</array>
+	<!--
+	  UIRequiredDeviceCapabilities — explicit declaration added 2026-05-28
+	  after Apple rejected build 89 (1.0.27) under Guideline 2.3:
+	  "The UIRequiredDeviceCapabilities key in the Info.plist is set up
+	  in such a way that the app will not install on the device used in
+	  review" (iPhone 17 Pro Max + iPad Air 11-inch M3, iOS 26.5).
+	  Build 89 had no explicit declaration in source — Xcode 26 auto-
+	  derived `arm64` (verified locally via `plutil` on the built .app).
+	  Restating the same value explicitly in source removes any
+	  ambiguity Apple's automated review tool might infer from the
+	  auto-derived form.
+	-->
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>arm64</string>
+	</array>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>NSAppTransportSecurity</key>
