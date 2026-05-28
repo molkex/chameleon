@@ -49,13 +49,18 @@ type CohortRetentionRow struct {
 // section is independently queried so a failure on one (e.g. payments
 // pool stalled) doesn't take down the whole page.
 type FunnelSummary struct {
-	WindowDays     int
-	Signups        []DailyCount
-	DAU            []DailyCount
-	Auth           []AuthBreakdown
-	Conversion     ConversionStats
-	Cohorts        []CohortRetentionRow
-	GeneratedAt    time.Time
+	WindowDays      int
+	Signups         []DailyCount
+	DAU             []DailyCount
+	// FirstPaymentsPerDay = count of users whose FIRST non-admin paid
+	// charge completed on that day. Plotted as the conversion line in
+	// the Signups & DAU chart so the operator can eyeball acquisition
+	// vs monetization side-by-side without doing window math.
+	FirstPaymentsPerDay []DailyCount
+	Auth                []AuthBreakdown
+	Conversion          ConversionStats
+	Cohorts             []CohortRetentionRow
+	GeneratedAt         time.Time
 }
 
 // FunnelSeries fetches all metrics in one shot, with a single timeout. Each
@@ -94,20 +99,68 @@ func (db *DB) FunnelSeries(ctx context.Context, days int) (*FunnelSummary, error
 		return nil, fmt.Errorf("conversion: %w", err)
 	}
 
+	firstPay, err := db.firstPaymentsPerDay(ctx, days)
+	if err != nil {
+		return nil, fmt.Errorf("first payments per day: %w", err)
+	}
+
 	cohorts, err := db.cohortRetention(ctx, days)
 	if err != nil {
 		return nil, fmt.Errorf("cohorts: %w", err)
 	}
 
 	return &FunnelSummary{
-		WindowDays:  days,
-		Signups:     signups,
-		DAU:         dau,
-		Auth:        auth,
-		Conversion:  conv,
-		Cohorts:     cohorts,
-		GeneratedAt: time.Now().UTC(),
+		WindowDays:          days,
+		Signups:             signups,
+		DAU:                 dau,
+		FirstPaymentsPerDay: firstPay,
+		Auth:                auth,
+		Conversion:          conv,
+		Cohorts:             cohorts,
+		GeneratedAt:         time.Now().UTC(),
 	}, nil
+}
+
+// firstPaymentsPerDay — count of distinct users whose FIRST non-admin
+// completed payment landed on each day in the window. Mirrors the same
+// calendar-padded shape as signupsPerDay so the SPA can zip the two
+// arrays cell-for-cell.
+func (db *DB) firstPaymentsPerDay(ctx context.Context, days int) ([]DailyCount, error) {
+	rows, err := db.Pool.Query(ctx, `
+		WITH cal AS (
+			SELECT generate_series(
+				date_trunc('day', NOW() - ($1::int - 1 || ' days')::interval),
+				date_trunc('day', NOW()),
+				'1 day'::interval
+			)::date AS day
+		),
+		first_pay AS (
+			SELECT p.user_id,
+			       date_trunc('day', MIN(p.created_at))::date AS first_day
+			FROM payments p
+			WHERE p.source IN ('apple_iap', 'freekassa')
+			  AND p.status = 'completed'
+			GROUP BY p.user_id
+		)
+		SELECT cal.day, COALESCE(COUNT(fp.user_id), 0) AS cnt
+		FROM cal
+		LEFT JOIN first_pay fp ON fp.first_day = cal.day
+		GROUP BY cal.day
+		ORDER BY cal.day`, days)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []DailyCount
+	for rows.Next() {
+		var d DailyCount
+		if err := rows.Scan(&d.Day, &d.Count); err != nil {
+			return nil, err
+		}
+		out = append(out, d)
+	}
+	return out, rows.Err()
 }
 
 // signupsPerDay — count of users.created_at by day, padded with zeros so

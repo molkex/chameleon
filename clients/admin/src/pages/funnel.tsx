@@ -29,6 +29,10 @@ interface FunnelResponse {
   window_days: number;
   signups_per_day: DailyCount[];
   dau_per_day: DailyCount[];
+  // Daily count of users whose FIRST non-admin completed payment landed
+  // on that day. Plotted as the third line in the Signups & DAU chart
+  // so acquisition + monetization are eyeball-comparable.
+  first_payments_per_day: DailyCount[];
   auth_breakdown: AuthBreakdown[];
   conversion: Conversion;
   cohorts: CohortCell[];
@@ -73,13 +77,14 @@ function StatCard({ title, value, sub, icon: Icon, color, dim }: {
   );
 }
 
-// Merge signups + DAU into a single chart-friendly array, aligned by day.
-// Backend pre-pads with calendar so cell-for-cell merge is safe.
-function mergeSeries(signups: DailyCount[], dau: DailyCount[]) {
+// Merge signups + DAU + conversions into a single chart-friendly array.
+// Backend pre-pads all three with calendar so cell-for-cell merge is safe.
+function mergeSeries(signups: DailyCount[], dau: DailyCount[], pay: DailyCount[]) {
   return signups.map((s, i) => ({
     day: s.day.slice(5), // MM-DD, dense x-axis
     signups: s.count,
     dau: dau[i]?.count ?? 0,
+    paid: pay[i]?.count ?? 0,
   }));
 }
 
@@ -128,7 +133,7 @@ export default function FunnelPage() {
     );
   }
 
-  const series = mergeSeries(data.signups_per_day, data.dau_per_day);
+  const series = mergeSeries(data.signups_per_day, data.dau_per_day, data.first_payments_per_day ?? []);
   const cohorts = pivotCohorts(data.cohorts);
   const totalSignups = data.signups_per_day.reduce((a, b) => a + b.count, 0);
   const peakDAU = data.dau_per_day.reduce((max, b) => Math.max(max, b.count), 0);
@@ -177,7 +182,7 @@ export default function FunnelPage() {
       {/* Signups vs DAU line chart */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm text-zinc-300">Signups & DAU per day</CardTitle>
+          <CardTitle className="text-sm text-zinc-300">Signups, DAU & paid conversions per day</CardTitle>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={280}>
@@ -185,13 +190,28 @@ export default function FunnelPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
               <XAxis dataKey="day" stroke="#71717a" tick={{ fontSize: 11 }} />
               <YAxis stroke="#71717a" tick={{ fontSize: 11 }} allowDecimals={false} />
+              {/* contentStyle uses near-opaque background + thicker border;
+                  the default recharts tooltip is glass-on-glass against
+                  bars and was unreadable per operator feedback. */}
               <Tooltip
-                contentStyle={{ background: "#18181b", border: "1px solid #3f3f46", fontSize: 12 }}
-                labelStyle={{ color: "#a1a1aa" }}
+                cursor={{ stroke: "#3f3f46", strokeDasharray: "3 3" }}
+                contentStyle={{
+                  background: "#0a0a0a",
+                  border: "1px solid #52525b",
+                  borderRadius: 6,
+                  fontSize: 13,
+                  padding: "8px 12px",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+                }}
+                labelStyle={{ color: "#e4e4e7", fontWeight: 600, marginBottom: 4 }}
+                itemStyle={{ color: "#d4d4d8" }}
               />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Legend wrapperStyle={{ fontSize: 13 }} />
               <Line type="monotone" dataKey="signups" stroke="#3b82f6" strokeWidth={2} dot={false} name="Signups" />
               <Line type="monotone" dataKey="dau" stroke="#10b981" strokeWidth={2} dot={false} name="DAU" />
+              {/* First-payment-per-day curve. Often flat at 0 in early
+                  stage — that itself is the signal we want to see. */}
+              <Line type="monotone" dataKey="paid" stroke="#06b6d4" strokeWidth={2} dot={false} name="Paid (first conversion)" />
             </LineChart>
           </ResponsiveContainer>
         </CardContent>
@@ -211,8 +231,21 @@ export default function FunnelPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
               <XAxis type="number" stroke="#71717a" tick={{ fontSize: 11 }} allowDecimals={false} />
               <YAxis dataKey="label" type="category" stroke="#71717a" tick={{ fontSize: 11 }} width={130} />
+              {/* cursor={false} kills recharts's default 50%-opacity row
+                  overlay that visually overlapped neighbouring bars and
+                  made tooltips hard to read. Larger font + opaque bg. */}
               <Tooltip
-                contentStyle={{ background: "#18181b", border: "1px solid #3f3f46", fontSize: 12 }}
+                cursor={{ fill: "rgba(63, 63, 70, 0.25)" }}
+                contentStyle={{
+                  background: "#0a0a0a",
+                  border: "1px solid #52525b",
+                  borderRadius: 6,
+                  fontSize: 13,
+                  padding: "8px 12px",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+                }}
+                labelStyle={{ color: "#e4e4e7", fontWeight: 600 }}
+                itemStyle={{ color: "#d4d4d8" }}
               />
               <Bar dataKey="count" radius={[0, 4, 4, 0]}>
                 {data.auth_breakdown.map((a) => (
