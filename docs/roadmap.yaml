@@ -154,7 +154,6 @@ deferred:
 # ============================================================
 done:
   "2026-05-28":
-<<<<<<< HEAD
     - id: LAUNCH-07
       title: Auto-connect on untrusted Wi-Fi via NEOnDemandRule (+ optional cellular)
       pr: 11
@@ -313,8 +312,7 @@ done:
     - MED-010 docker-socket-proxy (replaces raw docker.sock mount)
     - MED-012 Phase 1 server-issued install_secret (backend half)
     - MED-014 SyncConfig audit + login.failed username sanitize
-    - MED-015 UpdateServer secret-preservation guard
-      incident_ref: incidents/2026-05-27-med-015-restart-loop.md
+    - MED-015 UpdateServer secret-preservation guard (incidents/2026-05-27-med-015-restart-loop.md)
     - BE-01a Phase 1 appAccountToken extraction (backend half)
     - BE-01b ASC API client + Apple state on admin Status page
     - B2 off-host backup wired into db-backup.sh
