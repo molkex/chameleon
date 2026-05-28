@@ -1,0 +1,1109 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0},
+      "id": 100,
+      "panels": [],
+      "title": "Live VPN Load",
+      "type": "row"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "green", "value": 1}
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 1},
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "editorMode": "code",
+          "expr": "chameleon_vpn_users_online",
+          "legendFormat": "online",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Online users",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "gradientMode": "none",
+            "hideFrom": {"legend": false, "tooltip": false, "viz": false},
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {"type": "linear"},
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {"group": "A", "mode": "none"},
+            "thresholdsStyle": {"mode": "off"}
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{"color": "green", "value": null}]
+          },
+          "unit": "Mbits"
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "rx"},
+            "properties": [{"id": "color", "value": {"fixedColor": "green", "mode": "fixed"}}]
+          },
+          {
+            "matcher": {"id": "byName", "options": "tx"},
+            "properties": [{"id": "color", "value": {"fixedColor": "blue", "mode": "fixed"}}]
+          }
+        ]
+      },
+      "gridPos": {"h": 6, "w": 12, "x": 6, "y": 1},
+      "id": 2,
+      "options": {
+        "legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "editorMode": "code",
+          "expr": "rate(chameleon_vpn_throughput_bytes_total[1m]) * 8 / 1000000",
+          "legendFormat": "{{direction}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Throughput (Mbps)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 5000},
+              {"color": "red", "value": 10000}
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 1},
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "editorMode": "code",
+          "expr": "chameleon_vpn_active_connections",
+          "legendFormat": "active",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Active TCP connections on :443",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "none",
+            "hideFrom": {"legend": false, "tooltip": false, "viz": false},
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {"type": "linear"},
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {"group": "A", "mode": "none"},
+            "thresholdsStyle": {"mode": "line"}
+          },
+          "mappings": [],
+          "max": 5,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 1},
+              {"color": "red", "value": 2}
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 7, "w": 24, "x": 0, "y": 7},
+      "id": 4,
+      "options": {
+        "legend": {"calcs": ["mean", "max"], "displayMode": "list", "placement": "bottom", "showLegend": true},
+        "tooltip": {"mode": "single", "sort": "none"}
+      },
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "editorMode": "code",
+          "expr": "rate(chameleon_vpn_tcp_retransmit_total[5m]) / rate(chameleon_vpn_tcp_segments_sent_total[5m]) * 100",
+          "legendFormat": "retransmit %",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "TCP retransmit rate (%)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 14},
+      "id": 101,
+      "panels": [],
+      "title": "System Health",
+      "type": "row"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "gradientMode": "none",
+            "hideFrom": {"legend": false, "tooltip": false, "viz": false},
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {"type": "linear"},
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {"group": "A", "mode": "none"},
+            "thresholdsStyle": {"mode": "off"}
+          },
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 70},
+              {"color": "red", "value": 90}
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 15},
+      "id": 5,
+      "options": {
+        "legend": {"calcs": ["mean", "max"], "displayMode": "list", "placement": "bottom", "showLegend": true},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "editorMode": "code",
+          "expr": "(1 - avg by(instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[1m]))) * 100",
+          "legendFormat": "{{instance}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "CPU %",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 35,
+            "gradientMode": "none",
+            "hideFrom": {"legend": false, "tooltip": false, "viz": false},
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {"type": "linear"},
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {"group": "A", "mode": "normal"},
+            "thresholdsStyle": {"mode": "off"}
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{"color": "green", "value": null}]
+          },
+          "unit": "decgbytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 15},
+      "id": 6,
+      "options": {
+        "legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "editorMode": "code",
+          "expr": "(node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / 1024 / 1024 / 1024",
+          "legendFormat": "used",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "editorMode": "code",
+          "expr": "node_memory_MemAvailable_bytes / 1024 / 1024 / 1024",
+          "legendFormat": "available",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "RAM (GB)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 70},
+              {"color": "red", "value": 85}
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 22},
+      "id": 7,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "editorMode": "code",
+          "expr": "(1 - node_filesystem_avail_bytes{mountpoint=\"/\",fstype!=\"tmpfs\"} / node_filesystem_size_bytes{mountpoint=\"/\",fstype!=\"tmpfs\"}) * 100",
+          "legendFormat": "disk used",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Disk usage /",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {"legend": false, "tooltip": false, "viz": false},
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {"type": "linear"},
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {"group": "A", "mode": "none"},
+            "thresholdsStyle": {"mode": "off"}
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{"color": "green", "value": null}]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 6, "w": 9, "x": 6, "y": 22},
+      "id": 8,
+      "options": {
+        "legend": {"calcs": ["mean", "max"], "displayMode": "list", "placement": "bottom", "showLegend": true},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "editorMode": "code",
+          "expr": "node_load1",
+          "legendFormat": "load1",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "editorMode": "code",
+          "expr": "node_load5",
+          "legendFormat": "load5",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "editorMode": "code",
+          "expr": "node_load15",
+          "legendFormat": "load15",
+          "range": true,
+          "refId": "C"
+        }
+      ],
+      "title": "Load average",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "gradientMode": "none",
+            "hideFrom": {"legend": false, "tooltip": false, "viz": false},
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {"type": "linear"},
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {"group": "A", "mode": "none"},
+            "thresholdsStyle": {"mode": "off"}
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{"color": "green", "value": null}]
+          },
+          "unit": "Mbits"
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "RX"},
+            "properties": [{"id": "color", "value": {"fixedColor": "green", "mode": "fixed"}}]
+          },
+          {
+            "matcher": {"id": "byName", "options": "TX"},
+            "properties": [{"id": "color", "value": {"fixedColor": "blue", "mode": "fixed"}}]
+          }
+        ]
+      },
+      "gridPos": {"h": 6, "w": 9, "x": 15, "y": 22},
+      "id": 9,
+      "options": {
+        "legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "editorMode": "code",
+          "expr": "rate(node_network_receive_bytes_total{device=\"eth0\"}[1m]) * 8 / 1000000",
+          "legendFormat": "RX",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "editorMode": "code",
+          "expr": "rate(node_network_transmit_bytes_total{device=\"eth0\"}[1m]) * 8 / 1000000",
+          "legendFormat": "TX",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "Network throughput on eth0 (Mbps)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 28},
+      "id": 102,
+      "panels": [],
+      "title": "Funnel",
+      "type": "row"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {"legend": false, "tooltip": false, "viz": false},
+            "lineWidth": 1,
+            "scaleDistribution": {"type": "linear"},
+            "thresholdsStyle": {"mode": "off"}
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{"color": "green", "value": null}]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 29},
+      "id": 10,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.7,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {"calcs": ["mean", "lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true},
+        "orientation": "vertical",
+        "showValue": "auto",
+        "stacking": "normal",
+        "tooltip": {"mode": "multi", "sort": "desc"},
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "editorMode": "code",
+          "expr": "sum by(provider) (rate(chameleon_signups_total[1h])) * 3600",
+          "legendFormat": "{{provider}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Signups/hour (by provider)",
+      "type": "barchart"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "blue", "value": null},
+              {"color": "green", "value": 1}
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 6, "x": 12, "y": 29},
+      "id": 11,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "editorMode": "code",
+          "expr": "chameleon_dau_users",
+          "legendFormat": "DAU",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Daily Active Users",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "custom": {
+            "align": "auto",
+            "cellOptions": {"type": "auto"},
+            "filterable": true,
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{"color": "green", "value": null}]
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "status"},
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {"options": {"completed": {"color": "green", "index": 0}}, "type": "value"},
+                  {"options": {"failed": {"color": "red", "index": 1}}, "type": "value"},
+                  {"options": {"pending": {"color": "yellow", "index": 2}}, "type": "value"},
+                  {"options": {"refunded": {"color": "orange", "index": 3}}, "type": "value"}
+                ]
+              },
+              {"id": "custom.cellOptions", "value": {"type": "color-text"}}
+            ]
+          }
+        ]
+      },
+      "gridPos": {"h": 8, "w": 6, "x": 18, "y": 29},
+      "id": 12,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {"countRows": false, "fields": "", "reducer": ["sum"], "show": false},
+        "showHeader": true
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "editorMode": "code",
+          "expr": "sum by(source, status) (increase(chameleon_payments_total[24h]))",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Payments by source/status (24h)",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {"Time": true, "__name__": true, "job": true, "instance": true},
+            "indexByName": {"source": 0, "status": 1, "Value": 2},
+            "renameByName": {"Value": "count"}
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {"legend": false, "tooltip": false, "viz": false},
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {"type": "linear"},
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {"group": "A", "mode": "none"},
+            "thresholdsStyle": {"mode": "off"}
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{"color": "green", "value": null}]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 37},
+      "id": 13,
+      "options": {
+        "legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "editorMode": "code",
+          "expr": "topk(5, sum by(name) (rate(chameleon_app_events_total[5m])))",
+          "legendFormat": "{{name}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "App events (5m rate) — top 5 by name",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 45},
+      "id": 103,
+      "panels": [],
+      "title": "Backend internals",
+      "type": "row"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "none",
+            "hideFrom": {"legend": false, "tooltip": false, "viz": false},
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {"type": "linear"},
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {"group": "A", "mode": "normal"},
+            "thresholdsStyle": {"mode": "off"}
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{"color": "green", "value": null}]
+          },
+          "unit": "reqps"
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "2xx"},
+            "properties": [{"id": "color", "value": {"fixedColor": "green", "mode": "fixed"}}]
+          },
+          {
+            "matcher": {"id": "byName", "options": "4xx"},
+            "properties": [{"id": "color", "value": {"fixedColor": "yellow", "mode": "fixed"}}]
+          },
+          {
+            "matcher": {"id": "byName", "options": "5xx"},
+            "properties": [{"id": "color", "value": {"fixedColor": "red", "mode": "fixed"}}]
+          }
+        ]
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 46},
+      "id": 14,
+      "options": {
+        "legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "editorMode": "code",
+          "expr": "sum by(status_class) (rate(chameleon_http_request_duration_seconds_count[1m]))",
+          "legendFormat": "{{status_class}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "HTTP request rate (by status class)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 5,
+            "gradientMode": "none",
+            "hideFrom": {"legend": false, "tooltip": false, "viz": false},
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {"type": "linear"},
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {"group": "A", "mode": "none"},
+            "thresholdsStyle": {"mode": "off"}
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{"color": "green", "value": null}]
+          },
+          "unit": "s"
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "p50"},
+            "properties": [{"id": "color", "value": {"fixedColor": "green", "mode": "fixed"}}]
+          },
+          {
+            "matcher": {"id": "byName", "options": "p95"},
+            "properties": [{"id": "color", "value": {"fixedColor": "yellow", "mode": "fixed"}}]
+          },
+          {
+            "matcher": {"id": "byName", "options": "p99"},
+            "properties": [{"id": "color", "value": {"fixedColor": "red", "mode": "fixed"}}]
+          }
+        ]
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 46},
+      "id": 15,
+      "options": {
+        "legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.5, sum by(le) (rate(chameleon_http_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "p50",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum by(le) (rate(chameleon_http_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "p95",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.99, sum by(le) (rate(chameleon_http_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "p99",
+          "range": true,
+          "refId": "C"
+        }
+      ],
+      "title": "HTTP latency p50/p95/p99",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {"legend": false, "tooltip": false, "viz": false},
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {"type": "linear"},
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {"group": "A", "mode": "none"},
+            "thresholdsStyle": {"mode": "off"}
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{"color": "green", "value": null}]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 54},
+      "id": 16,
+      "options": {
+        "legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum by(le, operation) (rate(chameleon_db_query_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{operation}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "DB query latency p95 (by operation)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "gradientMode": "none",
+            "hideFrom": {"legend": false, "tooltip": false, "viz": false},
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {"type": "linear"},
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {"group": "A", "mode": "none"},
+            "thresholdsStyle": {"mode": "line+area"}
+          },
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 80},
+              {"color": "green", "value": 90}
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 54},
+      "id": 17,
+      "options": {
+        "legend": {"calcs": ["mean", "lastNotNull"], "displayMode": "list", "placement": "bottom", "showLegend": true},
+        "tooltip": {"mode": "single", "sort": "none"}
+      },
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "editorMode": "code",
+          "expr": "sum(rate(chameleon_redis_cache_hit_total[5m])) / (sum(rate(chameleon_redis_cache_hit_total[5m])) + sum(rate(chameleon_redis_cache_miss_total[5m]))) * 100",
+          "legendFormat": "hit %",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Redis cache hit rate % (target: 90%)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["chameleon", "vpn", "mon-04"],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": false,
+          "text": "Prometheus",
+          "value": "Prometheus"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Data source",
+        "multi": false,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "queryValue": "",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-3h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": ["10s", "30s", "1m", "5m", "15m", "30m", "1h", "2h", "1d"]
+  },
+  "timezone": "browser",
+  "title": "Chameleon VPN — Overview",
+  "uid": "chameleon-overview",
+  "version": 1,
+  "weekStart": ""
+}

@@ -1,0 +1,18 @@
+# Grafana data source provisioning — MON-04
+#
+# Auto-adds Prometheus (running on the same host) as the default data
+# source on Grafana boot. URL uses localhost because Grafana runs in
+# host networking mode on NL (see docker-compose.yml).
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://127.0.0.1:9091
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 15s
+      httpMethod: POST

@@ -1,0 +1,47 @@
+# Prometheus scrape config — MON-04
+#
+# Scrapes:
+#   - chameleon backend /metrics (port 8000, 127.0.0.1) — all our custom
+#     instrumentation: VPN throughput, signups, payments, HTTP/DB latency,
+#     Redis cache hit/miss, Go runtime.
+#   - node_exporter (port 9100, 127.0.0.1) — host CPU / RAM / disk /
+#     network from /proc + /sys.
+#   - sing-box clash API (port 9090, 127.0.0.1) — Prometheus-compatible
+#     metrics endpoint emitting active proxy / connection counts.
+#
+# 15s scrape interval is comfortable for our cardinality (~50 series),
+# and 7-day retention (set on the container command line) covers weekly
+# patterns without storage pressure.
+#
+# All targets are localhost — Prometheus runs network_mode: host on NL.
+
+global:
+  scrape_interval:     15s
+  evaluation_interval: 15s
+  external_labels:
+    node: 'nl'
+
+scrape_configs:
+  # Chameleon backend — custom application metrics.
+  - job_name: 'chameleon'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['127.0.0.1:8000']
+        labels:
+          service: 'chameleon'
+
+  # node_exporter — host system metrics.
+  - job_name: 'node'
+    static_configs:
+      - targets: ['127.0.0.1:9100']
+        labels:
+          service: 'node-exporter'
+
+  # sing-box clash API — exposes /metrics in Prometheus format (since
+  # sing-box 1.10+). Connection counts + interface throughput.
+  - job_name: 'singbox'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['127.0.0.1:9090']
+        labels:
+          service: 'singbox'
