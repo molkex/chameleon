@@ -1,4 +1,4 @@
-import { useState, useDeferredValue, useEffect } from "react";
+import { useState, useDeferredValue } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, type User } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -118,6 +118,8 @@ export default function UsersPage() {
 
   // Toggle sort: same column flips direction, new column resets to desc
   // (the natural "newest/biggest first" default for every column we expose).
+  // Any sort change also resets to page 1 — react-hooks/set-state-in-effect
+  // forbids the previous `useEffect(() => setPage(1), [...])` pattern.
   const toggleSort = (col: SortColumn) => {
     if (col === sortColumn) {
       setSortOrder((o) => (o === "asc" ? "desc" : "asc"));
@@ -125,12 +127,23 @@ export default function UsersPage() {
       setSortColumn(col);
       setSortOrder("desc");
     }
+    setPage(1);
   };
 
-  // Search/sort/page-size change → reset to page 1. A filter shrinks the
-  // result set; staying on page 12 of a now-empty list is just an empty
-  // table with no obvious way to recover.
-  useEffect(() => { setPage(1); }, [deferredSearch, sortColumn, sortOrder, pageSize]);
+  // Search-input handler. We bind the raw `search` state (then defer it via
+  // useDeferredValue for the query) and reset page 1 in the same tick so the
+  // user doesn't end up on page 12 of a shrunken result set.
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    setPage(1);
+  };
+
+  // Per-page change. Mirrors the page-1 reset semantics from the legacy
+  // useEffect, but co-located with the only handler that mutates pageSize.
+  const handlePageSizeChange = (value: PageSize) => {
+    setPageSize(value);
+    setPage(1);
+  };
 
   const { data, isLoading } = useQuery({
     queryKey: ["users", deferredSearch, sortColumn, sortOrder, page, pageSize],
@@ -182,7 +195,7 @@ export default function UsersPage() {
           <Input
             placeholder="Search users..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
             className="pl-9"
           />
         </div>
@@ -352,7 +365,7 @@ export default function UsersPage() {
             <select
               className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-zinc-200"
               value={pageSize}
-              onChange={(e) => setPageSize(Number(e.target.value) as PageSize)}
+              onChange={(e) => handlePageSizeChange(Number(e.target.value) as PageSize)}
             >
               {PAGE_SIZES.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>

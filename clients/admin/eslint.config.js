@@ -49,12 +49,16 @@ export default tseslint.config(
         { allowConstantExport: true },
       ],
 
-      // React 19 + react-hooks 7 ship two new error-level rules that
-      // flag patterns this codebase uses on purpose. Both are legitimate
-      // hygiene findings; refactoring them is out of scope here. They
-      // surface as warnings so IDEs still highlight them.
-      'react-hooks/purity': 'warn',
-      'react-hooks/set-state-in-effect': 'warn',
+      // React 19 + react-hooks 7's two strict rules. Promoted to `error`
+      // 2026-05-28 (TD-LINT-02) after refactoring the 4 known offenders:
+      //  - users / audit / events / settings: filter→page-1 reset moved
+      //    out of useEffect into handler-driven setters, settings.tsx
+      //    moved to the canonical "store previous data + setState during
+      //    render" pattern for hydrating form from fetched payload.
+      //  - sidebar.tsx skeleton-width: useMemo(() => Math.random()) →
+      //    useState lazy initializer (random runs once outside render).
+      'react-hooks/purity': 'error',
+      'react-hooks/set-state-in-effect': 'error',
 
       // Allow `any` — many places intentionally accept unknown JSON
       // shapes from the API.

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,10 +38,18 @@ export default function SettingsPage() {
   });
 
   const [form, setForm] = useState<BrandingSettings>(emptyForm);
-
-  useEffect(() => {
-    if (data) setForm(data);
-  }, [data]);
+  // Track the last query payload we hydrated `form` from. When TanStack
+  // hands us a *different* object reference (initial fetch, refetch after
+  // a successful save, or invalidation) we copy it into the local form
+  // state. This is React 19's "adjusting state in response to a prop
+  // change" pattern — store the previous value, compare during render,
+  // and setState conditionally. It replaces a useEffect(() => setForm(data))
+  // that react-hooks/set-state-in-effect forbids.
+  const [hydratedFrom, setHydratedFrom] = useState<BrandingSettings | null>(null);
+  if (data && data !== hydratedFrom) {
+    setHydratedFrom(data);
+    setForm(data);
+  }
 
   const saveMutation = useMutation({
     mutationFn: () => api.patch("/admin/settings/branding", form),

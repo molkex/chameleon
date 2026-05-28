@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
@@ -85,9 +85,13 @@ export default function EventsPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<PageSize>(50);
 
-  useEffect(() => {
-    setPage(1);
-  }, [nameFilter, userFilter, sinceFilter, untilFilter, pageSize]);
+  // Filter change → page 1 reset. Done via handler wrappers (not a
+  // useEffect on the filter deps) to satisfy react-hooks/set-state-in-effect.
+  const handleNameChange = (value: string) => { setNameFilter(value); setPage(1); };
+  const handleUserChange = (value: string) => { setUserFilter(value); setPage(1); };
+  const handleSinceChange = (value: string) => { setSinceFilter(value); setPage(1); };
+  const handleUntilChange = (value: string) => { setUntilFilter(value); setPage(1); };
+  const handlePageSizeChange = (value: PageSize) => { setPageSize(value); setPage(1); };
 
   const { data: namesData } = useQuery<NamesResponse>({
     queryKey: ["admin-events-names"],
@@ -135,6 +139,7 @@ export default function EventsPage() {
     setUserFilter("");
     setSinceFilter("");
     setUntilFilter("");
+    setPage(1);
   };
 
   // Chart data: stack by event_name, x = day (YYYY-MM-DD).
@@ -247,7 +252,7 @@ export default function EventsPage() {
             <select
               className="h-9 w-56 rounded border border-zinc-700 bg-zinc-900 px-2 text-sm text-zinc-200"
               value={nameFilter}
-              onChange={(e) => setNameFilter(e.target.value)}
+              onChange={(e) => handleNameChange(e.target.value)}
             >
               <option value="">All events</option>
               {names.map((n) => <option key={n} value={n}>{n}</option>)}
@@ -261,7 +266,7 @@ export default function EventsPage() {
               min={1}
               placeholder="e.g. 42"
               value={userFilter}
-              onChange={(e) => setUserFilter(e.target.value)}
+              onChange={(e) => handleUserChange(e.target.value)}
               className="h-9 w-28"
             />
           </label>
@@ -271,7 +276,7 @@ export default function EventsPage() {
             <Input
               type="datetime-local"
               value={sinceFilter}
-              onChange={(e) => setSinceFilter(e.target.value)}
+              onChange={(e) => handleSinceChange(e.target.value)}
               className="h-9 w-52"
             />
           </label>
@@ -281,7 +286,7 @@ export default function EventsPage() {
             <Input
               type="datetime-local"
               value={untilFilter}
-              onChange={(e) => setUntilFilter(e.target.value)}
+              onChange={(e) => handleUntilChange(e.target.value)}
               className="h-9 w-52"
             />
           </label>
@@ -373,7 +378,7 @@ export default function EventsPage() {
             <select
               className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-zinc-200"
               value={pageSize}
-              onChange={(e) => setPageSize(Number(e.target.value) as PageSize)}
+              onChange={(e) => handlePageSizeChange(Number(e.target.value) as PageSize)}
             >
               {PAGE_SIZES.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
