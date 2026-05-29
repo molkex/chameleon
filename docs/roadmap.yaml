@@ -130,6 +130,8 @@ later:
     - Apple Watch companion app
     - More localizations (ES / TR / AR — large VPN markets)
     - Export config as sing-box URL (power users)
+    - Sentry DSN — Info.plist SENTRY_DSN empty (crash reporting no-op, same as prod 1.0.27); needs DSN value from user / EU Sentry project. Non-blocking.
+    - Native macOS app (MadFrogVPNMac) — builds clean 0/0 but not shipped; optional Mac-native UI + removes "Not verified for macOS" label. Decision 2026-05-29: keep iOS-on-Mac ("Designed for iPhone"), don't ship native now.
     - Win-back offer for churned subscriptions
 
   refactoring:
