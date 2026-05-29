@@ -252,7 +252,10 @@ const PAY_PERIODS: { key: string; label: string }[] = [
   { key: "all", label: "Всё" },
 ];
 
-function fmtNum(v: number): string {
+// Money formatter — ru-RU thousands separators. Distinct from the health
+// strip's fmtNum (which does fixed-digit toFixed for metric tiles); kept
+// separate after the #27/#26 dashboard merge introduced a name clash.
+function fmtAmount(v: number): string {
   return v.toLocaleString("ru-RU", { maximumFractionDigits: Number.isInteger(v) ? 0 : 2 });
 }
 
@@ -261,7 +264,7 @@ function fmtNum(v: number): string {
 function fmtMoney(rev: Record<string, number> | undefined): string {
   const parts = Object.entries(rev ?? {})
     .filter(([, v]) => v)
-    .map(([cur, v]) => `${fmtNum(v)} ${CURRENCY_SYMBOL[cur] ?? cur}`);
+    .map(([cur, v]) => `${fmtAmount(v)} ${CURRENCY_SYMBOL[cur] ?? cur}`);
   return parts.length ? parts.join(" + ") : "0 ₽";
 }
 
@@ -279,7 +282,7 @@ function avgCheck(p: PaymentPeriod): string | null {
     .filter((s) => (s.revenue ?? {})[cur])
     .reduce((acc, s) => acc + s.count, 0);
   if (!cnt) return null;
-  return `${fmtNum(total / cnt)} ${CURRENCY_SYMBOL[cur] ?? cur}`;
+  return `${fmtAmount(total / cnt)} ${CURRENCY_SYMBOL[cur] ?? cur}`;
 }
 
 function sourceLabel(src: string): string {
@@ -537,7 +540,7 @@ export default function DashboardPage() {
                   <TableRow key={i}>
                     <TableCell className="font-mono text-sm">{tx.user_id ?? "—"}</TableCell>
                     <TableCell className="font-semibold tabular-nums">
-                      {tx.amount > 0 ? `${fmtNum(tx.amount)} ${CURRENCY_SYMBOL[tx.currency] ?? tx.currency}` : "—"}
+                      {tx.amount > 0 ? `${fmtAmount(tx.amount)} ${CURRENCY_SYMBOL[tx.currency] ?? tx.currency}` : "—"}
                     </TableCell>
                     <TableCell className="text-sm text-zinc-400">{tx.days}</TableCell>
                     <TableCell>
