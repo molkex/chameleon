@@ -78,7 +78,7 @@ open class ExtensionProvider: NEPacketTunnelProvider {
             }
         }
         let mb: (UInt64) -> Int = { Int($0 / (1024 * 1024)) }
-        let avail = Int(os_proc_available_memory() / (1024 * 1024))
+        let avail = availableMemoryMB()
         guard kr == KERN_SUCCESS else {
             return MemorySnapshot(phys: -1, resident: -1, virt: -1, compressed: -1,
                                   intern: -1, external: -1, avail: avail)
@@ -101,8 +101,15 @@ open class ExtensionProvider: NEPacketTunnelProvider {
     }
 
     /// Remaining memory before jetsam fires (iOS 13+), in MB.
+    /// `os_proc_available_memory()` is iOS-only; macOS NE extensions have no
+    /// jetsam cap, so the metric is N/A there — report a large "unconstrained"
+    /// value so the watchdog never reads it as memory pressure.
     fileprivate func availableMemoryMB() -> Int {
-        Int(os_proc_available_memory() / (1024 * 1024))
+        #if os(iOS)
+        return Int(os_proc_available_memory() / (1024 * 1024))
+        #else
+        return .max
+        #endif
     }
 
     /// Start a timer that logs memory every 15s. Gives us breadcrumbs so post-kill

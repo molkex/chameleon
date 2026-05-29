@@ -204,12 +204,15 @@ class VPNManager {
         connectWiFi.interfaceTypeMatch = .wiFi
         rules.append(connectWiFi)
 
-        // Rule 3 (optional): cellular → connect.
+        // Rule 3 (optional): cellular → connect. iOS-only — macOS has no
+        // cellular interface, so `.cellular` is unavailable there.
+        #if os(iOS)
         if includeCellular {
             let connectCellular = NEOnDemandRuleConnect()
             connectCellular.interfaceTypeMatch = .cellular
             rules.append(connectCellular)
         }
+        #endif
 
         return rules
     }
