@@ -131,7 +131,8 @@ func (h *Handler) GetInfra(c echo.Context) error {
 		TargetsUp:    results["up"],
 		TargetsTotal: results["up_total"],
 		// If every query failed, Prometheus is almost certainly unreachable.
-		PrometheusOK: !(anyErr && len(results) == 0),
+		// (De Morgan of !(anyErr && len(results)==0) — staticcheck QF1001.)
+		PrometheusOK: !anyErr || len(results) != 0,
 		GeneratedAt:  time.Now().UTC().Format(time.RFC3339),
 	}
 
