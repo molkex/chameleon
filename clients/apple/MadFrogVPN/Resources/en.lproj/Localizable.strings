@@ -151,7 +151,7 @@
 "paywall.restored_alert"         = "Purchases restored";
 "paywall.ok"                     = "OK";
 "paywall.close"                  = "Close";
-"paywall.legal"                  = "Charged to your Apple ID. Subscription does not auto-renew — it is a one-time purchase for the selected period.";
+"paywall.legal"                  = "Payment will be charged to your Apple ID at confirmation of purchase. Subscription automatically renews unless cancelled at least 24 hours before the end of the current period. Your account will be charged for renewal within 24 hours prior to the end of the current period. Manage or cancel subscriptions in your App Store account settings.";
 "paywall.terms"                  = "Terms";
 "paywall.privacy"                = "Privacy";
 

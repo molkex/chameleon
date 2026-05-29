@@ -21,14 +21,31 @@ final class SubscriptionManager {
 
     // MARK: - Product IDs
 
-    /// Keep these in sync with `backend/internal/api/mobile/subscription.go productDays`
-    /// and with the product IDs created in App Store Connect.
-    static let product30  = "com.madfrog.vpn.sub.30days"
-    static let product90  = "com.madfrog.vpn.sub.90days"
-    static let product180 = "com.madfrog.vpn.sub.180days"
-    static let product365 = "com.madfrog.vpn.sub.365days"
+    /// Auto-renewing subscriptions — the products the paywall sells today.
+    /// Keep in sync with `backend/internal/api/mobile/subscription.go`
+    /// (`productDays` + `autoRenewingProducts`) and the ASC "Pro" subscription
+    /// group. Migration rationale: docs/decisions/0009-auto-renewing-subscriptions.md.
+    static let product1m = "com.madfrog.vpn.sub.month"
+    static let product3m = "com.madfrog.vpn.sub.3month"
+    static let product6m = "com.madfrog.vpn.sub.6month"
+    static let product1y = "com.madfrog.vpn.sub.year"
 
-    static let allProductIDs: [String] = [product30, product90, product180, product365]
+    /// Products shown on the paywall, in display order (month → year).
+    static let displayProductIDs: [String] = [product1m, product3m, product6m, product1y]
+
+    /// Legacy non-renewing products. No longer sold, but still recognized so
+    /// existing buyers keep their entitlement and Restore keeps working until
+    /// the last 365-day purchase expires (≈ 2027-05). Remove after that.
+    static let legacyProduct30  = "com.madfrog.vpn.sub.30days"
+    static let legacyProduct90  = "com.madfrog.vpn.sub.90days"
+    static let legacyProduct180 = "com.madfrog.vpn.sub.180days"
+    static let legacyProduct365 = "com.madfrog.vpn.sub.365days"
+
+    /// Every product ID we recognize for entitlement checks / Restore
+    /// (current auto-renewing + legacy non-renewing). NOT used for display.
+    static let allProductIDs: [String] = displayProductIDs + [
+        legacyProduct30, legacyProduct90, legacyProduct180, legacyProduct365,
+    ]
 
     // MARK: - Published State
 
@@ -77,14 +94,14 @@ final class SubscriptionManager {
         defer { isLoading = false }
 
         do {
-            let fetched = try await Product.products(for: Self.allProductIDs)
-            let order = Self.allProductIDs
+            let fetched = try await Product.products(for: Self.displayProductIDs)
+            let order = Self.displayProductIDs
             products = fetched.sorted { lhs, rhs in
                 (order.firstIndex(of: lhs.id) ?? .max) < (order.firstIndex(of: rhs.id) ?? .max)
             }
-            AppLogger.app.info("SubscriptionManager: loaded \(fetched.count)/\(Self.allProductIDs.count) products")
-            if fetched.count < Self.allProductIDs.count {
-                let missing = Set(Self.allProductIDs).subtracting(fetched.map(\.id))
+            AppLogger.app.info("SubscriptionManager: loaded \(fetched.count)/\(Self.displayProductIDs.count) products")
+            if fetched.count < Self.displayProductIDs.count {
+                let missing = Set(Self.displayProductIDs).subtracting(fetched.map(\.id))
                 AppLogger.app.warning("SubscriptionManager: missing products \(missing.joined(separator: ", "))")
             }
         } catch {

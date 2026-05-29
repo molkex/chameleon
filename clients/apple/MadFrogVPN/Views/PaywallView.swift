@@ -6,7 +6,7 @@ struct PaywallView: View {
     @Environment(ThemeManager.self) private var themeManager
     @Environment(\.dismiss) private var dismiss
 
-    @State private var selectedProductID: String = SubscriptionManager.product90
+    @State private var selectedProductID: String = SubscriptionManager.product3m
     @State private var showRestoredAlert = false
     @State private var showTerms = false
     @State private var showPrivacy = false
