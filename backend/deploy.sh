@@ -192,6 +192,18 @@ case "$NODE_ID" in
         sed -i 's|udp_key_path: ""|udp_key_path: "/etc/singbox/server.key"|' config.yaml
         echo ">>> UDP protocols enabled: Hysteria2=443, TUIC=8443"
         ;;
+    nl2-1)
+        # Hysteria2 fallback leg for the sole prod node. TUIC intentionally
+        # left off — one UDP fallback is enough and keeps the surface small.
+        # Reuses the self-signed cert already in the singbox-config volume
+        # (client side is tls.insecure=true, so CN/expiry don't matter).
+        # UDP/443 is already open in ufw. Hysteria2 reaches NL's IP directly
+        # (the SPB/MSK relays are TCP-only and don't carry UDP).
+        sed -i 's/hysteria2_port: 0/hysteria2_port: 443/' config.yaml
+        sed -i 's|udp_cert_path: ""|udp_cert_path: "/etc/singbox/server.crt"|' config.yaml
+        sed -i 's|udp_key_path: ""|udp_key_path: "/etc/singbox/server.key"|' config.yaml
+        echo ">>> UDP protocols enabled: Hysteria2=443 (TUIC off)"
+        ;;
     *)
         echo ">>> UDP protocols disabled on this node"
         ;;
