@@ -216,29 +216,94 @@ final class PathPickerTests: XCTestCase {
         // but it returns a non-nil result — main assertion is liveness.
     }
 
-    // MARK: - UDP-only pool
+    // MARK: - UDP legs are now probed (QUIC), never trusted blind
 
-    func testUdpOnlyPoolReturnsFirstByTagWithoutProbing() async {
+    /// UDP-only legs used to be returned without probing. They are now probed
+    /// (QUIC in production, injected here), so an alive leg wins over a dead one.
+    func testUdpOnlyPoolPicksAliveLeg() async {
         let counter = ProbeCounter()
         let store = LeafRankingStore(defaults: freshDefaults())
         let picker = PathPicker(
             store: store,
-            probeFn: fakeProbeFn(latencies: [:], counter: counter),
+            probeFn: fakeProbeFn(latencies: ["de-tuic2-de": 40], counter: counter),
             log: { _ in }
         )
         let candidates = [
-            leaf("de-tuic-de", type: "tuic"),
-            leaf("de-tuic2-de", type: "tuic"),
+            leaf("de-tuic-de", type: "tuic"),    // dead
+            leaf("de-tuic2-de", type: "tuic"),   // alive
         ]
         let result = await picker.bestLeaf(for: nil, candidates: candidates)
-        XCTAssertEqual(result, "de-tuic-de", "first alphabetically among UDP-only")
+        XCTAssertEqual(result, "de-tuic2-de", "alive UDP leg must win over dead one")
         let callCount = await counter.count()
-        XCTAssertEqual(callCount, 0, "UDP pool must not fire any probes")
+        XCTAssertEqual(callCount, 2, "UDP legs are now probed, not trusted blind")
     }
 
-    // MARK: - Mixed UDP + TCP, all TCP fail
+    /// The reported RKN failure mode: Hysteria2 leg is dead because the ISP
+    /// blocks UDP/QUIC. It must NOT be selected when an alive TCP/TLS (Reality)
+    /// leg exists — previously the dead UDP leg could be handed out as a
+    /// last-resort and the user got a tunnel where nothing loaded.
+    func testDeadUdpLegNotPickedOverAliveReality() async {
+        let counter = ProbeCounter()
+        let store = LeafRankingStore(defaults: freshDefaults())
+        let picker = PathPicker(
+            store: store,
+            probeFn: fakeProbeFn(latencies: ["nl-direct-nl2": 30], counter: counter),
+            log: { _ in }
+        )
+        let candidates = [
+            leaf("nl-h2-nl2", type: "hysteria2"),   // dead (UDP blocked)
+            leaf("nl-direct-nl2", type: "vless"),   // alive Reality
+        ]
+        let result = await picker.bestLeaf(for: nil, candidates: candidates)
+        XCTAssertEqual(result, "nl-direct-nl2", "must pick alive Reality, not the dead UDP leg")
+    }
 
-    func testMixedPoolAllTCPFailsFallsBackToUDP() async {
+    /// Within the same cascade class, Reality (TCP/TLS) is preferred over a UDP
+    /// leg even when the UDP leg probes faster — UDP/QUIC is throttled first on
+    /// RKN, so Reality is the safer default. UDP stays available as a fallback.
+    func testRealityPreferredOverFasterUdpInSameClass() async {
+        let counter = ProbeCounter()
+        let store = LeafRankingStore(defaults: freshDefaults())
+        let picker = PathPicker(
+            store: store,
+            probeFn: fakeProbeFn(
+                latencies: ["nl-h2-nl2": 10, "nl-direct-nl2": 50],  // UDP probes faster
+                counter: counter
+            ),
+            log: { _ in }
+        )
+        let candidates = [
+            leaf("nl-h2-nl2", type: "hysteria2"),
+            leaf("nl-direct-nl2", type: "vless"),
+        ]
+        let result = await picker.bestLeaf(for: nil, candidates: candidates)
+        XCTAssertEqual(result, "nl-direct-nl2", "Reality preferred over faster UDP in same class")
+    }
+
+    // MARK: - Mixed UDP + TCP
+
+    /// When every TCP leg is dead but a UDP leg actually answered its QUIC
+    /// probe, the UDP leg is a genuine fallback.
+    func testAliveUdpUsedWhenAllTcpDead() async {
+        let counter = ProbeCounter()
+        let store = LeafRankingStore(defaults: freshDefaults())
+        let picker = PathPicker(
+            store: store,
+            probeFn: fakeProbeFn(latencies: ["de-h2-de": 45], counter: counter),
+            log: { _ in }
+        )
+        let candidates = [
+            leaf("de-direct-de", type: "vless"),  // dead
+            leaf("de-h2-de", type: "hysteria2"),  // alive
+        ]
+        let result = await picker.bestLeaf(for: nil, candidates: candidates)
+        XCTAssertEqual(result, "de-h2-de", "alive UDP leg is a valid fallback when TCP is dead")
+    }
+
+    /// All legs dead → last resort prefers a TCP/TLS leg over a UDP one: a TCP
+    /// path our probe couldn't complete may still work post-TLS, whereas a UDP
+    /// leg that never answered is almost certainly hard-blocked on this network.
+    func testAllDeadLastResortPrefersTcpOverUdp() async {
         let counter = ProbeCounter()
         let store = LeafRankingStore(defaults: freshDefaults())
         let picker = PathPicker(
@@ -247,11 +312,11 @@ final class PathPickerTests: XCTestCase {
             log: { _ in }
         )
         let candidates = [
-            leaf("de-direct-de", type: "vless"),   // TCP, will fail
-            leaf("de-tuic-de", type: "tuic"),       // UDP, unprobeable
+            leaf("de-h2-de", type: "hysteria2"),
+            leaf("de-direct-de", type: "vless"),
         ]
         let result = await picker.bestLeaf(for: nil, candidates: candidates)
-        XCTAssertEqual(result, "de-tuic-de")
+        XCTAssertEqual(result, "de-direct-de", "last resort prefers TCP/TLS leg over UDP")
     }
 
     // MARK: - Empty pool

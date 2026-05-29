@@ -46,7 +46,7 @@ final class PathPicker {
 
     init(
         store: LeafRankingStore,
-        probeFn: @escaping @Sendable (LeafCandidate, TimeInterval) async -> LeafProbeResult = PathPicker.tcpProbe(_:timeout:),
+        probeFn: @escaping @Sendable (LeafCandidate, TimeInterval) async -> LeafProbeResult = PathPicker.defaultProbe(_:timeout:),
         now: @escaping @Sendable () -> Date = { Date() },
         log: @escaping @Sendable (String) -> Void = { TunnelFileLogger.log($0, category: "path_picker") }
     ) {
@@ -247,48 +247,36 @@ final class PathPicker {
             }
         }
 
-        // Phase 2 — probe. Split TLS-probable from UDP-only first; only
-        // the TLS set carries useful health signal.
-        let probable = alivePool.filter { $0.tcpProbable }
-        let unprobable = alivePool.filter { !$0.tcpProbable }
-
-        if probable.isEmpty {
-            // Pool is all UDP-only (TUIC). Can't probe — return the first
-            // by tag for determinism. The user explicitly drilling into
-            // a TUIC leaf should land here.
-            let pick = unprobable.sorted(by: { $0.tag < $1.tag }).first?.tag
-            log("pickBest: udp-only pool, picking '\(pick ?? "—")'")
-            return pick
-        }
-
-        let results = await probeConcurrent(probable)
+        // Phase 2 — probe EVERY candidate. The default probeFn routes by
+        // transport: TCP handshake for TCP/TLS legs, QUIC Initial for UDP legs
+        // (Hysteria2/TUIC). This replaces the old "UDP is unprobeable, trust it
+        // blind" behaviour — the industry rule (Psiphon/Outline/sing-box
+        // urltest) is that a transport counts as usable only once it actually
+        // answers. A hard UDP/QUIC block (the common RKN failure) yields
+        // success=false, so a dead Hysteria2 leg is dropped instead of being
+        // handed to the extension as a last resort.
+        let results = await probeConcurrent(alivePool)
         for r in results {
             store.update(tag: r.tag, latencyMs: r.latencyMs, success: r.success, at: r.probedAt)
         }
 
         let resultByTag = Dictionary(uniqueKeysWithValues: results.map { ($0.tag, $0) })
-        let liveCands = probable.filter { resultByTag[$0.tag]?.success == true }
+        let liveCands = alivePool.filter { resultByTag[$0.tag]?.success == true }
         if let best = Self.cascadePick(
             liveCands,
             latencyByTag: { resultByTag[$0]?.latencyMs },
             demoteClasses: demoteClasses
         ) {
             let ms = resultByTag[best.tag]?.latencyMs ?? 0
-            log("pickBest: probed winner='\(best.tag)' \(ms)ms class=\(best.leafClass) (out of \(results.count))")
+            log("pickBest: probed winner='\(best.tag)' \(ms)ms class=\(best.leafClass) udp=\(best.isUDP) (out of \(results.count))")
             return best.tag
         }
 
-        // All TCP-probable candidates failed. Try a UDP-only as a graceful
-        // fallback — it might still work even if our TCP probe couldn't
-        // reach the same host. (Reality blocks TCP but TUIC lives.)
-        if let udp = unprobable.first {
-            log("pickBest: all TCP probes failed, falling back to UDP '\(udp.tag)'")
-            return udp.tag
-        }
-
-        // Last resort. Better to give the extension something to try than
-        // refuse to connect.
-        let last = probable.first?.tag
+        // Nothing answered. Hand back SOMETHING so the extension still tries,
+        // but prefer a TCP/TLS leg over a UDP one: a TCP path our probe
+        // couldn't complete may still work post-TLS, whereas a UDP leg that
+        // didn't reply is almost certainly hard-blocked on this network.
+        let last = alivePool.first(where: { !$0.isUDP })?.tag ?? alivePool.first?.tag
         log("pickBest: everything failed, returning '\(last ?? "—")' anyway")
         return last
     }
@@ -325,6 +313,12 @@ final class PathPicker {
             if demoteClasses.contains(cls) { continue }
             let inClass = pool.filter { $0.leafClass == cls }
             let best = inClass.min(by: { lhs, rhs in
+                // Prefer a TCP/TLS leg (VLESS Reality) over a UDP leg
+                // (Hysteria2/TUIC) in the same class — on RKN-style networks
+                // UDP/QUIC is throttled first, so Reality is the safer default
+                // even when a UDP leg probes slightly faster. UDP stays as a
+                // live alternative the cascade/urltest can still fall to.
+                if lhs.isUDP != rhs.isUDP { return !lhs.isUDP }
                 let l = latencyByTag(lhs.tag) ?? .max
                 let r = latencyByTag(rhs.tag) ?? .max
                 if l != r { return l < r }
@@ -383,7 +377,38 @@ final class PathPicker {
         }
     }
 
-    // MARK: - Default probe (NWConnection TCP)
+    // MARK: - Default probe (transport-routed)
+
+    /// Default probe — routes by transport: a TCP handshake for TCP/TLS
+    /// transports, a QUIC Initial for UDP transports (Hysteria2 / TUIC).
+    /// Replaceable in tests by injecting a different `probeFn`.
+    ///
+    /// Why route: a TCP probe against a UDP-only port returns a fake-low value
+    /// (local ICMP port-unreachable) or a timeout, so UDP legs used to be
+    /// treated as "unprobeable" and trusted blind — which strands the user on a
+    /// dead Hysteria2 leg when the ISP blocks UDP/QUIC. Probing UDP legs for
+    /// real (QUIC) means a hard-blocked leg is correctly classified as failed.
+    @Sendable
+    static func defaultProbe(_ candidate: LeafCandidate, timeout: TimeInterval) async -> LeafProbeResult {
+        if candidate.isUDP {
+            return await quicProbe(candidate, timeout: timeout)
+        }
+        return await tcpProbe(candidate, timeout: timeout)
+    }
+
+    /// QUIC probe for UDP transports. `success` iff the server's QUIC actually
+    /// replied (RTT > 0). Uses a longer deadline than the TCP probe — a UDP
+    /// round trip plus handshake needs more headroom than a bare TCP SYN/ACK.
+    @Sendable
+    static func quicProbe(_ candidate: LeafCandidate, timeout: TimeInterval) async -> LeafProbeResult {
+        let ms = await PingService.probeQUIC(host: candidate.host, port: candidate.port, timeout: max(timeout, 3.0))
+        return LeafProbeResult(
+            tag: candidate.tag,
+            latencyMs: ms,
+            success: ms > 0,
+            probedAt: Date()
+        )
+    }
 
     /// Default TCP probe. Replaceable in tests by injecting a different
     /// `probeFn`. Performs only TCP handshake (no TLS) — fast (~50-200ms),
@@ -468,6 +493,15 @@ public struct LeafCandidate: Sendable, Equatable, Hashable {
     public static let tcpProbableTypes: Set<String> = [
         "vless", "trojan", "vmess", "shadowsocks", "shadowtls"
     ]
+
+    /// UDP/QUIC transports (Hysteria2, TUIC). Can't be TCP-probed — they're
+    /// validated with a QUIC Initial instead (`PathPicker.quicProbe`). Also
+    /// used as a selection tiebreak: within a cascade class we prefer a
+    /// TCP/TLS-stealth leg (VLESS Reality) over a UDP leg, because on RKN-style
+    /// networks UDP/QUIC is the first thing throttled — Reality is the floor.
+    public var isUDP: Bool {
+        type == "hysteria2" || type == "tuic"
+    }
 
     /// Country segment of the leaf tag. Backend tag format is
     /// `{cc}-{kind}-{key}` for standard exits and `ru-spb-{key}` for the
