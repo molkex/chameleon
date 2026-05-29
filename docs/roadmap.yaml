@@ -42,6 +42,29 @@ next:
       title: DoQ DNS instead of DoH
       priority: P1
 
+  protocols:
+    - id: PROTO-01
+      title: Honest health signal for UDP legs (Hysteria2/TUIC) in node list
+      priority: P1
+      notes: |
+        Node-list ping for UDP legs is a host-side QUIC HANDSHAKE probe — shows
+        ~52ms even when RKN throttles bulk to zero (false "works" green). Industry
+        (Hiddify/Karing/sing-box) measures latency via a real HTTP request THROUGH
+        the outbound (urltest), which auto-drops a throttled node. Fix: run a short
+        through-tunnel urltest in the NE on-demand, OR stop labeling raw handshake
+        RTT as health for UDP (neutral/greyed). Client change → app release.
+    - id: PROTO-02
+      title: Hysteria2 port-hopping for resilience
+      priority: P2
+      notes: |
+        If RKN starts throttling obfuscated UDP/443 too: server_ports ["20000:50000"]
+        + hop_interval 30s on client, iptables REDIRECT range→443 on NL. Habr: less
+        effective in RU than CN (TSPU is pattern-based) — pair with Salamander.
+    - id: PROTO-03
+      title: ADR — protocol selection (validate-UDP, Reality-first, Salamander)
+      priority: P3
+      notes: Capture 2026-05-29 decisions as decisions/00NN-*.md (append-only ADR).
+
   usr_data_overhaul:
     - id: USR-09-Phase-2-iOS
       title: iOS EventTracker validation end-to-end
@@ -184,6 +207,56 @@ deferred:
 # DONE — append-only log. Most recent date first.
 # ============================================================
 done:
+  "2026-05-29":
+    - id: PAY-DASH
+      title: Payments block on admin dashboard (revenue, counts, by-source, recent)
+      pr: 27
+      files:
+        - backend/internal/db/payments.go
+        - backend/internal/api/admin/nodes.go
+        - clients/admin/src/pages/dashboard.tsx
+      notes: |
+        GetDashboard never returned revenue/transactions → cards stayed hidden.
+        New db.PaymentsBlock (today/7d/30d/all revenue-by-currency, counts,
+        refunds, unique payers, by-source) + RecentPayments. Live on NL. Apple
+        IAP rows carry no amount (price not in StoreKit JWS) → counted but not in
+        revenue; FreeKassa RUB is the only money today.
+    - id: H2-SALAMANDER
+      title: Hysteria2 on NL + Salamander obfuscation (RKN QUIC-throttle mitigation)
+      pr: [28, 31]
+      files:
+        - backend/internal/vpn/singbox.go
+        - backend/internal/vpn/clientconfig.go
+        - backend/internal/config/config.go
+        - backend/deploy.sh
+      notes: |
+        Enabled Hysteria2 (UDP/443) on NL, then found un-obfuscated H2 was
+        fingerprinted as QUIC and throttled to zero after handshake (pinged but
+        no traffic). Salamander XOR-wraps QUIC with a shared PSK (server inbound
+        + generated client outbound, same cfg value). VERIFIED working on a real
+        RU network (HY2 badge, traffic flowing). No app release needed — client
+        picks up obfs via config fetch. Reality stays primary per RU consensus.
+    - id: IOS-UDP-VALIDATE
+      title: Client validates UDP legs (Hysteria2/TUIC) instead of trusting blind
+      pr: 30
+      files:
+        - clients/apple/MadFrogVPN/Models/PingService.swift
+        - clients/apple/MadFrogVPN/Models/PathPicker.swift
+        - clients/apple/MadFrogVPN/Models/AppState.swift
+      notes: |
+        preflight + PathPicker no longer trust UDP picks blind — probe via a QUIC
+        Initial; dead UDP → .selectedDead (actionable error) instead of a silent
+        dead tunnel. Prefer Reality over UDP within a cascade class. Industry rule
+        (Psiphon/Outline/sing-box urltest). Ships via app release (build 91+).
+        Unit-test execution blocked by app-group host crash — see memory.
+    - id: DASH-FMTNUM-FIX
+      title: Fix duplicate fmtNum in dashboard.tsx (broke SPA build after #27/#26 merge)
+      pr: 29
+      notes: |
+        Renamed payments helper to fmtAmount (money) leaving health strip's
+        fmtNum. Also fixed pre-existing infra.go staticcheck QF1001 (De Morgan)
+        that was failing lint+unit CI for every PR.
+
   "2026-05-28":
     - id: MON-04-HEALTH
       title: Dashboard System Health strip + golden-signal Telegram alerts (5xx/p95/monitoring)
