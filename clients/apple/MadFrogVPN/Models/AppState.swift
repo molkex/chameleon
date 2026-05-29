@@ -1120,11 +1120,18 @@ class AppState {
     /// is unreachable (even if others are up); `.skipped` if we have no
     /// parsed servers yet (cold start / no config).
     private func preflightProbe() async -> PreflightOutcome {
-        // UDP-only outbounds (Hysteria2, TUIC) can't be validated with a TCP
-        // handshake — the server only listens on UDP, so probeTCP always
-        // times out even when the outbound is healthy. Skip them: if the
-        // user explicitly picked a UDP-only server we trust it; if Auto,
-        // they count as "alive" alongside any reachable TCP outbound.
+        // Validate reachability before connecting so we fail fast with an
+        // actionable error instead of a ~30s silent dead tunnel. Each leg is
+        // probed on its REAL transport: a TCP handshake for TCP/TLS legs, a
+        // QUIC Initial for UDP legs (Hysteria2/TUIC).
+        //
+        // We no longer trust UDP picks blind. A hard UDP/QUIC block (common on
+        // RKN) used to leave a blind-trusted Hysteria2 pick "connected" to a
+        // dead tunnel where nothing loaded. PingService.probeQUIC returns 0
+        // when the server's UDP never answers, so a blocked leg is correctly
+        // classified as unreachable and surfaced as .selectedDead — matching
+        // how a dead TCP leg already behaves. (Industry rule — Psiphon/Outline/
+        // sing-box urltest only trust a transport once it actually replies.)
         let udpOnlyTypes: Set<String> = ["hysteria2", "tuic"]
 
         let items: [ServerItem] = servers
@@ -1141,28 +1148,26 @@ class AppState {
         }
         guard !targets.isEmpty else { return .skipped }
 
-        // User picked a UDP-only server — skip probe, trust it.
-        if selectedTag != nil, targets.allSatisfy({ udpOnlyTypes.contains($0.type) }) {
-            return .ok
-        }
-
-        let tcpTargets = targets.filter { !udpOnlyTypes.contains($0.type) }
-        let hasUDPTarget = targets.contains { udpOnlyTypes.contains($0.type) }
-
-        let results: [(String, Int)] = await withTaskGroup(of: (String, Int).self) { group in
-            for target in tcpTargets {
+        // Probe every target on its real transport, concurrently.
+        let aliveTags: Set<String> = await withTaskGroup(of: (String, Bool).self) { group in
+            for target in targets {
+                let isUDP = udpOnlyTypes.contains(target.type)
                 group.addTask {
-                    let ms = await PingService.probeTCP(host: target.host, port: target.port, timeout: 2.0)
-                    return (target.tag, ms)
+                    let ms: Int
+                    if isUDP {
+                        ms = await PingService.probeQUIC(host: target.host, port: target.port, timeout: 3.0)
+                    } else {
+                        ms = await PingService.probeTCP(host: target.host, port: target.port, timeout: 2.0)
+                    }
+                    return (target.tag, ms > 0)
                 }
             }
-            var out: [(String, Int)] = []
-            for await r in group { out.append(r) }
+            var out = Set<String>()
+            for await (tag, alive) in group where alive { out.insert(tag) }
             return out
         }
 
-        let anyAlive = results.contains { $0.1 > 0 } || hasUDPTarget
-        if anyAlive { return .ok }
+        if !aliveTags.isEmpty { return .ok }
 
         if selectedTag != nil, let dead = targets.first {
             return .selectedDead(name: dead.tag)

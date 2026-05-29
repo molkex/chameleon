@@ -279,6 +279,19 @@ final class PingService {
         await measureTCP(host: host, port: port, timeout: timeout)
     }
 
+    /// Public one-shot QUIC probe for UDP transports (Hysteria2 / TUIC).
+    /// Returns RTT in ms, or 0 on timeout / no server response (= unreachable).
+    /// Mirrors `probeTCP`. A non-zero result means the server's UDP/QUIC
+    /// actually replied — the cheap pre-connect "real reachability" signal for
+    /// UDP-only legs. This is what lets callers stop trusting UDP picks blind:
+    /// a hard UDP/QUIC block (the common RKN failure mode) yields 0, so a dead
+    /// Hysteria2 leg is correctly classified as unreachable instead of stranding
+    /// the user on it. (Industry rule — Psiphon/Outline/sing-box urltest only
+    /// trust a transport once real bytes traverse it.)
+    nonisolated static func probeQUIC(host: String, port: Int, timeout: TimeInterval = 2.0) async -> Int {
+        await measureQUIC(host: host, port: port, timeout: timeout)
+    }
+
     /// Measure TCP handshake RTT in milliseconds. Returns 0 on failure/timeout.
     ///
     /// We use `NWConnection` with a dedicated concurrent queue so many probes
