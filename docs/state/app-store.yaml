@@ -4,7 +4,7 @@
 # this file blindly — see playbooks/asc-api-checks.md for a 5-line
 # bash snippet to re-fetch state.
 
-verified: 2026-05-28T13:30:00Z
+verified: 2026-05-29T16:00:00Z
 
 app:
   bundle_id: com.madfrog.vpn
@@ -21,6 +21,21 @@ asc_api:
 
 # Live App Store version. `READY_FOR_SALE` = users can install via App Store.
 versions:
+  in_review:
+    version: "1.0.28"
+    build: 91
+    asc_version_id: d9d28448-318b-4432-b2df-a2cf2062738e
+    asc_build_id: 6a033dc3-b94b-4559-bc69-cd3a8a3b60ca
+    appStoreState: WAITING_FOR_REVIEW     # submitted 2026-05-29 with the 4 auto-renewing subs attached
+    releaseType: AFTER_APPROVAL
+    ships:
+      - auto-renewing subscriptions migration (decisions/0009) — 4 subs reviewed WITH this build
+      - paywall.legal auto-renew disclosure, displayProductIDs vs allProductIDs
+      - PR #25 (also carries EventTrackerTests compile fix)
+    note: |
+      Subs attach to a version only when the version is editable (not in a draft):
+      remove version from draft → "Выбрать встроенные покупки или подписки" button
+      appears → select 4 → re-add version to a reviewSubmission → submit; subs ride along.
   current:
     version: "1.0.27"
     build: 90
@@ -51,35 +66,38 @@ subscriptions:
     reference_name: Pro
     asc_group_id: "22119908"
     localizations: [en-US "MadFrog VPN Pro", ru "MadFrog VPN Pro"]
-  state_verified: 2026-05-29T01:30:00Z   # all 4 MISSING_METADATA (see note) — prices+availability+localizations set
+  state_verified: 2026-05-29T16:00:00Z   # all 4 WAITING_FOR_REVIEW — submitted with version 1.0.28 / build 91
   products:
     - product_id: com.madfrog.vpn.sub.month
       apple_id: 6774348610
       duration: 1m
       price_usd_base: 2.99
-      state: MISSING_METADATA
+      state: WAITING_FOR_REVIEW
     - product_id: com.madfrog.vpn.sub.3month
       apple_id: 6774348751
       duration: 3m
       price_usd_base: 7.99
-      state: MISSING_METADATA
+      state: WAITING_FOR_REVIEW
     - product_id: com.madfrog.vpn.sub.6month
       apple_id: 6774348464
       duration: 6m
       price_usd_base: 14.99
-      state: MISSING_METADATA
+      state: WAITING_FOR_REVIEW
     - product_id: com.madfrog.vpn.sub.year
       apple_id: 6774348465
       duration: 1y
       price_usd_base: 24.99
-      state: MISSING_METADATA
+      state: WAITING_FOR_REVIEW
   pricing: equalized to all 175 territories from USD base; availability = all 175 + availableInNewTerritories
+  review_screenshot: |
+    Required (MISSING_METADATA persisted until uploaded). The StoreKit paywall is
+    only shown on non-CIS storefronts, so it can't be screenshotted from RU —
+    captured by rendering PaywallView in a signed unit test (UIWindow on the live
+    scene + SKTestSession from Products.storekit), resized to 1242x2688
+    (1206x2622 was rejected IMAGE_INCORRECT_DIMENSIONS), uploaded to all 4 subs.
   notes: |
-    All 4 still MISSING_METADATA after name+desc+price+availability+duration set;
-    ASC UI flags nothing required missing (image + review notes are optional,
-    localizations "ready"). Likely Apple state-recompute lag — re-verify.
-    First subscription of a group is reviewed bundled with an app binary, so
-    these attach + submit with iOS build 91 (cannot approve standalone).
+    Submitted to review 2026-05-29 WITH version 1.0.28 / build 91 (all 4 →
+    WAITING_FOR_REVIEW). First subs of a group review bundled with a binary.
 
 # Legacy non-renewing IAPs — SUPERSEDED by the auto-renewing group above
 # (decisions/0009). Kept (not deleted) so existing buyers keep entitlement +

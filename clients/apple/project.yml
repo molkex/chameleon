@@ -222,8 +222,13 @@ targets:
     platform: iOS
     sources:
       - path: Tests/UnitTests
+      # Bundled so SKTestSession(configurationFileNamed:"Products") can load
+      # the auto-renewing products for PaywallSnapshotTests (review screenshot).
+      - path: MadFrogVPN/Products.storekit
+        buildPhase: resources
     dependencies:
       - target: MadFrogVPN
+      - sdk: StoreKitTest.framework
       # CrashReporterSanitizeTests imports Sentry directly to build
       # Event/User/Request fixtures. Without this, the test target
       # cannot see Sentry's module map at compile time even though
