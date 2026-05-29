@@ -46,7 +46,11 @@ class AppState {
             appVersion: versionString,
             platform: platform,
             deviceID: PlatformDevice.identifier,
-            tokenProvider: { [weak self] in self?.configStore.accessToken }
+            // Read the token straight from the Keychain (thread-safe) instead of
+            // capturing main-actor `self.configStore` in this @Sendable closure —
+            // same value (ConfigStore.accessToken is this exact Keychain read),
+            // but no main-actor capture, so it's Swift 6 concurrency-clean.
+            tokenProvider: { KeychainHelper.load(key: AppConstants.accessTokenKey) }
         )
     }()
 
@@ -1869,7 +1873,7 @@ class AppState {
                 probe: { url, timeout in
                     await HealthProbeURLSession.probe(url: url, timeout: timeout)
                 },
-                onStallDetected: { [weak self] in
+                onStallDetected: {
                     // 2026-05-26 (audit P0-C): main-app monitor no longer
                     // performs a fallback. PacketTunnel's
                     // `RealTrafficStallDetector` is the sole authority for
