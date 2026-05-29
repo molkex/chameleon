@@ -448,6 +448,62 @@ func TestHysteria2AndTUICOmittedWhenPortsZero(t *testing.T) {
 	}
 }
 
+// TestHysteria2ObfsAbsentWhenUnset — with no Salamander PSK configured, the
+// hysteria2 leaf must NOT carry an "obfs" block (server runs plain Hysteria2).
+func TestHysteria2ObfsAbsentWhenUnset(t *testing.T) {
+	cfg := parseGenerated(t) // fixture leaves Hysteria2ObfsPassword empty
+	leaf := outboundByTag(cfg, "nl-h2-nl2")
+	if leaf == nil {
+		t.Fatal("nl-h2-nl2 missing")
+	}
+	if _, ok := leaf["obfs"]; ok {
+		t.Errorf("hysteria2 leaf has obfs despite no PSK configured: %v", leaf["obfs"])
+	}
+}
+
+// TestHysteria2ObfsWiredWhenConfigured — when a Salamander PSK is set, every
+// hysteria2 leaf must carry obfs {type:salamander, password:PSK} so the client
+// matches the server inbound. A mismatch (or missing block) makes the tunnel
+// handshake but carry no traffic — the exact RKN failure we're mitigating.
+func TestHysteria2ObfsWiredWhenConfigured(t *testing.T) {
+	engine, user, servers, chains := fixture()
+	const psk = "test-salamander-psk"
+	engine.Hysteria2ObfsPassword = psk
+
+	raw, err := generateClientConfig(engine, user, servers, chains)
+	if err != nil {
+		t.Fatalf("generateClientConfig: %v", err)
+	}
+	var cfg map[string]any
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	checked := 0
+	for _, tag := range []string{"de-h2-de", "nl-h2-nl2"} {
+		leaf := outboundByTag(cfg, tag)
+		if leaf == nil {
+			t.Errorf("%s missing", tag)
+			continue
+		}
+		obfs, ok := leaf["obfs"].(map[string]any)
+		if !ok {
+			t.Errorf("%s has no obfs block", tag)
+			continue
+		}
+		if obfs["type"] != "salamander" {
+			t.Errorf("%s obfs type = %v, want salamander", tag, obfs["type"])
+		}
+		if obfs["password"] != psk {
+			t.Errorf("%s obfs password = %v, want %q", tag, obfs["password"], psk)
+		}
+		checked++
+	}
+	if checked == 0 {
+		t.Fatal("no hysteria2 leaves checked")
+	}
+}
+
 // TestProxySelectorLeafOrder asserts that standard leaves appear in
 // legSortKey order (direct before via before h2 before tuic) within the
 // section of Proxy members that lists them as direct children. Auto and

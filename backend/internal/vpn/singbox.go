@@ -688,12 +688,17 @@ func (e *SingboxEngine) buildInboundsLocked(users []singboxUser, sni string, sho
 		for _, u := range users {
 			h2users = append(h2users, singboxHysteria2User{Password: u.UUID})
 		}
+		var h2obfs *singboxObfs
+		if e.cfg.Hysteria2ObfsPassword != "" {
+			h2obfs = &singboxObfs{Type: "salamander", Password: e.cfg.Hysteria2ObfsPassword}
+		}
 		inbounds = append(inbounds, singboxHysteria2Inbound{
 			Type:       "hysteria2",
 			Tag:        "hysteria2-in",
 			Listen:     "::",
 			ListenPort: e.cfg.Hysteria2Port,
 			Users:      h2users,
+			Obfs:       h2obfs,
 			TLS: &singboxUDPTLS{
 				Enabled:         true,
 				CertificatePath: e.cfg.UDPCertPath,
@@ -964,7 +969,16 @@ type singboxHysteria2Inbound struct {
 	Listen     string                 `json:"listen"`
 	ListenPort int                    `json:"listen_port"`
 	Users      []singboxHysteria2User `json:"users"`
+	Obfs       *singboxObfs           `json:"obfs,omitempty"`
 	TLS        *singboxUDPTLS         `json:"tls"`
+}
+
+// singboxObfs is the Hysteria2 Salamander obfuscation block. Type is always
+// "salamander"; Password is the shared PSK and MUST match the client outbound
+// (clientconfig.go) — a mismatch makes the tunnel handshake but carry no data.
+type singboxObfs struct {
+	Type     string `json:"type"`
+	Password string `json:"password"`
 }
 
 type singboxHysteria2User struct {

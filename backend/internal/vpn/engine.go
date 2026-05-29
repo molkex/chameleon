@@ -63,6 +63,9 @@ type EngineConfig struct {
 	TUICPort      int    // TUIC v5 UDP listen port; 0 = disabled
 	UDPCertPath   string // path to TLS certificate PEM for Hysteria2/TUIC (inside container)
 	UDPKeyPath    string // path to TLS private key PEM for Hysteria2/TUIC (inside container)
+	// Hysteria2 Salamander obfuscation PSK (shared client+server). Empty =
+	// obfs disabled. Wrapped QUIC defeats RKN's QUIC-fingerprint throttle.
+	Hysteria2ObfsPassword string
 }
 
 // RealityConfig holds VLESS Reality TLS settings.

@@ -165,6 +165,12 @@ type VPNConfig struct {
 	TUICPort      int    `yaml:"tuic_port"`       // 0 = disabled
 	UDPCertPath   string `yaml:"udp_cert_path"`   // path inside container, e.g. /etc/singbox/server.crt
 	UDPKeyPath    string `yaml:"udp_key_path"`    // path inside container, e.g. /etc/singbox/server.key
+	// Hysteria2 Salamander obfuscation PSK. When set, QUIC packets are
+	// XOR-wrapped so DPI can't fingerprint them as QUIC (RKN throttles the
+	// QUIC fingerprint after the handshake). The SAME value is plumbed into
+	// the generated client outbound (clientconfig.go) — a mismatch makes the
+	// tunnel handshake but carry no traffic. Empty = obfs disabled.
+	Hysteria2ObfsPassword string `yaml:"hysteria2_obfs_password"`
 }
 
 // RealityConfig holds VLESS Reality protocol settings.
