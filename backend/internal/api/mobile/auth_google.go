@@ -207,12 +207,10 @@ func (h *Handler) GoogleSignIn(c echo.Context) error {
 		h.captureInitialContext(c, user.ID)
 	}
 
-	// Fire-and-forget: send a backup magic link so the user can sign in from
-	// another device via email if they lose access to their Google account.
-	if isNew && claims.Email != "" && claims.EmailVerified {
-		lang := langFromAcceptLanguage(c.Request().Header.Get("Accept-Language"))
-		go h.issueBackupMagicLink(user.ID, claims.Email, "google_backup", lang)
-	}
+	// NOTE: backup magic link on first Google sign-in removed 2026-05-29 —
+	// 0/204 backup links were ever used while they consumed ~84% of the
+	// Resend daily quota. The user already has Google Sign-In as their
+	// primary path. See docs/incidents/2026-05-29-resend-quota.md.
 
 	vpnUsername := ""
 	if user.VPNUsername != nil {
@@ -241,23 +239,8 @@ func (h *Handler) findUserByGoogleID(ctx context.Context, googleID string) (*db.
 	return h.DB.FindUserByGoogleID(ctx, googleID)
 }
 
-// issueBackupMagicLink is run in a goroutine after a successful social
-// sign-in. It creates a token with purpose "apple_backup" or "google_backup"
-// and mails the link. `lang` comes from the caller's Accept-Language so the
-// email matches the UI language the user just signed in with. Errors are
-// non-fatal and logged.
-func (h *Handler) issueBackupMagicLink(userID int64, emailAddr, purpose, lang string) {
-	ctx := context.Background()
-	raw, hashHex, err := db.GenerateRawToken()
-	if err != nil {
-		h.Logger.Warn("backup link: generate token", zap.Error(err))
-		return
-	}
-	// Backup links live longer (24h) — the user may not check email right away
-	// and is not under active attack pressure for this code path.
-	if err := h.DB.CreateMagicToken(ctx, hashHex, emailAddr, purpose, &userID, nil, 24*hour); err != nil {
-		h.Logger.Warn("backup link: insert token", zap.Error(err))
-		return
-	}
-	h.sendMagicLinkEmail(ctx, emailAddr, raw, purpose, lang)
-}
+// issueBackupMagicLink (removed 2026-05-29): previously fired a backup magic
+// link email after social sign-in. Deleted because 0/204 issued links were
+// ever used while consuming ~84% of the Resend daily quota. Kept this note so
+// the git history / future reader knows it was an intentional removal, not an
+// oversight. See docs/incidents/2026-05-29-resend-quota.md.

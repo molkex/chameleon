@@ -418,12 +418,14 @@ func (h *Handler) AppleSignIn(c echo.Context) error {
 			// Apple has already verified the email for us.
 			_ = h.DB.MarkEmailVerified(ctx, user.ID)
 		}
-		// Fire-and-forget backup magic link so the user has a second way to
-		// sign in if they lose their Apple account. Only on signup.
-		if isNew {
-			lang := langFromAcceptLanguage(c.Request().Header.Get("Accept-Language"))
-			go h.issueBackupMagicLink(user.ID, appleClaims.Email, "apple_backup", lang)
-		}
+		// NOTE: we used to fire a "backup magic link" email here on first
+		// Apple sign-in. Removed 2026-05-29: across 204 issued backup links
+		// (Apple+Google) exactly 0 were ever used, yet they burned ~84% of
+		// the Resend daily quota — most went to @privaterelay.appleid.com
+		// relay addresses the user never checks. The user already has Apple
+		// Sign-In as their primary path; if we want an opt-in email fallback
+		// later, trigger it from an explicit in-app action, not on every
+		// signup. See docs/incidents/2026-05-29-resend-quota.md.
 	}
 
 	// Issue token pair.
