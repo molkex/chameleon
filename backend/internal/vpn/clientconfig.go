@@ -177,12 +177,20 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 
 		if srv.Hysteria2Port > 0 {
 			h2Tag := fmt.Sprintf("%s-h2-%s", strings.ToLower(cc), srv.Key)
+			// Salamander obfs must mirror the server inbound (same PSK), else
+			// the tunnel handshakes but carries no traffic. Omitted when the
+			// server isn't running obfs (empty PSK).
+			var h2obfs *clientObfs
+			if engineCfg.Hysteria2ObfsPassword != "" {
+				h2obfs = &clientObfs{Type: "salamander", Password: engineCfg.Hysteria2ObfsPassword}
+			}
 			allLeafOutbounds = append(allLeafOutbounds, clientOutbound{
 				Type:       "hysteria2",
 				Tag:        h2Tag,
 				Server:     srv.Host,
 				ServerPort: srv.Hysteria2Port,
 				Password:   user.UUID,
+				Obfs:       h2obfs,
 				TLS: &clientTLS{
 					Enabled:    true,
 					ServerName: sni,
@@ -619,6 +627,7 @@ type clientOutbound struct {
 	UUID                      string           `json:"uuid,omitempty"`
 	Password                  string           `json:"password,omitempty"`
 	Flow                      string           `json:"flow,omitempty"`
+	Obfs                      *clientObfs      `json:"obfs,omitempty"`
 	TLS                       *clientTLS       `json:"tls,omitempty"`
 	Multiplex                 *clientMultiplex `json:"multiplex,omitempty"`
 	PacketEncoding            string           `json:"packet_encoding,omitempty"`
@@ -637,6 +646,13 @@ type clientTLS struct {
 	Insecure   *bool          `json:"insecure,omitempty"`
 	UTLS       *clientUTLS    `json:"utls,omitempty"`
 	Reality    *clientReality `json:"reality,omitempty"`
+}
+
+// clientObfs mirrors the server's Hysteria2 Salamander obfs block. Type is
+// "salamander"; Password is the shared PSK and MUST match the server inbound.
+type clientObfs struct {
+	Type     string `json:"type"`
+	Password string `json:"password"`
 }
 
 type clientUTLS struct {

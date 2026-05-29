@@ -199,10 +199,17 @@ case "$NODE_ID" in
         # (client side is tls.insecure=true, so CN/expiry don't matter).
         # UDP/443 is already open in ufw. Hysteria2 reaches NL's IP directly
         # (the SPB/MSK relays are TCP-only and don't carry UDP).
+        #
+        # Salamander obfs: wraps the QUIC packets so RKN DPI can't fingerprint
+        # them as QUIC (it throttles raw QUIC to zero after the handshake —
+        # which is why an un-obfuscated H2 "pings" but carries no traffic). The
+        # SAME PSK is plumbed into the generated client outbound (clientconfig.go
+        # reads cfg.VPN.Hysteria2ObfsPassword), so server and client always match.
         sed -i 's/hysteria2_port: 0/hysteria2_port: 443/' config.yaml
         sed -i 's|udp_cert_path: ""|udp_cert_path: "/etc/singbox/server.crt"|' config.yaml
         sed -i 's|udp_key_path: ""|udp_key_path: "/etc/singbox/server.key"|' config.yaml
-        echo ">>> UDP protocols enabled: Hysteria2=443 (TUIC off)"
+        sed -i 's|hysteria2_obfs_password: ""|hysteria2_obfs_password: "madfrog-salamander-7Kx9q2"|' config.yaml
+        echo ">>> UDP protocols enabled: Hysteria2=443 + Salamander obfs (TUIC off)"
         ;;
     *)
         echo ">>> UDP protocols disabled on this node"
