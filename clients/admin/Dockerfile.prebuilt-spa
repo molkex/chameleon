@@ -1,0 +1,12 @@
+# Prebuilt-SPA nginx image — used by deploy.sh on RAM-constrained nodes (NL, ~2GB).
+#
+# The admin SPA is built LOCALLY by deploy.sh (vite) and shipped as ./dist;
+# this image just serves it. We do NOT run npm/vite on the NL box — it OOMs
+# the host and the OOM-killer restarts singbox, dropping VPN for everyone.
+# See docs/incidents/2026-05-29-nginx-stale-spa-oom.md.
+#
+# The multi-stage ./Dockerfile (build-from-source) is kept for CI and
+# self-contained local builds; deploy.sh uses THIS file instead.
+FROM nginx:1.27-alpine
+COPY dist /usr/share/nginx/html/admin
+EXPOSE 80

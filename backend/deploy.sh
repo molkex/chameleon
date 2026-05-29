@@ -69,6 +69,21 @@ if [ "$NODE_PREBUILT" -eq 1 ]; then
     cd "$PROJECT_DIR"
 fi
 
+# ── Build admin SPA locally ────────────────────────────────────────────────
+# Same reason as the Go cross-compile above: the NL box has ~2GB RAM and
+# running npm/vite there OOMs the host, and the OOM-killer restarts singbox
+# → VPN drops for everyone (2026-05-29 incident:
+# docs/incidents/2026-05-29-nginx-stale-spa-oom.md). So we build the SPA HERE
+# and ship the prebuilt dist; the remote builds a trivial COPY-only nginx
+# image (Dockerfile.prebuilt-spa) instead of running the multi-stage build.
+echo ">>> Building admin SPA locally (vite)..."
+(
+    cd "${PROJECT_DIR}/clients/admin"
+    [ -d node_modules ] || npm ci --no-audit --no-fund
+    npm run build
+)
+echo ">>> SPA dist ready: $(du -sh "${PROJECT_DIR}/clients/admin/dist" 2>/dev/null | awk '{print $1}')"
+
 # ── Migrate legacy directory name (one-time) ───────────────────────────────
 # Repo renamed backend-go/ → backend/ (2026-04-23). On first deploy after this
 # change, move the existing dir on the server so rsync --delete does not nuke
@@ -283,12 +298,19 @@ else
     docker compose build chameleon 2>&1 | tail -5
 fi
 
-# ── Build nginx (always — admin SPA is baked into image) ──────────────────
-# Previously skipped if image existed, which silently ignored clients/admin/src changes
-# for weeks (e.g. missing X-Requested-With header → admin login broken).
-# Docker layer cache makes a no-op rebuild fast, so always rebuild.
-echo ">>> Building nginx (admin SPA)..."
-docker compose build nginx 2>&1 | tail -5
+# ── Build nginx (COPY-only from the locally-built SPA dist) ────────────────
+# The SPA is built locally (see "Building admin SPA locally" above) and
+# shipped as clients/admin/dist. We do NOT run npm/vite here — it OOMs the
+# 2GB box and the OOM-killer restarts singbox (2026-05-29 incident). This
+# build is just a COPY of the prebuilt dist, so it's near-instant and uses
+# no meaningful memory. cwd is ${REMOTE_DIR}/backend, so ../clients/admin
+# is the shipped SPA tree.
+echo ">>> Building nginx (COPY-only from prebuilt SPA dist)..."
+if [ ! -d ../clients/admin/dist ]; then
+    echo "!!! ../clients/admin/dist missing — SPA was not shipped; aborting" >&2
+    exit 1
+fi
+docker build -f ../clients/admin/Dockerfile.prebuilt-spa -t backend-nginx:latest ../clients/admin 2>&1 | tail -3
 
 # ── Ensure docker-socket-proxy is up (MED-010) ────────────────────────────
 # chameleon depends on this proxy for `docker ps` (metrics) and
@@ -307,7 +329,9 @@ echo ">>> Starting chameleon + nginx..."
 # rename the new compose project tries to claim the same container names
 # the previous project still owns. Force-recreate releases them cleanly.
 docker compose up -d --no-deps --force-recreate chameleon
-docker compose up -d --no-deps --force-recreate nginx
+# --no-build: use the COPY-only backend-nginx:latest image built above; never
+# trigger the multi-stage source build here (it would OOM the box).
+docker compose up -d --no-deps --no-build --force-recreate nginx
 
 # ── Wait for health ────────────────────────────────────────────────────────
 echo ">>> Waiting for backend health..."
