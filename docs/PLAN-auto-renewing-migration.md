@@ -1,7 +1,25 @@
 # Migration Plan: Non-Renewing → Auto-Renewing Subscriptions
 
 **Date:** 2026-05-12
-**Status:** Plan, awaiting approval before implementation
+**Status:** In progress (approved 2026-05-29). Decision recorded in
+[`decisions/0009-auto-renewing-subscriptions.md`](decisions/0009-auto-renewing-subscriptions.md).
+
+## Progress (2026-05-29)
+
+- ✅ **Backend** (§2a/2b/2c): `productDays` carries both sets, `isAutoRenewing()`
+  + `appleChargeID()` implemented, P0 chargeID fix done, `subscription_chargeid_test.go` green. Merged.
+- ✅ **iOS** (§1/§5): `SubscriptionManager` `displayProductIDs` (new) vs
+  `allProductIDs` (new + legacy for Restore); `PaywallView` default = `product3m`;
+  `paywall.legal` flipped to auto-renew disclosure (en+ru). App builds clean.
+- ✅ **ASC** (§3): group `Pro` (22119908) + 4 products + EN/RU localizations +
+  prices ($2.99 / $7.99 / $14.99 / $24.99, equalized) + availability (all 175 +
+  new territories). Note: products show MISSING_METADATA — likely Apple
+  state-recompute lag; re-verify. Pricing higher than the old USD guesses below.
+- ⏳ **Remaining**: ship iOS build 1.0.28/91 with the 4 subs attached + submit
+  (first-subscription review bundles with a binary); flip Sentry DSN; verify
+  Sandbox renewal yields two distinct `charge_id` rows (§ Risks).
+
+---
 
 ## Overview
 

@@ -212,30 +212,7 @@ struct SettingsView: View {
                                 } else {
                                     VStack(spacing: 6) {
                                         ForEach(trustedSSIDs, id: \.self) { ssid in
-                                            HStack(spacing: 10) {
-                                                Image(systemName: "wifi")
-                                                    .font(.system(size: 13))
-                                                    .foregroundStyle(theme.textSecondary)
-                                                Text(ssid)
-                                                    .font(theme.font(size: 15))
-                                                    .foregroundStyle(theme.textPrimary)
-                                                    .lineLimit(1)
-                                                Spacer()
-                                                Button {
-                                                    Task {
-                                                        trustedSSIDs = await app.removeTrustedSSID(ssid)
-                                                    }
-                                                } label: {
-                                                    Image(systemName: "minus.circle.fill")
-                                                        .font(.system(size: 18))
-                                                        .foregroundStyle(theme.textSecondary.opacity(0.7))
-                                                }
-                                                .buttonStyle(.plain)
-                                            }
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 8)
-                                            .background(theme.background.opacity(0.5),
-                                                        in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                            trustedSSIDRow(ssid)
                                         }
                                     }
                                     .padding(.leading, 46)
@@ -386,7 +363,9 @@ struct SettingsView: View {
             }
             .alert("Add trusted network", isPresented: $showAddSSIDAlert) {
                 TextField("Wi-Fi name (SSID)", text: $pendingSSIDInput)
-                    .textInputAutocapitalization(.never)
+                    #if os(iOS)
+                    .textInputAutocapitalization(.never)   // iOS-only modifier
+                    #endif
                     .autocorrectionDisabled(true)
                 Button("Cancel", role: .cancel) {
                     pendingSSIDInput = ""
@@ -494,6 +473,35 @@ struct SettingsView: View {
             .foregroundStyle(theme.accent)
             .frame(width: 32, height: 32)
             .background(theme.accent.opacity(0.14), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+    }
+
+    // Extracted from the trusted-networks list so the big `body` stays within
+    // the Swift type-checker's time budget (the inline row tipped the macOS
+    // compile over "unable to type-check this expression in reasonable time").
+    @ViewBuilder
+    private func trustedSSIDRow(_ ssid: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "wifi")
+                .font(.system(size: 13))
+                .foregroundStyle(theme.textSecondary)
+            Text(ssid)
+                .font(theme.font(size: 15))
+                .foregroundStyle(theme.textPrimary)
+                .lineLimit(1)
+            Spacer()
+            Button {
+                Task { trustedSSIDs = await app.removeTrustedSSID(ssid) }
+            } label: {
+                Image(systemName: "minus.circle.fill")
+                    .font(.system(size: 18))
+                    .foregroundStyle(theme.textSecondary.opacity(0.7))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(theme.background.opacity(0.5),
+                    in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private var divider: some View {

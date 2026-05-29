@@ -60,6 +60,11 @@ extension ExtensionPlatformInterface: LibboxPlatformInterfaceProtocol {
 
     func openTun(_ options: (any LibboxTunOptionsProtocol)?, ret0_ ret0: UnsafeMutablePointer<Int32>?) throws {
         TunnelFileLogger.log("openTun called", category: "platform")
+        // `ret0` is a raw out-pointer from gomobile. `runBlocking` blocks the
+        // calling thread on a semaphore until the async work finishes, so the
+        // pointer stays valid for the whole closure — mark the capture unsafe
+        // to satisfy Swift 6 Sendable checking without changing behaviour.
+        nonisolated(unsafe) let ret0 = ret0
         try runBlocking { [self] in
             try await openTunAsync(options, ret0)
         }

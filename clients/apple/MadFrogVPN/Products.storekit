@@ -1,92 +1,129 @@
 {
   "identifier" : "B2A4F9E1-7C3D-4E1B-9F2A-MADFROGLOCAL",
-  "nonRenewingSubscriptions" : [
-    {
-      "displayPrice" : "1.99",
-      "familyShareable" : false,
-      "internalID" : "30001",
-      "localizations" : [
-        {
-          "description" : "Безлимитный VPN на 30 дней",
-          "displayName" : "30 дней",
-          "locale" : "ru_RU"
-        },
-        {
-          "description" : "Unlimited VPN for 30 days",
-          "displayName" : "30 days",
-          "locale" : "en_US"
-        }
-      ],
-      "productID" : "com.madfrog.vpn.sub.30days",
-      "referenceName" : "30 days",
-      "type" : "NonRenewingSubscription"
-    },
-    {
-      "displayPrice" : "4.99",
-      "familyShareable" : false,
-      "internalID" : "30002",
-      "localizations" : [
-        {
-          "description" : "Безлимитный VPN на 90 дней",
-          "displayName" : "90 дней",
-          "locale" : "ru_RU"
-        },
-        {
-          "description" : "Unlimited VPN for 90 days",
-          "displayName" : "90 days",
-          "locale" : "en_US"
-        }
-      ],
-      "productID" : "com.madfrog.vpn.sub.90days",
-      "referenceName" : "90 days",
-      "type" : "NonRenewingSubscription"
-    },
-    {
-      "displayPrice" : "8.99",
-      "familyShareable" : false,
-      "internalID" : "30003",
-      "localizations" : [
-        {
-          "description" : "Безлимитный VPN на 180 дней",
-          "displayName" : "180 дней",
-          "locale" : "ru_RU"
-        },
-        {
-          "description" : "Unlimited VPN for 180 days",
-          "displayName" : "180 days",
-          "locale" : "en_US"
-        }
-      ],
-      "productID" : "com.madfrog.vpn.sub.180days",
-      "referenceName" : "180 days",
-      "type" : "NonRenewingSubscription"
-    },
-    {
-      "displayPrice" : "15.99",
-      "familyShareable" : false,
-      "internalID" : "30004",
-      "localizations" : [
-        {
-          "description" : "Безлимитный VPN на 365 дней",
-          "displayName" : "365 дней",
-          "locale" : "ru_RU"
-        },
-        {
-          "description" : "Unlimited VPN for 365 days",
-          "displayName" : "365 days",
-          "locale" : "en_US"
-        }
-      ],
-      "productID" : "com.madfrog.vpn.sub.365days",
-      "referenceName" : "365 days",
-      "type" : "NonRenewingSubscription"
-    }
-  ],
+  "nonRenewingSubscriptions" : [],
   "products" : [],
   "settings" : {
-
+    "_storeKitErrors" : []
   },
-  "subscriptionGroups" : [],
+  "subscriptionGroups" : [
+    {
+      "id" : "21500001",
+      "localizations" : [
+        {
+          "description" : "",
+          "displayName" : "Pro",
+          "locale" : "en_US"
+        }
+      ],
+      "name" : "Pro",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [],
+          "codeOffers" : [],
+          "displayPrice" : "2.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "30011",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Unlimited MadFrog VPN access, billed monthly",
+              "displayName" : "1 Month",
+              "locale" : "en_US"
+            },
+            {
+              "description" : "Безлимитный доступ к MadFrog VPN, оплата раз в месяц",
+              "displayName" : "1 месяц",
+              "locale" : "ru_RU"
+            }
+          ],
+          "productID" : "com.madfrog.vpn.sub.month",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Pro Monthly",
+          "subscriptionGroupID" : "21500001",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [],
+          "codeOffers" : [],
+          "displayPrice" : "7.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "30012",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Unlimited MadFrog VPN access, billed every 3 months",
+              "displayName" : "3 Months",
+              "locale" : "en_US"
+            },
+            {
+              "description" : "Безлимитный доступ к MadFrog VPN, оплата раз в 3 месяца",
+              "displayName" : "3 месяца",
+              "locale" : "ru_RU"
+            }
+          ],
+          "productID" : "com.madfrog.vpn.sub.3month",
+          "recurringSubscriptionPeriod" : "P3M",
+          "referenceName" : "Pro 3 Months",
+          "subscriptionGroupID" : "21500001",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [],
+          "codeOffers" : [],
+          "displayPrice" : "14.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "30013",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Unlimited MadFrog VPN access, billed every 6 months",
+              "displayName" : "6 Months",
+              "locale" : "en_US"
+            },
+            {
+              "description" : "Безлимитный доступ к MadFrog VPN, оплата раз в 6 месяцев",
+              "displayName" : "6 месяцев",
+              "locale" : "ru_RU"
+            }
+          ],
+          "productID" : "com.madfrog.vpn.sub.6month",
+          "recurringSubscriptionPeriod" : "P6M",
+          "referenceName" : "Pro 6 Months",
+          "subscriptionGroupID" : "21500001",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [],
+          "codeOffers" : [],
+          "displayPrice" : "24.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "30014",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Unlimited MadFrog VPN access, billed yearly",
+              "displayName" : "1 Year",
+              "locale" : "en_US"
+            },
+            {
+              "description" : "Безлимитный доступ к MadFrog VPN, оплата раз в год",
+              "displayName" : "1 год",
+              "locale" : "ru_RU"
+            }
+          ],
+          "productID" : "com.madfrog.vpn.sub.year",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Pro Year",
+          "subscriptionGroupID" : "21500001",
+          "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
   "version" : {
     "major" : 3,
     "minor" : 0
