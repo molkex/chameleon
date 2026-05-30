@@ -7,9 +7,11 @@
 
 verified: 2026-05-28           # last time someone confirmed each field by hand
 spof_warning: |
-  Single-NL world since 2026-05-25 (DE retirement). If NL goes down,
-  there is no failover. NL redundancy is on roadmap (Hetzner Helsinki
-  is the front-runner candidate — AS24940, not in RU blocklists).
+  VPN-exit failover added 2026-05-30: GRA (OVH Gravelines) is a 2nd
+  VLESS-Reality+Hysteria2 exit — if NL's VPN IP is RKN-blocked, clients
+  auto-switch via the Auto urltest group. BUT backend/API/Postgres are
+  still single-NL: if the whole NL box dies, the service still goes down.
+  Full backend/DB standby (cluster replica on GRA) is the next step.
 
 # Production VPN node — sole authority for /api/* and /vpn (sing-box).
 nl:
@@ -24,6 +26,22 @@ nl:
   ssh: root@147.45.252.234
   domain_apex: madfrog.online        # CF-proxied → here
   domain_api: api.madfrog.online     # via MSK relay (not CF) → here:80
+
+# 2nd VPN exit (failover for NL) — added 2026-05-30. VPN-only: no backend/DB
+# here yet, current users baked into singbox config (see project_gra_node_bringup
+# memory). Reachable from RU (~50ms), Reality SNI ads.adfox.ru verified live.
+gra:
+  status: production
+  ip: 54.38.243.162
+  hostname: vps-57941bff.vps.ovh.net
+  hosting: OVH
+  location: Gravelines, France
+  spec: 6 vCPU / 12 GB / 100 GB, ~1 Gbit/s, €9.99/mo
+  role:
+    - vpn_node           # sing-box VLESS Reality :443/tcp + Hysteria2 :443/udp
+  ssh: debian@54.38.243.162   # key auth (claude-code-ssh-key), root via sudo
+  vpn_servers_key: gra1       # row in NL Postgres vpn_servers, country_code=FR
+  user_sync: baked-only       # TODO: auto-sync NEW users to GRA User API (15380)
 
 # Russian-side relay fronting api.madfrog.online for RU users behind GFW.
 # Not a VPN node — pure nginx forwarder.
