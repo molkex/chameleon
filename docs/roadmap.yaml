@@ -136,6 +136,30 @@ next:
       status: backend_ready
       notes: Backend tolerates absence (Phase 1, shipped 2026-05-27). iOS persists in Keychain + echoes. Strict mode flip after adoption.
 
+  client_reliability:
+    - id: CFG-01
+      title: Surface config-fetch failure + staleness guard (no more silent stale roster)
+      priority: P1
+      notes: |
+        AppState.silentConfigUpdate() swallows every fetch error and falls back
+        to the cached singbox-config.json with ZERO UI feedback and no freshness
+        check. A 9-day-old cache is treated as valid. Found 2026-05-30: a stale
+        dev build (38d) on Mac was stuck on a 2026-05-21 roster (retired DE, no
+        France) — every manual ↻ "TAP: refresh config + pings" fired but the
+        fetch failed silently (likely expired Keychain creds → 401 → re-register
+        path not recovering). Healthy installs unaffected, but any user whose
+        creds/fetch break is silently frozen on old servers forever. Fix: show a
+        non-blocking banner on fetch failure + treat config older than N hours as
+        stale (force re-auth / re-register, or at least warn in the picker).
+    - id: LOG-01
+      title: Cap / rotate tunnel singbox.log (unbounded growth)
+      priority: P1
+      notes: |
+        Group-container singbox.log hit 4.3 GB (found + truncated 2026-05-30 on
+        a Mac install). No rotation/size cap — on a real device this fills disk
+        and can wedge the NE. Add a size cap + rotation (or lower log level for
+        release builds) on the libbox/sing-box stdout sink.
+
 # ============================================================
 # LATER — backlog, no current pull
 # ============================================================
@@ -207,6 +231,51 @@ deferred:
 # DONE — append-only log. Most recent date first.
 # ============================================================
 done:
+  "2026-05-30":
+    - id: GRA-EXIT
+      title: GRA (OVH Gravelines) as 2nd VPN exit / NL failover — 🇫🇷 France
+      commit: d3c2671
+      files:
+        - docs/state/servers.yaml
+        - backend/migrations/015_shadowsocks_inbound.sql
+      notes: |
+        54.38.243.162 registered as gra1 in vpn_servers (country_code=FR,
+        is_active). VLESS Reality + Hysteria2. Clients get a 🇫🇷 exit + auto
+        fail-over from NL via the Auto urltest group. VPN-only — backend/DB still
+        single-NL; users baked into singbox config. Follow-up: auto-sync NEW
+        users to GRA User API (15380) — currently baked-only.
+    - id: IOS-PICKER-FR
+      title: iOS server picker recognizes FR/US (France showed as "fr 🌐")
+      commit: 638078a
+      files:
+        - clients/apple/MadFrogVPN/Models/ConfigStore.swift
+        - clients/apple/MadFrogVPN/Models/ServerGroup.swift
+        - clients/apple/MadFrogVPN/Models/PathPicker.swift
+      notes: Display-only; VPN already worked on GRA. Ships with next iOS build (91+).
+    - id: ADMIN-TZ
+      title: Admin user created_at emitted as UTC RFC3339 (was naive wall-clock)
+      commit: 57abe08
+      files: [backend/internal/api/admin/users.go]
+      notes: incidents/2026-05-30-admin-created-at-tz.md. Test verified green.
+    - id: DASH-VOID
+      title: Exclude void payments from dashboard "last payments" list
+      commit: 5b4d1b3
+      files: [backend/internal/db/payments.go]
+      notes: incidents/2026-05-30-dashboard-fake-payments.md. TestPaymentsBlock PASS.
+    - id: AGENTS-REFRESH
+      title: Regenerate stale AGENTS.md from CLAUDE.md + file GPT audits under docs/audits/
+      commit: 2606fbf
+      files: [AGENTS.md, docs/audits/]
+      notes: |
+        AGENTS.md had drifted to a pre-2026-05 state (Xray v26, retired DE :2096,
+        deprecated TROUBLESHOOTING.md, ChameleonVPN paths) — regenerated verbatim
+        from .claude/CLAUDE.md. Filed the two 2026-05-26 GPT audits under docs/audits/.
+    - id: AUDIT-TRIAGE
+      title: Verified 2026-05-26 GPT audit ops findings on NL (cron + backups)
+      notes: |
+        Read-only SSH triage. Both 🔴 RESOLVED: cron is on /opt/chameleon/backend/
+        scripts/ (fires every minute), DB backups daily + offsite Backblaze B2.
+        "Frozen" health/watchdog logs are quiet-on-success, not broken.
   "2026-05-29":
     - id: PAY-DASH
       title: Payments block on admin dashboard (revenue, counts, by-source, recent)
@@ -541,7 +610,7 @@ done:
 # ============================================================
 stats:
   open_now: 1                 # IAP-APPROVE
-  open_next: ~8               # +SUPPORT-CHAT (awaiting VPS approval); LAUNCH-01/03/07/08/11/12 + MON-04 done
+  open_next: ~10              # +CFG-01/LOG-01 (client reliability, 2026-05-30); +SUPPORT-CHAT (awaiting VPS)
   tech_debt_items: 1          # TD-LINT-01/02/DE-PRUNE all closed 2026-05-28; only TD-LIBBOX-FETCH remains
   decisions_documented: 8     # ADRs in decisions/ (added 0007-sentry-eu + 0008-utls-fingerprint-rotation)
   incidents_documented: 2     # MED-015 + Apple 2.3
