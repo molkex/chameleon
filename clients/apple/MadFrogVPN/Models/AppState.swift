@@ -943,17 +943,33 @@ class AppState {
             // committing to a 10s watchdog. This catches "all servers dead"
             // in ~2s and gives the user a specific, actionable error instead
             // of a generic "server rejected" after 30 seconds of silence.
+            // The preflight probes run through whatever tunnel currently owns the
+            // device. If a FOREIGN VPN is active, our servers look "dead" only
+            // because traffic is being routed through it — aborting here is what
+            // stopped us from ever reaching vpnManager.connect(), which is the call
+            // that triggers iOS/macOS single-tunnel takeover (displaces the other
+            // VPN). So when another VPN is active, ignore the unreliable preflight
+            // and proceed straight to the takeover.
+            let foreignVPNActive = VPNErrorMapper.anotherVPNActive()
             switch await preflightProbe() {
             case .ok, .skipped:
                 break
             case .allDead:
-                TunnelFileLogger.log("toggleVPN: preflight — all servers unreachable", category: "ui")
-                errorMessage = L10n.Error.allServersUnreachable
-                return
+                if foreignVPNActive {
+                    TunnelFileLogger.log("toggleVPN: preflight allDead but a foreign VPN is active — probes unreliable, proceeding to takeover", category: "ui")
+                } else {
+                    TunnelFileLogger.log("toggleVPN: preflight — all servers unreachable", category: "ui")
+                    errorMessage = L10n.Error.allServersUnreachable
+                    return
+                }
             case .selectedDead(let name):
-                TunnelFileLogger.log("toggleVPN: preflight — selected '\(name)' unreachable", category: "ui")
-                errorMessage = L10n.Error.selectedUnreachable(name)
-                return
+                if foreignVPNActive {
+                    TunnelFileLogger.log("toggleVPN: preflight selectedDead '\(name)' but a foreign VPN is active — proceeding to takeover", category: "ui")
+                } else {
+                    TunnelFileLogger.log("toggleVPN: preflight — selected '\(name)' unreachable", category: "ui")
+                    errorMessage = L10n.Error.selectedUnreachable(name)
+                    return
+                }
             }
 
             TunnelFileLogger.log("toggleVPN: preflight OK, calling vpnManager.connect", category: "ui")
