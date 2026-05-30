@@ -177,9 +177,15 @@ func (db *DB) RecentPayments(ctx context.Context, limit int) ([]RecentPayment, e
 	if limit <= 0 || limit > 100 {
 		limit = 10
 	}
+	// status='void' marks ledger rows an operator excluded from the dashboard
+	// (dev/sandbox/test payments). The money rollups already filter on
+	// 'completed'/'refunded' so void never reaches them, but this list has no
+	// status filter — exclude void here so hidden rows don't resurface in the
+	// "last payments" table.
 	rows, err := db.Pool.Query(ctx, `
 		SELECT user_id, amount_minor, COALESCE(currency, ''), source, days, status, created_at
 		FROM payments
+		WHERE status <> 'void'
 		ORDER BY created_at DESC
 		LIMIT $1`, limit)
 	if err != nil {

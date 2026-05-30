@@ -67,6 +67,7 @@ func TestPaymentsBlock(t *testing.T) {
 	seedNoAmount(userA, "apple_iap", "ap-1", "completed", 30, now)                   // today, no money
 	seedNoAmount(userB, "admin", "admin-1", "completed", 30, now)                    // grant, never counts
 	seedMoney(userA, "freekassa", "fk-3", "RUB", "refunded", 29900, 30, now)         // refund today
+	seedMoney(userA, "freekassa", "fk-void", "RUB", "void", 99900, 30, now)          // operator-excluded test row → must not move ANY total below
 
 	periods, err := database.PaymentsBlock(ctx)
 	if err != nil {
@@ -163,13 +164,22 @@ func TestRecentPayments(t *testing.T) {
 	if err != nil {
 		t.Fatalf("seed new: %v", err)
 	}
+	// A void row is the newest of all — it must be excluded from the list so
+	// operator-hidden test/sandbox payments don't resurface here.
+	_, err = database.Pool.Exec(ctx,
+		`INSERT INTO payments (user_id, source, charge_id, days, amount_minor, currency, status, created_at)
+		 VALUES ($1, 'freekassa', 'rp-void', 30, 99900, 'RUB', 'void', $2)`,
+		u.ID, now.Add(time.Minute))
+	if err != nil {
+		t.Fatalf("seed void: %v", err)
+	}
 
 	rows, err := database.RecentPayments(ctx, 10)
 	if err != nil {
 		t.Fatalf("RecentPayments: %v", err)
 	}
 	if len(rows) != 2 {
-		t.Fatalf("len(rows) = %d, want 2", len(rows))
+		t.Fatalf("len(rows) = %d, want 2 (void excluded)", len(rows))
 	}
 	// Newest first: the Apple row.
 	if rows[0].Source != "apple_iap" {
