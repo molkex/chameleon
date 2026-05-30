@@ -281,6 +281,17 @@ deferred:
 # ============================================================
 done:
   "2026-05-30":
+    - id: VPN-TAKEOVER
+      title: Connect over a foreign VPN (OS single-tunnel takeover) — Mac build 92
+      commit: 03c7461
+      notes: |
+        toggleVPN()'s preflight probe ran through the active foreign VPN, saw our
+        servers as .allDead, and bailed before vpnManager.connect() — so MadFrog
+        refused to connect over another VPN. Fix: when anotherVPNActive(), skip the
+        unreliable preflight and go straight to connect() so the OS preempts the
+        other VPN. Shipped Mac build 92 to TestFlight. Needs on-device verification
+        (does Liberon actually get displaced / not reclaim via On-Demand?).
+        Remaining UX-VPN: clearer pre-connect "another VPN active" messaging.
     - id: AUDIT-INTERNAL
       title: Full internal audit (backend + apple + docs/infra) — state + verdict + docs architecture
       file: docs/audits/2026-05-30-internal-audit.md
