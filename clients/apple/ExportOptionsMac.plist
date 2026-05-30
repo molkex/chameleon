@@ -1,5 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  macOS App Store export options for MadFrogVPNMac.
+
+  signingStyle = automatic (with `xcodebuild -allowProvisioningUpdates` + the
+  ASC API key): xcodebuild generates a Mac App Store distribution profile that
+  INCLUDES the group.com.madfrog.vpn App Group on the fly. This unblocked CLI
+  release on 2026-05-30 (build 91). The old manual profiles ("MadFrog Mac App
+  Store 2" / "...Tunnel App Store 2") never carried the App Group, and the ASC
+  API has no /v1/appGroups endpoint to add it, so manual export failed with
+  "profile doesn't support the group.com.madfrog.vpn App Group". Automatic
+  provisioning sidesteps it — no Xcode Organizer UI needed.
+-->
 <plist version="1.0">
 <dict>
 	<key>method</key>
@@ -9,18 +21,7 @@
 	<key>teamID</key>
 	<string>99W3C374T2</string>
 	<key>signingStyle</key>
-	<string>manual</string>
-	<key>signingCertificate</key>
-	<string>3rd Party Mac Developer Application</string>
-	<key>installerSigningCertificate</key>
-	<string>3rd Party Mac Developer Installer</string>
-	<key>provisioningProfiles</key>
-	<dict>
-		<key>com.madfrog.vpn.mac</key>
-		<string>MadFrog Mac App Store 2</string>
-		<key>com.madfrog.vpn.mac.tunnel</key>
-		<string>MadFrog Mac Tunnel App Store 2</string>
-	</dict>
+	<string>automatic</string>
 	<key>uploadSymbols</key>
 	<true/>
 	<key>stripSwiftSymbols</key>

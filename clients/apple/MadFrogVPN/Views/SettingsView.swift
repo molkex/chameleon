@@ -212,30 +212,7 @@ struct SettingsView: View {
                                 } else {
                                     VStack(spacing: 6) {
                                         ForEach(trustedSSIDs, id: \.self) { ssid in
-                                            HStack(spacing: 10) {
-                                                Image(systemName: "wifi")
-                                                    .font(.system(size: 13))
-                                                    .foregroundStyle(theme.textSecondary)
-                                                Text(ssid)
-                                                    .font(theme.font(size: 15))
-                                                    .foregroundStyle(theme.textPrimary)
-                                                    .lineLimit(1)
-                                                Spacer()
-                                                Button {
-                                                    Task {
-                                                        trustedSSIDs = await app.removeTrustedSSID(ssid)
-                                                    }
-                                                } label: {
-                                                    Image(systemName: "minus.circle.fill")
-                                                        .font(.system(size: 18))
-                                                        .foregroundStyle(theme.textSecondary.opacity(0.7))
-                                                }
-                                                .buttonStyle(.plain)
-                                            }
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 8)
-                                            .background(theme.background.opacity(0.5),
-                                                        in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                            trustedSSIDRow(ssid)
                                         }
                                     }
                                     .padding(.leading, 46)
@@ -386,7 +363,9 @@ struct SettingsView: View {
             }
             .alert("Add trusted network", isPresented: $showAddSSIDAlert) {
                 TextField("Wi-Fi name (SSID)", text: $pendingSSIDInput)
-                    .textInputAutocapitalization(.never)
+                    #if os(iOS)
+                    .textInputAutocapitalization(.never)   // iOS-only modifier
+                    #endif
                     .autocorrectionDisabled(true)
                 Button("Cancel", role: .cancel) {
                     pendingSSIDInput = ""
@@ -413,6 +392,37 @@ struct SettingsView: View {
     }
 
     // MARK: - Theming helpers
+
+    // Extracted from the trusted-SSID ForEach: the inline row tipped the Swift
+    // type-checker over its budget on macOS ("unable to type-check in
+    // reasonable time"). Behaviour-identical on both platforms.
+    @ViewBuilder
+    private func trustedSSIDRow(_ ssid: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "wifi")
+                .font(.system(size: 13))
+                .foregroundStyle(theme.textSecondary)
+            Text(ssid)
+                .font(theme.font(size: 15))
+                .foregroundStyle(theme.textPrimary)
+                .lineLimit(1)
+            Spacer()
+            Button {
+                Task {
+                    trustedSSIDs = await app.removeTrustedSSID(ssid)
+                }
+            } label: {
+                Image(systemName: "minus.circle.fill")
+                    .font(.system(size: 18))
+                    .foregroundStyle(theme.textSecondary.opacity(0.7))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(theme.background.opacity(0.5),
+                    in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
 
     @ViewBuilder
     private func sectionHeader(_ title: LocalizedStringKey) -> some View {
