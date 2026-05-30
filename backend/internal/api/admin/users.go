@@ -388,7 +388,11 @@ func toUserResponse(u db.User, serverIPs map[string]string) userResponse {
 	}
 
 	if !u.CreatedAt.IsZero() {
-		formatted := u.CreatedAt.Format("2006-01-02 15:04")
+		// RFC3339 UTC so the admin SPA's `new Date(...)` parses it as an
+		// absolute instant. A naive "2006-01-02 15:04" string carries no
+		// zone, so a browser in MSK reads it as local time and inflates the
+		// "Xh ago" relative age by the UTC offset (+3h). Matches last_seen.
+		formatted := u.CreatedAt.UTC().Format(time.RFC3339)
 		r.CreatedAt = &formatted
 	}
 
