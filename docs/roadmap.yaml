@@ -138,19 +138,27 @@ next:
 
   client_reliability:
     - id: CFG-01
-      title: Surface config-fetch failure + staleness guard (no more silent stale roster)
+      title: macOS config-fetch silently no-ops (username nil) + no staleness guard
       priority: P1
       notes: |
-        AppState.silentConfigUpdate() swallows every fetch error and falls back
-        to the cached singbox-config.json with ZERO UI feedback and no freshness
-        check. A 9-day-old cache is treated as valid. Found 2026-05-30: a stale
-        dev build (38d) on Mac was stuck on a 2026-05-21 roster (retired DE, no
-        France) — every manual ↻ "TAP: refresh config + pings" fired but the
-        fetch failed silently (likely expired Keychain creds → 401 → re-register
-        path not recovering). Healthy installs unaffected, but any user whose
-        creds/fetch break is silently frozen on old servers forever. Fix: show a
-        non-blocking banner on fetch failure + treat config older than N hours as
-        stale (force re-auth / re-register, or at least warn in the picker).
+        Found 2026-05-30 on the LIVE App Store build (1.0.27 / 90) running as
+        iOS-app-on-Mac. Picker was frozen on a 2026-05-21 roster (retired DE, no
+        France) for 9 days; the same build on iPhone was fine. Confirmed BOTH
+        sides: singbox-config.json mtime stuck at 2026-05-21, and an NL-side
+        log capture during a manual ↻ showed ONLY a telemetry POST
+        (events/batch, UA "MadFrogVPN/90 ... Darwin/25.5.0") — the GET
+        /api/v1/mobile/config NEVER reached the server. So fetchConfig() is
+        never invoked: fetchAndSaveConfig() bails at `guard let username =
+        configStore.username` because the "username" Keychain item isn't read
+        in the iOS-on-Mac data-protection keychain context (the items exist in
+        the login keychain instead). silentConfigUpdate() swallows it — zero UI
+        signal, and a 9-day-old cache is treated as valid.
+        Fix: (a) correct keychain-access-group / sharing so macOS reads the same
+        creds (root cause); (b) surface fetch failure in the picker instead of
+        silent cache fallback; (c) staleness guard — config older than N hours
+        forces re-auth/re-register or at least warns. User workaround:
+        reinstall the Mac app (clean keychain/container → re-register → fresh
+        config with France).
     - id: LOG-01
       title: Cap / rotate tunnel singbox.log (unbounded growth)
       priority: P1
