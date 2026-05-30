@@ -212,6 +212,19 @@ later:
 # TECH-DEBT — known smells, cataloged but not blocking
 # ============================================================
 tech_debt:
+  - id: LIBBOX-MAC-STRUCT
+    title: libbox build emits a flattened macOS framework (breaks codesign)
+    status: worked_around_on_disk
+    notes: |
+      The macos-arm64_x86_64 slice of Libbox.xcframework (rebuilt 2026-05-13)
+      had real files at the framework top level + a real Versions/Current dir
+      instead of the canonical symlink layout (top-level entries → Versions/
+      Current → A). macOS codesign then reports "code object is not signed at
+      all" for the embedded Libbox.framework and the app archive sign fails.
+      Fixed on disk 2026-05-30 by restoring symlinks (Versions/Current→A, top
+      level→Versions/Current/*). The libbox build/packaging (make lib_apple +
+      Info.plist patch step) must emit proper macOS framework symlinks so a
+      clean rebuild doesn't reintroduce this. See reference_libbox_build.
   - id: TD-LIBBOX-FETCH
     title: Wire scripts/fetch-libbox.sh
     status: workaround_in_place
@@ -240,6 +253,20 @@ deferred:
 # ============================================================
 done:
   "2026-05-30":
+    - id: MAC-NATIVE-91
+      title: Native macOS app (MadFrogVPNMac) build 91 → TestFlight (1.0.27 parity)
+      commit: e954954
+      notes: |
+        First native Mac build since TestFlight build 51 (1.0.24, May 11). User
+        was stuck on the iOS-app-on-Mac wrapper (cramped window, no menu-bar
+        icon); the native target has MenuBarExtra + proper window but had drifted
+        un-buildable. Guarded 3 iOS-only APIs in shared code (os_proc_available_
+        memory, NEOnDemandRule .cellular, .textInputAutocapitalization), bumped to
+        build 91, and switched ExportOptionsMac to automatic signing (generates a
+        distribution profile WITH group.com.madfrog.vpn — bypasses the
+        Organizer-UI App Group blocker via CLI). VALID + IN_BETA_TESTING in ASC.
+        Mac listing still never released to App Store (v1.0 PREPARE_FOR_SUBMISSION)
+        — TestFlight-only for now; App Store submission is a follow-up.
     - id: GRA-EXIT
       title: GRA (OVH Gravelines) as 2nd VPN exit / NL failover — 🇫🇷 France
       commit: d3c2671
