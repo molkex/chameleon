@@ -190,6 +190,8 @@ final class PathPicker {
         switch tag {
         case "🇩🇪 Германия": return "de"
         case "🇳🇱 Нидерланды": return "nl"
+        case "🇫🇷 Франция": return "fr"
+        case "🇺🇸 США": return "us"
         case "🇷🇺 Россия (обход белых списков)", "🇷🇺 Россия": return "ru-spb"
         default:
             // Unknown label, or a leaf tag handled earlier as a power-mode

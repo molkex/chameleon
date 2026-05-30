@@ -360,6 +360,8 @@ class ConfigStore {
     static let countryDisplay: [String: String] = [
         "de": "🇩🇪 Германия",
         "nl": "🇳🇱 Нидерланды",
+        "fr": "🇫🇷 Франция",
+        "us": "🇺🇸 США",
         "ru-spb": "🇷🇺 Россия (обход белых списков)"
     ]
 

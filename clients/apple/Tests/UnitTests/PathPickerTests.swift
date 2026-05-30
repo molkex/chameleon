@@ -83,6 +83,14 @@ final class PathPickerTests: XCTestCase {
         XCTAssertEqual(PathPicker.countryCode(forSelectedTag: "🇳🇱 Нидерланды"), "nl")
     }
 
+    func testCountryCodeFrance() {
+        XCTAssertEqual(PathPicker.countryCode(forSelectedTag: "🇫🇷 Франция"), "fr")
+    }
+
+    func testCountryCodeUSA() {
+        XCTAssertEqual(PathPicker.countryCode(forSelectedTag: "🇺🇸 США"), "us")
+    }
+
     func testCountryCodeRussiaWhitelist() {
         XCTAssertEqual(
             PathPicker.countryCode(forSelectedTag: "🇷🇺 Россия (обход белых списков)"),

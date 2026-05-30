@@ -21,6 +21,8 @@ struct ServerItem: Identifiable {
         switch countryKey {
         case "nl": return "NL"
         case "de": return "DE"
+        case "fr": return "FR"
+        case "us": return "US"
         case "ru": return "RU"
         case "cdn": return "CDN"
         default: return "—"
@@ -32,6 +34,8 @@ struct ServerItem: Identifiable {
         switch countryKey {
         case "nl": return "🇳🇱"
         case "de": return "🇩🇪"
+        case "fr": return "🇫🇷"
+        case "us": return "🇺🇸"
         case "ru": return "🇷🇺"
         case "cdn": return "🌐"
         default: return "🌍"
@@ -41,7 +45,7 @@ struct ServerItem: Identifiable {
     /// SF Symbol name for this server's country.
     var countryIcon: String {
         switch countryKey {
-        case "nl", "de", "ru": return "mappin.circle.fill"
+        case "nl", "de", "fr", "us", "ru": return "mappin.circle.fill"
         case "cdn": return "cloud.fill"
         default: return "globe"
         }
@@ -68,7 +72,7 @@ struct ServerItem: Identifiable {
         // New format: {cc}-{kind}-{suffix} where cc ∈ {nl, de, ru, ...}
         if let dash = t.firstIndex(of: "-") {
             let prefix = String(t[..<dash])
-            if prefix.count == 2, ["nl", "de", "ru"].contains(prefix) {
+            if prefix.count == 2, ["nl", "de", "fr", "us", "ru"].contains(prefix) {
                 return prefix
             }
         }
@@ -271,7 +275,7 @@ enum ServerTagShape {
         if parts.count >= 3 {
             let cc = parts[0].lowercased()
             let kind = parts[1].lowercased()
-            let knownCC = ["nl", "de", "ru"].contains(cc)
+            let knownCC = ["nl", "de", "fr", "us", "ru"].contains(cc)
             let knownKind = ["direct", "h2", "tuic", "via", "spb"].contains(kind)
             if knownCC && knownKind {
                 self = .leaf(country: cc)
