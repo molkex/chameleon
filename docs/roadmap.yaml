@@ -167,6 +167,24 @@ next:
         a Mac install). No rotation/size cap — on a real device this fills disk
         and can wedge the NE. Add a size cap + rotation (or lower log level for
         release builds) on the libbox/sing-box stdout sink.
+    - id: CFG-01b
+      title: macOS Keychain access group → username nil → config never fetches
+      priority: P0
+      notes: Root cause of stale config on Mac. Add com.apple.developer.keychain-access-groups ($(AppIdentifierPrefix)com.madfrog.vpn) to MadFrogVPNMac.entitlements + kSecAttrAccessGroup on macOS. See audits/2026-05-30-internal-audit.md.
+    - id: UX-VPN
+      title: Surface "another VPN holds the tunnel" instead of silent Disconnected
+      priority: P1
+      notes: anotherVPNActive() (getifaddrs) exists but not wired to handleStatus(.disconnected) at AppState.swift:1755. User-reported on macOS 2026-05-30.
+
+  # From internal audit 2026-05-30 (audits/2026-05-30-internal-audit.md). Verified findings.
+  security_audit:
+    - { id: SEC-01, priority: P0, title: "Apple Sign-In grants a fresh 3-day trial on every expired-sub sign-in (auth.go:373) → infinite trials per apple_id — cap/track" }
+    - { id: SEC-02, priority: P0, title: "Echo has no IPExtractor (server.go:56) — c.RealIP() trusts client X-Forwarded-For → rate-limit/FreeKassa-allowlist/geoIP spoofable" }
+    - { id: SEC-03, priority: P1, title: "Hysteria2/TUIC emitted Insecure:true on prod (clientconfig.go:197,215) → MITM — provision cert, Insecure:false" }
+    - { id: SEC-04, priority: P1, title: "Apple refund/revoke webhook is log-only (subscription_notification.go:90) → refunded users keep access — implement revocation" }
+  infra_audit:
+    - { id: GRA-SYNC, priority: P1, title: "Auto-sync new users to GRA User API :15380 — user_sync baked-only → silent Reality reject on failover, worsens over time" }
+    - { id: SUBDOMAIN-SCRUB, priority: P2, title: "bot/crew/speedtest.madfrog.online point at retired 85.239.49.28 — subdomain-takeover vector; scrub/repoint" }
 
 # ============================================================
 # LATER — backlog, no current pull
@@ -199,9 +217,19 @@ later:
       notes: hero card stretches to 1000pt on iPad
 
   docs:
+    # Concrete target structure + step-by-step migration plan: see
+    # audits/2026-05-30-internal-audit.md ("Docs architecture — target & migration").
+    # Promote DOCS-MIGRATE to `next` when picking it up — it's mechanical/low-risk.
+    - id: DOCS-MIGRATE
+      title: Execute YAML-first docs migration (retire OPERATIONS/PAYMENTS/TROUBLESHOOTING, fold topology.yaml)
+      notes: |
+        Per 2026-05-30 audit: kill ~2300 lines of dead DE-era docs, move payment
+        facts → state/payment-providers.yaml + arch/payments.md, strip dangling
+        Mirror headers, add monitoring to runtime.yaml + grafana to domains.yaml,
+        add letsencrypt-renew/spb-relay-audit playbooks. PLAN file already archived.
     - id: DOC-OPS-SPLIT
       title: Split OPERATIONS.md (1555 lines) into playbooks/
-      notes: Incremental — touch as work goes through.
+      notes: Incremental — touch as work goes through. Subsumed by DOCS-MIGRATE.
     - id: DOC-PAYMENTS
       title: Migrate PAYMENTS.md → arch/payments.md + state/payment-providers.yaml
     - id: DOC-TROUBLESHOOTING
@@ -253,6 +281,16 @@ deferred:
 # ============================================================
 done:
   "2026-05-30":
+    - id: AUDIT-INTERNAL
+      title: Full internal audit (backend + apple + docs/infra) — state + verdict + docs architecture
+      file: docs/audits/2026-05-30-internal-audit.md
+      notes: |
+        3-agent audit. Verdict: direction sound, risk is ops fragility not design.
+        Surfaced 2 backend P0s (SEC-01 infinite trials, SEC-02 RealIP spoof),
+        CFG-01b root cause (macOS keychain-access-groups missing), UX-VPN
+        (foreign-VPN silent disconnect), + docs-rot + infra SPoF. All logged to
+        next.security_audit / client_reliability / infra_audit / docs.
+        Window-size fix coded (MadFrogVPNApp 440×760), ships next Mac build.
     - id: MAC-NATIVE-91
       title: Native macOS app (MadFrogVPNMac) build 91 → TestFlight (1.0.27 parity)
       commit: e954954
@@ -648,5 +686,5 @@ stats:
   open_next: ~10              # +CFG-01/LOG-01 (client reliability, 2026-05-30); +SUPPORT-CHAT (awaiting VPS)
   tech_debt_items: 1          # TD-LINT-01/02/DE-PRUNE all closed 2026-05-28; only TD-LIBBOX-FETCH remains
   decisions_documented: 8     # ADRs in decisions/ (added 0007-sentry-eu + 0008-utls-fingerprint-rotation)
-  incidents_documented: 2     # MED-015 + Apple 2.3
+  incidents_documented: 7     # docs/incidents/ — recount 2026-05-30 (was stale at 2)
   playbooks_documented: 4     # apple-reject-recovery, ios-cli-release, deploy-nl, asc-api-checks
