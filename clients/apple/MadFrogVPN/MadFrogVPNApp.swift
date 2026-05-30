@@ -108,7 +108,7 @@ struct MadFrogVPNApp: App {
         #if os(macOS)
         return Group {
             window
-                .defaultSize(width: 480, height: 900)
+                .defaultSize(width: 440, height: 760)
                 .windowResizability(.contentMinSize)
 
             MenuBarExtra {
@@ -237,10 +237,10 @@ private extension View {
     @ViewBuilder
     func macWindowFrame() -> some View {
         #if os(macOS)
-        self.frame(minWidth: 440, idealWidth: 480, minHeight: 820, idealHeight: 900)
+        self.frame(minWidth: 400, idealWidth: 440, minHeight: 560, idealHeight: 760)
         #else
         if ProcessInfo.processInfo.isiOSAppOnMac {
-            self.frame(minWidth: 440, idealWidth: 480, minHeight: 820, idealHeight: 900)
+            self.frame(minWidth: 400, idealWidth: 440, minHeight: 560, idealHeight: 760)
         } else {
             self
         }
