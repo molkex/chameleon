@@ -60,12 +60,17 @@ struct AuthResult: Codable {
     let refreshToken: String
     let username: String
     let isNew: Bool?
+    /// Backend user id. Optional so older endpoints/responses still decode.
+    /// Used to tie StoreKit purchases to the account (appAccountToken) and for
+    /// diagnostics — see ACCT-IDENTITY.
+    let userID: Int64?
 
     enum CodingKeys: String, CodingKey {
         case accessToken = "access_token"
         case refreshToken = "refresh_token"
         case username
         case isNew = "is_new"
+        case userID = "user_id"
     }
 }
 

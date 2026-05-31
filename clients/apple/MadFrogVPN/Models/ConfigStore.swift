@@ -72,6 +72,35 @@ class ConfigStore {
         }
     }
 
+    // MARK: - Identity (ACCT-IDENTITY)
+
+    /// Which provider established the current identity: "apple", "google",
+    /// "email" (magic-link), or nil for an anonymous device account. Keychain-
+    /// backed so it survives app delete/reinstall AND app-group container
+    /// resets — exactly the durability the old `onboardingCompleted` UD flag
+    /// lacked. This is the gate that prevents demoting an identity user to a
+    /// fresh anonymous trial: anon-register is only ever a fallback when this
+    /// is nil.
+    var authProvider: String? {
+        get { KeychainHelper.load(key: AppConstants.authProviderKey) }
+        set {
+            if let v = newValue { KeychainHelper.save(key: AppConstants.authProviderKey, value: v) }
+            else { KeychainHelper.delete(key: AppConstants.authProviderKey) }
+        }
+    }
+
+    /// Stable Sign in with Apple user id (the `sub`). Survives reinstall and is
+    /// stable per Apple ID for our dev Team, so the backend can reclaim the
+    /// account by it. Used on launch for `getCredentialState(forUserID:)` and
+    /// to drive silent re-auth. nil for non-Apple accounts.
+    var appleUserID: String? {
+        get { KeychainHelper.load(key: AppConstants.appleUserIDKey) }
+        set {
+            if let v = newValue { KeychainHelper.save(key: AppConstants.appleUserIDKey, value: v) }
+            else { KeychainHelper.delete(key: AppConstants.appleUserIDKey) }
+        }
+    }
+
     var subscriptionURL: String? {
         guard let user = username else { return nil }
         return "\(AppConstants.baseURL)/sub/\(user)/smart"
@@ -223,6 +252,13 @@ class ConfigStore {
         subscriptionExpire = nil
         accessToken = nil
         refreshToken = nil
+        // ACCT-IDENTITY: clear() is a full local sign-out (logout / account
+        // delete). The identity markers go too. NOTE: clear() is deliberately
+        // NOT called anymore on a transient session failure for an identity
+        // user — see AppState.fetchAndSaveConfig — so these only vanish on an
+        // explicit, user-initiated sign-out.
+        authProvider = nil
+        appleUserID = nil
         sharedDefaults?.removeObject(forKey: AppConstants.activationKey)
         sharedDefaults?.removeObject(forKey: AppConstants.lastUpdateKey)
         sharedDefaults?.removeObject(forKey: AppConstants.startOptionsKey)

@@ -116,6 +116,14 @@ enum AppConstants {
     static let accessTokenKey = "mobileAccessToken"
     static let refreshTokenKey = "mobileRefreshToken"
 
+    // ACCT-IDENTITY (2026-06-01): durable identity markers (Keychain). These
+    // are what stop the app from demoting an Apple/Google/email user to a fresh
+    // anonymous trial on a transient session failure. authProvider gates the
+    // anon-register fallback; appleUserID (the SiwA `sub`) drives launch-time
+    // getCredentialState + silent re-auth.
+    static let authProviderKey = "authProvider"
+    static let appleUserIDKey = "appleUserID"
+
     // Authenticated config endpoint
     static let mobileConfigURL = baseURL + "/api/v1/mobile/config"
 

@@ -135,6 +135,7 @@
 		862A3CC7333E5F978ED65DAB /* libresolv.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = C4C20C0AE163F2C1F4C77012 /* libresolv.tbd */; };
 		863EF301D0218146226F269C /* libbsm.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 432EBE9FD5522D30F574115F /* libbsm.tbd */; };
 		8707A01FC388AEEF2BBB77E8 /* SingBoxConfigPatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BFE7E8B5C268A8B4E1F44C8 /* SingBoxConfigPatcher.swift */; };
+		87E2C8AF3C124102BB545196 /* ReauthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B22C5FF3DB584F3F6AB7B17 /* ReauthView.swift */; };
 		87FFB27A4907D550DB3E9FE7 /* CoreWLAN.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A630BB5B9993A8152A622ED3 /* CoreWLAN.framework */; };
 		882104E7A1040997AE2683E8 /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FF7E993E8B445FBA2EBEC98C /* IOKit.framework */; };
 		88554DBB410CBE11723FF7F3 /* StringUtilsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B07C7F761E8467D5C74E4CD /* StringUtilsTests.swift */; };
@@ -177,6 +178,7 @@
 		B59AD2D488C3ACA2AF5641E3 /* MadFrogWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C2438DA01D7A5262205DE1A8 /* MadFrogWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		B5F8C1AECBBB9D9B61265F72 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 16E41091FB71C918EFBEF6B9 /* Localizable.strings */; };
 		B77BC729E2F213EC14220EE7 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EA1C04CBF00045661691673 /* AppState.swift */; };
+		B95ACBB4DE490587C8245861 /* ReauthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B22C5FF3DB584F3F6AB7B17 /* ReauthView.swift */; };
 		B988B34E1D31DA0B7F335675 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C0143BDF66872F26920B09B /* Theme.swift */; };
 		BAC6E9B5B3FEE333A3E0BE46 /* Libbox.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C18C942EF28864C26636822B /* Libbox.xcframework */; };
 		BACEC61FEE678594868C78AF /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B28AD4A0F0B61B1CCA267A /* ThemeManager.swift */; };
@@ -332,6 +334,7 @@
 		152624A9F613DE119B5A4872 /* EventTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventTracker.swift; sourceTree = "<group>"; };
 		157CE480F9510B6FCF6A5C00 /* PlatformMainApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformMainApp.swift; sourceTree = "<group>"; };
 		162DBA8410559B43321EB197 /* MadFrogControlWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MadFrogControlWidget.swift; sourceTree = "<group>"; };
+		1B22C5FF3DB584F3F6AB7B17 /* ReauthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReauthView.swift; sourceTree = "<group>"; };
 		21AE788D6595D4029A9B4AD5 /* NetworkExtension.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = NetworkExtension.framework; path = System/Library/Frameworks/NetworkExtension.framework; sourceTree = SDKROOT; };
 		233EE0ACC559229ABE75CF28 /* PingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PingService.swift; sourceTree = "<group>"; };
 		27C5C9C45F3855532EB54D77 /* VPNPermissionPrimerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VPNPermissionPrimerView.swift; sourceTree = "<group>"; };
@@ -579,6 +582,7 @@
 				D1256FD7DB2FC529473E9686 /* OnboardingView.swift */,
 				AAFB204D1606673779D65246 /* PaywallRouter.swift */,
 				9165FAC1D21DF4F01B68654F /* PaywallView.swift */,
+				1B22C5FF3DB584F3F6AB7B17 /* ReauthView.swift */,
 				7195CF498E5531209F7FAD2C /* SettingsView.swift */,
 				AE8C33AF6B8E237DD5BC9D5B /* ThemePickerView.swift */,
 				27C5C9C45F3855532EB54D77 /* VPNPermissionPrimerView.swift */,
@@ -1031,6 +1035,7 @@
 				23ED595CF63572E126B9C141 /* PlatformDevice.swift in Sources */,
 				22B86C4525296EE55F075B77 /* PlatformMainApp.swift in Sources */,
 				B5436C52407C154AA274BB10 /* PlatformViewExtensions.swift in Sources */,
+				B95ACBB4DE490587C8245861 /* ReauthView.swift in Sources */,
 				F12319F885E0D6CE6F98581C /* RoutingMode.swift in Sources */,
 				8D0556BA2F8691356C8F0E04 /* RunBlocking.swift in Sources */,
 				59217E5548A68AAFA9481969 /* ServerGroup.swift in Sources */,
@@ -1124,6 +1129,7 @@
 				5CD7449941DEE7DDF53F8C06 /* PlatformDevice.swift in Sources */,
 				84989A41436A64D9E3293095 /* PlatformMainApp.swift in Sources */,
 				03D46FF6FD8EF369819CAAEC /* PlatformViewExtensions.swift in Sources */,
+				87E2C8AF3C124102BB545196 /* ReauthView.swift in Sources */,
 				737444102A7A75DB8692E648 /* RoutingMode.swift in Sources */,
 				CAE69A9A9192883A23FEE391 /* RunBlocking.swift in Sources */,
 				1E7AE113ABDDF057C4CEFDB3 /* ServerGroup.swift in Sources */,

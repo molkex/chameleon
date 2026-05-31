@@ -109,6 +109,14 @@ enum L10n {
         static let checkEmailClose    = LKey("magic.check_email.close")
     }
 
+    enum Reauth {
+        static let title    = LKey("reauth.title")
+        static let subtitle = LKey("reauth.subtitle")
+        static let apple    = LKey("reauth.apple")
+        static let email    = LKey("reauth.email")
+        static let later    = LKey("reauth.later")
+    }
+
     enum Primer {
         static let title          = LKey("primer.title")
         static let subtitle       = LKey("primer.subtitle")

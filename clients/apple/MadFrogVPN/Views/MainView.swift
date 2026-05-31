@@ -139,6 +139,15 @@ struct MainView: View {
             .environment(themeManager)
             .macSheetSize()
         }
+        // ACCT-IDENTITY: non-destructive session-recovery sheet. Auto-presents
+        // when an identity user's session can't be silently refreshed; keeps
+        // the Keychain identity intact instead of demoting to anon.
+        .sheet(isPresented: Bindable(app).needsReauth) {
+            ReauthView()
+                .environment(app)
+                .environment(themeManager)
+                .macSheetSize()
+        }
     }
 
     private func computeBuildInfoLine() -> String {

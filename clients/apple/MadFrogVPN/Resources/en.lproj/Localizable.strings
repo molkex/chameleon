@@ -93,6 +93,13 @@
 "magic.already_signed_in"        = "You're already signed in.";
 "onboarding.terms"               = "By continuing you agree to our Terms of Service and Privacy Policy";
 
+/* ===== Session re-auth (ACCT-IDENTITY) ===== */
+"reauth.title"                   = "Sign in again";
+"reauth.subtitle"                = "Your session expired. Sign in to restore access — your account and subscription are safe.";
+"reauth.apple"                   = "Sign in with Apple";
+"reauth.email"                   = "Get a sign-in link by email";
+"reauth.later"                   = "Later";
+
 /* ===== VPN permission primer ===== */
 "primer.title"                   = "One quick approval";
 "primer.subtitle"                = "iOS needs your permission before any app can create a VPN connection.";

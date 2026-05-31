@@ -7,21 +7,53 @@ import AppKit
 #endif
 
 /// Cross-platform device metadata for API headers and registration.
-/// On iOS we use UIKit's `identifierForVendor` (stable per vendor, wiped on
-/// app uninstall). On macOS — a UUID saved in UserDefaults on first launch.
-/// Both are non-sensitive and Apple-compliant.
+/// The device identifier is the backend account key for anonymous users, so it
+/// must be DURABLE across app delete+reinstall. See `identifier` below.
+/// Non-sensitive and Apple-compliant.
 enum PlatformDevice {
 
-    /// Stable per-install identifier. UUID string.
+    private static let deviceIdentifierKey = "deviceIdentifier"
+    private static let seedLock = NSLock()
+
+    /// Stable per-install identifier (UUID string), durable across app
+    /// delete+reinstall.
+    ///
+    /// ACCT-IDENTITY (2026-06-01): this previously returned UIKit's
+    /// `identifierForVendor` directly. IFV RESETS when the user deletes all of
+    /// the vendor's apps and reinstalls — which orphaned the backend account
+    /// (new device_id ⇒ a brand-new anonymous user, losing the paid identity).
+    /// We now persist the id in the Keychain, which survives delete/reinstall
+    /// (Apple's own identifierForVendor docs recommend exactly this). On the
+    /// first run of this build we SEED the Keychain — in priority order — from
+    /// (1) the current IFV (existing iOS installs are keyed on it) or (2) the
+    /// legacy UserDefaults UUID (existing macOS installs), so nobody is
+    /// orphaned on upgrade. Thereafter the Keychain value is authoritative.
+    /// Only the main app reads this (never the extension), so no shared
+    /// keychain access group is needed.
     static var identifier: String {
-        #if os(iOS)
-        if let vendorID = UIDevice.current.identifierForVendor?.uuidString {
-            return vendorID
+        seedLock.lock()
+        defer { seedLock.unlock() }
+        if let stored = KeychainHelper.load(key: deviceIdentifierKey) {
+            return stored
         }
-        return fallbackIdentifier()
+        let seed = vendorIdentifier() ?? legacyUserDefaultsIdentifier() ?? UUID().uuidString
+        KeychainHelper.save(key: deviceIdentifierKey, value: seed)
+        return seed
+    }
+
+    /// iOS vendor id, used only as the first-run migration seed. nil on macOS.
+    private static func vendorIdentifier() -> String? {
+        #if os(iOS)
+        return UIDevice.current.identifierForVendor?.uuidString
         #else
-        return fallbackIdentifier()
+        return nil
         #endif
+    }
+
+    /// Pre-existing UserDefaults UUID (the old macOS/iOS fallback). Read-only —
+    /// does NOT create one, so it only contributes a seed for existing installs.
+    private static func legacyUserDefaultsIdentifier() -> String? {
+        UserDefaults.standard.string(forKey: fallbackKey)
     }
 
     /// Version of the host OS, "17.4.1" on iOS or "14.5.0" on macOS.
@@ -34,16 +66,8 @@ enum PlatformDevice {
         #endif
     }
 
+    /// Legacy UserDefaults key from the pre-Keychain identifier scheme. Kept
+    /// read-only as a migration seed source (see legacyUserDefaultsIdentifier).
     private static let fallbackKey = "com.madfrog.vpn.deviceIdentifier"
-
-    private static func fallbackIdentifier() -> String {
-        let defaults = UserDefaults.standard
-        if let existing = defaults.string(forKey: fallbackKey) {
-            return existing
-        }
-        let new = UUID().uuidString
-        defaults.set(new, forKey: fallbackKey)
-        return new
-    }
 }
 

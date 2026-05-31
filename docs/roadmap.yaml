@@ -7,58 +7,14 @@
 # When something completes, MOVE the entry from now/next/later into done with the date.
 # Deferred = blocked by an external decision, parked.
 
-verified: 2026-05-31T00:30:00Z
+verified: 2026-06-01T22:10:00Z
 
 # ============================================================
 # NOW — active blockers, picked up in current session/sprint
 # ============================================================
 now:
-  # User-reported 2026-05-31 on live 1.0.28 (iPhone + iPad). Plan-only, not started.
-  account:
-    - id: ACCT-IDENTITY
-      title: App silently demotes an authenticated (Apple) user to a fresh anonymous trial account
-      priority: P0
-      status: diagnosed_needs_fix
-      reported: 2026-05-31
-      symptoms: |
-        User's iPhone showed device_e9afc143 ("not my main account"), iPad became
-        device_2c537874 WITHOUT re-login AND WITHOUT an app update (user confirms iPad
-        was not updated) — so it is NOT the reinstall/fresh-install path (trigger 1),
-        it is the silent in-session reRegister (trigger 2 below). Re-login on iPhone
-        (Apple) restored the real account device_b6f01ebb.
-      evidence: |   # live NL DB query 2026-05-31
-        - device_b6f01ebb = id 12351, auth_provider=apple, created 2026-04-10,
-          subscription to 2026-06-15 (the REAL paid account, device_id intact).
-        - device_e9afc143 = id 159272, auth_provider=device, created today 12:04,
-          3-day trial, device_id = NULL (Apple sign-in moved device_id to the apple
-          row, orphaning this anon row — unrecoverable by FindUserByDeviceID).
-        - device_2c537874 = id 159273, auth_provider=device, created today 12:09,
-          3-day trial (iPad, still stranded on anon — user hasn't Apple-re-logged there).
-        - Blast radius: 7 device rows already orphaned with NULL/empty device_id.
-      root_cause: |
-        NOT identifierForVendor rotation (DB shows apple device_ids are stable). The
-        app SILENTLY falls back to anonymous registerDevice() — minting a fresh
-        device_<random> 3-day trial — whenever the authenticated session can't be
-        restored, instead of re-authenticating the existing (Apple) identity. Triggers:
-          1. AppState.initialize :209-212 — "fresh install" heuristic wipes Keychain
-             when app-group UserDefaults onboardingCompleted flag is missing (the flag
-             does NOT survive reinstall / app-group reset, the Keychain creds DO) →
-             logged-out → anon register.
-          2. fetchAndSaveConfig :440-448 (404 user_not_found) + tryRefreshToken fail
-             → reRegisterDevice :487 calls registerDevice() (ANON), never Apple re-auth.
-        Username is device_+sha256(random uuid)[:8] (auth.go:578) so a demoted user
-        can't be re-derived — only manual Sign in with Apple recovers the paid account.
-      fix_directions:   # auth-sensitive — agree before coding
-        - Never anon-demote a user who has an Apple/Google identity. Persist
-          auth_provider locally; on session failure prompt/refresh that provider.
-        - Fix :209-212 — stop treating "flag missing + creds present" as fresh install
-          (or store the flag in the Keychain/app-group that survives like the creds do).
-        - Persist a stable device UUID in the app-group Keychain instead of raw IDFV
-          so device accounts stop multiplying.
-        - Backend SEC-01 (auth.go:373) already flags Apple sign-in minting a fresh
-          trial each time — fix together so reclaim doesn't hand out new trials.
-      risk: high — touches auth + subscription entitlement; design + backend change.
-      user_workaround: Sign in with Apple on each device to land back on the paid account.
+  # ACCT-IDENTITY (P0) + SEC-01 RESOLVED 2026-06-01 → see done log +
+  # incidents/2026-06-01-acct-identity-demote.md. iOS part ships in the Phase-B build.
 
   vpn:   # user-reported 2026-05-31, connected to NL — VPN not "fully abroad"
     # NL-GEO + VPN-GEO-DNS RESOLVED 2026-05-31 → see done log + incidents/2026-05-31-geo-leak-nl-exit.md
@@ -469,6 +425,43 @@ deferred:
 # DONE — append-only log. Most recent date first.
 # ============================================================
 done:
+  "2026-06-01":
+    - id: ACCT-IDENTITY
+      title: Stop silently demoting an Apple/Google/email payer to a fresh anonymous trial
+      file: docs/incidents/2026-06-01-acct-identity-demote.md
+      files:
+        - clients/apple/MadFrogVPN/Models/ConfigStore.swift
+        - clients/apple/MadFrogVPN/Models/AppState.swift
+        - clients/apple/MadFrogVPN/Models/APIClient.swift
+        - clients/apple/MadFrogVPN/Models/SubscriptionManager.swift
+        - clients/apple/MadFrogVPN/Views/ReauthView.swift
+        - clients/apple/Shared/PlatformDevice.swift
+        - clients/apple/Shared/Constants.swift
+      notes: |
+        Keychain = source of truth: persist auth_provider + Apple sub. Killed both
+        demote triggers (initialize self-heals the onboarding flag instead of wiping;
+        fetchAndSaveConfig gates anon registerDevice() on auth_provider==nil). Added a
+        non-destructive re-auth ladder (ReauthView: getCredentialState → silent refresh
+        → Apple re-auth reclaim-by-sub → magic-link), a StoreKit currentEntitlements
+        backstop, and a Keychain-durable device_id (seeded from IFV). iOS+macOS
+        xcodebuild green. Ships in the Phase-B build with UI-FLAG-HOME.
+    - id: SEC-01
+      title: Grant the free trial once per identity — kill the infinite-trial hole
+      files:
+        - backend/migrations/018_trial_granted_at.sql
+        - backend/internal/api/mobile/auth.go
+        - backend/internal/api/mobile/auth_google.go
+        - backend/internal/db/users.go
+        - backend/internal/db/models.go
+        - backend/internal/api/mobile/trial_grant_test.go
+      notes: |
+        Apple/Google sign-in re-extended a 3-day trial on every expired-sub login
+        (gate was only subscription_expiry<now) → unlimited trials per apple_id.
+        Added trial_granted_at (migration 018, idempotent, backfilled all 327 existing
+        users to created_at). New shouldGrantTrial() keys on trial_granted_at (mirrors
+        Apple isEligibleForIntroOffer); createUser stamps it; reclaim no longer grants a
+        2nd trial; payers untouched. Pure helper + table test. Deployed to NL 2026-05-31
+        21:55Z (no app build); verified 327/327 stamped, 0 NULL.
   "2026-05-31":
     - id: GRA-PARITY
       title: France (GRA) exit fixed — live user-sync to the remote exit node (no app build)

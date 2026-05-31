@@ -164,6 +164,30 @@ final class SubscriptionManager {
         await updatePremiumStatus()
     }
 
+    /// ACCT-IDENTITY backstop: reconcile StoreKit entitlements to the backend
+    /// SILENTLY on launch. `Transaction.currentEntitlements` auto-restores the
+    /// signed-in Apple ID's active subscriptions with NO login and NO prompt
+    /// (unlike `AppStore.sync()`, which can show a password sheet — so we never
+    /// call it here). If the user holds an active App Store subscription but
+    /// the backend lost the link (e.g. the account was orphaned), pushing the
+    /// verified JWS lets the server reclaim/extend the subscription by
+    /// originalTransactionId — so a paying user is never shown a trial/paywall.
+    /// Returns true if at least one active entitlement was found.
+    @discardableResult
+    func reconcileEntitlementsSilently() async -> Bool {
+        var foundActive = false
+        for await result in Transaction.currentEntitlements {
+            guard case .verified(let transaction) = result,
+                  Self.allProductIDs.contains(transaction.productID),
+                  transaction.revocationDate == nil else { continue }
+            if let expiry = transaction.expirationDate, expiry <= Date() { continue }
+            foundActive = true
+            try? await syncTransactionToBackend(transaction, jws: result.jwsRepresentation)
+        }
+        await updatePremiumStatus()
+        return foundActive
+    }
+
     // MARK: - Transaction Listener
 
     private func listenForTransactions() async {

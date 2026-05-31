@@ -71,6 +71,13 @@ class AppState {
     var subscriptionExpire: Date?
     var isAuthenticated: Bool = false
     var isInitialized: Bool = false
+    /// ACCT-IDENTITY (2026-06-01): set when an identity user's (Apple/Google/
+    /// email) session can no longer be silently refreshed (refresh token dead
+    /// after >30d dormancy, or backend 404). The app KEEPS the Keychain
+    /// identity and surfaces a non-destructive re-auth banner instead of
+    /// demoting the user to a fresh anonymous trial. Cleared on any successful
+    /// (re-)authentication or token refresh.
+    var needsReauth: Bool = false
     /// When true, UI should present the VPN permission primer instead of
     /// toggling the tunnel. Set by `requestConnect()` on first connect
     /// attempt; UI clears it via `proceedAfterPrimer()` or by dismissing.
@@ -202,13 +209,21 @@ class AppState {
     func initialize() async {
         installDarwinStallObserverIfNeeded()
 
-        // Keychain survives app deletion on iOS — detect fresh install via UserDefaults flag.
-        // If onboardingCompleted is not set, treat as fresh install and wipe Keychain.
+        // ACCT-IDENTITY (2026-06-01): Keychain is the source of truth, NOT the
+        // app-group UserDefaults `onboardingCompleted` flag. Keychain creds
+        // survive app delete/reinstall AND app-group container resets; the UD
+        // flag does NOT. The old code read "flag missing + creds present" as a
+        // fresh install and WIPED the Keychain — silently demoting a real
+        // (often paying) account to a brand-new anonymous trial. That was the
+        // P0. Correct interpretation: creds present ⇒ established user. Never
+        // wipe here; just self-heal the flag so the rest of the app sees a
+        // consistent state. A genuine fresh install has no Keychain creds, so
+        // nothing to heal and onboarding shows as normal.
         let sharedDefaults = UserDefaults(suiteName: AppConstants.appGroupID)
         let onboardingDone = sharedDefaults?.bool(forKey: AppConstants.onboardingCompletedKey) ?? false
         if !onboardingDone && configStore.username != nil {
-            AppLogger.app.info("initialize: fresh install detected, clearing stale Keychain data")
-            configStore.clear()
+            AppLogger.app.info("initialize: Keychain creds present but onboarding flag missing — self-healing flag, NOT wiping (ACCT-IDENTITY)")
+            sharedDefaults?.set(true, forKey: AppConstants.onboardingCompletedKey)
         }
 
         // Fix: if config file is corrupted (missing selector/urltest), delete it
@@ -270,6 +285,25 @@ class AppState {
         if configStore.username != nil {
             await silentConfigUpdate()
         }
+
+        // ACCT-IDENTITY StoreKit backstop: if the backend shows no active sub
+        // but StoreKit has a live entitlement (auto-restored from the Apple ID,
+        // no login/prompt), push it so the server reclaims the subscription by
+        // originalTransactionId — a paying user is never shown a trial, even if
+        // their account state got confused. Cheap + silent (no AppStore.sync()).
+        let subActive = subscriptionExpire.map { $0 > Date() } ?? false
+        if configStore.username != nil, !subActive {
+            if await subscriptionManager.reconcileEntitlementsSilently() {
+                AppLogger.app.info("initialize: StoreKit entitlement found — re-fetching config after backend reclaim")
+                await silentConfigUpdate()
+                subscriptionExpire = configStore.subscriptionExpire
+            }
+        }
+
+        // ACCT-IDENTITY recovery ladder, step 0: launch-time Apple credential
+        // health check (no UI). A `.revoked` flags re-auth proactively; never
+        // wipes creds. Runs detached so it never delays first paint.
+        Task { await self.verifyAppleCredentialState() }
     }
 
     /// Forwarded from the SwiftUI scene's `.onChange(of: scenePhase)`.
@@ -407,6 +441,7 @@ class AppState {
             configStore.accessToken = result.accessToken
             configStore.refreshToken = result.refreshToken
             configStore.username = result.username
+            configStore.authProvider = nil // explicit: anonymous device account
             try await fetchAndSaveConfig()
             subscriptionExpire = configStore.subscriptionExpire
             UserDefaults(suiteName: AppConstants.appGroupID)?.set(true, forKey: AppConstants.onboardingCompletedKey)
@@ -433,19 +468,39 @@ class AppState {
             let refreshed = await tryRefreshToken()
             if refreshed {
                 try await doFetchAndSave(username: username)
-            } else {
-                AppLogger.app.info("fetchAndSaveConfig: refresh failed, re-registering device")
+            } else if configStore.authProvider == nil {
+                // Anonymous device account — safe to mint a fresh one.
+                AppLogger.app.info("fetchAndSaveConfig: refresh failed (anon), re-registering device")
                 try await reRegisterDevice()
+            } else {
+                // ACCT-IDENTITY: identity user (Apple/Google/email) whose
+                // refresh token is dead (>30d dormant). NEVER demote to a fresh
+                // anonymous trial — that orphaned paying accounts (the P0).
+                // Keep the Keychain identity and surface the re-auth ladder;
+                // the backend reclaims the same account by Apple `sub` on
+                // re-auth, or by email on magic-link.
+                AppLogger.app.info("fetchAndSaveConfig: refresh failed for identity user (\(self.configStore.authProvider ?? "?")) — requesting re-auth, keeping creds")
+                flagSessionExpired()
+                throw APIError.unauthorized
             }
         } catch APIError.serverError(let code) where code == 404 {
             // Backend returns 404 when JWT is valid but user_id is not in DB
-            // (DB wiped, migration, soft-delete edge case, etc). Stale creds
-            // survive iOS reinstall via Keychain — only re-registering can
-            // unstick. Symptom: "404 on fresh install" reports.
-            AppLogger.app.info("fetchAndSaveConfig: 404 user_not_found, clearing creds + re-registering")
-            configStore.clear()
-            try await reRegisterDevice()
-            try await doFetchAndSave(username: configStore.username ?? username)
+            // (DB wiped, migration, soft-delete edge case, etc).
+            if configStore.authProvider == nil {
+                // Anon: stale creds survive iOS reinstall via Keychain — only
+                // re-registering can unstick. Symptom: "404 on fresh install".
+                AppLogger.app.info("fetchAndSaveConfig: 404 user_not_found (anon), clearing creds + re-registering")
+                configStore.clear()
+                try await reRegisterDevice()
+                try await doFetchAndSave(username: configStore.username ?? username)
+            } else {
+                // ACCT-IDENTITY: identity user vanished from the backend (rare).
+                // Do NOT clear/anon-register — re-auth reclaims the SAME account
+                // by Apple `sub` (FindUserByAppleID) and restores entitlements.
+                AppLogger.app.info("fetchAndSaveConfig: 404 for identity user — requesting re-auth, keeping creds (ACCT-IDENTITY)")
+                flagSessionExpired()
+                throw APIError.serverError(404)
+            }
         } catch let error as APIError where isNetworkError(error) {
             AppLogger.app.info("fetchAndSaveConfig: network error, retrying once")
             try await Task.sleep(for: .seconds(2))
@@ -476,6 +531,7 @@ class AppState {
         do {
             let newAccessToken = try await apiClient.refreshAccessToken(refreshToken)
             configStore.accessToken = newAccessToken
+            needsReauth = false // session restored silently
             AppLogger.app.info("tryRefreshToken: success")
             return true
         } catch {
@@ -490,12 +546,62 @@ class AppState {
         configStore.accessToken = result.accessToken
         configStore.refreshToken = result.refreshToken
         configStore.username = result.username
+        configStore.authProvider = nil // reRegister only runs for anon users now
         try await doFetchAndSave(username: result.username)
     }
 
     private func isNetworkError(_ error: APIError) -> Bool {
         if case .networkError = error { return true }
         return false
+    }
+
+    // MARK: - ACCT-IDENTITY session recovery
+
+    /// Mark the identity session as needing re-auth WITHOUT touching stored
+    /// credentials. Keeps `isAuthenticated` true (creds present) so the user
+    /// stays inside the app with cached config and a non-destructive banner,
+    /// rather than being demoted to anon or kicked back to onboarding.
+    private func flagSessionExpired() {
+        if !needsReauth {
+            AppLogger.app.info("flagSessionExpired: identity session needs re-auth (provider=\(self.configStore.authProvider ?? "?", privacy: .public))")
+        }
+        needsReauth = true
+    }
+
+    /// Recovery ladder step 0 — launch-time Sign in with Apple health check.
+    /// `getCredentialState` is a fast, no-UI call (Apple ID daemon). If Apple
+    /// reports the credential `.revoked` (user removed the app from their Apple
+    /// ID), flag re-auth proactively. `.authorized`/`.notFound`/errors are left
+    /// alone — a transient daemon miss must never nuke a working session. This
+    /// returns NO token; minting a fresh Apple identity token always needs UI
+    /// (see reauthenticateWithApple).
+    func verifyAppleCredentialState() async {
+        guard configStore.authProvider == "apple", let userID = configStore.appleUserID else { return }
+        let provider = ASAuthorizationAppleIDProvider()
+        let state: ASAuthorizationAppleIDProvider.CredentialState = await withCheckedContinuation { cont in
+            provider.getCredentialState(forUserID: userID) { state, _ in cont.resume(returning: state) }
+        }
+        if state == .revoked {
+            AppLogger.app.info("verifyAppleCredentialState: Apple credential REVOKED — requesting re-auth")
+            flagSessionExpired()
+        }
+    }
+
+    /// Recovery ladder step 2 — re-authenticate an Apple identity user from the
+    /// re-auth banner. Presents the system Sign in with Apple sheet (one Face
+    /// ID for an already-authorized user). On success `signInWithApple` clears
+    /// `needsReauth`; the backend reclaims the SAME account by `sub`.
+    func reauthenticateWithApple() async {
+        await AppleAuthCoordinator.signIn(into: self)
+    }
+
+    /// Recovery ladder step 3 — email a magic sign-in link (cross-device /
+    /// last-resort, when the Apple credential is gone). Thin wrapper over the
+    /// existing magic-link request so the banner can offer it. Returns true if
+    /// the request was accepted.
+    @discardableResult
+    func requestReauthMagicLink(email: String) async -> Bool {
+        await requestMagicLink(email: email)
     }
 
     /// Fetch fresh config from API and save. Silently logs errors — never shows them to the user.
@@ -646,6 +752,8 @@ class AppState {
             configStore.accessToken = result.accessToken
             configStore.refreshToken = result.refreshToken
             configStore.username = result.username
+            configStore.authProvider = "google"
+            needsReauth = false
             try await fetchAndSaveConfig()
             subscriptionExpire = configStore.subscriptionExpire
             UserDefaults(suiteName: AppConstants.appGroupID)?.set(true, forKey: AppConstants.onboardingCompletedKey)
@@ -714,6 +822,8 @@ class AppState {
             configStore.accessToken = result.accessToken
             configStore.refreshToken = result.refreshToken
             configStore.username = result.username
+            configStore.authProvider = "email"
+            needsReauth = false
             try await fetchAndSaveConfig()
             subscriptionExpire = configStore.subscriptionExpire
             UserDefaults(suiteName: AppConstants.appGroupID)?.set(true, forKey: AppConstants.onboardingCompletedKey)
@@ -750,6 +860,12 @@ class AppState {
             configStore.accessToken = result.accessToken
             configStore.refreshToken = result.refreshToken
             configStore.username = result.username
+            // ACCT-IDENTITY: persist the durable identity so a later session
+            // failure re-auths Apple (reclaim by `sub`) instead of demoting to
+            // anon. credential.user IS the Apple `sub`, stable across reinstall.
+            configStore.authProvider = "apple"
+            configStore.appleUserID = credential.user
+            needsReauth = false
             // /config 403 on a returning user whose trial has lapsed must NOT
             // be a hard failure — auth itself succeeded. Treat it as "signed
             // in, no active subscription" so the user lands inside the app
