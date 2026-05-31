@@ -224,6 +224,22 @@
 "settings.auto_recover"          = "Авто-восстановление";
 "settings.auto_recover.hint"     = "Если выбранный сервер перестанет отвечать — автоматически переключим на рабочий, чтобы трафик не прерывался.";
 
+/* ===== Auto-connect (SETTINGS-L10N) ===== */
+"settings.auto_connect.section"      = "Автоподключение";
+"settings.auto_connect.wifi"         = "Подключаться в недоверенных Wi-Fi";
+"settings.auto_connect.wifi.hint"    = "VPN включится автоматически, как только вы подключитесь к Wi-Fi, которого нет в списке доверенных ниже.";
+"settings.auto_connect.cellular"     = "Также подключаться по мобильной сети";
+"settings.auto_connect.cellular.hint" = "По умолчанию выключено. Включите, если вы в регионе с цензурой и хотите, чтобы VPN работал и по LTE/5G.";
+"settings.trusted.networks"          = "Доверенные сети";
+"settings.trusted.networks.hint"     = "Добавьте названия Wi-Fi-сетей, которым доверяете (дом, офис). В них VPN не будет включаться автоматически.";
+"settings.trusted.empty"             = "Доверенных сетей пока нет.";
+"settings.trusted.add.title"         = "Добавить доверенную сеть";
+"settings.trusted.add.placeholder"   = "Название Wi-Fi (SSID)";
+"settings.trusted.add.hint"          = "Введите название сети точно так, как оно отображается в Настройках iOS → Wi-Fi.";
+"settings.trusted.add.confirm"       = "Добавить";
+"settings.trusted.add.cancel"        = "Отмена";
+"settings.auto_connect.save_failed"  = "Не удалось сохранить настройки автоподключения";
+
 /* ===== Recovery toasts ===== */
 "recovery.switched_to_auto"      = "%@ недоступна — переключено на Авто";
 "recovery.switched_leg"          = "%@: переключено на рабочий сервер";

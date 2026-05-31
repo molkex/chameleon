@@ -255,6 +255,21 @@ enum L10n {
         static let debugLogs       = LKey("settings.debug_logs")
         static let autoRecover     = LKey("settings.auto_recover")
         static let autoRecoverHint = LKey("settings.auto_recover.hint")
+        // SETTINGS-L10N (2026-06-01) — AUTO-CONNECT / trusted-networks section
+        static let autoConnectSection      = LKey("settings.auto_connect.section")
+        static let autoConnectWifi         = LKey("settings.auto_connect.wifi")
+        static let autoConnectWifiHint     = LKey("settings.auto_connect.wifi.hint")
+        static let autoConnectCellular     = LKey("settings.auto_connect.cellular")
+        static let autoConnectCellularHint = LKey("settings.auto_connect.cellular.hint")
+        static let trustedNetworks         = LKey("settings.trusted.networks")
+        static let trustedNetworksHint     = LKey("settings.trusted.networks.hint")
+        static let trustedEmpty            = LKey("settings.trusted.empty")
+        static let trustedAddTitle         = LKey("settings.trusted.add.title")
+        static let trustedAddPlaceholder   = LKey("settings.trusted.add.placeholder")
+        static let trustedAddHint          = LKey("settings.trusted.add.hint")
+        static let trustedAddConfirm       = LKey("settings.trusted.add.confirm")
+        static let trustedAddCancel        = LKey("settings.trusted.add.cancel")
+        static let autoConnectSaveFailed   = LKey("settings.auto_connect.save_failed")
     }
 
     enum Recovery {

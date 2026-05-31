@@ -121,19 +121,17 @@ struct SettingsView: View {
                         }
 
                         // LAUNCH-07 — Auto-connect on untrusted Wi-Fi via
-                        // NEOnDemandRule. Strings are intentionally plain
-                        // English for the first ship; localization arrives in
-                        // a follow-up pass.
-                        sectionHeader("Auto-connect")
+                        // NEOnDemandRule. Localized in SETTINGS-L10N (2026-06-01).
+                        sectionHeader(L10n.Settings.autoConnectSection)
                         card {
                             VStack(alignment: .leading, spacing: 14) {
                                 HStack(spacing: 14) {
                                     iconCircle("wifi.exclamationmark")
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text("Connect on untrusted Wi-Fi")
+                                        Text(L10n.Settings.autoConnectWifi)
                                             .font(theme.font(size: 16, weight: .medium))
                                             .foregroundStyle(theme.textPrimary)
-                                        Text("VPN turns on automatically whenever you join a Wi-Fi network that isn't in your Trusted list below.")
+                                        Text(L10n.Settings.autoConnectWifiHint)
                                             .font(theme.font(size: 12))
                                             .foregroundStyle(theme.textSecondary)
                                             .fixedSize(horizontal: false, vertical: true)
@@ -155,10 +153,10 @@ struct SettingsView: View {
                                 HStack(spacing: 14) {
                                     iconCircle("antenna.radiowaves.left.and.right")
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text("Also connect on cellular")
+                                        Text(L10n.Settings.autoConnectCellular)
                                             .font(theme.font(size: 16, weight: .medium))
                                             .foregroundStyle(theme.textPrimary)
-                                        Text("Off by default. Turn on if you're in a censored region and want the VPN up on LTE/5G too.")
+                                        Text(L10n.Settings.autoConnectCellularHint)
                                             .font(theme.font(size: 12))
                                             .foregroundStyle(theme.textSecondary)
                                             .fixedSize(horizontal: false, vertical: true)
@@ -182,10 +180,10 @@ struct SettingsView: View {
                                 HStack(spacing: 14) {
                                     iconCircle("checkmark.shield")
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text("Trusted networks")
+                                        Text(L10n.Settings.trustedNetworks)
                                             .font(theme.font(size: 16, weight: .medium))
                                             .foregroundStyle(theme.textPrimary)
-                                        Text("Add the names of Wi-Fi networks you trust (home, office). The VPN won't auto-connect on these.")
+                                        Text(L10n.Settings.trustedNetworksHint)
                                             .font(theme.font(size: 12))
                                             .foregroundStyle(theme.textSecondary)
                                             .fixedSize(horizontal: false, vertical: true)
@@ -205,7 +203,7 @@ struct SettingsView: View {
                                 }
 
                                 if trustedSSIDs.isEmpty {
-                                    Text("No trusted networks yet.")
+                                    Text(L10n.Settings.trustedEmpty)
                                         .font(theme.font(size: 13))
                                         .foregroundStyle(theme.textSecondary)
                                         .padding(.leading, 46)
@@ -361,16 +359,16 @@ struct SettingsView: View {
                 }
                 .macSheetSize()
             }
-            .alert("Add trusted network", isPresented: $showAddSSIDAlert) {
-                TextField("Wi-Fi name (SSID)", text: $pendingSSIDInput)
+            .alert(L10n.Settings.trustedAddTitle, isPresented: $showAddSSIDAlert) {
+                TextField(L10n.Settings.trustedAddPlaceholder, text: $pendingSSIDInput)
                     #if os(iOS)
                     .textInputAutocapitalization(.never)   // iOS-only modifier
                     #endif
                     .autocorrectionDisabled(true)
-                Button("Cancel", role: .cancel) {
+                Button(L10n.Settings.trustedAddCancel, role: .cancel) {
                     pendingSSIDInput = ""
                 }
-                Button("Add") {
+                Button(L10n.Settings.trustedAddConfirm) {
                     let ssid = pendingSSIDInput
                     pendingSSIDInput = ""
                     Task {
@@ -378,7 +376,7 @@ struct SettingsView: View {
                     }
                 }
             } message: {
-                Text("Type the network name exactly as it appears in iOS Settings → Wi-Fi.")
+                Text(L10n.Settings.trustedAddHint)
             }
             .task {
                 // Hydrate local state from the persisted prefs whenever the

@@ -224,6 +224,22 @@
 "settings.auto_recover"          = "Auto-recover";
 "settings.auto_recover.hint"     = "If the chosen server stops responding, automatically pick a working one so traffic keeps flowing.";
 
+/* ===== Auto-connect (SETTINGS-L10N) ===== */
+"settings.auto_connect.section"      = "Auto-connect";
+"settings.auto_connect.wifi"         = "Connect on untrusted Wi-Fi";
+"settings.auto_connect.wifi.hint"    = "VPN turns on automatically whenever you join a Wi-Fi network that isn't in your Trusted list below.";
+"settings.auto_connect.cellular"     = "Also connect on cellular";
+"settings.auto_connect.cellular.hint" = "Off by default. Turn on if you're in a censored region and want the VPN up on LTE/5G too.";
+"settings.trusted.networks"          = "Trusted networks";
+"settings.trusted.networks.hint"     = "Add the names of Wi-Fi networks you trust (home, office). The VPN won't auto-connect on these.";
+"settings.trusted.empty"             = "No trusted networks yet.";
+"settings.trusted.add.title"         = "Add trusted network";
+"settings.trusted.add.placeholder"   = "Wi-Fi name (SSID)";
+"settings.trusted.add.hint"          = "Type the network name exactly as it appears in iOS Settings → Wi-Fi.";
+"settings.trusted.add.confirm"       = "Add";
+"settings.trusted.add.cancel"        = "Cancel";
+"settings.auto_connect.save_failed"  = "Failed to save auto-connect settings";
+
 /* ===== Recovery toasts ===== */
 "recovery.switched_to_auto"      = "%@ unreachable — switched to Auto";
 "recovery.switched_leg"          = "%@: switched to a working server";
