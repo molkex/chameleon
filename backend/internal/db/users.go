@@ -21,6 +21,7 @@ const userColumns = `
 	initial_ip, initial_country, initial_country_name, initial_city,
 	timezone, device_model, ios_version, accept_language, install_date, store_country,
 	email, email_verified_at, password_hash, install_secret,
+	trial_granted_at,
 	created_at, updated_at`
 
 // scanUser scans a single user row from pgx.Row into a User struct.
@@ -37,6 +38,7 @@ func scanUser(row pgx.Row) (*User, error) {
 		&u.InitialIP, &u.InitialCountry, &u.InitialCountryName, &u.InitialCity,
 		&u.Timezone, &u.DeviceModel, &u.IOSVersion, &u.AcceptLanguage, &u.InstallDate, &u.StoreCountry,
 		&u.Email, &u.EmailVerifiedAt, &u.PasswordHash, &u.InstallSecret,
+		&u.TrialGrantedAt,
 		&u.CreatedAt, &u.UpdatedAt,
 	)
 	if err != nil {
@@ -65,6 +67,7 @@ func scanUsers(rows pgx.Rows) ([]User, error) {
 			&u.InitialIP, &u.InitialCountry, &u.InitialCountryName, &u.InitialCity,
 			&u.Timezone, &u.DeviceModel, &u.IOSVersion, &u.AcceptLanguage, &u.InstallDate, &u.StoreCountry,
 			&u.Email, &u.EmailVerifiedAt, &u.PasswordHash, &u.InstallSecret,
+			&u.TrialGrantedAt,
 			&u.CreatedAt, &u.UpdatedAt,
 		)
 		if err != nil {
@@ -187,20 +190,20 @@ func (db *DB) CreateUser(ctx context.Context, u *User) error {
 			vpn_username, vpn_uuid, vpn_short_id, auth_provider, apple_id, device_id,
 			original_transaction_id, app_store_product_id, ad_source,
 			cumulative_traffic, device_limit, phone_number, google_id,
-			current_plan, subscription_token, activation_code
+			current_plan, subscription_token, activation_code, trial_granted_at
 		) VALUES (
 			$1, $2, $3, $4, $5,
 			$6, $7, $8, $9, $10, $11,
 			$12, $13, $14,
 			$15, $16, $17, $18,
-			$19, $20, $21
+			$19, $20, $21, $22
 		)
 		RETURNING id, created_at, updated_at`,
 		u.TelegramID, u.Username, u.FullName, u.IsActive, u.SubscriptionExpiry,
 		u.VPNUsername, u.VPNUUID, u.VPNShortID, u.AuthProvider, u.AppleID, u.DeviceID,
 		u.OriginalTransactionID, u.AppStoreProductID, u.AdSource,
 		u.CumulativeTraffic, u.DeviceLimit, u.PhoneNumber, u.GoogleID,
-		u.CurrentPlan, u.SubscriptionToken, u.ActivationCode,
+		u.CurrentPlan, u.SubscriptionToken, u.ActivationCode, u.TrialGrantedAt,
 	)
 	return row.Scan(&u.ID, &u.CreatedAt, &u.UpdatedAt)
 }
@@ -236,7 +239,8 @@ func (db *DB) UpdateUser(ctx context.Context, u *User) error {
 			notified_1d = $22,
 			current_plan = $23,
 			subscription_token = $24,
-			activation_code = $25
+			activation_code = $25,
+			trial_granted_at = $26
 		WHERE id = $1`,
 		u.ID,
 		u.TelegramID, u.Username, u.FullName, u.IsActive, u.SubscriptionExpiry,
@@ -244,6 +248,7 @@ func (db *DB) UpdateUser(ctx context.Context, u *User) error {
 		u.OriginalTransactionID, u.AppStoreProductID, u.AdSource,
 		u.CumulativeTraffic, u.DeviceLimit, u.BotBlockedAt, u.PhoneNumber, u.GoogleID,
 		u.Notified3D, u.Notified1D, u.CurrentPlan, u.SubscriptionToken, u.ActivationCode,
+		u.TrialGrantedAt,
 	)
 	if err != nil {
 		return err

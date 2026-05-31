@@ -56,6 +56,11 @@ type User struct {
 	// replace device_id-as-bearer. Null for legacy users until they
 	// re-register with a new-enough iOS build.
 	InstallSecret          *string    `db:"install_secret"           json:"-"`
+	// TrialGrantedAt — SEC-01 (2026-06-01): timestamp of the one-and-only
+	// free trial grant for this identity. NULL means "never granted a trial,
+	// still eligible". Gates the trial grant on sign-in so an expired user
+	// can't harvest a new trial every few days by re-authenticating.
+	TrialGrantedAt         *time.Time `db:"trial_granted_at"         json:"trial_granted_at,omitempty"`
 	CreatedAt              time.Time  `db:"created_at"               json:"created_at"`
 	UpdatedAt              time.Time  `db:"updated_at"               json:"updated_at"`
 }

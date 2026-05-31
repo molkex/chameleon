@@ -366,19 +366,27 @@ func (h *Handler) AppleSignIn(c echo.Context) error {
 			user.DeviceID = &req.DeviceID
 			dirty = true
 		}
-		// Returning user with expired trial — extend by 3 days. Without this,
-		// /config returns 403 immediately after a successful sign-in, and the
-		// iOS app interprets the entire flow as failed. Users with an active
-		// IAP receipt are handled separately by StoreKit verification.
-		if user.SubscriptionExpiry == nil || user.SubscriptionExpiry.Before(time.Now()) {
+		// SEC-01 (2026-06-01): grant the trial at most ONCE per identity.
+		// Previously we re-extended the trial on EVERY expired-sub sign-in,
+		// which let any apple_id harvest a fresh 3-day trial indefinitely.
+		// trial_granted_at is the permanent per-identity gate (mirrors Apple's
+		// isEligibleForIntroOffer: eligible→ineligible, never back). A
+		// returning user whose trial already lapsed gets nothing here and must
+		// purchase/restore — iOS handles the resulting /config 403 gracefully
+		// (signInWithApple treats it as "signed in, no active subscription").
+		// Active payers are untouched: their SubscriptionExpiry is in the
+		// future, so the guard never fires.
+		if shouldGrantTrial(user) {
 			trialDays := 3
 			if h.Config != nil && h.Config.Payments.Trial.Enabled && h.Config.Payments.Trial.Days > 0 {
 				trialDays = h.Config.Payments.Trial.Days
 			}
-			newExpiry := time.Now().Add(time.Duration(trialDays) * 24 * time.Hour)
+			now := time.Now()
+			newExpiry := now.Add(time.Duration(trialDays) * 24 * time.Hour)
 			user.SubscriptionExpiry = &newExpiry
+			user.TrialGrantedAt = &now
 			dirty = true
-			h.Logger.Info("apple: extending expired trial on sign-in",
+			h.Logger.Info("apple: granting first-time trial on sign-in",
 				zap.Int64("user_id", user.ID),
 				zap.Time("new_expiry", newExpiry))
 		}
@@ -524,7 +532,12 @@ func (h *Handler) createUser(ctx context.Context, deviceID, appleID, authProvide
 	if h.Config != nil && h.Config.Payments.Trial.Enabled && h.Config.Payments.Trial.Days > 0 {
 		trialDays = h.Config.Payments.Trial.Days
 	}
-	trialExpiry := time.Now().Add(time.Duration(trialDays) * 24 * time.Hour)
+	// SEC-01 (2026-06-01): this is the single trial grant for a brand-new
+	// identity. Stamp trial_granted_at so a later expired-sub sign-in can't
+	// hand out a second trial (see the grant-once guard in AppleSignIn /
+	// GoogleSignIn).
+	trialStart := time.Now()
+	trialExpiry := trialStart.Add(time.Duration(trialDays) * 24 * time.Hour)
 
 	user := &db.User{
 		DeviceID:           &deviceID,
@@ -533,6 +546,7 @@ func (h *Handler) createUser(ctx context.Context, deviceID, appleID, authProvide
 		VPNShortID:         &vpnShortID,
 		IsActive:           true,
 		SubscriptionExpiry: &trialExpiry,
+		TrialGrantedAt:     &trialStart,
 		AuthProvider:       &authProvider,
 	}
 
@@ -566,6 +580,19 @@ func (h *Handler) addUserToVPN(ctx context.Context, user *db.User) error {
 		UUID:     *user.VPNUUID,
 		ShortID:  shortID,
 	})
+}
+
+// shouldGrantTrial reports whether a free trial should be granted to this
+// user on sign-in. SEC-01 (2026-06-01): a trial is granted at most ONCE per
+// identity, so the gate is `trial_granted_at IS NULL` — NOT subscription_expiry
+// (which an admin/support action can legitimately clear, and which used to let
+// an expired user harvest a new trial on every re-authentication). The
+// expiry check is secondary: a still-active subscriber never needs a trial.
+func shouldGrantTrial(u *db.User) bool {
+	if u.TrialGrantedAt != nil {
+		return false
+	}
+	return u.SubscriptionExpiry == nil || u.SubscriptionExpiry.Before(time.Now())
 }
 
 // generateVPNUsername creates a VPN username derived from the user's

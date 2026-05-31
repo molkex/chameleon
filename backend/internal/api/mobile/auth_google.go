@@ -157,22 +157,24 @@ func (h *Handler) GoogleSignIn(c echo.Context) error {
 			zap.Int64("user_id", user.ID),
 			zap.String("vpn_username", vpnUsername))
 	}
-	// Returning user with expired trial / no active subscription — extend by
-	// 3 days so they re-enter a working state. Otherwise GET /config returns
-	// 403 (subscription expired) immediately after the sign-in succeeds, and
-	// the iOS app interprets the *flow* as failed even though auth itself
-	// worked. Users with an active App Store IAP receipt are validated
-	// separately (StoreKit verifies on backend) — this branch only kicks in
-	// when both server-side trial AND IAP entitlement are gone.
-	if user.SubscriptionExpiry == nil || user.SubscriptionExpiry.Before(time.Now()) {
+	// SEC-01 (2026-06-01): grant the trial at most ONCE per identity — see
+	// the matching guard + rationale in AppleSignIn (auth.go). Previously this
+	// re-extended the trial on every expired-sub sign-in (infinite trials per
+	// google_id). trial_granted_at is the permanent per-identity gate. A
+	// returning user whose trial lapsed gets nothing here; iOS handles the
+	// /config 403 gracefully. Active payers (future SubscriptionExpiry) are
+	// untouched.
+	if shouldGrantTrial(user) {
 		trialDays := 3
 		if h.Config != nil && h.Config.Payments.Trial.Enabled && h.Config.Payments.Trial.Days > 0 {
 			trialDays = h.Config.Payments.Trial.Days
 		}
-		newExpiry := time.Now().Add(time.Duration(trialDays) * 24 * time.Hour)
+		now := time.Now()
+		newExpiry := now.Add(time.Duration(trialDays) * 24 * time.Hour)
 		user.SubscriptionExpiry = &newExpiry
+		user.TrialGrantedAt = &now
 		dirty = true
-		h.Logger.Info("google: extending expired trial on sign-in",
+		h.Logger.Info("google: granting first-time trial on sign-in",
 			zap.Int64("user_id", user.ID),
 			zap.Time("new_expiry", newExpiry))
 	}
