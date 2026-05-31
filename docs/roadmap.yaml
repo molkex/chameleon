@@ -7,34 +7,18 @@
 # When something completes, MOVE the entry from now/next/later into done with the date.
 # Deferred = blocked by an external decision, parked.
 
-verified: 2026-06-01T23:30:00Z
+verified: 2026-06-01T23:55:00Z
 
 # ============================================================
 # NOW — active blockers, picked up in current session/sprint
 # ============================================================
 now:
-  # ACCT-IDENTITY (P0) + SEC-01 RESOLVED 2026-06-01 → see done log +
-  # incidents/2026-06-01-acct-identity-demote.md. iOS part ships in the Phase-B build.
-
-  vpn:   # user-reported 2026-05-31, connected to NL — VPN not "fully abroad"
-    # NL-GEO + VPN-GEO-DNS RESOLVED 2026-05-31 → see done log + incidents/2026-05-31-geo-leak-nl-exit.md
-
-    - id: VPN-TG-MEDIA
-      title: Telegram media (photos/videos) won't load over the NL exit (text works)
-      priority: P1
-      status: needs_diagnosis
-      reported: 2026-05-31
-      hypotheses: |
-        - Route rule {Network:udp, Port:443, Action:reject} kills QUIC — if Telegram
-          media CDN tries QUIC/443 and doesn't fall back to TCP cleanly → media hangs.
-        - MTU/MSS: TUN MTU=1400 (clientconfig.go:474); large media frames may need MSS
-          clamping at the NL exit — classic "text loads, images don't" symptom.
-        - NL-side reachability/routing to Telegram CDN (149.154.x / 91.108.x / *.cdn-
-          telegram.org) — verify from NL directly.
-      next_steps: |
-        From NL: curl a Telegram media CDN object + check path MTU; test with the QUIC
-        reject rule temporarily relaxed; confirm whether media IPs route via Proxy.
-        Reproduce on device with sing-box log to see which DC/CDN connection stalls.
+  # All current blockers cleared 2026-06-01:
+  #   ACCT-IDENTITY (P0) + SEC-01 → done (incidents/2026-06-01-acct-identity-demote.md)
+  #   SEC-03 + SEC-04 → done (deployed NL)
+  #   VPN-TG-MEDIA → resolved-by-egress-IP-swap (user-confirmed tentatively); see done log.
+  # Next user-facing step is on-device TestFlight verification of build 94 (1.0.29).
+  cleared: true
 
 # ============================================================
 # NEXT — 1-2 week queue, ready to start
@@ -446,6 +430,18 @@ done:
         2nd trial; payers untouched. Pure helper test (TestShouldGrantTrial) + integration
         round-trip (TestTrialGrantedAtRoundTrip, testcontainers PG, PASS). Deployed to NL
         2026-05-31 21:55Z (no app build); verified 327/327 stamped, 0 NULL.
+    - id: VPN-TG-MEDIA
+      title: Telegram media (photos/videos) wouldn't load over the NL exit — resolved by egress IP swap
+      status: resolved_monitoring
+      notes: |
+        Symptom: text chats worked, photos/videos hung over NL. No code change this
+        session — user reports media started loading after the egress IP was swapped to
+        the clean US-geo IP (the DNS-through-exit + clean-egress work, commit 0293bf3).
+        Likely cause: media uses separate Telegram CDN endpoints resolved via DNS; with
+        DNS now going through the exit, the client gets CDN IPs NL can actually reach
+        (vs RU-resolved CDN IPs the tunnel couldn't route) — matches the "text yes, media
+        no" signature. User confirmation is tentative ("как будто бы заработало"). If it
+        regresses, reopen: needs an on-device sing-box log to see which DC/CDN stalls.
     - id: SEC-03
       title: Pin UDP (Hysteria2/TUIC) TLS cert client-side instead of insecure:true
       files:
@@ -964,7 +960,7 @@ done:
 # Stats — for at-a-glance sanity check
 # ============================================================
 stats:
-  open_now: 1                 # VPN-TG-MEDIA (P1). ACCT-IDENTITY (P0) RESOLVED 2026-06-01; NL-GEO+VPN-GEO-DNS 2026-05-31
+  open_now: 0                 # ALL blockers cleared 2026-06-01 (ACCT-IDENTITY+SEC-01/03/04 done; VPN-TG-MEDIA resolved-by-IP-swap)
   open_next: ~9               # SETTINGS-L10N+SEC-03+SEC-04 RESOLVED 2026-06-01; GRA-PARITY+SEC-02 2026-05-31
                               # (direct France works now). Remaining iOS batch: STOREKIT-VERIFY/
                               # UI-FLAG-HOME/SETTINGS-L10N/SRV-DYNAMIC/FR-SELECT + backend SEC-01/03/04
