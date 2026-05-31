@@ -306,13 +306,15 @@ next:
       effort: small
       reported: 2026-05-31
       finding: |
-        France country group is emitted with tag "fr" (not "🇫🇷 Франция"), so on tap
-        selectedServerTag="fr" → PathPicker.countryCode(forSelectedTag:"fr") returns nil
-        (switch only knows the display-name forms) → resolves to "any leg" = Auto. Same
-        root as the "fr"+🌍 display bug. LIKELY FIXABLE ON BACKEND (no app build): make
-        the France country group use countryDisplay("fr")="🇫🇷 Франция" like DE/NL — then
-        both display AND selection work. Investigate why GRA/France group tag is bare cc.
-      depends_on: SRV-DYNAMIC (full dynamic-country fix), GRA-PARITY (France must work too)
+        NOT a backend bug (corrected 2026-05-31). Backend already emits the France group
+        with tag "🇫🇷 Франция" (clientconfig.go countryDisplay("fr"):368, verified live).
+        The bug is iOS-side: on tap the picker stores the bare cc "fr" as selectedServerTag,
+        and PathPicker.countryCode(forSelectedTag:"fr") only knows the display-name forms →
+        returns nil → resolves to "any leg" = Auto. Same root as UI-FLAG-HOME. iOS fix
+        (Phase B / app build): recognise the cc/flag tag forms in PathPicker + store the
+        display tag. GRA-PARITY (France actually carrying traffic) is now RESOLVED, so once
+        the picker sticks, 🇫🇷 works end-to-end.
+      depends_on: SRV-DYNAMIC (derive cc/flag both sides; ships in the iOS build)
 
     - id: SRV-DYNAMIC
       title: Adding a NEW country needs an app build (3 hardcoded country tables)
@@ -340,43 +342,26 @@ next:
   # From internal audit 2026-05-30 (audits/2026-05-30-internal-audit.md). Verified findings.
   security_audit:
     - { id: SEC-01, priority: P0, title: "Apple Sign-In grants a fresh 3-day trial on every expired-sub sign-in (auth.go:373) → infinite trials per apple_id — cap/track" }
-    - { id: SEC-02, priority: P0, title: "Echo has no IPExtractor (server.go:56) — c.RealIP() trusts client X-Forwarded-For → rate-limit/FreeKassa-allowlist/geoIP spoofable" }
+    # SEC-02 RESOLVED 2026-05-31 — e.IPExtractor = ExtractIPFromXFFHeader() in server.go;
+    # untrusted peers can no longer spoof X-Forwarded-For. See done log.
     - { id: SEC-03, priority: P1, title: "Hysteria2/TUIC emitted Insecure:true on prod (clientconfig.go:197,215) → MITM — provision cert, Insecure:false" }
     - { id: SEC-04, priority: P1, title: "Apple refund/revoke webhook is log-only (subscription_notification.go:90) → refunded users keep access — implement revocation" }
   infra_audit:
-    - id: GRA-PARITY
-      priority: P0   # bumped 2026-05-31 — user hit a dead France exit on a live build
-      title: "France (GRA) exit not at parity with NL — manual fr selection = no traffic"
-      reported: 2026-05-31
-      finding: |
-        User selected 🇫🇷 fr on live 1.0.28: "Напрямую" (Reality) leg shows RED/dead,
-        "Hysteria2" pings 117ms but carries NO traffic. Two distinct GRA gaps:
-          1. H2 obfs PSK mismatch — clientconfig.go:184 plumbs ONE global
-             Hysteria2ObfsPassword (the NL backend's) into EVERY H2 outbound incl.
-             fr-h2-gra1. GRA's H2 inbound was provisioned separately and likely has a
-             different/empty Salamander PSK → QUIC wraps mismatch → handshake ok,
-             traffic dies. Same class as H2-SALAMANDER but cross-node.
-          2. Reality user-sync gap (was GRA-SYNC) — new users baked-only into GRA's
-             singbox config; not pushed to GRA User API :15380 → silent Reality reject
-             → direct leg dead.
-      fix: |
-        (a) Make GRA's H2 inbound use the SAME Salamander PSK the client config emits
-            (or per-node PSK plumbed end-to-end). (b) Auto-sync users to GRA User API.
-        (c) Verify GRA Reality (pub key/short_id) matches what clients get.
-      interim_mitigation: |
-        Until fixed, hide/deactivate the GRA France exit (vpn_servers.is_active=false)
-        so users (and Auto) don't land on a dead exit. NL is the solid primary.
-      user_workaround: switch to Нидерланды (NL) — fully synced, Salamander matches.
+    # GRA-PARITY RESOLVED 2026-05-31 → see done log + incidents/2026-05-31-gra-france-user-sync.md.
+    # Root cause was the missing LIVE user-sync to the GRA exit (post-bake users not pushed
+    # to GRA's User API), NOT an H2 PSK mismatch — NL & GRA Salamander PSKs are identical and
+    # Reality+egress were proven working end-to-end. Fixed by extending RelayUserSyncer to
+    # remote exits + exposing GRA :15380 to NL. Hysteria2 leg still baked-only (follow-up).
     - id: FR-VIA-MSK
-      priority: P1
+      priority: P3   # demoted 2026-05-31 — direct France works now (user-sync fixed);
+                     # this is only a resilience option if RKN later blocks direct GRA:443.
       title: "Add fr-via-msk relay chain (RU → MSK relay → WG → France exit)"
       reported: 2026-05-31
       rationale: |
-        Direct France (Reality) is dead + H2 obfs mismatch (see GRA-PARITY). A relay
-        chain like the existing de-via-msk / nl-via-msk would route RU clients to the
-        MSK relay (217.198.5.52) via Reality, then over a WireGuard tunnel to the GRA
-        France exit — the client never dials France directly, so it BYPASSES the dead
-        direct-Reality leg. Likely the fastest way to make 🇫🇷 actually work from RU.
+        Direct France (Reality) now works from RU (GRA user-sync fixed 2026-05-31). A
+        fr-via-msk chain (like de-via-msk / nl-via-msk) would route RU clients via the MSK
+        relay (217.198.5.52) over WireGuard to the GRA exit — useful ONLY if RKN later
+        blocks direct GRA:443 from RU. Not urgent while the direct leg works.
       work_required: |   # relay_exit_peers (migration 010) model; no turnkey script exists
         1. Generate WG keypair (relay side + exit side).
         2. MSK relay 217.198.5.52: add WG tunnel to GRA + new VLESS Reality inbound on
@@ -385,12 +370,10 @@ next:
         4. INSERT relay_exit_peers row (relay=msk, exit=gra1, relay_listen_port=2098,
            relay_inbound_tag=vless-fr, WG keys/subnet) → backend auto-emits fr-via-msk
            chain in /config (no app build; clients refetch).
-        5. RelayUserSyncer must sync users to MSK's vless-fr inbound User API (per-inbound
-           by tag) — else silent Reality reject (same class as the GRA user-sync gap).
+        5. RelayUserSyncer already syncs relay inbounds by tag — wire vless-fr in too.
       risk: medium-high — touches 2 servers (MSK relay + GRA) + WireGuard + Reality + DB.
-            Needs careful step-by-step + validation; do together with GRA-PARITY as the
-            "make France usable" package. Agree before touching MSK/GRA.
-    - { id: SUBDOMAIN-SCRUB, priority: P2, title: "bot/crew/speedtest.madfrog.online point at retired 85.239.49.28 — subdomain-takeover vector; scrub/repoint" }
+            Agree before touching MSK/GRA.
+    - { id: SUBDOMAIN-SCRUB, priority: P2, title: "bot/speedtest.madfrog.online → 85.239.49.28 (the @MadFrogRobot bot host, user-controlled — low takeover risk; crew/apex already on CF, api→MSK). Confirm intentional or repoint." }
 
 # ============================================================
 # LATER — backlog, no current pull
@@ -487,6 +470,38 @@ deferred:
 # ============================================================
 done:
   "2026-05-31":
+    - id: GRA-PARITY
+      title: France (GRA) exit fixed — live user-sync to the remote exit node (no app build)
+      file: docs/incidents/2026-05-31-gra-france-user-sync.md
+      files:
+        - backend/internal/cluster/relay.go
+        - backend/internal/cluster/relay_test.go
+        - backend/internal/db/servers.go
+        - backend/config.production.yaml
+      notes: |
+        Root cause was NOT the roadmap's H2-PSK hypothesis (NL & GRA Salamander PSKs are
+        identical, sha 1bd96aeb…; a real traffic test through gra1 exits France for a baked
+        user). The gap: the backend live-synced users only to the co-located NL sing-box
+        and to role='relay' nodes — GRA (role='exit', off-box) got users only at its
+        2026-05-30 bake, so anyone registered after (incl. ACCT-IDENTITY anon-demotes) hit
+        a silent Reality reject. Fix: extended RelayUserSyncer to push the active VLESS
+        Reality set to remote exits (db.ListActiveRemoteExitServers + InboundTagVLESS,
+        event-driven + 30s), rebound GRA User API 127.0.0.1→0.0.0.0:15380 (ufw NL-only +
+        bearer), set vpn_servers.user_api_url + relay.secrets.gra1. Verified: GRA live
+        runtime users 287→182 = NL active set; current-active user (357a1bc2…) exits
+        54.38.243.162 (France). H2 leg still baked-only (follow-up).
+    - id: SEC-02
+      title: Echo IPExtractor — reject spoofed X-Forwarded-For from untrusted peers
+      files:
+        - backend/internal/api/server.go
+        - backend/internal/api/realip_test.go
+      notes: |
+        e.IPExtractor = echo.ExtractIPFromXFFHeader() (trusts loopback/link-local/private).
+        nginx terminates on 127.0.0.1 and rewrites XFF to the single real client; an
+        untrusted public peer reaching :8000 directly can no longer forge its IP for the
+        rate-limiter / FreeKassa allowlist / geoIP. Live severity was low (:8000 is
+        ufw-DROP from outside + nginx overwrites XFF) — this is defense-in-depth hardening.
+        3 unit tests. Shipped with the GRA-PARITY backend deploy.
     - id: NL-GEO
       title: NL exit "looked Russian" → clean US-geo egress IP, Gemini unblocked
       file: docs/incidents/2026-05-31-geo-leak-nl-exit.md
@@ -935,8 +950,10 @@ done:
 # ============================================================
 stats:
   open_now: 2                 # ACCT-IDENTITY (P0) + VPN-TG-MEDIA (P1). NL-GEO+VPN-GEO-DNS RESOLVED 2026-05-31; PAY-RU-DIAG/IAP-APPROVE done
-  open_next: ~14              # +STOREKIT-VERIFY/UI-FLAG-HOME/SETTINGS-L10N/SRV-DYNAMIC (user-reported 2026-05-31)
+  open_next: ~12              # GRA-PARITY + SEC-02 RESOLVED 2026-05-31; FR-VIA-MSK demoted to P3
+                              # (direct France works now). Remaining iOS batch: STOREKIT-VERIFY/
+                              # UI-FLAG-HOME/SETTINGS-L10N/SRV-DYNAMIC/FR-SELECT + backend SEC-01/03/04
   tech_debt_items: 1          # TD-LINT-01/02/DE-PRUNE all closed 2026-05-28; only TD-LIBBOX-FETCH remains
   decisions_documented: 8     # ADRs in decisions/ (added 0007-sentry-eu + 0008-utls-fingerprint-rotation)
-  incidents_documented: 7     # docs/incidents/ — recount 2026-05-30 (was stale at 2)
+  incidents_documented: 8     # +2026-05-31-gra-france-user-sync
   playbooks_documented: 4     # apple-reject-recovery, ios-cli-release, deploy-nl, asc-api-checks

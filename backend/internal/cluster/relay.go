@@ -5,9 +5,10 @@
 // inbound user lists in sync with the authoritative DB.
 //
 // Topology:
-//   chameleon backend (DE or NL)
-//   ├─ local sing-box (127.0.0.1:15380)        ← SingboxEngine.userAPI
-//   └─ remote relay sing-box (e.g. MSK:15380)   ← RelayUserSyncer
+//   chameleon backend (NL)
+//   ├─ local sing-box (127.0.0.1:15380)         ← SingboxEngine.userAPI
+//   ├─ remote relay sing-box (e.g. MSK:15380)   ← RelayUserSyncer (relay inbounds)
+//   └─ remote exit  sing-box (e.g. GRA:15380)   ← RelayUserSyncer (Reality inbound)
 //
 // Why both DE and NL run this syncer:
 //   Bulk PUT is idempotent; either backend alone is sufficient, but running
@@ -35,11 +36,22 @@ import (
 	"github.com/chameleonvpn/chameleon/internal/vpn"
 )
 
-// RelayUserSyncer pushes the active VPN user list to remote relay nodes
-// via the sing-box User API. Safe for concurrent use.
+// relaySyncDB is the narrow DB surface RelayUserSyncer needs. The concrete
+// *db.DB satisfies it; tests provide a fake to exercise PushAll without a live
+// Postgres.
+type relaySyncDB interface {
+	ListActiveRelayServers(ctx context.Context) ([]db.VPNServer, error)
+	ListActiveRemoteExitServers(ctx context.Context) ([]db.VPNServer, error)
+	ListActiveRelayExitPeers(ctx context.Context) ([]db.RelayExitPeer, error)
+	ListActiveVPNUsers(ctx context.Context) ([]db.User, error)
+}
+
+// RelayUserSyncer pushes the active VPN user list to remote relay nodes and
+// remote exit nodes (off-box sing-box instances) via the sing-box User API.
+// Safe for concurrent use.
 type RelayUserSyncer struct {
-	db      *db.DB
-	secrets map[string]string // relay server key -> Bearer secret
+	db      relaySyncDB
+	secrets map[string]string // relay/exit server key -> Bearer secret
 	logger  *zap.Logger
 
 	// Timeout for a single per-inbound PUT request. Relay User API is LAN-ish
@@ -135,7 +147,14 @@ func (r *RelayUserSyncer) PushAll(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if len(relays) == 0 {
+	exits, err := r.db.ListActiveRemoteExitServers(ctx)
+	if err != nil {
+		return err
+	}
+	// Nothing to sync to — neither remote relays nor remote exit nodes are
+	// configured. Skip the user query entirely (the co-located exit manages
+	// its own users via the local SingboxEngine).
+	if len(relays) == 0 && len(exits) == 0 {
 		return nil
 	}
 
@@ -189,6 +208,35 @@ func (r *RelayUserSyncer) PushAll(ctx context.Context) error {
 				zap.String("inbound", p.RelayInboundTag),
 				zap.Int("users", len(vpnUsers)))
 		}
+	}
+
+	// Remote exit nodes (e.g. GRA France) whose sing-box runs off-box: keep
+	// their VLESS Reality inbound user list in sync as well. Only the Reality
+	// inbound is User-API-managed (Hysteria2 users are config-baked), so we
+	// push the active set to InboundTagVLESS. The co-located exit (NL) has a
+	// NULL user_api_url and is excluded by the query — it never targets itself.
+	for _, exit := range exits {
+		secret := r.secrets[exit.Key]
+		if secret == "" {
+			r.logger.Warn("relay sync: no secret configured for remote exit, skipping",
+				zap.String("exit", exit.Key))
+			continue
+		}
+		if exit.UserAPIURL == nil || *exit.UserAPIURL == "" {
+			continue
+		}
+		if err := r.pushToInbound(ctx, *exit.UserAPIURL, secret, vpn.InboundTagVLESS, vpnUsers); err != nil {
+			r.logger.Warn("relay sync: remote exit push failed",
+				zap.String("exit", exit.Key),
+				zap.String("inbound", vpn.InboundTagVLESS),
+				zap.Int("users", len(vpnUsers)),
+				zap.Error(err))
+			continue
+		}
+		r.logger.Debug("relay sync: pushed to remote exit",
+			zap.String("exit", exit.Key),
+			zap.String("inbound", vpn.InboundTagVLESS),
+			zap.Int("users", len(vpnUsers)))
 	}
 
 	return nil

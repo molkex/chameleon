@@ -56,6 +56,18 @@ type Server struct {
 func NewServer(s *Server) *echo.Echo {
 	e := echo.New()
 
+	// SEC-02: derive the client IP from X-Forwarded-For only when the request
+	// arrives via a trusted hop (loopback / link-local / private). On NL the
+	// chameleon process runs net=host and nginx terminates on 127.0.0.1, where
+	// it has already resolved the genuine client (set_real_ip_from = Cloudflare
+	// ranges + MSK/SPB relays) and rewritten XFF to that single address — so the
+	// leftmost untrusted XFF entry is the real client. Without an explicit
+	// extractor, Echo's default RealIP() trusts a caller-supplied XFF verbatim,
+	// which would let a client reaching :8000 directly forge its IP and defeat
+	// the rate-limiter, FreeKassa IP allowlist, and geoIP country lookup. A
+	// public peer is untrusted, so its forged XFF is ignored and RemoteAddr wins.
+	e.IPExtractor = echo.ExtractIPFromXFFHeader()
+
 	// Disable Echo's built-in banner and colorful output —
 	// we use our own structured logging.
 	e.HideBanner = true

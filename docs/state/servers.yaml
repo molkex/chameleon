@@ -49,7 +49,14 @@ gra:
     - vpn_node           # sing-box VLESS Reality :443/tcp + Hysteria2 :443/udp
   ssh: debian@54.38.243.162   # key auth (claude-code-ssh-key), root via sudo
   vpn_servers_key: gra1       # row in NL Postgres vpn_servers, country_code=FR
-  user_sync: baked-only       # TODO: auto-sync NEW users to GRA User API (15380)
+  user_sync: live             # 2026-05-31: NL backend RelayUserSyncer now pushes
+                              # the active VLESS Reality user set to gra1 every 30s
+                              # + on each registration (vpn_servers.user_api_url =
+                              # http://54.38.243.162:15380). User API rebound to
+                              # 0.0.0.0:15380, ufw-restricted to NL (147.45.252.234)
+                              # + bearer (USER_API_SECRET). Hysteria2 leg still
+                              # baked-only (not User-API-managed). See
+                              # incidents/2026-05-31-gra-france-user-sync.md
 
 # Russian-side relay fronting api.madfrog.online for RU users behind GFW.
 # Not a VPN node — pure nginx forwarder.

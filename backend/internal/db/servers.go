@@ -124,6 +124,29 @@ func (db *DB) ListActiveRelayServers(ctx context.Context) ([]VPNServer, error) {
 	return db.scanServers(rows)
 }
 
+// ListActiveRemoteExitServers returns active role='exit' servers that carry a
+// non-empty user_api_url — i.e. exit nodes whose sing-box runs off-box from
+// this chameleon backend (e.g. GRA France). The co-located exit (NL) keeps
+// user_api_url NULL because the local SingboxEngine manages its users directly,
+// so it is naturally excluded here and never sync-targets itself. Used by
+// RelayUserSyncer to keep remote exits' VLESS Reality user list in sync with
+// the authoritative DB — without this, users registered after a node's initial
+// bake get a silent Reality reject on that node's direct leg.
+func (db *DB) ListActiveRemoteExitServers(ctx context.Context) ([]VPNServer, error) {
+	ctx, cancel := defaultTimeout(ctx)
+	defer cancel()
+
+	rows, err := db.Pool.Query(ctx, `
+		SELECT `+serverColumns+`
+		FROM vpn_servers
+		WHERE role = 'exit' AND is_active = true AND user_api_url IS NOT NULL
+		ORDER BY sort_order, id`)
+	if err != nil {
+		return nil, err
+	}
+	return db.scanServers(rows)
+}
+
 // ListActiveServers returns all active VPN servers, ordered by sort_order.
 func (db *DB) ListActiveServers(ctx context.Context) ([]VPNServer, error) {
 	ctx, cancel := defaultTimeout(ctx)
