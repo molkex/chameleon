@@ -3,6 +3,7 @@ package mobile
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
@@ -87,11 +88,23 @@ func (h *Handler) AppleNotification(c echo.Context) error {
 		}
 		return c.NoContent(http.StatusOK)
 
-	case "REFUND", "REFUND_REVERSED", "REVOKE":
-		// Phase 1b scope: just log. Actually rolling back subscription_expiry
-		// requires knowing whether ANY other payment covers the current period,
-		// which we'll handle in Phase 2 when we have multi-source ledger queries.
-		logger.Warn("apple notification: refund/revoke received — not auto-reversing in Phase 1b")
+	case "REFUND", "REVOKE":
+		// SEC-04: actually revoke. Mark the charge refunded and recompute
+		// subscription_expiry from the user's remaining completed ledger (so a
+		// still-valid charge from another source keeps them covered). Previously
+		// log-only → refunded users kept access until natural expiry.
+		if err := h.reconcileRefund(ctx, notif.Tx, "refunded", logger); err != nil {
+			logger.Error("apple notification: refund reconcile failed", zap.Error(err))
+			return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "refund reconcile failed"})
+		}
+		return c.NoContent(http.StatusOK)
+
+	case "REFUND_REVERSED":
+		// Apple reversed an earlier refund → restore the charge + its days.
+		if err := h.reconcileRefund(ctx, notif.Tx, "completed", logger); err != nil {
+			logger.Error("apple notification: refund-reversal reconcile failed", zap.Error(err))
+			return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "reconcile failed"})
+		}
 		return c.NoContent(http.StatusOK)
 
 	case "EXPIRED", "DID_FAIL_TO_RENEW", "GRACE_PERIOD_EXPIRED":
@@ -138,4 +151,36 @@ func (h *Handler) creditFromNotification(ctx context.Context, tx *apple.Transact
 		Days:     tx.Days,
 	})
 	return err
+}
+
+// reconcileRefund (SEC-04) resolves the user by originalTransactionId and flips
+// the matching Apple charge to newStatus ("refunded" on REFUND/REVOKE,
+// "completed" on REFUND_REVERSED), recomputing subscription_expiry from their
+// remaining completed ledger. A missing user is not an error — we ack so Apple
+// stops retrying; if we later credit that original transaction, the charge_id
+// match still applies.
+func (h *Handler) reconcileRefund(ctx context.Context, tx *apple.Transaction, newStatus string, logger *zap.Logger) error {
+	user, err := h.DB.FindUserByOriginalTransactionID(ctx, tx.OriginalTransactionID)
+	if err != nil {
+		return err
+	}
+	if user == nil {
+		logger.Warn("apple notification: refund for unknown original transaction id — nothing to reconcile")
+		return nil
+	}
+
+	var newExpiry *time.Time
+	if newStatus == "completed" {
+		newExpiry, err = h.Payments.MarkCompletedAndReconcile(ctx, user.ID, payments.SourceAppleIAP, appleChargeID(tx))
+	} else {
+		newExpiry, err = h.Payments.MarkRefundedAndReconcile(ctx, user.ID, payments.SourceAppleIAP, appleChargeID(tx))
+	}
+	if err != nil {
+		return err
+	}
+	logger.Info("apple notification: refund reconciled",
+		zap.Int64("user_id", user.ID),
+		zap.String("new_status", newStatus),
+		zap.Timep("new_expiry", newExpiry))
+	return nil
 }

@@ -52,23 +52,32 @@ func startTestPaymentsDB(t *testing.T) *Service {
 	}
 	t.Cleanup(pool.Close)
 
-	// Apply migrations
+	// Apply migrations. init.sql first (creates the base schema), then the
+	// numbered migrations in lexical order — ReadDir order puts 0NN_*.sql
+	// BEFORE init.sql ('0' < 'i'), but those ALTER tables init.sql creates, so
+	// init must run first. _seed_ migrations INSERT prod-id rows that violate
+	// FKs on an empty DB, so skip them (mirrors internal/db test harness).
 	migrations := findMigrations(t)
 	files, err := os.ReadDir(migrations)
 	if err != nil {
 		t.Fatalf("ReadDir migrations: %v", err)
 	}
-	for _, f := range files {
-		if !strings.HasSuffix(f.Name(), ".sql") {
-			continue
-		}
-		sql, err := os.ReadFile(filepath.Join(migrations, f.Name()))
+	apply := func(name string) {
+		sql, err := os.ReadFile(filepath.Join(migrations, name))
 		if err != nil {
-			t.Fatalf("read %s: %v", f.Name(), err)
+			t.Fatalf("read %s: %v", name, err)
 		}
 		if _, err := pool.Exec(ctx, string(sql)); err != nil {
-			t.Fatalf("apply %s: %v", f.Name(), err)
+			t.Fatalf("apply %s: %v", name, err)
 		}
+	}
+	apply("init.sql")
+	for _, f := range files {
+		n := f.Name()
+		if !strings.HasSuffix(n, ".sql") || n == "init.sql" || strings.Contains(n, "_seed_") {
+			continue
+		}
+		apply(n)
 	}
 
 	return New(pool)

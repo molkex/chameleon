@@ -198,3 +198,73 @@ func (s *Service) ReconcileFromLedger(ctx context.Context, userID int64, source 
 	}
 	return expiry, nil
 }
+
+// MarkRefundedAndReconcile flips a charge to 'refunded' and recomputes the
+// user's subscription_expiry from their REMAINING completed ledger. SEC-04
+// (2026-06-01): an Apple REFUND/REVOKE must actually cost the user access — the
+// old webhook only logged, so refunded users kept their subscription until it
+// would have expired anyway. Idempotent (re-refunding an already-refunded charge
+// just re-runs the recompute). Returns the new expiry, or nil when no completed
+// coverage remains (subscription_expiry set to NULL = access revoked).
+func (s *Service) MarkRefundedAndReconcile(ctx context.Context, userID int64, source Source, chargeID string) (*time.Time, error) {
+	return s.setStatusAndReconcile(ctx, userID, source, chargeID, "refunded")
+}
+
+// MarkCompletedAndReconcile is the inverse — Apple REFUND_REVERSED restores a
+// charge that was previously refunded, re-granting the days it covered.
+func (s *Service) MarkCompletedAndReconcile(ctx context.Context, userID int64, source Source, chargeID string) (*time.Time, error) {
+	return s.setStatusAndReconcile(ctx, userID, source, chargeID, "completed")
+}
+
+// setStatusAndReconcile sets the (source, charge_id) payment status for a user
+// and recomputes subscription_expiry as MIN(created_at) + SUM(days) over all of
+// the user's remaining 'completed' payments (any source — so a still-valid
+// FreeKassa/admin charge keeps them covered even if an Apple charge is refunded,
+// which was the Phase-1b blocker noted in the webhook). All in one transaction.
+func (s *Service) setStatusAndReconcile(ctx context.Context, userID int64, source Source, chargeID, newStatus string) (*time.Time, error) {
+	if userID == 0 || source == "" || chargeID == "" {
+		return nil, errors.New("payments: setStatus requires user_id, source, charge_id")
+	}
+
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("payments: begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if _, err = tx.Exec(ctx, `
+		UPDATE payments SET status = $4
+		WHERE user_id = $1 AND source = $2 AND charge_id = $3 AND status <> $4`,
+		userID, string(source), chargeID, newStatus); err != nil {
+		return nil, fmt.Errorf("payments: set status: %w", err)
+	}
+
+	var minCreated *time.Time
+	var totalDays int
+	if err = tx.QueryRow(ctx, `
+		SELECT MIN(created_at), COALESCE(SUM(days), 0)
+		FROM payments
+		WHERE user_id = $1 AND status = 'completed'`, userID,
+	).Scan(&minCreated, &totalDays); err != nil {
+		return nil, fmt.Errorf("payments: recompute query: %w", err)
+	}
+
+	var newExpiry *time.Time
+	if totalDays > 0 && minCreated != nil {
+		e := minCreated.AddDate(0, 0, totalDays)
+		newExpiry = &e
+	}
+
+	// newExpiry == nil → no remaining paid coverage → set subscription_expiry
+	// NULL so /config gates the user out. is_active is left untouched.
+	if _, err = tx.Exec(ctx, `
+		UPDATE users SET subscription_expiry = $2 WHERE id = $1`,
+		userID, newExpiry); err != nil {
+		return nil, fmt.Errorf("payments: apply recompute: %w", err)
+	}
+
+	if err = tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("payments: commit: %w", err)
+	}
+	return newExpiry, nil
+}
