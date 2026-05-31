@@ -245,6 +245,25 @@ enum VPNStateHelper {
         return tag
     }
 
+    /// Same as `selectedServerName` but WITHOUT the leading flag emoji — for
+    /// views that already render the flag in a separate badge (the neon home
+    /// card) so the flag isn't shown twice.
+    static func selectedServerNameNoFlag(_ app: AppState) -> String {
+        guard let tag = app.selectedServerTag else {
+            return String(localized: "home.server.auto")
+        }
+        for group in app.servers {
+            if let country = group.countries.first(where: { $0.tag == tag }) {
+                return country.name
+            }
+            if let country = group.countries.first(where: { $0.serverTags.contains(tag) }) {
+                return country.name
+            }
+            if group.tag == tag { return group.tag }
+        }
+        return tag
+    }
+
     /// Country flag emoji for the selected server, resolved the same way as
     /// `selectedServerName` so the home flag badge always matches the name.
     /// Fixes UI-FLAG-HOME: when the user pins a whole country ("🇫🇷 Франция")

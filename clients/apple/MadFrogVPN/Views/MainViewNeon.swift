@@ -218,14 +218,16 @@ struct MainViewNeon: View {
             showServers = true
         } label: {
             HStack(spacing: 14) {
-                // Real country flag (or globe for Auto/unknown)
+                // Real country flag (or globe for Auto/unknown) — filling the
+                // square edge-to-edge (oversized + clipped to the rounded box).
                 ZStack {
                     RoundedRectangle(cornerRadius: 10)
                         .fill(.white.opacity(0.06))
-                        .frame(width: 44, height: 44)
                     Text(VPNStateHelper.selectedServerFlag(app))
-                        .font(.system(size: 26))
+                        .font(.system(size: 50))
                 }
+                .frame(width: 44, height: 44)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
                 .overlay(
                     RoundedRectangle(cornerRadius: 10)
                         .stroke(.white.opacity(0.15), lineWidth: 1)
@@ -283,9 +285,10 @@ struct MainViewNeon: View {
             return String(localized: "home.server.auto_long")
         }
         // Build-32: home pill always shows country only — leg is exposed
-        // only via power-mode subtitle (see legSubtitle below). selectedServerName
-        // promotes leaf tags to their containing country for display.
-        return VPNStateHelper.selectedServerName(app)
+        // only via power-mode subtitle (see legSubtitle below). NoFlag variant
+        // because the flag is already shown in the badge to its left (avoids
+        // two flags). Promotes leaf tags to their containing country.
+        return VPNStateHelper.selectedServerNameNoFlag(app)
     }
 
     /// Power-mode-only subtitle showing the active leg ("Hysteria2", "TUIC",
