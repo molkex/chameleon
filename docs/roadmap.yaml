@@ -239,23 +239,6 @@ next:
         "globe" (:268) — separate but same idea.
       risk: low (display only, no deploy). Ships with next iOS build.
 
-    - id: SETTINGS-L10N
-      title: AUTO-CONNECT settings section shipped in hardcoded English (LAUNCH-07 regression)
-      priority: P1
-      effort: small
-      files:
-        - clients/apple/MadFrogVPN/Views/SettingsView.swift
-        - clients/apple/MadFrogVPN/Models/AppState.swift
-      root_cause: |
-        LAUNCH-07 (done 2026-05-28) added Auto-connect / Trusted-networks UI with
-        English string literals (SettingsView :133/:136/:158/:161/:185/:188/:208/:381,
-        section header "AUTO-CONNECT", + AppState error strings :1685/:1688) instead
-        of L10n.* keys. Every other section is localized → looks half-broken in RU.
-        Fix: add L10n.Settings.autoConnect* keys + RU (and other locale) strings,
-        replace literals. Also add an in-app explainer of what auto-connect does
-        (user asked "что за auto-connect").
-      risk: low (strings only, no deploy). Ships with next iOS build.
-
     - id: FR-SELECT
       title: 'Tapping 🇫🇷 fr in the picker reverts to Auto (selection won''t stick)'
       priority: P1
@@ -460,8 +443,21 @@ done:
         Added trial_granted_at (migration 018, idempotent, backfilled all 327 existing
         users to created_at). New shouldGrantTrial() keys on trial_granted_at (mirrors
         Apple isEligibleForIntroOffer); createUser stamps it; reclaim no longer grants a
-        2nd trial; payers untouched. Pure helper + table test. Deployed to NL 2026-05-31
-        21:55Z (no app build); verified 327/327 stamped, 0 NULL.
+        2nd trial; payers untouched. Pure helper test (TestShouldGrantTrial) + integration
+        round-trip (TestTrialGrantedAtRoundTrip, testcontainers PG, PASS). Deployed to NL
+        2026-05-31 21:55Z (no app build); verified 327/327 stamped, 0 NULL.
+    - id: SETTINGS-L10N
+      title: Localize the AUTO-CONNECT / trusted-networks settings section (was hardcoded English)
+      files:
+        - clients/apple/MadFrogVPN/Views/SettingsView.swift
+        - clients/apple/MadFrogVPN/Models/L10n.swift
+        - clients/apple/MadFrogVPN/Resources/{en,ru}.lproj/Localizable.strings
+      notes: |
+        LAUNCH-07 shipped the auto-connect UI in plain English. Added
+        settings.auto_connect.* + settings.trusted.* keys (EN+RU), replaced all
+        SettingsView literals (header, 2 toggles + hints, trusted list, empty state,
+        add-SSID alert) + the 2 AppState autoConnectErrorMessage strings. iOS+macOS
+        green. Ships in build 94 (Phase-B).
   "2026-05-31":
     - id: GRA-PARITY
       title: France (GRA) exit fixed — live user-sync to the remote exit node (no app build)
@@ -942,8 +938,8 @@ done:
 # Stats — for at-a-glance sanity check
 # ============================================================
 stats:
-  open_now: 2                 # ACCT-IDENTITY (P0) + VPN-TG-MEDIA (P1). NL-GEO+VPN-GEO-DNS RESOLVED 2026-05-31; PAY-RU-DIAG/IAP-APPROVE done
-  open_next: ~12              # GRA-PARITY + SEC-02 RESOLVED 2026-05-31; FR-VIA-MSK demoted to P3
+  open_now: 1                 # VPN-TG-MEDIA (P1). ACCT-IDENTITY (P0) RESOLVED 2026-06-01; NL-GEO+VPN-GEO-DNS 2026-05-31
+  open_next: ~11              # SETTINGS-L10N RESOLVED 2026-06-01; GRA-PARITY+SEC-02 2026-05-31; FR-VIA-MSK→P3
                               # (direct France works now). Remaining iOS batch: STOREKIT-VERIFY/
                               # UI-FLAG-HOME/SETTINGS-L10N/SRV-DYNAMIC/FR-SELECT + backend SEC-01/03/04
   tech_debt_items: 1          # TD-LINT-01/02/DE-PRUNE all closed 2026-05-28; only TD-LIBBOX-FETCH remains

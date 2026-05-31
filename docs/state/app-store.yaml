@@ -42,17 +42,19 @@ versions:
   # before submitting for release.
   testflight:
     version: "1.0.29"
-    build: 93
-    asc_build_id: 75b23a2b-6a8d-4785-95fc-a7f805b7d47f
-    processingState: VALID            # verified live ASC API 2026-06-01
-    build_uploaded: 2026-06-01T00:26:23Z   # ASC uploadedDate 2026-05-31T15:26-07:00
+    build: 94                         # supersedes build 93 (93 lacked SETTINGS-L10N)
+    processingState: PROCESSING       # uploaded 2026-06-01; poll → VALID
+    build_uploaded: 2026-06-01T01:51:00Z
     ships:
       - ACCT-IDENTITY (no anon-demote; Keychain identity; ReauthView recovery ladder)
       - UI-FLAG-HOME (home card flag resolves selected country)
-      - SEC-01 client side already deployed server-side (trial-once)
+      - SETTINGS-L10N (AUTO-CONNECT section localized EN+RU)
+      - SEC-01 client behavior (server-side trial-once already deployed)
     pending_verification:
       - STOREKIT-VERIFY (non-CIS Apple ID → 4 products + Restore)
       - ACCT-IDENTITY re-auth ladder on device
+    superseded_builds:
+      - build 93 (uploaded 2026-06-01T00:26Z, VALID) — replaced before submission
 
   previous:
     version: "1.0.27"

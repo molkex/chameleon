@@ -69,6 +69,7 @@
 		3DC5082569D21467B3C6D82B /* VPNControlIntentsBehaviorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8BA0442D38049EA8D16B48E /* VPNControlIntentsBehaviorTests.swift */; };
 		3E4CEA517362B9201ED91C6E /* ExtensionProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12590681176DC24ED028641E /* ExtensionProvider.swift */; };
 		3F7F812CF4EBD00E9969B70B /* libresolv.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = C4C20C0AE163F2C1F4C77012 /* libresolv.tbd */; };
+		40EABAB28805EFB67FB4AD26 /* AcctIdentityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33947299B156B2AC6BD9B3A8 /* AcctIdentityTests.swift */; };
 		428F9F8E315586B54AD70049 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6378A272B7EFCCF1FBCDFBFE /* KeychainHelper.swift */; };
 		42CCB352EBA84996E2D42E84 /* LeafRankingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9191826F2A49E0C47AF914EF /* LeafRankingStore.swift */; };
 		42EB07A7DF42BCFC9CA2375E /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4629A3D97C50D11AEB64CE33 /* UIKit.framework */; };
@@ -342,6 +343,7 @@
 		2C2574959FF261C13D150E6D /* PacketTunnel.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PacketTunnel.entitlements; sourceTree = "<group>"; };
 		309988BC023B66A61A71333A /* DisconnectNotifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisconnectNotifierTests.swift; sourceTree = "<group>"; };
 		31BA223EF19A5BDE5145B520 /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
+		33947299B156B2AC6BD9B3A8 /* AcctIdentityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcctIdentityTests.swift; sourceTree = "<group>"; };
 		33A809CDAD52A1FB3A57D0A1 /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
 		3B77B8C83804315DF2505934 /* TunnelStallProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunnelStallProbe.swift; sourceTree = "<group>"; };
 		3C3AA0F75FD43492C173B8C4 /* PacketTunnelProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelProvider.swift; sourceTree = "<group>"; };
@@ -543,6 +545,7 @@
 		0BA838F6BE69322440DCDB5D /* UnitTests */ = {
 			isa = PBXGroup;
 			children = (
+				33947299B156B2AC6BD9B3A8 /* AcctIdentityTests.swift */,
 				C5A01555D3038E7947B6CCD7 /* APIClientSensitiveFlagTests.swift */,
 				46461EB64AC98A85BDA33143 /* AppStateFallbackTests.swift */,
 				828C4AEC2AEC8A2EEB92717E /* ConfigSanitizerTests.swift */,
@@ -1169,6 +1172,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				65313A361B8F13E330805908 /* APIClientSensitiveFlagTests.swift in Sources */,
+				40EABAB28805EFB67FB4AD26 /* AcctIdentityTests.swift in Sources */,
 				13ACDC2A838051DAD074B9E4 /* AppStateFallbackTests.swift in Sources */,
 				9AB874F30E33334B32A64AA5 /* ConfigSanitizerTests.swift in Sources */,
 				09184E05C76A88DC8AF609D8 /* CrashReporterSanitizeTests.swift in Sources */,
@@ -1491,7 +1495,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 93;
+				CURRENT_PROJECT_VERSION = 94;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = 99W3C374T2;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -1568,7 +1572,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 93;
+				CURRENT_PROJECT_VERSION = 94;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = 99W3C374T2;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
