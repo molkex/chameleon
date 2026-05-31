@@ -43,7 +43,8 @@ versions:
   testflight:
     version: "1.0.29"
     build: 94                         # supersedes build 93 (93 lacked SETTINGS-L10N)
-    processingState: PROCESSING       # uploaded 2026-06-01; poll → VALID
+    asc_build_id: 8a75c21e-a5f7-42f1-9572-9d46cc216a66
+    processingState: VALID            # verified live ASC API 2026-06-01
     build_uploaded: 2026-06-01T01:51:00Z
     ships:
       - ACCT-IDENTITY (no anon-demote; Keychain identity; ReauthView recovery ladder)
