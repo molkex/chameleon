@@ -468,7 +468,7 @@ class AppState {
             let refreshed = await tryRefreshToken()
             if refreshed {
                 try await doFetchAndSave(username: username)
-            } else if configStore.authProvider == nil {
+            } else if AppState.shouldAnonReRegister(authProvider: configStore.authProvider) {
                 // Anonymous device account — safe to mint a fresh one.
                 AppLogger.app.info("fetchAndSaveConfig: refresh failed (anon), re-registering device")
                 try await reRegisterDevice()
@@ -486,7 +486,7 @@ class AppState {
         } catch APIError.serverError(let code) where code == 404 {
             // Backend returns 404 when JWT is valid but user_id is not in DB
             // (DB wiped, migration, soft-delete edge case, etc).
-            if configStore.authProvider == nil {
+            if AppState.shouldAnonReRegister(authProvider: configStore.authProvider) {
                 // Anon: stale creds survive iOS reinstall via Keychain — only
                 // re-registering can unstick. Symptom: "404 on fresh install".
                 AppLogger.app.info("fetchAndSaveConfig: 404 user_not_found (anon), clearing creds + re-registering")
@@ -556,6 +556,17 @@ class AppState {
     }
 
     // MARK: - ACCT-IDENTITY session recovery
+
+    /// ACCT-IDENTITY core invariant: anonymous re-registration (which mints a
+    /// brand-new `device_<rand>` account + fresh trial) is ONLY a valid session
+    /// fallback for a user with no identity. A user authenticated via
+    /// Apple/Google/email must NEVER be silently demoted to anon — return false
+    /// so the caller re-auths that identity (reclaim by Apple `sub` / magic-link)
+    /// instead. Pure + static so it can be unit-tested without constructing the
+    /// heavyweight AppState (same pattern as `shouldEscalateBeyondCountry`).
+    static func shouldAnonReRegister(authProvider: String?) -> Bool {
+        authProvider == nil
+    }
 
     /// Mark the identity session as needing re-auth WITHOUT touching stored
     /// credentials. Keeps `isAuthenticated` true (creds present) so the user
@@ -1798,10 +1809,10 @@ class AppState {
             AppLogger.app.info("pushAutoConnectRules: no manager (will apply after first connect)")
         } catch VPNManager.OnDemandError.saveFailed(let err) {
             AppLogger.app.error("pushAutoConnectRules: saveFailed \(err.localizedDescription)")
-            autoConnectErrorMessage = "Failed to save auto-connect settings: \(err.localizedDescription)"
+            autoConnectErrorMessage = "settings.auto_connect.save_failed".localized + ": \(err.localizedDescription)"
         } catch {
             AppLogger.app.error("pushAutoConnectRules: \(error.localizedDescription)")
-            autoConnectErrorMessage = "Failed to save auto-connect settings"
+            autoConnectErrorMessage = "settings.auto_connect.save_failed".localized
         }
     }
 
