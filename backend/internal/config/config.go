@@ -171,6 +171,10 @@ type VPNConfig struct {
 	// the generated client outbound (clientconfig.go) — a mismatch makes the
 	// tunnel handshake but carry no traffic. Empty = obfs disabled.
 	Hysteria2ObfsPassword string `yaml:"hysteria2_obfs_password"`
+	// EgressBindIP source-binds the server's user-egress ("direct") outbound
+	// to a specific local IP — used to exit through a clean (non-RU-geolocated)
+	// IP so geo-services don't see the node's owner country. Empty = default.
+	EgressBindIP string `yaml:"egress_bind_ip"`
 }
 
 // RealityConfig holds VLESS Reality protocol settings.

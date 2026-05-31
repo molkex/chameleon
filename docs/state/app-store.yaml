@@ -4,7 +4,7 @@
 # this file blindly — see playbooks/asc-api-checks.md for a 5-line
 # bash snippet to re-fetch state.
 
-verified: 2026-05-28T13:30:00Z
+verified: 2026-05-31T00:30:00Z
 
 app:
   bundle_id: com.madfrog.vpn
@@ -22,53 +22,54 @@ asc_api:
 # Live App Store version. `READY_FOR_SALE` = users can install via App Store.
 versions:
   current:
+    version: "1.0.28"
+    build: 91
+    asc_version_id: d9d28448-318b-4432-b2df-a2cf2062738e
+    asc_build_id: 6a033dc3-b94b-4559-bc69-cd3a8a3b60ca
+    appStoreState: READY_FOR_SALE     # verified live ASC API 2026-05-31
+    releaseType: AFTER_APPROVAL
+    build_uploaded: 2026-05-29T10:32:37Z
+    ships:
+      - Sentry EU crash reporting (LAUNCH-03)
+      - WebPaywall + PaywallRouter EventTracker instrumentation (PAYWALL-TRACKING)
+      - IOS-UDP-VALIDATE, IOS-PICKER-FR (France/US display), LAUNCH-12 uTLS rotation
+    known_issues:   # user-reported 2026-05-31, tracked in roadmap.yaml
+      - UI-FLAG-HOME (🌍 instead of flag on home card)
+      - SETTINGS-L10N (AUTO-CONNECT section in English)
+
+  previous:
     version: "1.0.27"
     build: 90
     asc_version_id: 857045e1-2b09-4d20-9af1-95c9f28285bf
-    asc_build_id: 8920a880-da7d-49b5-82ea-9e539466ceee
-    appStoreState: READY_FOR_SALE     # auto-released after approval 2026-05-28
-    releaseType: AFTER_APPROVAL
-    submitted_at: 2026-05-28T07:49:10Z
-    review_outcome: APPROVED          # build 89 was rejected under 2.3 → build 90 with explicit arm64 passed
-    review_submission_id: c32658c5-5807-4c5a-952e-a0b8bd89d73b
-    ships:
-      - widgets (LAUNCH-04/05/06)
-      - USR-09 Phase 2 EventTracker
-      - explicit UIRequiredDeviceCapabilities=[arm64] (Apple 2.3 fix)
-
-  previous:
-    version: "1.0.26"
-    build: 75
     appStoreState: superseded
-    was_live: 2026-05-15..2026-05-28
+    was_live: 2026-05-28..2026-05-29
 
-# Non-renewing subscription IAPs. **These are the revenue blocker.**
-# When all 4 = APPROVED, the live paywall starts working.
+# Non-renewing subscription IAPs. All 4 APPROVED 2026-05-31.
+# StoreKit path unblocked for non-CIS users. RU/CIS users go via WebPaywallView
+# (FreeKassa) — separate path, see roadmap PAY-RU-DIAG.
 iaps:
   type: NON_RENEWING_SUBSCRIPTION   # no auto-renew, no Subscription Group
-  state_verified: 2026-05-28T13:30:00Z   # all 4 still WAITING_FOR_REVIEW (~1.5h in, expected 1-6h)
+  state_verified: 2026-05-31T00:30:00Z   # all 4 APPROVED (live ASC API)
+  availability: 175 territories incl. RU/CIS   # verified inAppPurchaseAvailabilities
+  pricing: USA base $1.99 + 174 auto-converted territories
   products:
     - product_id: com.madfrog.vpn.sub.30days
       apple_id: 6762097906
-      state: WAITING_FOR_REVIEW
-      last_submitted: 2026-05-28T12:10:00Z   # 2nd submission — 1st (2026-05-27) stalled
+      state: APPROVED
     - product_id: com.madfrog.vpn.sub.90days
       apple_id: 6762098097
-      state: WAITING_FOR_REVIEW
-      last_submitted: 2026-05-28T12:10:00Z
+      state: APPROVED
     - product_id: com.madfrog.vpn.sub.180days
       apple_id: 6762098056
-      state: WAITING_FOR_REVIEW
-      last_submitted: 2026-05-28T12:10:00Z
+      state: APPROVED
     - product_id: com.madfrog.vpn.sub.365days
       apple_id: 6762097872
-      state: WAITING_FOR_REVIEW
-      last_submitted: 2026-05-28T12:10:00Z
+      state: APPROVED
   notes: |
-    First submission (2026-05-27 via /v1/inAppPurchaseSubmissions) silently
-    stalled — likely because Apple bundles first-IAP review with first
-    app-version review, and build 89 got rejected. Re-submitted standalone
-    2026-05-28 after build 90 went live. Expected: 1-6h to APPROVED.
+    First submission (2026-05-27) stalled behind the build-89 reject; re-submitted
+    standalone 2026-05-28 after build 90 went live; all 4 APPROVED by 2026-05-31.
+    NOTE: approval unblocks StoreKit (non-CIS) only. RU/CIS users never see these
+    IAPs — PaywallRouter sends them to WebPaywallView (FreeKassa/СБП).
 
 # Storefront routing decision lives in decisions/0003-storefront-routing.md.
 # Short version: RU/CIS storefronts → WebPaywallView (FreeKassa/SBP),

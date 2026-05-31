@@ -613,8 +613,12 @@ func (e *SingboxEngine) buildServerConfig() ([]byte, error) {
 		Inbounds: e.buildInboundsLocked(users, sni, shortIDs),
 		Outbounds: []singboxOutbound{
 			{
-				Type: "direct",
-				Tag:  "direct",
+				// EgressBindIP: source-bind user egress to a clean (non-RU)
+				// IP so geo-services (Gemini etc.) don't see Russia. Empty =
+				// default route source. Set per-node in config.yaml.
+				Type:             "direct",
+				Tag:              "direct",
+				Inet4BindAddress: e.cfg.EgressBindIP,
 			},
 		},
 		Route: singboxRoute{
@@ -1032,9 +1036,10 @@ type singboxHandshake struct {
 }
 
 type singboxOutbound struct {
-	Type           string `json:"type"`
-	Tag            string `json:"tag"`
-	DomainStrategy string `json:"domain_strategy,omitempty"`
+	Type             string `json:"type"`
+	Tag              string `json:"tag"`
+	DomainStrategy   string `json:"domain_strategy,omitempty"`
+	Inet4BindAddress string `json:"inet4_bind_address,omitempty"`
 }
 
 type singboxRoute struct {

@@ -276,6 +276,7 @@ func run() error {
 		UDPCertPath:           cfg.VPN.UDPCertPath,
 		UDPKeyPath:            cfg.VPN.UDPKeyPath,
 		Hysteria2ObfsPassword: cfg.VPN.Hysteria2ObfsPassword,
+		EgressBindIP:          cfg.VPN.EgressBindIP,
 	}
 
 	// Load active VPN users from the database.

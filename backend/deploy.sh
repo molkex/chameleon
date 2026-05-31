@@ -224,7 +224,11 @@ case "$NODE_ID" in
         sed -i 's|udp_cert_path: ""|udp_cert_path: "/etc/singbox/server.crt"|' config.yaml
         sed -i 's|udp_key_path: ""|udp_key_path: "/etc/singbox/server.key"|' config.yaml
         sed -i 's|hysteria2_obfs_password: ""|hysteria2_obfs_password: "madfrog-salamander-7Kx9q2"|' config.yaml
-        echo ">>> UDP protocols enabled: Hysteria2=443 + Salamander obfs (TUIC off)"
+        # Egress through clean US-geo IP 72.56.79.25 (additional Timeweb IP, reads US
+        # not RU) so geo-services (Gemini) don't see Russia. Main IP 147.45.252.234
+        # stays the inbound. See roadmap NL-GEO (2026-05-31).
+        sed -i 's|egress_bind_ip: ""|egress_bind_ip: "72.56.79.25"|' config.yaml
+        echo ">>> UDP protocols enabled: Hysteria2=443 + Salamander obfs (TUIC off); egress→72.56.79.25"
         ;;
     *)
         echo ">>> UDP protocols disabled on this node"

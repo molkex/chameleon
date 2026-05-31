@@ -489,7 +489,12 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 		Log: clientLog{Level: "info"},
 		DNS: clientDNSConfig{
 			Servers: []clientDNSServer{
-				{Tag: "dns-remote", Type: "https", Server: "1.1.1.1"},
+				// detour:"Proxy" — resolve non-RU domains THROUGH the exit so DNS
+				// geolocates to the exit country (was leaking RU: queries went out
+				// the local/Yandex path → Google/Gemini/OpenAI saw a Russian
+				// resolver even on an NL exit IP). .ru/banks still use dns-direct
+				// (Yandex, no detour) via the DNS rules below.
+				{Tag: "dns-remote", Type: "https", Server: "1.1.1.1", Detour: "Proxy"},
 				{Tag: "dns-direct", Type: "https", Server: "77.88.8.8"},
 				{Tag: "dns-fakeip", Type: "fakeip", Inet4Range: "198.18.0.0/15"},
 			},
@@ -538,8 +543,12 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 				{DomainSuffix: []string{".ru"}, Outbound: "RU Traffic"},
 				{RuleSet: "geoip-ru", Outbound: "RU Traffic"},
 			},
+			// Default resolution for proxied connections now goes through the exit
+			// (dns-remote, detour:Proxy) instead of the Russian resolver, so the
+			// connection's domain→IP step doesn't leak RU. .ru / banks are still
+			// pinned to dns-direct by the DNS rules above (rule wins over default).
 			DefaultDomainResolver: &clientDomainResolver{
-				Server:   "dns-direct",
+				Server:   "dns-remote",
 				Strategy: "ipv4_only",
 			},
 		},

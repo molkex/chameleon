@@ -66,6 +66,11 @@ type EngineConfig struct {
 	// Hysteria2 Salamander obfuscation PSK (shared client+server). Empty =
 	// obfs disabled. Wrapped QUIC defeats RKN's QUIC-fingerprint throttle.
 	Hysteria2ObfsPassword string
+	// EgressBindIP source-binds user egress (the "direct" outbound) to a
+	// specific local IP. Used to route VPN exit through a clean (non-RU-
+	// geolocated) IP so geo-services don't flag the node's owner country.
+	// Empty = use the default route source IP.
+	EgressBindIP string
 }
 
 // RealityConfig holds VLESS Reality TLS settings.

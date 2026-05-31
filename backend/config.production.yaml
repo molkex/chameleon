@@ -58,6 +58,10 @@ vpn:
   udp_key_path: ""
   # Hysteria2 Salamander obfs PSK — set per-node in deploy.sh. Empty = no obfs.
   hysteria2_obfs_password: ""
+  # Source-bind user egress to a clean (non-RU-geolocated) IP so geo-services
+  # (Gemini etc.) don't see the node owner's country. Set per-node in deploy.sh.
+  # Empty = default route source IP.
+  egress_bind_ip: ""
 
   reality:
     # Keys loaded from vpn_servers DB table at startup (per-node).

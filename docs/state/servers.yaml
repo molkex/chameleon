@@ -16,13 +16,21 @@ spof_warning: |
 # Production VPN node — sole authority for /api/* and /vpn (sing-box).
 nl:
   status: production
-  ip: 147.45.252.234
+  ip: 147.45.252.234                  # MAIN IP — inbound (clients connect here :443), SSH, DNS, relays. DO NOT DELETE.
+  egress_ip: 72.56.79.25              # added 2026-05-31: user-traffic EGRESS source-bound here (clean US-geo, vs RU on main IP). See incidents/2026-05-31-geo-leak-nl-exit.md
   hosting: Timeweb
   location: Netherlands
+  geo_note: |
+    Main IP 147.45.252.234 geolocates as RUSSIA in whoer/Google/MaxMind (Timeweb =
+    Russian owner) → blocked Gemini etc. Fix: VPN egress source-bound to the additional
+    IP 72.56.79.25 (TW-Cloud pool but reads US) via singbox direct outbound
+    inet4_bind_address (config egress_bind_ip). Inbound stays on the main IP.
+    IP persisted via systemd unit vpn-egress-ip.service.
   role:
-    - vpn_node           # sing-box VLESS Reality on :443/tcp
+    - vpn_node           # sing-box VLESS Reality on :443/tcp (inbound on main IP, egress via 72.56.79.25)
     - api_backend        # chameleon Go binary, :80 + :443 nginx
     - admin_spa          # /admin/app via nginx
+    - ss_ws_router       # singbox-ss-ws container — separate prod (user's router), do NOT touch
   ssh: root@147.45.252.234
   domain_apex: madfrog.online        # CF-proxied → here
   domain_api: api.madfrog.online     # via MSK relay (not CF) → here:80

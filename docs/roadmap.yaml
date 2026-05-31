@@ -7,22 +7,78 @@
 # When something completes, MOVE the entry from now/next/later into done with the date.
 # Deferred = blocked by an external decision, parked.
 
-verified: 2026-05-28T23:00:00Z
+verified: 2026-05-31T00:30:00Z
 
 # ============================================================
 # NOW — active blockers, picked up in current session/sprint
 # ============================================================
 now:
-  monetization:
-    - id: IAP-APPROVE
-      title: 4 non-renewing-subscription IAPs APPROVED by Apple
-      status: in_review
-      blocked_by: apple_review_queue
-      submitted: 2026-05-28T12:10:00Z   # 2nd submission after build 89 reject side-effect
-      impact: |
-        Until APPROVED, paywall on live 1.0.27 surfaces empty StoreKit products.
-        EventTracker will show many paywall.view + purchase.start without purchase.success.
-      next_check: 1-6h from submission
+  # User-reported 2026-05-31 on live 1.0.28 (iPhone + iPad). Plan-only, not started.
+  account:
+    - id: ACCT-IDENTITY
+      title: App silently demotes an authenticated (Apple) user to a fresh anonymous trial account
+      priority: P0
+      status: diagnosed_needs_fix
+      reported: 2026-05-31
+      symptoms: |
+        User's iPhone showed device_e9afc143 ("not my main account"), iPad became
+        device_2c537874 WITHOUT re-login AND WITHOUT an app update (user confirms iPad
+        was not updated) — so it is NOT the reinstall/fresh-install path (trigger 1),
+        it is the silent in-session reRegister (trigger 2 below). Re-login on iPhone
+        (Apple) restored the real account device_b6f01ebb.
+      evidence: |   # live NL DB query 2026-05-31
+        - device_b6f01ebb = id 12351, auth_provider=apple, created 2026-04-10,
+          subscription to 2026-06-15 (the REAL paid account, device_id intact).
+        - device_e9afc143 = id 159272, auth_provider=device, created today 12:04,
+          3-day trial, device_id = NULL (Apple sign-in moved device_id to the apple
+          row, orphaning this anon row — unrecoverable by FindUserByDeviceID).
+        - device_2c537874 = id 159273, auth_provider=device, created today 12:09,
+          3-day trial (iPad, still stranded on anon — user hasn't Apple-re-logged there).
+        - Blast radius: 7 device rows already orphaned with NULL/empty device_id.
+      root_cause: |
+        NOT identifierForVendor rotation (DB shows apple device_ids are stable). The
+        app SILENTLY falls back to anonymous registerDevice() — minting a fresh
+        device_<random> 3-day trial — whenever the authenticated session can't be
+        restored, instead of re-authenticating the existing (Apple) identity. Triggers:
+          1. AppState.initialize :209-212 — "fresh install" heuristic wipes Keychain
+             when app-group UserDefaults onboardingCompleted flag is missing (the flag
+             does NOT survive reinstall / app-group reset, the Keychain creds DO) →
+             logged-out → anon register.
+          2. fetchAndSaveConfig :440-448 (404 user_not_found) + tryRefreshToken fail
+             → reRegisterDevice :487 calls registerDevice() (ANON), never Apple re-auth.
+        Username is device_+sha256(random uuid)[:8] (auth.go:578) so a demoted user
+        can't be re-derived — only manual Sign in with Apple recovers the paid account.
+      fix_directions:   # auth-sensitive — agree before coding
+        - Never anon-demote a user who has an Apple/Google identity. Persist
+          auth_provider locally; on session failure prompt/refresh that provider.
+        - Fix :209-212 — stop treating "flag missing + creds present" as fresh install
+          (or store the flag in the Keychain/app-group that survives like the creds do).
+        - Persist a stable device UUID in the app-group Keychain instead of raw IDFV
+          so device accounts stop multiplying.
+        - Backend SEC-01 (auth.go:373) already flags Apple sign-in minting a fresh
+          trial each time — fix together so reclaim doesn't hand out new trials.
+      risk: high — touches auth + subscription entitlement; design + backend change.
+      user_workaround: Sign in with Apple on each device to land back on the paid account.
+
+  vpn:   # user-reported 2026-05-31, connected to NL — VPN not "fully abroad"
+    # NL-GEO + VPN-GEO-DNS RESOLVED 2026-05-31 → see done log + incidents/2026-05-31-geo-leak-nl-exit.md
+
+    - id: VPN-TG-MEDIA
+      title: Telegram media (photos/videos) won't load over the NL exit (text works)
+      priority: P1
+      status: needs_diagnosis
+      reported: 2026-05-31
+      hypotheses: |
+        - Route rule {Network:udp, Port:443, Action:reject} kills QUIC — if Telegram
+          media CDN tries QUIC/443 and doesn't fall back to TCP cleanly → media hangs.
+        - MTU/MSS: TUN MTU=1400 (clientconfig.go:474); large media frames may need MSS
+          clamping at the NL exit — classic "text loads, images don't" symptom.
+        - NL-side reachability/routing to Telegram CDN (149.154.x / 91.108.x / *.cdn-
+          telegram.org) — verify from NL directly.
+      next_steps: |
+        From NL: curl a Telegram media CDN object + check path MTU; test with the QUIC
+        reject rule temporarily relaxed; confirm whether media IPs route via Proxy.
+        Reproduce on device with sing-box log to see which DC/CDN connection stalls.
 
 # ============================================================
 # NEXT — 1-2 week queue, ready to start
@@ -84,7 +140,21 @@ next:
     - id: SUPPORT-CHAT
       title: Customer support chat (help desk, not team chat)
       priority: high
-      status: design_done_awaiting_vps_approval
+      status: design_done_awaiting_decision
+      re_requested: 2026-05-31   # user asked again, specifically wants IN-APP messaging
+      open_fork: |
+        User (2026-05-31) wants an in-app "messages with support" system. Two routes:
+          A) Chatwoot (existing design below) — embed the web widget in-app; omnichannel
+             (web + Telegram + email), but needs a VPS (~€4.5/mo) + external service.
+          B) NATIVE in-app messaging — own support_threads/support_messages tables +
+             mobile API (send/list, unread badge, push on reply) + a chat screen in the
+             app + a reply inbox in the admin SPA. No external infra, fully on-brand,
+             privacy-clean (we host it), reuses existing auth + APNs. More dev (~iOS
+             screen + 2 endpoints + admin page), no monthly cost. Fits the privacy-brand
+             rationale that drove us away from SaaS in the first place.
+          C) Telegram deep-link fallback (fastest, zero build) — kept as interim.
+        DECISION NEEDED from user before building. If B, file an ADR superseding the
+        Chatwoot lean in the decision text below.
       decision: |
         Picked Chatwoot self-hosted on a dedicated Hetzner CX22 (4 GB/2vCPU,
         ~€4.5/mo) over: SaaS (Intercom/Tawk = US servers, bad for a VPN
@@ -176,6 +246,97 @@ next:
       priority: P1
       notes: anotherVPNActive() (getifaddrs) exists but not wired to handleStatus(.disconnected) at AppState.swift:1755. User-reported on macOS 2026-05-30.
 
+  # User-reported 2026-05-31 on live 1.0.28. Plan-only, not started.
+  user_reported_2026_05_31:
+    - id: STOREKIT-VERIFY
+      title: Verify non-CIS users get the Apple IAP (StoreKit) paywall + Restore works
+      priority: P1
+      effort: small
+      finding: |
+        StoreKit path is fully BUILT (SubscriptionManager: 4 products, purchase +
+        verify + syncTransactionToBackend, restorePurchases via AppStore.sync +
+        Transaction.currentEntitlements, Transaction.updates listener) and now
+        UNBLOCKED (IAPs APPROVED 2026-05-31). PaywallRouter sends non-CIS storefronts
+        here. Apple IAP ties the sub to the Apple ID → auto-restores across the user's
+        devices, which also mitigates ACCT-IDENTITY for non-CIS payers. User asked to
+        ensure non-CIS have the Apple-pay option (they do).
+      verify: |
+        Sandbox/TestFlight with a non-CIS (e.g. US) Apple ID → PaywallView shows 4
+        products with prices, purchase completes, backend credits sub, Restore
+        Purchases recovers it on a 2nd device. Watch PaywallRouter TestFlight caveat
+        (Storefront.current can return dev country → Locale.region fallback).
+      risk: low (verification; code already shipped in 1.0.28).
+
+    - id: UI-FLAG-HOME
+      title: Home card shows 🌍 instead of country flag when a country is selected (AUTO)
+      priority: P1
+      effort: small
+      files:
+        - clients/apple/MadFrogVPN/Views/MainViewNeon.swift
+        - clients/apple/MadFrogVPN/Views/MainViewCalm.swift
+      root_cause: |
+        MainViewNeon.selectedServer (:208) looks up a LEAF ServerItem by exact tag;
+        when the user picked a COUNTRY (AUTO leg) no leaf matches → nil → flagEmoji
+        falls back to 🌍 (:226). The NAME resolves fine via the country path
+        (selectedServerName → group.countries, MainView.swift:220). Fix: resolve the
+        flag through the same country path as the name. MainViewCalm uses SF symbol
+        "globe" (:268) — separate but same idea.
+      risk: low (display only, no deploy). Ships with next iOS build.
+
+    - id: SETTINGS-L10N
+      title: AUTO-CONNECT settings section shipped in hardcoded English (LAUNCH-07 regression)
+      priority: P1
+      effort: small
+      files:
+        - clients/apple/MadFrogVPN/Views/SettingsView.swift
+        - clients/apple/MadFrogVPN/Models/AppState.swift
+      root_cause: |
+        LAUNCH-07 (done 2026-05-28) added Auto-connect / Trusted-networks UI with
+        English string literals (SettingsView :133/:136/:158/:161/:185/:188/:208/:381,
+        section header "AUTO-CONNECT", + AppState error strings :1685/:1688) instead
+        of L10n.* keys. Every other section is localized → looks half-broken in RU.
+        Fix: add L10n.Settings.autoConnect* keys + RU (and other locale) strings,
+        replace literals. Also add an in-app explainer of what auto-connect does
+        (user asked "что за auto-connect").
+      risk: low (strings only, no deploy). Ships with next iOS build.
+
+    - id: FR-SELECT
+      title: 'Tapping 🇫🇷 fr in the picker reverts to Auto (selection won''t stick)'
+      priority: P1
+      effort: small
+      reported: 2026-05-31
+      finding: |
+        France country group is emitted with tag "fr" (not "🇫🇷 Франция"), so on tap
+        selectedServerTag="fr" → PathPicker.countryCode(forSelectedTag:"fr") returns nil
+        (switch only knows the display-name forms) → resolves to "any leg" = Auto. Same
+        root as the "fr"+🌍 display bug. LIKELY FIXABLE ON BACKEND (no app build): make
+        the France country group use countryDisplay("fr")="🇫🇷 Франция" like DE/NL — then
+        both display AND selection work. Investigate why GRA/France group tag is bare cc.
+      depends_on: SRV-DYNAMIC (full dynamic-country fix), GRA-PARITY (France must work too)
+
+    - id: SRV-DYNAMIC
+      title: Adding a NEW country needs an app build (3 hardcoded country tables)
+      priority: P1
+      effort: medium
+      files:
+        - backend/internal/vpn/clientconfig.go            # countryDisplay :52
+        - clients/apple/MadFrogVPN/Models/PathPicker.swift # countryCode(forSelectedTag:) :188
+        - clients/apple/MadFrogVPN/Models/ServerGroup.swift # ServerItem.flagEmoji :33
+      finding: |
+        New server in an EXISTING country (NL/DE/FR/US/RU) = DB row + backend restart,
+        NO new build — client refetches /api/v1/mobile/config (AppState.refreshConfig).
+        Only a NEW country needs a build, because flag + RU name are hardcoded in 3
+        places. CountryGroup (ServerGroup.swift:165+) already derives flag/name from
+        the tag with no list — extend that pattern everywhere.
+      approach: |
+        Derive flag emoji from the ISO-2 code (regional-indicator math) on both
+        sides; country name from golang.org/x/text (RU locale) or a DB column. iOS
+        PathPicker: derive cc from the flag emoji already in the country tag (reverse
+        math), keep ru-spb as the one explicit special-case. → new country = DB row
+        only, forever, no build.
+      risk: medium — PathPicker is the route-selection core. Per-function unit tests
+            + sing-box check on the generated config + NL deploy.
+
   # From internal audit 2026-05-30 (audits/2026-05-30-internal-audit.md). Verified findings.
   security_audit:
     - { id: SEC-01, priority: P0, title: "Apple Sign-In grants a fresh 3-day trial on every expired-sub sign-in (auth.go:373) → infinite trials per apple_id — cap/track" }
@@ -183,7 +344,52 @@ next:
     - { id: SEC-03, priority: P1, title: "Hysteria2/TUIC emitted Insecure:true on prod (clientconfig.go:197,215) → MITM — provision cert, Insecure:false" }
     - { id: SEC-04, priority: P1, title: "Apple refund/revoke webhook is log-only (subscription_notification.go:90) → refunded users keep access — implement revocation" }
   infra_audit:
-    - { id: GRA-SYNC, priority: P1, title: "Auto-sync new users to GRA User API :15380 — user_sync baked-only → silent Reality reject on failover, worsens over time" }
+    - id: GRA-PARITY
+      priority: P0   # bumped 2026-05-31 — user hit a dead France exit on a live build
+      title: "France (GRA) exit not at parity with NL — manual fr selection = no traffic"
+      reported: 2026-05-31
+      finding: |
+        User selected 🇫🇷 fr on live 1.0.28: "Напрямую" (Reality) leg shows RED/dead,
+        "Hysteria2" pings 117ms but carries NO traffic. Two distinct GRA gaps:
+          1. H2 obfs PSK mismatch — clientconfig.go:184 plumbs ONE global
+             Hysteria2ObfsPassword (the NL backend's) into EVERY H2 outbound incl.
+             fr-h2-gra1. GRA's H2 inbound was provisioned separately and likely has a
+             different/empty Salamander PSK → QUIC wraps mismatch → handshake ok,
+             traffic dies. Same class as H2-SALAMANDER but cross-node.
+          2. Reality user-sync gap (was GRA-SYNC) — new users baked-only into GRA's
+             singbox config; not pushed to GRA User API :15380 → silent Reality reject
+             → direct leg dead.
+      fix: |
+        (a) Make GRA's H2 inbound use the SAME Salamander PSK the client config emits
+            (or per-node PSK plumbed end-to-end). (b) Auto-sync users to GRA User API.
+        (c) Verify GRA Reality (pub key/short_id) matches what clients get.
+      interim_mitigation: |
+        Until fixed, hide/deactivate the GRA France exit (vpn_servers.is_active=false)
+        so users (and Auto) don't land on a dead exit. NL is the solid primary.
+      user_workaround: switch to Нидерланды (NL) — fully synced, Salamander matches.
+    - id: FR-VIA-MSK
+      priority: P1
+      title: "Add fr-via-msk relay chain (RU → MSK relay → WG → France exit)"
+      reported: 2026-05-31
+      rationale: |
+        Direct France (Reality) is dead + H2 obfs mismatch (see GRA-PARITY). A relay
+        chain like the existing de-via-msk / nl-via-msk would route RU clients to the
+        MSK relay (217.198.5.52) via Reality, then over a WireGuard tunnel to the GRA
+        France exit — the client never dials France directly, so it BYPASSES the dead
+        direct-Reality leg. Likely the fastest way to make 🇫🇷 actually work from RU.
+      work_required: |   # relay_exit_peers (migration 010) model; no turnkey script exists
+        1. Generate WG keypair (relay side + exit side).
+        2. MSK relay 217.198.5.52: add WG tunnel to GRA + new VLESS Reality inbound on
+           a free port (e.g. 2098, tag vless-fr) routing into that WG tunnel.
+        3. GRA 54.38.243.162: add WG peer (MSK) + egress route.
+        4. INSERT relay_exit_peers row (relay=msk, exit=gra1, relay_listen_port=2098,
+           relay_inbound_tag=vless-fr, WG keys/subnet) → backend auto-emits fr-via-msk
+           chain in /config (no app build; clients refetch).
+        5. RelayUserSyncer must sync users to MSK's vless-fr inbound User API (per-inbound
+           by tag) — else silent Reality reject (same class as the GRA user-sync gap).
+      risk: medium-high — touches 2 servers (MSK relay + GRA) + WireGuard + Reality + DB.
+            Needs careful step-by-step + validation; do together with GRA-PARITY as the
+            "make France usable" package. Agree before touching MSK/GRA.
     - { id: SUBDOMAIN-SCRUB, priority: P2, title: "bot/crew/speedtest.madfrog.online point at retired 85.239.49.28 — subdomain-takeover vector; scrub/repoint" }
 
 # ============================================================
@@ -280,6 +486,41 @@ deferred:
 # DONE — append-only log. Most recent date first.
 # ============================================================
 done:
+  "2026-05-31":
+    - id: NL-GEO
+      title: NL exit "looked Russian" → clean US-geo egress IP, Gemini unblocked
+      file: docs/incidents/2026-05-31-geo-leak-nl-exit.md
+      notes: |
+        Main IP 147.45.252.234 (Timeweb) geolocates RU in whoer/Google/MaxMind →
+        Gemini blocked. Bought additional IP 72.56.79.25 (reads US via geojs/MaxMind),
+        source-bound the singbox `direct` egress to it (EgressBindIP → config
+        egress_bind_ip → deploy.sh nl2-1 sed; inbound stays on main IP). Persisted via
+        systemd vpn-egress-ip.service. Verified on device (whoer USA, Gemini works).
+        Router singbox-ss-ws + backend egress untouched. DO NOT delete the main IP.
+    - id: VPN-GEO-DNS
+      title: DNS geo-leak (Yandex resolver) → resolve proxied DNS through the exit
+      file: docs/incidents/2026-05-31-geo-leak-nl-exit.md
+      notes: |
+        clientconfig.go: dns-remote detour:Proxy + default_domain_resolver → dns-remote
+        (.ru/banks stay on Yandex). sing-box check + live /config verified. No app build.
+    - id: PAY-RU-DIAG
+      title: "RU/CIS payment works — no bug (resolved by user confirmation)"
+      notes: |
+        User (KZ storefront) confirmed the WebPaywallView (FreeKassa: СБП/Карта/SberPay,
+        email-for-54FZ-receipt) renders and works on live 1.0.28. /api/v1/mobile/plans
+        healthy. No CIS payment bug. The remaining monetization concern shifted to
+        non-CIS Apple IAP (see STOREKIT-VERIFY in next) + ACCT-IDENTITY robustness.
+    - id: IAP-APPROVE
+      title: 4 non-renewing-subscription IAPs APPROVED by Apple (Apple side complete)
+      verified_via: live ASC API (api.appstoreconnect.apple.com) 2026-05-31
+      notes: |
+        All 4 (sub.30/90/180/365days) state=APPROVED. Priced (USA base $1.99 +
+        174 auto-converted territories), available in 175 territories incl. RU/CIS.
+        App 1.0.28 READY_FOR_SALE. The StoreKit revenue path is unblocked for
+        non-CIS users. RU/CIS users still go through WebPaywallView (FreeKassa) —
+        that path is tracked separately as PAY-RU-DIAG (now). state/app-store.yaml
+        IAP block updated from WAITING_FOR_REVIEW → APPROVED.
+
   "2026-05-30":
     - id: VPN-TAKEOVER
       title: Connect over a foreign VPN (OS single-tunnel takeover) — Mac build 92
@@ -693,8 +934,8 @@ done:
 # Stats — for at-a-glance sanity check
 # ============================================================
 stats:
-  open_now: 1                 # IAP-APPROVE
-  open_next: ~10              # +CFG-01/LOG-01 (client reliability, 2026-05-30); +SUPPORT-CHAT (awaiting VPS)
+  open_now: 2                 # ACCT-IDENTITY (P0) + VPN-TG-MEDIA (P1). NL-GEO+VPN-GEO-DNS RESOLVED 2026-05-31; PAY-RU-DIAG/IAP-APPROVE done
+  open_next: ~14              # +STOREKIT-VERIFY/UI-FLAG-HOME/SETTINGS-L10N/SRV-DYNAMIC (user-reported 2026-05-31)
   tech_debt_items: 1          # TD-LINT-01/02/DE-PRUNE all closed 2026-05-28; only TD-LIBBOX-FETCH remains
   decisions_documented: 8     # ADRs in decisions/ (added 0007-sentry-eu + 0008-utls-fingerprint-rotation)
   incidents_documented: 7     # docs/incidents/ — recount 2026-05-30 (was stale at 2)
