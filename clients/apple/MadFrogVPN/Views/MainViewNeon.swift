@@ -223,7 +223,7 @@ struct MainViewNeon: View {
                     RoundedRectangle(cornerRadius: 10)
                         .fill(.white.opacity(0.06))
                         .frame(width: 44, height: 44)
-                    Text(selectedServer?.flagEmoji ?? "🌍")
+                    Text(VPNStateHelper.selectedServerFlag(app))
                         .font(.system(size: 26))
                 }
                 .overlay(

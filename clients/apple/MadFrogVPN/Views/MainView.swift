@@ -236,6 +236,30 @@ enum VPNStateHelper {
         return tag
     }
 
+    /// Country flag emoji for the selected server, resolved the same way as
+    /// `selectedServerName` so the home flag badge always matches the name.
+    /// Fixes UI-FLAG-HOME: when the user pins a whole country ("🇫🇷 Франция")
+    /// there is no leaf `ServerItem` with that tag, so a leaf-only lookup
+    /// wrongly fell back to the 🌍 globe. Resolution order: country-urltest pin
+    /// → the leaf's containing country → the leaf's own flag → 🌍 (Auto/unknown).
+    static func selectedServerFlag(_ app: AppState) -> String {
+        guard let tag = app.selectedServerTag else { return "🌍" }
+        for group in app.servers {
+            if let country = group.countries.first(where: { $0.tag == tag }),
+               !country.flagEmoji.isEmpty {
+                return country.flagEmoji
+            }
+            if let country = group.countries.first(where: { $0.serverTags.contains(tag) }),
+               !country.flagEmoji.isEmpty {
+                return country.flagEmoji
+            }
+            if let item = group.items.first(where: { $0.tag == tag }) {
+                return item.flagEmoji
+            }
+        }
+        return "🌍"
+    }
+
     /// Live "current leg" for the selected country — reads the urltest pick
     /// from the command client's groups feed. Returns nil if the leg is
     /// the country itself (user hasn't pinned a specific protocol) or if
