@@ -63,6 +63,12 @@ type EngineConfig struct {
 	TUICPort      int    // TUIC v5 UDP listen port; 0 = disabled
 	UDPCertPath   string // path to TLS certificate PEM for Hysteria2/TUIC (inside container)
 	UDPKeyPath    string // path to TLS private key PEM for Hysteria2/TUIC (inside container)
+	// UDPCertPEM is the PEM contents of UDPCertPath, read once at Start. SEC-03:
+	// the UDP exit uses a self-signed cert, so we PIN it client-side
+	// (tls.certificate) instead of shipping insecure:true. Empty (no cert
+	// configured/readable) → Hysteria2/TUIC client legs are skipped entirely —
+	// we never disable TLS verification.
+	UDPCertPEM string
 	// Hysteria2 Salamander obfuscation PSK (shared client+server). Empty =
 	// obfs disabled. Wrapped QUIC defeats RKN's QUIC-fingerprint throttle.
 	Hysteria2ObfsPassword string

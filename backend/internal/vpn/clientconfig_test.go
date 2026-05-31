@@ -6,8 +6,49 @@ import (
 	"encoding/json"
 	"math"
 	"slices"
+	"strings"
 	"testing"
 )
+
+// TestSEC03UDPLegsPinCertNeverInsecure locks SEC-03 (2026-06-01): the
+// Hysteria2/TUIC client legs must pin the UDP cert (tls.certificate) and NEVER
+// ship insecure:true. With no pinned cert available the legs are skipped
+// entirely rather than emitted with verification disabled.
+func TestSEC03UDPLegsPinCertNeverInsecure(t *testing.T) {
+	engine, user, servers, chains := fixture()
+
+	// Cert present (fixture default): legs emit, with certificate, never insecure.
+	raw, err := generateClientConfig(engine, user, servers, chains)
+	if err != nil {
+		t.Fatalf("generate (cert present): %v", err)
+	}
+	s := string(raw)
+	if !strings.Contains(s, "de-h2-de") || !strings.Contains(s, "de-tuic-de") {
+		t.Error("expected H2/TUIC legs to emit when a UDP cert is pinned")
+	}
+	if !strings.Contains(s, `"certificate"`) {
+		t.Error("SEC-03: pinned UDP cert must appear as tls.certificate")
+	}
+	if strings.Contains(s, `"insecure"`) {
+		t.Error("SEC-03: client config must never contain insecure TLS")
+	}
+
+	// No cert: the UDP legs are skipped entirely (never insecure).
+	engine.UDPCertPEM = ""
+	raw2, err := generateClientConfig(engine, user, servers, chains)
+	if err != nil {
+		t.Fatalf("generate (no cert): %v", err)
+	}
+	s2 := string(raw2)
+	for _, tag := range []string{"de-h2-de", "de-tuic-de", "nl-h2-nl2", "nl-tuic-nl2"} {
+		if strings.Contains(s2, tag) {
+			t.Errorf("SEC-03: %s emitted without a pinned cert (must be skipped)", tag)
+		}
+	}
+	if strings.Contains(s2, `"insecure"`) {
+		t.Error("SEC-03: no insecure TLS even when the cert is absent")
+	}
+}
 
 // fixture assembles a minimal but realistic EngineConfig + user + server set
 // for exercising generateClientConfig. Mirrors the 2026-04-25 production shape
@@ -23,6 +64,9 @@ func fixture() (EngineConfig, VPNUser, []ServerEntry, []ChainedEntry) {
 			SNI:        "ads.adfox.ru",
 		},
 		UrltestInterval: "3m",
+		// SEC-03: H2/TUIC legs only emit when a UDP cert is available to pin
+		// client-side. The fixture represents a node that has one.
+		UDPCertPEM: "-----BEGIN CERTIFICATE-----\nMIIBfixtureUDPcert\n-----END CERTIFICATE-----\n",
 	}
 	user := VPNUser{
 		Username: "device_testuser",

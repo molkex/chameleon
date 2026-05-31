@@ -175,7 +175,15 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 		allLeafOutbounds = append(allLeafOutbounds, makeVless(vlessTag, srv.Host, srv.Port, pub, sni, defaultShortID))
 		autoLegs = append(autoLegs, vlessTag)
 
-		if srv.Hysteria2Port > 0 {
+		// SEC-03: the Hysteria2/TUIC UDP exits use a self-signed TLS cert. We
+		// PIN it (tls.certificate) so the leg is MITM-resistant — never
+		// insecure:true. Without a pinned cert (engineCfg.UDPCertPEM empty) we
+		// cannot verify the exit, so we SKIP these legs rather than disabling
+		// verification. On prod the UDP ports are currently unset, so this is a
+		// no-op; it closes the footgun where enabling a port would silently
+		// ship insecure TLS.
+		udpPinned := engineCfg.UDPCertPEM != ""
+		if srv.Hysteria2Port > 0 && udpPinned {
 			h2Tag := fmt.Sprintf("%s-h2-%s", strings.ToLower(cc), srv.Key)
 			// Salamander obfs must mirror the server inbound (same PSK), else
 			// the tunnel handshakes but carries no traffic. Omitted when the
@@ -192,14 +200,14 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 				Password:   user.UUID,
 				Obfs:       h2obfs,
 				TLS: &clientTLS{
-					Enabled:    true,
-					ServerName: sni,
-					Insecure:   boolPtr(true),
+					Enabled:     true,
+					ServerName:  sni,
+					Certificate: []string{engineCfg.UDPCertPEM},
 				},
 			})
 			autoLegs = append(autoLegs, h2Tag)
 		}
-		if srv.TUICPort > 0 {
+		if srv.TUICPort > 0 && udpPinned {
 			tuicTag := fmt.Sprintf("%s-tuic-%s", strings.ToLower(cc), srv.Key)
 			allLeafOutbounds = append(allLeafOutbounds, clientOutbound{
 				Type:              "tuic",
@@ -210,9 +218,9 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 				Password:          user.UUID,
 				CongestionControl: "bbr",
 				TLS: &clientTLS{
-					Enabled:    true,
-					ServerName: sni,
-					Insecure:   boolPtr(true),
+					Enabled:     true,
+					ServerName:  sni,
+					Certificate: []string{engineCfg.UDPCertPEM},
 				},
 			})
 			autoLegs = append(autoLegs, tuicTag)
@@ -653,8 +661,11 @@ type clientTLS struct {
 	Enabled    bool           `json:"enabled"`
 	ServerName string         `json:"server_name"`
 	Insecure   *bool          `json:"insecure,omitempty"`
-	UTLS       *clientUTLS    `json:"utls,omitempty"`
-	Reality    *clientReality `json:"reality,omitempty"`
+	// Certificate pins one or more trusted server certs (PEM). SEC-03: used to
+	// verify the Hysteria2/TUIC self-signed UDP cert instead of insecure:true.
+	Certificate []string       `json:"certificate,omitempty"`
+	UTLS        *clientUTLS    `json:"utls,omitempty"`
+	Reality     *clientReality `json:"reality,omitempty"`
 }
 
 // clientObfs mirrors the server's Hysteria2 Salamander obfs block. Type is

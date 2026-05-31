@@ -107,6 +107,18 @@ func (e *SingboxEngine) Start(ctx context.Context, cfg EngineConfig, users []VPN
 	}
 
 	e.cfg = cfg
+	// SEC-03: read the UDP TLS cert once so the client config can PIN it
+	// (tls.certificate) instead of shipping insecure:true. Best-effort — a
+	// missing/unreadable cert leaves UDPCertPEM empty, which disables the
+	// Hysteria2/TUIC client legs (we never disable TLS verification).
+	if e.cfg.UDPCertPath != "" {
+		if pem, rerr := os.ReadFile(e.cfg.UDPCertPath); rerr != nil {
+			e.logger.Warn("SEC-03: UDP cert unreadable; H2/TUIC client legs disabled",
+				zap.String("path", e.cfg.UDPCertPath), zap.Error(rerr))
+		} else {
+			e.cfg.UDPCertPEM = string(pem)
+		}
+	}
 	e.users = make([]VPNUser, len(users))
 	copy(e.users, users)
 
