@@ -37,6 +37,23 @@ versions:
       - UI-FLAG-HOME (🌍 instead of flag on home card)
       - SETTINGS-L10N (AUTO-CONNECT section in English)
 
+  # Phase-B build — uploaded to TestFlight, NOT yet submitted to App Store
+  # review. Verify on TestFlight (esp. STOREKIT-VERIFY + ACCT-IDENTITY re-auth)
+  # before submitting for release.
+  testflight:
+    version: "1.0.29"
+    build: 93
+    asc_build_id: 75b23a2b-6a8d-4785-95fc-a7f805b7d47f
+    processingState: VALID            # verified live ASC API 2026-06-01
+    build_uploaded: 2026-06-01T00:26:23Z   # ASC uploadedDate 2026-05-31T15:26-07:00
+    ships:
+      - ACCT-IDENTITY (no anon-demote; Keychain identity; ReauthView recovery ladder)
+      - UI-FLAG-HOME (home card flag resolves selected country)
+      - SEC-01 client side already deployed server-side (trial-once)
+    pending_verification:
+      - STOREKIT-VERIFY (non-CIS Apple ID → 4 products + Restore)
+      - ACCT-IDENTITY re-auth ladder on device
+
   previous:
     version: "1.0.27"
     build: 90
