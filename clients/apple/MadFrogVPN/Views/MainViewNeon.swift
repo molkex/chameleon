@@ -218,16 +218,14 @@ struct MainViewNeon: View {
             showServers = true
         } label: {
             HStack(spacing: 14) {
-                // Real country flag (or globe for Auto/unknown) — filling the
-                // square edge-to-edge (oversized + clipped to the rounded box).
+                // Vector country flag (non-emoji), centered in the square at
+                // its natural 3:2 proportion — not stretched to fill.
                 ZStack {
                     RoundedRectangle(cornerRadius: 10)
                         .fill(.white.opacity(0.06))
-                    Text(VPNStateHelper.selectedServerFlag(app))
-                        .font(.system(size: 50))
+                    CountryFlag(code: VPNStateHelper.selectedServerCountryCode(app), width: 30)
                 }
                 .frame(width: 44, height: 44)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
                 .overlay(
                     RoundedRectangle(cornerRadius: 10)
                         .stroke(.white.opacity(0.15), lineWidth: 1)

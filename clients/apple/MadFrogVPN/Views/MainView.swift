@@ -288,6 +288,20 @@ enum VPNStateHelper {
         return "🌍"
     }
 
+    /// Lowercase two-letter country code for the selected server ("nl","de",
+    /// "fr","us","ru"), resolved consistently with `selectedServerFlag`. nil =
+    /// Auto/unknown (→ globe). Drives the vector `CountryFlag` (non-emoji).
+    static func selectedServerCountryCode(_ app: AppState) -> String? {
+        switch selectedServerFlag(app) {
+        case "🇳🇱": return "nl"
+        case "🇩🇪": return "de"
+        case "🇫🇷": return "fr"
+        case "🇺🇸": return "us"
+        case "🇷🇺": return "ru"
+        default:   return nil
+        }
+    }
+
     /// Live "current leg" for the selected country — reads the urltest pick
     /// from the command client's groups feed. Returns nil if the leg is
     /// the country itself (user hasn't pinned a specific protocol) or if
