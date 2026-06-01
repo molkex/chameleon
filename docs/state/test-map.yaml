@@ -59,12 +59,12 @@ backend:
     gaps: "engine.go / userapi.go / stats_v2ray.go = 0% (live user provisioning + stats) → TEST-VPN-ENGINE"
   auth:
     src_files: 5
-    tests: [jwt_test.go, apple JWKS test, auth_blacklist_key_test.go]
+    tests: [jwt_test.go, apple_test.go, password_test.go, google_test.go, middleware_test.go, auth_blacklist_key_test.go]
     tier: unit
-    status: partial
-    coverage_pct: 31
-    covers: "JWT issue/verify, Apple Sign-In JWKS, blacklist key"
-    gaps: "password.go (admin login hash/verify), google.go (VerifyIDToken), middleware.go RequireAdmin = 0% → TEST-AUTH-CREDS"
+    status: tested
+    coverage_pct: 77
+    covers: "JWT issue/verify; Apple+Google JWKS verify (happy + rejections via httptest-served JWKS); password hash/verify across argon2/bcrypt/sha256 + needsRehash signalling; RequireAuth/RequireAdmin (both paths) + ExtractBearerToken + GetUserFromContext; blacklist key"
+    gaps: "— (TEST-AUTH-CREDS closed 2026-06-01)"
   cluster:
     src_files: 6
     tests: [auth, routes, relay, errors (+sync = integration)]
@@ -220,7 +220,7 @@ infra:
 gaps_by_priority:
   P1:
     - {id: TEST-APPLE-IAP,   what: "payments/apple — rejection gate DONE 2026-06-01 (52%); REMAINDER = post-parse invariants + happy path (needs sandbox JWS or applyInvariants seam)"}
-    - {id: TEST-AUTH-CREDS,  what: "auth password.go + google.go + RequireAdmin — 0 tests on credential path"}
+    - {id: TEST-AUTH-CREDS,  status: DONE-2026-06-01, what: "auth password (3 formats) + google verify (happy+rejections) + middleware — auth pkg 31%→77%"}
     - {id: TEST-IOS-SUBMGR,  what: "SubscriptionManager StoreKit2 — 0 tests on revenue path"}
     - {id: TEST-ADMIN-SPA,   what: "admin SPA has no test framework — add vitest + smoke tests"}
   P2:

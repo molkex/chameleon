@@ -171,14 +171,18 @@ next:
   # Test-coverage gaps surfaced by the 2026-06-01 audit. Canonical detail +
   # verify commands: state/test-map.yaml. Discipline: decisions/0009.
   testing:
+    # TEST-AUTH-CREDS → done 2026-06-01 (auth 31%→77%).
     - id: TEST-APPLE-IAP
       priority: P1
-      title: Unit-test payments/apple Verify / VerifyNotification / assertRealAppleChain
-      notes: StoreKit2 JWS + Apple cert-chain verification has 0 tests. Money + entitlement path — a bug = forged receipts accepted. Highest-value gap.
-    - id: TEST-AUTH-CREDS
-      priority: P1
-      title: Unit-test auth password.go (hash/verify) + google.go VerifyIDToken + middleware RequireAdmin
-      notes: Admin-login credential path + Google sign-in uncovered (Apple JWKS already tested).
+      status: partial   # rejection gate DONE 2026-06-01 (0→52%); remainder below
+      title: payments/apple — cover post-parse invariants + happy path
+      notes: |
+        DONE 2026-06-01: rejection gate (assertRealAppleChain x5c/malformed/b64,
+        Verify hostile-input + no-panic, New validation, msToTime) → 0→52%.
+        REMAINDER: bundle/env/product/expiry/revoked invariants + happy path need
+        a real Apple-root-signed JWS (go-iap pins Apple's root) OR a behavior-
+        preserving applyInvariants() seam extracted from Verify so the credit
+        decision is unit-testable with hand-built transactions.
     - id: TEST-IOS-SUBMGR
       priority: P1
       title: Test SubscriptionManager StoreKit2 entitlement/purchase/restore logic
@@ -416,6 +420,29 @@ deferred:
 # ============================================================
 done:
   "2026-06-01":
+    - id: TEST-AUTH-CREDS
+      title: Unit-test the auth credential path (password + Google + middleware)
+      files:
+        - backend/internal/auth/password_test.go
+        - backend/internal/auth/google_test.go
+        - backend/internal/auth/middleware_test.go
+      notes: |
+        auth package 31%→77%. password.go: argon2 round-trip + bcrypt/sha256 legacy
+        verify + needsRehash signalling + format detectors. google.go: full happy path
+        (RSA-signed token served via the existing httptest JWKS harness) + rejections
+        (wrong aud/iss, missing sub, expired, malformed, wrong key, HS256 alg-confusion)
+        + disabled-verifier. middleware.go: RequireAuth + RequireAdmin (both self-verify
+        and preset-claims paths) + ExtractBearerToken + GetUserFromContext. All green, vet clean.
+    - id: TEST-APPLE-IAP-GATE
+      title: Unit-test the Apple IAP JWS rejection gate (partial — see TEST-APPLE-IAP remainder)
+      files: [backend/internal/payments/apple/verify_test.go]
+      notes: |
+        payments/apple 0%→52%. Pinned the security-critical rejection surface:
+        assertRealAppleChain (x5c chain length incl. Xcode 1-cert local signing,
+        malformed/2-or-4 segments, std+url base64, non-json header), New config
+        validation, Verify hostile-input + no-panic guarantee, VerifyNotification
+        empty, msToTime. Happy path + post-parse invariants remain (TEST-APPLE-IAP,
+        next.testing) — need a sandbox JWS or an applyInvariants seam.
     - id: DOCS-MIGRATE
       title: YAML-first docs migration executed — retired OPERATIONS/TROUBLESHOOTING/PAYMENTS + topology.yaml
       notes: |
@@ -1022,7 +1049,7 @@ done:
 stats:                        # counts are approximate; recomputed at the 2026-06-01 audit
   open_now: 1                 # TRAFFIC-MULTIEXIT (P2). 1.0.29 submit is a step, not a roadmap item.
   open_next: ~30              # the `next:` queue + 8 new TEST-* coverage gaps (testing group).
-  test_gaps_tracked: 8        # TEST-* in next.testing; canonical in state/test-map.yaml
+  test_gaps_tracked: 7        # was 8; TEST-AUTH-CREDS closed + TEST-APPLE-IAP gate done (invariants remain). state/test-map.yaml
   tech_debt_items: 2          # TD-LIBBOX-FETCH + TD-CERT-PIN (APIClient InsecureDelegate, see next.security)
   decisions_documented: 9     # ADRs in decisions/ (0009 = test-map discipline)
   incidents_documented: 11    # docs/incidents/*.md
