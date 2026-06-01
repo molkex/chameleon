@@ -129,7 +129,7 @@ SwiftUI / модели шарятся через `MadFrogVPN/` + `Shared/`. Пл
 
 Собирается из sing-box v1.13.5 через `make lib_apple` (sagernet/gomobile fork). Slices: `ios-arm64`, `ios-arm64_x86_64-simulator`, `macos-arm64_x86_64`. Info.plist каждого slice патчится для App Store валидации.
 
-⚠️ При чистом клоне в worktree — нужен ре-build или symlink на основной репо (`clients/apple/Frameworks/Libbox.xcframework`). CI workflow в `ios.yml` сейчас graceful-skip'ает при отсутствии `scripts/fetch-libbox.sh` (TD-LIBBOX-FETCH в [`docs/roadmap.yaml`](docs/roadmap.yaml)).
+При чистом клоне — `clients/apple/scripts/fetch-libbox.sh` тянет xcframework (146M zip) из GitHub Release `libbox-v1.13.5` (`gh release download` + `ditto -x`, сохраняет macOS-симлинки). CI (`ios.yml`) гоняет его и собирает iOS+macOS + `build-for-testing` (тесты компилируются; НЕ запускаются — краш test-host в unsigned sim). Пере-залить после ребилда libbox: `ditto -c -k --keepParent Libbox.xcframework <zip>; gh release upload libbox-v1.13.5 <zip> --clobber`.
 
 ## Apple signing (для App Store Connect)
 

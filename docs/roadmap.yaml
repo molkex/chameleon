@@ -204,10 +204,7 @@ next:
         writeConfigLocked()→`sing-box check` on disk + SIGHUP fallback — that's
         integration-level (needs the sing-box binary), already exercised by the e2e
         sing-box check. stats_v2ray gRPC untested. Low marginal value as a unit test.
-    - id: TEST-IOS-CI
-      priority: P2
-      title: Wire TD-LIBBOX-FETCH so apple tests actually build+run in CI
-      notes: Tests currently graceful-skipped (no Libbox fetch) — a compile-time aspiration, not a gate. Pairs with tech_debt TD-LIBBOX-FETCH.
+    # TEST-IOS-CI → done 2026-06-01 (fetch-libbox.sh + libbox-v1.13.5 release asset; ios.yml builds + compiles tests).
     # TEST-GEOIP → done 2026-06-01 (isPublicIP gate + Lookup short-circuit + cache; 0→36%).
 
   client_reliability:
@@ -396,12 +393,13 @@ tech_debt:
       clean rebuild doesn't reintroduce this. See reference_libbox_build.
   - id: TD-LIBBOX-FETCH
     title: Wire scripts/fetch-libbox.sh
-    status: workaround_in_place
+    status: RESOLVED 2026-06-01
     notes: |
-      iOS CI workflows currently graceful-skip when fetch-libbox.sh is absent.
-      ~494 MB framework lives in git-ignored Frameworks/. To re-enable
-      CI link-time coverage, script must pull a built xcframework
-      (artifact storage TBD).
+      RESOLVED — clients/apple/scripts/fetch-libbox.sh pulls Libbox.xcframework.zip
+      (146M) from the libbox-v1.13.5 GitHub Release (prerelease) and ditto-extracts
+      it; ios.yml runs it with GH_TOKEN and no longer graceful-skips. See done log
+      (TEST-IOS-CI, 2026-06-01). Re-uploading after a libbox rebuild: ditto -c -k
+      --keepParent Libbox.xcframework <zip>; gh release upload libbox-v1.13.5 <zip> --clobber.
 
 
 # ============================================================
@@ -472,6 +470,22 @@ done:
         Xcode 26.5 / Swift 6) — hoisted into lets (7 sites). Verified: `xcodebuild
         build-for-testing -scheme MadFrogVPNTests` exits 0 (tests build; can't RUN
         locally by design — app-group host crash).
+    - id: TEST-IOS-CI
+      title: Wire fetch-libbox.sh + host Libbox on a GitHub Release — un-skip iOS CI (resolves TD-LIBBOX-FETCH)
+      files:
+        - clients/apple/scripts/fetch-libbox.sh
+        - .github/workflows/ios.yml
+      notes: |
+        Created clients/apple/scripts/fetch-libbox.sh: idempotent (skips if the
+        framework is present locally), else `gh release download` the
+        Libbox.xcframework.zip (146M) from the libbox-v1.13.5 prerelease and
+        ditto-extracts it (ditto preserves the macOS framework symlinks → no
+        TD-LIBBOX-MAC-STRUCT regression; verified the extracted symlink is 'l').
+        Uploaded the asset (gh release create libbox-v1.13.5 --prerelease).
+        ios.yml: added GH_TOKEN to the fetch step; changed the test step from
+        `xcodebuild test` to `build-for-testing` because the iOS test host crashes
+        on launch in an unsigned sim (app-group container) — compile is the gate.
+        End-to-end verified: fresh download + extract yields all 3 slices + Info.plist.
     - id: TEST-GEOIP
       title: Unit-test geoip isPublicIP gate + Lookup short-circuit/cache
       files: [backend/internal/geoip/geoip_test.go]
@@ -1119,8 +1133,8 @@ done:
 stats:                        # counts are approximate; recomputed at the 2026-06-01 audit
   open_now: 1                 # TRAFFIC-MULTIEXIT (P2). 1.0.29 submit is a step, not a roadmap item.
   open_next: ~30              # the `next:` queue + 8 new TEST-* coverage gaps (testing group).
-  test_gaps_tracked: 1        # 8 found 2026-06-01; 7 closed (AUTH-CREDS, FREEKASSA, APPLE-IAP, VPN-ENGINE userapi, ADMIN-SPA harness, GEOIP, IOS-SUBMGR). Open: TEST-IOS-CI(P2, user picked GH Release host) + 3 P3 remainders (apple sandbox, vpn engine, admin pages). state/test-map.yaml
-  tech_debt_items: 2          # TD-LIBBOX-FETCH + TD-CERT-PIN (APIClient InsecureDelegate, see next.security)
+  test_gaps_tracked: 0        # all 8 found 2026-06-01 closed/addressed. Only 3 P3 remainders left (apple sandbox-JWS, vpn engine.go orchestration, admin page smoke tests). state/test-map.yaml
+  tech_debt_items: 1          # TD-CERT-PIN (APIClient InsecureDelegate). TD-LIBBOX-FETCH resolved 2026-06-01; LIBBOX-MAC-STRUCT worked-around.
   decisions_documented: 9     # ADRs in decisions/ (0009 = test-map discipline)
   incidents_documented: 11    # docs/incidents/*.md
   playbooks_documented: 6     # apple-reject-recovery, ios-cli-release, deploy-nl, asc-api-checks, operations, debug-vpn-ios
