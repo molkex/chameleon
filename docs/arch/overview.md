@@ -49,8 +49,9 @@ chameleon/
 ├── infrastructure/
 │   ├── deploy/           shared deploy helpers
 │   ├── spb-relay/        nginx config mirror for SPB relay
-│   └── topology.yaml     legacy detailed mesh map (will fold into state/ over time)
+│   └── backup.sh, restore.sh   B2 backup/restore helpers
 └── docs/                 you are here. See ../README.md for conventions.
+                          mesh facts → state/servers.yaml; VPN shape → arch/vpn.md
 ```
 
 ## Critical paths

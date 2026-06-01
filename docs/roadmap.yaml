@@ -168,6 +168,42 @@ next:
         serving cert fingerprint via /api/v1/server/info, client pins it. Found in the
         2026-06-01 audit.
 
+  # Test-coverage gaps surfaced by the 2026-06-01 audit. Canonical detail +
+  # verify commands: state/test-map.yaml. Discipline: decisions/0009.
+  testing:
+    - id: TEST-APPLE-IAP
+      priority: P1
+      title: Unit-test payments/apple Verify / VerifyNotification / assertRealAppleChain
+      notes: StoreKit2 JWS + Apple cert-chain verification has 0 tests. Money + entitlement path — a bug = forged receipts accepted. Highest-value gap.
+    - id: TEST-AUTH-CREDS
+      priority: P1
+      title: Unit-test auth password.go (hash/verify) + google.go VerifyIDToken + middleware RequireAdmin
+      notes: Admin-login credential path + Google sign-in uncovered (Apple JWKS already tested).
+    - id: TEST-IOS-SUBMGR
+      priority: P1
+      title: Test SubscriptionManager StoreKit2 entitlement/purchase/restore logic
+      notes: Revenue path on iOS has 0 tests. Extract pure decision helpers (like AppState pattern) and pin them.
+    - id: TEST-ADMIN-SPA
+      priority: P1
+      title: Add a test framework (vitest) + smoke tests to the admin SPA
+      notes: React SPA has ZERO tests + no framework — only eslint + tsc. Cover dashboard / users / payments pages first.
+    - id: TEST-FREEKASSA
+      priority: P2
+      title: Unit-test freekassa client.go IPAllowed + paymentid.go ParseAppPayment
+      notes: Webhook source-IP allowlist (anti-spoof) + payment-ID parsing (mis-parse misroutes credit) at 0%.
+    - id: TEST-VPN-ENGINE
+      priority: P2
+      title: Test vpn engine.go AddUser/RemoveUser + userapi.go ReplaceUsers
+      notes: Live zero-downtime user provisioning at 0%. clientconfig gen is 91% — this is the runtime half.
+    - id: TEST-IOS-CI
+      priority: P2
+      title: Wire TD-LIBBOX-FETCH so apple tests actually build+run in CI
+      notes: Tests currently graceful-skipped (no Libbox fetch) — a compile-time aspiration, not a gate. Pairs with tech_debt TD-LIBBOX-FETCH.
+    - id: TEST-GEOIP
+      priority: P3
+      title: Unit-test geoip IP→country lookup
+      notes: Feeds strict-country routing + rate-limit + FreeKassa allowlist.
+
   client_reliability:
     - id: CFG-01
       title: macOS config-fetch silently no-ops (username nil) + no staleness guard
@@ -332,24 +368,8 @@ later:
       notes: hero card stretches to 1000pt on iPad
 
   docs:
-    # Concrete target structure + step-by-step migration plan: see
-    # audits/2026-05-30-internal-audit.md ("Docs architecture — target & migration").
-    # Promote DOCS-MIGRATE to `next` when picking it up — it's mechanical/low-risk.
-    - id: DOCS-MIGRATE
-      title: Execute YAML-first docs migration (retire OPERATIONS/PAYMENTS/TROUBLESHOOTING, fold topology.yaml)
-      notes: |
-        Per 2026-05-30 audit: kill ~2300 lines of dead DE-era docs, move payment
-        facts → state/payment-providers.yaml + arch/payments.md, strip dangling
-        Mirror headers, add monitoring to runtime.yaml + grafana to domains.yaml,
-        add letsencrypt-renew/spb-relay-audit playbooks. PLAN file already archived.
-    - id: DOC-OPS-SPLIT
-      title: Split OPERATIONS.md (1555 lines) into playbooks/
-      notes: Incremental — touch as work goes through. Subsumed by DOCS-MIGRATE.
-    - id: DOC-PAYMENTS
-      title: Migrate PAYMENTS.md → arch/payments.md + state/payment-providers.yaml
-    - id: DOC-TROUBLESHOOTING
-      title: Migrate remaining TROUBLESHOOTING.md entries → incidents/
-      notes: Top 2 already migrated (MED-015, Apple 2.3). Rest stays until touched.
+    # DOCS-MIGRATE + DOC-OPS-SPLIT + DOC-PAYMENTS + DOC-TROUBLESHOOTING → done 2026-06-01.
+    []  # docs migration complete
 
 # ============================================================
 # TECH-DEBT — known smells, cataloged but not blocking
@@ -396,6 +416,26 @@ deferred:
 # ============================================================
 done:
   "2026-06-01":
+    - id: DOCS-MIGRATE
+      title: YAML-first docs migration executed — retired OPERATIONS/TROUBLESHOOTING/PAYMENTS + topology.yaml
+      notes: |
+        Killed ~2300 lines of legacy MD (≈27% dead DE/Xray, ≈25% already in incidents/).
+        Live content extracted: PAYMENTS.md → state/payment-providers.yaml + arch/payments.md;
+        OPERATIONS.md → arch/vpn.md + arch/backend.md + playbooks/operations.md;
+        TROUBLESHOOTING.md debug techniques → playbooks/debug-vpn-ios.md (resolved incidents
+        already in incidents/). infrastructure/topology.yaml folded into state/servers.yaml +
+        arch/vpn.md and deleted. docs/README.md index + arch/overview.md tree refreshed.
+        Subsumes DOC-OPS-SPLIT / DOC-PAYMENTS / DOC-TROUBLESHOOTING.
+    - id: TEST-MAP
+      title: Test-coverage map (state/test-map.yaml) + coverage discipline (decision 0009)
+      file: docs/decisions/0009-test-map-and-coverage-discipline.md
+      notes: |
+        New single source of truth for what's tested, how each layer is verified (verify:
+        command block), and where the gaps are. Audited all 3 surfaces: backend (go test
+        green; gaps in payments/apple, auth creds, vpn engine, freekassa), apple (23 tests,
+        targeted; SubscriptionManager untested; CI skipped via TD-LIBBOX-FETCH), admin SPA
+        (zero tests, no framework). 8 TEST-* gaps logged to next.testing. AGENTS.md gained the
+        update-test-map discipline rule.
     - id: ACCT-IDENTITY
       title: Stop silently demoting an Apple/Google/email payer to a fresh anonymous trial
       file: docs/incidents/2026-06-01-acct-identity-demote.md
@@ -981,10 +1021,9 @@ done:
 # ============================================================
 stats:                        # counts are approximate; recomputed at the 2026-06-01 audit
   open_now: 1                 # TRAFFIC-MULTIEXIT (P2). 1.0.29 submit is a step, not a roadmap item.
-  open_next: ~22              # the `next:` queue (launch_checklist, protocols, usr, support, infra,
-                              # monitoring, security, client_reliability...). FR-VIA-MSK + UI-FLAG-HOME +
-                              # FR-SELECT + SETTINGS-L10N now done.
+  open_next: ~30              # the `next:` queue + 8 new TEST-* coverage gaps (testing group).
+  test_gaps_tracked: 8        # TEST-* in next.testing; canonical in state/test-map.yaml
   tech_debt_items: 2          # TD-LIBBOX-FETCH + TD-CERT-PIN (APIClient InsecureDelegate, see next.security)
-  decisions_documented: 8     # ADRs in decisions/
-  incidents_documented: 11    # docs/incidents/*.md (2× new 2026-06-01: acct-identity-demote, fr-relay-legs)
-  playbooks_documented: 4     # apple-reject-recovery, ios-cli-release, deploy-nl, asc-api-checks
+  decisions_documented: 9     # ADRs in decisions/ (0009 = test-map discipline)
+  incidents_documented: 11    # docs/incidents/*.md
+  playbooks_documented: 6     # apple-reject-recovery, ios-cli-release, deploy-nl, asc-api-checks, operations, debug-vpn-ios

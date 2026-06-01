@@ -18,13 +18,14 @@
 
 | Что нужно | Куда лезть |
 |---|---|
-| Текущие IP / порты / ASC IDs / IAP states | `docs/state/*.yaml` (servers, app-store, runtime, domains) |
-| Как развернуть NL / выпустить iOS / починить Apple reject | `docs/playbooks/*.md` |
+| 30-сек снимок состояния (читать первым) | `docs/state/project.yaml` |
+| Текущие IP / порты / ASC IDs / IAP states / платежи | `docs/state/*.yaml` (servers, app-store, runtime, domains, payment-providers) |
+| Что чем покрыто тестами + как проверять каждый слой | `docs/state/test-map.yaml` (decision 0009) |
+| Как развернуть NL / выпустить iOS / починить Apple reject / ops-runbook / debug VPN | `docs/playbooks/*.md` |
 | Почему мы выбрали X (Go vs Rust, sing-box, IAP shape) | `docs/decisions/NNNN-*.md` (ADR pattern) |
 | Что случилось когда упало (MED-015, Apple 2.3) | `docs/incidents/YYYY-MM-DD-*.md` |
-| Дизайн системы / target architecture | `docs/arch/{overview,mesh,target}.md` |
+| Дизайн системы / VPN-движок / backend-layout / payments | `docs/arch/{overview,vpn,backend,payments,mesh,target}.md` |
 | Что делаем сейчас / что в очереди / что в done | `docs/roadmap.yaml` (один файл, не ROADMAP.md) |
-| Legacy (постепенно мигрирует) | `docs/OPERATIONS.md`, `docs/TROUBLESHOOTING.md`, `docs/PAYMENTS.md` |
 
 **Правила:**
 - **YAML** для current state (агенты парсят), **MD** для narrative (decisions/playbooks/incidents).
@@ -32,7 +33,8 @@
 - `decisions/` и `incidents/` — **append-only**. Не редактируй старые ADR / post-mortem. Если решение изменилось — пиши новый ADR с `supersedes: NNNN` во frontmatter'е.
 - При коммите: обнови `state/*.yaml` если факты изменились. Не нужно дублировать в README'ы.
 - При завершении задачи: подвинь её из `roadmap.yaml#now/next` в `roadmap.yaml#done["YYYY-MM-DD"]`.
-- При баге+решении: создай `docs/incidents/YYYY-MM-DD-<slug>.md`. **Не** добавляй в TROUBLESHOOTING.md (deprecated).
+- При баге+решении: создай `docs/incidents/YYYY-MM-DD-<slug>.md`.
+- **Тесты (decision 0009):** каждое изменение кода едет с тестом ИЛИ заводит/обновляет `TEST-*` пробел в `roadmap.yaml#next.testing`. Любое добавление/удаление теста обновляет `docs/state/test-map.yaml`. `test-map.yaml#verify` — канон команд проверки каждого слоя.
 
 ## Важные правила (operational)
 

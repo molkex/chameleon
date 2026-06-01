@@ -4,17 +4,19 @@
 # of truth — canonical detail lives in the files it points to. Refresh `meta.updated`
 # + the changed lines at the end of every working session.
 #
-# THE SYSTEM (decision 0006 — yaml-state-md-narrative):
+# THE SYSTEM (decisions 0006 yaml-state-md-narrative + 0009 test-map):
 #   project.yaml      → this snapshot + the map (you are here)
-#   state/*.yaml      → canonical current facts (servers, app-store, runtime, domains, payments)
+#   state/*.yaml      → canonical current facts (servers, app-store, runtime, domains,
+#                       payment-providers, test-map)
 #   roadmap.yaml      → now / next / later / done   (move items, never delete)
 #   decisions/NNNN-*  → WHY we chose X (ADRs, append-only; supersede, don't edit)
 #   incidents/DATE-*  → what broke + the fix (append-only post-mortems)
-#   playbooks/*.md    → HOW to do a recurring op (deploy, release, recover)
-#   arch/*.md         → system design (overview = current; others may be aspirational)
+#   playbooks/*.md    → HOW to do a recurring op (deploy, release, recover, debug)
+#   arch/*.md         → system design (overview/vpn/backend/payments = current)
 #   audits/*.md       → point-in-time audits
 #   archive/          → superseded snapshots/plans (historical)
 # Rule: one fact = one home. YAML for state agents parse, MD for narrative.
+# Test coverage + how-to-verify each layer: state/test-map.yaml (decision 0009).
 
 meta:
   updated: 2026-06-01
@@ -69,6 +71,8 @@ open_decisions:                  # waiting on the user
 
 # ── Shipped 2026-06-01 (detail: roadmap.yaml#done + incidents/2026-06-01-*) ──
 recent:
+  - DOCS-MIGRATE + TEST-MAP — retired ~2300 legacy doc lines; new state/test-map.yaml +
+    ADR 0009 (coverage discipline); OPERATIONS/TROUBLESHOOTING/PAYMENTS/topology.yaml gone
   - ACCT-IDENTITY (P0) — no more silent demote of Apple payers to anon trial; ReauthView ladder
   - SEC-01/03/04 — trial-once, UDP TLS cert-pin, Apple refund→revoke (all deployed NL)
   - SETTINGS-L10N, UI-FLAG-HOME, vector CountryFlag, PRO tappable, merged refresh button
@@ -89,7 +93,10 @@ assessment: |
   YES — on track. Core P0 (auth identity) and the audited security findings
   (SEC-01..04) are closed and deployed; France is a real 2nd exit with relay
   diversity; the app is one TestFlight verification away from a 1.0.29 submit.
-  Architecture is sound for current scale. The two honest watch-items are
-  redundancy (single-NL backend/DB — NL-RED-01 planned) and observability
-  (multi-exit traffic accounting — TRAFFIC-MULTIEXIT). Docs follow decision
-  0006; this snapshot + the 2026-06-01 doc cleanup removed the remaining drift.
+  Architecture is sound for current scale. The honest watch-items are
+  redundancy (single-NL backend/DB — NL-RED-01 planned), observability
+  (multi-exit traffic accounting — TRAFFIC-MULTIEXIT), and test depth — the
+  2026-06-01 audit found money/auth paths (Apple IAP verify, admin creds) and
+  the whole admin SPA untested; all 8 gaps are now tracked in state/test-map.yaml
+  + roadmap.testing (none block shipping). Docs are now fully YAML-first
+  (decisions 0006 + 0009); the legacy MD bloat is gone.

@@ -1,9 +1,9 @@
 # servers.yaml — canonical list of servers in the Chameleon mesh.
 #
 # Update whenever a server is added, removed, or its role changes.
-# THIS FILE is canonical for the server mesh. `../../infrastructure/topology.yaml`
-# is DEPRECATED (diverged, missing GRA + FR relay legs) — kept for historical
-# protocol-level notes only.
+# THIS FILE is canonical for the server mesh. (The old
+# infrastructure/topology.yaml was retired 2026-06-01 — server facts live here,
+# VPN client-config shape moved to ../arch/vpn.md.)
 
 verified: 2026-06-01
 spof_warning: |

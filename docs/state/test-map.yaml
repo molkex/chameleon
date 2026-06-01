@@ -1,0 +1,231 @@
+# test-map.yaml — single source of truth for WHAT is tested, HOW it's verified,
+# and WHERE the gaps are. One entry per module/package/service.
+#
+# WHY this file exists + the discipline around it: decisions/0009-test-map-and-coverage-discipline.md
+# RULE: every code change updates this file. New code ships with a test, OR the gap
+#       is logged to roadmap.yaml (next.testing) with a TEST-* id referenced here.
+#
+# status legend:
+#   tested   — meaningful coverage of the module's core logic
+#   partial  — pure/decision helpers pinned; orchestration/IO paths uncovered
+#   untested — no test file references this module
+#
+# coverage_pct = `go test -cover` from the default (unit) run. "n/a" = not measurable
+#   that way (integration-tagged → needs Postgres; or non-Go).
+
+meta:
+  updated: 2026-06-01
+  verified_via: "go test ./... (green), audit 2026-06-01"
+  scope: backend (Go) · apple (Swift iOS/macOS) · admin (React SPA) · infra (sing-box/scripts)
+
+# ──────────────────────────────────────────────────────────────────────────
+# HOW TO VERIFY EACH LAYER — the canonical commands. This is the gate.
+# ──────────────────────────────────────────────────────────────────────────
+verify:
+  backend_unit:        "cd backend && go test ./... -count=1"                       # always runnable; currently GREEN
+  backend_integration: "cd backend && go test -tags=integration ./... -count=1"     # needs Docker + Postgres (testcontainers); skips gracefully if absent
+  backend_e2e:         "cd backend && go test -tags=e2e ./tests/e2e/..."            # needs `sing-box` binary in PATH
+  backend_lint:        "cd backend && golangci-lint run"                            # errcheck/staticcheck/unused enabled (.golangci.yml)
+  singbox_config:      "sing-box check -c <config.json>"                            # ON the server, BEFORE any iPhone test (CLAUDE.md rule)
+  apple_build:         "cd clients/apple && xcodegen generate && xcodebuild build -scheme MadFrogVPN -destination 'generic/platform=iOS'"
+  apple_note:          "iOS unit tests COMPILE but cannot RUN locally (app-group host crash in unsigned sim build). Verification = xcodebuild build. CI build/test step is graceful-skipped until TD-LIBBOX-FETCH (see TEST-IOS-CI)."
+  admin:               "cd clients/admin && npm run lint && npx tsc -b"             # NO unit tests yet (see TEST-ADMIN-SPA)
+
+# ──────────────────────────────────────────────────────────────────────────
+# BACKEND (Go) — go test ./... GREEN. db/payments tests are integration-tagged.
+# ──────────────────────────────────────────────────────────────────────────
+backend:
+  config:
+    src_files: 1
+    tests: [config_test.go x2]
+    tier: unit
+    status: tested
+    coverage_pct: 75
+    covers: "env/yaml load + defaults"
+  secrets:
+    src_files: 1
+    tests: [secrets_test.go]
+    tier: unit
+    status: tested
+    coverage_pct: 80
+    covers: "secret resolution"
+  vpn:
+    src_files: 9
+    tests: [clientconfig_test.go, clientconfig_fingerprint, +1]
+    tier: unit
+    status: partial
+    coverage_pct: 26
+    covers: "GenerateClientConfig (91%), uTLS fingerprint rotation, sing-box check via e2e"
+    gaps: "engine.go / userapi.go / stats_v2ray.go = 0% (live user provisioning + stats) → TEST-VPN-ENGINE"
+  auth:
+    src_files: 5
+    tests: [jwt_test.go, apple JWKS test, auth_blacklist_key_test.go]
+    tier: unit
+    status: partial
+    coverage_pct: 31
+    covers: "JWT issue/verify, Apple Sign-In JWKS, blacklist key"
+    gaps: "password.go (admin login hash/verify), google.go (VerifyIDToken), middleware.go RequireAdmin = 0% → TEST-AUTH-CREDS"
+  cluster:
+    src_files: 6
+    tests: [auth, routes, relay, errors (+sync = integration)]
+    tier: unit + integration
+    status: partial
+    coverage_pct: 17
+    covers: "relay user-sync logic, auth, route resolution, error mapping"
+    gaps: "sync.go only under -tags=integration (needs PG)"
+  metrics:
+    src_files: 1
+    tests: [metrics_test.go]
+    tier: unit
+    status: partial
+    coverage_pct: 29
+    covers: "label-cardinality bounds (_Bounded tests)"
+  api:
+    src_files: 1
+    tests: [realip_test.go, body-limit, blacklist (3 files)]
+    tier: unit
+    status: partial
+    coverage_pct: 0
+    covers: "IPExtractor/XFF trust (SEC-02), body limit, blacklist helpers"
+    gaps: "server.go setupRoutes/httpErrorHandler uncovered"
+  api/middleware:
+    src_files: 3
+    tests: [idempotency_test.go]
+    tier: unit
+    status: partial
+    coverage_pct: 37
+    covers: "idempotency (well-covered)"
+    gaps: "security.go + ratelimit untested"
+  api/admin:
+    src_files: 13
+    tests: [4 files]
+    tier: unit
+    status: partial
+    coverage_pct: 8
+    covers: "selected handlers (created-at TZ, payments block)"
+    gaps: "most of 13 handler files uncovered"
+  api/mobile:
+    src_files: 16
+    tests: [7 files incl. trial_grant_test.go]
+    tier: unit
+    status: partial
+    coverage_pct: 6
+    covers: "trial-once gate (SEC-01), selected mobile handlers"
+    gaps: "most handlers uncovered"
+  db:
+    src_files: 11
+    tests: [9 files — ALL integration-tagged]
+    tier: integration
+    status: tested
+    coverage_pct: n/a
+    covers: "users, payments, servers, charges round-trips (testcontainers PG)"
+    gaps: "0% when Docker absent → unverified in CI-without-Docker. See TEST-IOS-CI sibling concern for infra."
+  payments:
+    src_files: 1
+    tests: [has_charge_test.go, credit_refund_test.go — both integration]
+    tier: integration
+    status: tested
+    coverage_pct: n/a
+    covers: "credit ledger, refund→revoke expiry recompute (SEC-04)"
+    gaps: "needs PG; not in default unit run"
+  payments/apple:
+    src_files: 1
+    tests: []
+    tier: none
+    status: untested
+    coverage_pct: 0
+    covers: "—"
+    gaps: "Verify() / VerifyNotification() / assertRealAppleChain() = StoreKit2 JWS + cert-chain verification, 0 tests. CRITICAL (money + entitlement) → TEST-APPLE-IAP"
+  payments/freekassa:
+    src_files: 4
+    tests: [signature_test.go]
+    tier: unit
+    status: partial
+    coverage_pct: 16
+    covers: "webhook signature"
+    gaps: "client.go IPAllowed (anti-spoof allowlist), paymentid.go ParseAppPayment = 0% → TEST-FREEKASSA"
+  asc:
+    src_files: 1
+    tests: []
+    status: untested
+    coverage_pct: 0
+    gaps: "App Store Connect API client (312 loc) untested → low risk (ops tooling)"
+  geoip:
+    src_files: 1
+    tests: []
+    status: untested
+    coverage_pct: 0
+    gaps: "IP→country (feeds strict-country routing) untested → TEST-GEOIP (P3)"
+  email:        {src_files: 2, tests: [], status: untested, coverage_pct: 0, gaps: "magic-link send untested (low risk)"}
+  useragent:    {src_files: 1, tests: [], status: untested, coverage_pct: 0}
+  cli:          {src_files: 1, tests: [], status: untested, coverage_pct: 0}
+  cmd/chameleon: {src_files: 1, tests: [], status: untested, coverage_pct: 0, gaps: "entrypoint/wiring — verified by deploy smoke, not unit"}
+  cmd/ascinit:   {src_files: 1, tests: [], status: untested, coverage_pct: 0}
+  cmd/metrics-agent: {src_files: 1, tests: [], status: untested, coverage_pct: 0}
+  vpn/v2rayapi/command: {src_files: 2, tests: [], status: untested, coverage_pct: 0, gaps: "generated gRPC stubs — no test needed"}
+
+# ──────────────────────────────────────────────────────────────────────────
+# APPLE (Swift) — strategy: pure decision helpers extracted out of stateful
+# types and pinned with regression tests tied to audit findings. Orchestration
+# (live VPN lifecycle, StoreKit, auth coordinators, PacketTunnel, Views) is
+# verified on-device, not in unit tests. Tests compile; can't run in sim (see verify.apple_note).
+# ──────────────────────────────────────────────────────────────────────────
+apple:
+  models:
+    VPNManager:        {status: partial, tests: [VPNManagerTimeoutTests, VPNManagerOnDemandRulesTests], covers: "raceWithTimeout (MED-006), buildOnDemandRules (LAUNCH-07)", gaps: "tunnel lifecycle / sendMessage — on-device only"}
+    AppState:          {status: partial, tests: [AppStateFallbackTests, AcctIdentityTests, ProxyChainResolverTests], covers: "cascade fallback, shouldAnonReRegister (ACCT-IDENTITY P0), resolveChain", gaps: "1900-LoC orchestration not instantiated"}
+    APIClient:         {status: partial, tests: [APIClientSensitiveFlagTests], covers: "raceLegPlan sensitive-payload gating (H-001/002)", gaps: "hedged-race networking, token refresh, retries"}
+    ConfigStore:       {status: partial, tests: [AcctIdentityTests, MigrationLeafToCountryTests], covers: "identity persist/clear, leaf→country migration", gaps: "no dedicated test file (incidental coverage)"}
+    PathPicker:        {status: tested, tests: [PathPickerTests], covers: "countryCode(forSelectedTag:), bestLeaf pin+filter"}
+    PingService:       {status: partial, tests: [PingServiceTests], covers: "transportFor classifier, cache reads", gaps: "real socket probes not tested"}
+    ServerGroup:       {status: partial, tests: [CountryFlagTests, +], covers: "flag→cc mapping (CountryGroup)", gaps: "ServerItem computed props untested"}
+    EventTracker:      {status: tested, tests: [EventTrackerTests], covers: "actor queue: buffer/flush/keep-on-fail/persist"}
+    SubscriptionManager: {status: untested, tests: [], gaps: "StoreKit 2 purchase/entitlement/restore = 0 tests. Revenue path → TEST-IOS-SUBMGR"}
+    L10n:              {status: untested, tests: [], gaps: "localization lookups untested (StringUtils RU plural IS covered)"}
+    auth_coordinators: {status: untested, tests: [], gaps: "AppleAuthCoordinator, GoogleAuthCoordinator → TEST-IOS-AUTH (covered indirectly by backend)"}
+  shared_well_covered:
+    - ConfigSanitizer (ConfigSanitizerTests)
+    - SingBoxConfigPatcher, LastWorkingLegStore, LeafRankingStore, RoutingMode
+    - StringUtils (RU pluralisation), KeychainHelper (XCTSkip in sim)
+    - VPNControlIntents, CountryFlag, CrashReporter (sanitize), DisconnectNotifier
+    - TrafficHealthMonitor, ServerTagShape
+  untested_surfaces:
+    - PacketTunnel/* (ExtensionProvider, ExtensionPlatformInterface, RealTrafficStallDetector, TunnelStallProbe) — extension, on-device only
+    - Views/* (20 files) — no UI tests
+    - CommandClient, Theme/ThemeManager/Haptics, LegRaceProbe, NetworkFingerprint
+  test_files_count: 23
+  ci_status: "graceful-skipped — Libbox fetch missing (TD-LIBBOX-FETCH / TEST-IOS-CI). Tests are compile-time aspiration until wired."
+
+# ──────────────────────────────────────────────────────────────────────────
+# ADMIN SPA (React 19) — NO test framework, NO tests. Only safety net = eslint + tsc.
+# ──────────────────────────────────────────────────────────────────────────
+admin:
+  framework: none
+  tests: 0
+  safety_net: "npm run lint (eslint flat config, react-hooks strict) + tsc -b type-check"
+  gap: "zero automated tests; add vitest + smoke tests for critical pages (dashboard, users, payments) → TEST-ADMIN-SPA"
+
+# ──────────────────────────────────────────────────────────────────────────
+# INFRA / config — verified by tooling, not unit tests.
+# ──────────────────────────────────────────────────────────────────────────
+infra:
+  singbox_config: "sing-box check -c (e2e test TestSingboxCheckMinimalConfig + manual on-server before iPhone)"
+  health_scripts: "backend/scripts/health-check.sh + singbox-watchdog regression test (MON-03)"
+  deploy: "playbooks/deploy-nl.md — deploy.sh nl --no-deps; sing-box check gate before reload"
+
+# ──────────────────────────────────────────────────────────────────────────
+# OPEN COVERAGE GAPS — mirrored as TEST-* items in roadmap.yaml#next.testing.
+# Priority by blast radius (money/auth/live-provisioning first).
+# ──────────────────────────────────────────────────────────────────────────
+gaps_by_priority:
+  P1:
+    - {id: TEST-APPLE-IAP,   what: "payments/apple Verify/VerifyNotification/assertRealAppleChain — 0 tests on money path"}
+    - {id: TEST-AUTH-CREDS,  what: "auth password.go + google.go + RequireAdmin — 0 tests on credential path"}
+    - {id: TEST-IOS-SUBMGR,  what: "SubscriptionManager StoreKit2 — 0 tests on revenue path"}
+    - {id: TEST-ADMIN-SPA,   what: "admin SPA has no test framework — add vitest + smoke tests"}
+  P2:
+    - {id: TEST-FREEKASSA,   what: "freekassa client.go IPAllowed + paymentid.go ParseAppPayment"}
+    - {id: TEST-VPN-ENGINE,  what: "vpn engine.go + userapi.go + stats — live user provisioning at 0%"}
+    - {id: TEST-IOS-CI,      what: "wire TD-LIBBOX-FETCH so apple tests actually build+run in CI (currently skipped)"}
+  P3:
+    - {id: TEST-GEOIP,       what: "geoip IP→country (feeds strict-country routing)"}

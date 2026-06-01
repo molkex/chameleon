@@ -1,0 +1,63 @@
+# payment-providers.yaml — current facts for the two payment rails.
+#
+# FreeKassa = CIS web paywall (RU/CIS storefronts). Apple IAP = everyone else.
+# Storefront routing lives in decisions/0003-storefront-routing.md.
+# Secret VALUES live in ~/.secrets.env + NL /opt/chameleon/.env — never here.
+# Narrative (flow, signatures, refund→revoke) → arch/payments.md.
+# Code is source of truth: backend/internal/payments/freekassa/.
+
+verified: 2026-06-01
+
+freekassa:
+  shop_id: 70139
+  api_base_url: https://api.fk.life/v1        # POST /orders/create (client.go)
+  payment_id_format: "app_{planId}_{userId}_{nonce}"  # nonce = UnixMilli; paymentid.go
+  # idempotency: UNIQUE(source, charge_id) on the payments table.
+  # "bot_" prefix reserved for the legacy Telegram bot (separate shop reuse).
+
+  # FK numeric method ids (field `i` in /orders/create).
+  methods:
+    sbp: 44
+    card: 36
+    sberpay: 43
+
+  # Plans: id → days → price (RUB). Lives in config.yaml → payments.plans;
+  # served by GET /api/mobile/plans. Trial = 3 days on register (payments.trial).
+  plans:
+    - {id: m1,  days: 30,  price_rub: 229,  badge: ""}
+    - {id: m3,  days: 90,  price_rub: 599,  badge: "Хит"}
+    - {id: m6,  days: 180, price_rub: 1099, badge: "Выгодно"}
+    - {id: m12, days: 365, price_rub: 1999, badge: "Максимум"}
+
+  # Webhook source IP allowlist (config.yaml → payments.freekassa.ip_whitelist;
+  # these 4 are the built-in default in config.go). Empty list = allow all (dev only).
+  webhook_ip_allowlist:
+    - 168.119.157.136
+    - 168.119.60.227
+    - 178.154.197.79
+    - 51.250.54.238
+
+  # Env var NAMES only — values in ~/.secrets.env / NL .env. All must be in
+  # docker-compose.yml → services.chameleon.environment or initiate returns 500.
+  env_vars:
+    - FREEKASSA_SHOP_ID
+    - FREEKASSA_API_KEY     # HMAC-SHA256 key for /orders/create
+    - FREEKASSA_SECRET1     # API signature (FK shop "secret word 1")
+    - FREEKASSA_SECRET2     # webhook MD5 signature ("secret word 2")
+
+  # Mobile endpoints (prefixes /api/mobile/* and /api/v1/mobile/*; routes.go).
+  endpoints:
+    plans:    GET  /plans                       # no auth — paywall renders pre-login
+    initiate: POST /payment/initiate            # JWT; returns {paymentId, paymentURL}
+    status:   GET  /payment/status/:payment_id  # JWT; poll on scenePhase=.active
+    webhook:  POST /api/webhooks/freekassa      # public S2S; replies plain "YES"
+
+# Apple StoreKit IAP facts (products, ids, states, pricing, availability)
+# live in state/app-store.yaml#iaps — not duplicated here.
+apple_iap:
+  see: state/app-store.yaml#iaps
+
+# Storefront split: non-CIS → StoreKit; RU/CIS → FreeKassa WebPaywall.
+# Driven by Storefront.current.countryCode. See decisions/0003-storefront-routing.md.
+storefront_routing:
+  see: decisions/0003-storefront-routing.md

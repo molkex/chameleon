@@ -13,17 +13,10 @@ This folder is the canonical knowledge base for the project. Everything in `~/.c
 | `decisions/`        | MD     | Architecture Decision Records (ADRs). Numbered, dated, immutable         | **Append-only** — supersede with new ADR |
 | `playbooks/`        | MD     | How-to procedures: deploy, release, recover from incident                | Yes, refine over time |
 | `incidents/`        | MD     | Post-mortems for production incidents. Dated, immutable                  | **Append-only**     |
+| `audits/`           | MD     | Point-in-time audits (internal + external/GPT/Gemini)                    | Append per audit    |
 | `release-notes/`    | MD     | Per-build user-facing release notes                                      | Append per release  |
 | `roadmap.yaml`      | YAML   | Single roadmap: now / next / later / done / deferred                     | Yes, anytime        |
-
-Reference docs that don't fit yet (will migrate as work touches them):
-
-| File                                  | Status                                                                          |
-|---------------------------------------|---------------------------------------------------------------------------------|
-| `OPERATIONS.md`                       | Legacy — 1500+ lines. Split into `playbooks/` over time.                        |
-| `TROUBLESHOOTING.md`                  | Legacy — incidents being migrated to `incidents/`. Don't add new entries here.  |
-| `PAYMENTS.md`                         | Legacy — will become `arch/payments.md` + `state/payment-providers.yaml`.       |
-| `archive/`                            | One-off snapshots (audits, retired plans). Keep for history.                    |
+| `archive/`          | mixed  | One-off snapshots, retired plans, old UI prototypes. Keep for history.   | Frozen              |
 
 ## Rules of the road
 
@@ -73,23 +66,32 @@ Use relative paths: `../arch/mesh.md`, `../state/servers.yaml`. Don't use absolu
 
 ## Migration progress
 
-This convention was bootstrapped 2026-05-28. Migration is **incremental**, not big-bang:
+Convention bootstrapped 2026-05-28; YAML-first migration (DOCS-MIGRATE) **completed 2026-06-01**:
 
-- ✅ `state/`, `arch/`, `decisions/`, `playbooks/`, `incidents/` folders created
-- ✅ ROADMAP.md → `roadmap.yaml` (single source)
-- ✅ `.yaml` mirrors deleted (architecture, operations, payments, troubleshooting)
-- 🟡 `OPERATIONS.md` (1500+ lines) still legacy — split as touched
-- 🟡 `TROUBLESHOOTING.md` (legacy) — only top 2 incidents migrated; rest stays until touched
-- 🟡 `PAYMENTS.md` still legacy
+- ✅ `state/`, `arch/`, `decisions/`, `playbooks/`, `incidents/` folders
+- ✅ ROADMAP.md → `roadmap.yaml` (single source); `.yaml` mirrors deleted
+- ✅ `OPERATIONS.md` retired → `arch/vpn.md` + `arch/backend.md` + `playbooks/operations.md` (dead DE/Xray content dropped)
+- ✅ `TROUBLESHOOTING.md` retired → live debug techniques → `playbooks/debug-vpn-ios.md`; resolved incidents already in `incidents/`
+- ✅ `PAYMENTS.md` retired → `state/payment-providers.yaml` + `arch/payments.md`
+- ✅ `infrastructure/topology.yaml` retired → folded into `state/servers.yaml` + `arch/vpn.md`
+- ✅ `state/test-map.yaml` + ADR 0009 — test-coverage map & discipline
 
 ## Quick navigation
 
-- **Current servers / IPs:** [`state/servers.yaml`](state/servers.yaml)
+**State (YAML — start here):**
+- **30-sec snapshot — READ FIRST:** [`state/project.yaml`](state/project.yaml)
+- **Servers / IPs / relays:** [`state/servers.yaml`](state/servers.yaml)
 - **App Store IDs / IAP states:** [`state/app-store.yaml`](state/app-store.yaml)
-- **What's running where:** [`state/runtime.yaml`](state/runtime.yaml)
+- **What's running where:** [`state/runtime.yaml`](state/runtime.yaml) · **Domains:** [`state/domains.yaml`](state/domains.yaml)
+- **Payment rails:** [`state/payment-providers.yaml`](state/payment-providers.yaml)
+- **Test coverage map + verify commands:** [`state/test-map.yaml`](state/test-map.yaml)
 - **Roadmap:** [`roadmap.yaml`](roadmap.yaml)
-- **How to deploy NL:** [`playbooks/deploy-nl.md`](playbooks/deploy-nl.md)
-- **How to release iOS via CLI:** [`playbooks/ios-cli-release.md`](playbooks/ios-cli-release.md)
-- **Recovering from Apple reject:** [`playbooks/apple-reject-recovery.md`](playbooks/apple-reject-recovery.md)
-- **All decisions:** [`decisions/`](decisions/)
-- **All incidents:** [`incidents/`](incidents/)
+
+**Architecture (MD):**
+- **Overview:** [`arch/overview.md`](arch/overview.md) · **VPN engine:** [`arch/vpn.md`](arch/vpn.md) · **Backend layout:** [`arch/backend.md`](arch/backend.md) · **Payments:** [`arch/payments.md`](arch/payments.md)
+
+**Playbooks (how-to):**
+- **Deploy NL:** [`playbooks/deploy-nl.md`](playbooks/deploy-nl.md) · **Ops runbook:** [`playbooks/operations.md`](playbooks/operations.md)
+- **iOS CLI release:** [`playbooks/ios-cli-release.md`](playbooks/ios-cli-release.md) · **Apple reject recovery:** [`playbooks/apple-reject-recovery.md`](playbooks/apple-reject-recovery.md)
+- **Debug iOS/VPN:** [`playbooks/debug-vpn-ios.md`](playbooks/debug-vpn-ios.md)
+- **All decisions:** [`decisions/`](decisions/) · **All incidents:** [`incidents/`](incidents/)
