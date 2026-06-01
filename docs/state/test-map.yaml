@@ -130,12 +130,12 @@ backend:
     gaps: "needs PG; not in default unit run"
   payments/apple:
     src_files: 1
-    tests: []
-    tier: none
-    status: untested
-    coverage_pct: 0
-    covers: "—"
-    gaps: "Verify() / VerifyNotification() / assertRealAppleChain() = StoreKit2 JWS + cert-chain verification, 0 tests. CRITICAL (money + entitlement) → TEST-APPLE-IAP"
+    tests: [verify_test.go]
+    tier: unit
+    status: partial
+    coverage_pct: 52
+    covers: "rejection gate (2026-06-01): assertRealAppleChain (x5c chain length, malformed/2-or-4 segments, bad b64, non-json, std+url b64), New config validation, Verify hostile-input + no-panic guarantee, VerifyNotification empty, msToTime. Forged/short/malformed JWS proven rejected."
+    gaps: "post-parse invariants (bundle/env/product/expiry/revoked) + happy path need a real Apple-root-signed JWS (sandbox/integration) OR an applyInvariants() seam → TEST-APPLE-IAP (remainder)"
   payments/freekassa:
     src_files: 4
     tests: [signature_test.go]
@@ -219,7 +219,7 @@ infra:
 # ──────────────────────────────────────────────────────────────────────────
 gaps_by_priority:
   P1:
-    - {id: TEST-APPLE-IAP,   what: "payments/apple Verify/VerifyNotification/assertRealAppleChain — 0 tests on money path"}
+    - {id: TEST-APPLE-IAP,   what: "payments/apple — rejection gate DONE 2026-06-01 (52%); REMAINDER = post-parse invariants + happy path (needs sandbox JWS or applyInvariants seam)"}
     - {id: TEST-AUTH-CREDS,  what: "auth password.go + google.go + RequireAdmin — 0 tests on credential path"}
     - {id: TEST-IOS-SUBMGR,  what: "SubscriptionManager StoreKit2 — 0 tests on revenue path"}
     - {id: TEST-ADMIN-SPA,   what: "admin SPA has no test framework — add vitest + smoke tests"}
