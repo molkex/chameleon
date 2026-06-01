@@ -58,17 +58,23 @@ gra:
                               # baked-only (not User-API-managed). See
                               # incidents/2026-05-31-gra-france-user-sync.md
 
-# Russian-side relay fronting api.madfrog.online for RU users behind GFW.
-# Not a VPN node — pure nginx forwarder.
+# Russian-side relay fronting api.madfrog.online for RU users behind GFW,
+# AND a VPN relay: nginx fronts the API, sing-box runs the relay chains.
 msk_relay:
   status: production
   ip: 217.198.5.52
   hosting: Timeweb MSK
   location: Moscow, RU
-  role: api_relay
+  role: api_relay + vpn_relay
   upstream: nl:80
   fronts: api.madfrog.online
   dns: A record points to msk_relay directly (NOT Cloudflare)
+  # sing-box relay chains (VLESS Reality inbound → userspace WireGuard → exit).
+  # relay_exit_peers rows + box /etc/sing-box/config.json. See
+  # incidents/2026-06-01-fr-relay-legs.md.
+  chains:
+    2097: nl2:443    # nl-via-msk  (inbound vless-nl → wg-nl → NL)
+    2099: gra1:443   # fr-via-msk  (inbound vless-fr → wg-fr → GRA/France) [2026-06-01]
 
 # Secondary TCP relay for cases where direct NL :443 from RU is blocked.
 # nginx forwards every former-DE port to NL after 2026-05-27 rewrite.
@@ -81,7 +87,8 @@ spb_relay:
   forwards:
     443:  nl:443
     2096: nl:443
-    2098: nl:443
+    2098: nl:443        # ru-spb-nl  (SPB→NL whitelist-bypass)
+    2099: gra1:443      # ru-spb-fr  (SPB→FR whitelist-bypass) [2026-06-01]
     80:   nl:80         # Host=api.madfrog.online
   config_source: infrastructure/spb-relay/   # mirror of /etc/nginx/* on the box
 
