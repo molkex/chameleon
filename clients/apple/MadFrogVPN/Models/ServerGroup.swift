@@ -191,6 +191,20 @@ struct CountryGroup: Identifiable {
 
     var serverCount: Int { serverTags.count }
 
+    /// Lowercase country code for the vector `CountryFlag` ("nl","de","fr",
+    /// "us","ru"). Derived from `flagEmoji` so it always matches the backend
+    /// label. nil → globe (non-country / unknown groups).
+    var countryCode: String? {
+        switch flagEmoji {
+        case "🇳🇱": return "nl"
+        case "🇩🇪": return "de"
+        case "🇫🇷": return "fr"
+        case "🇺🇸": return "us"
+        case "🇷🇺": return "ru"
+        default:   return nil
+        }
+    }
+
     var bestDelayText: String {
         if bestDelay <= 0 { return "" }
         return "\(bestDelay) ms"

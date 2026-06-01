@@ -624,8 +624,7 @@ private struct CountryRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Text(country.flagEmoji.isEmpty ? "🌍" : country.flagEmoji)
-                .font(.system(size: 30))
+            CountryFlag(code: country.countryCode, width: 32)
                 .frame(width: 40, height: 40)
 
             VStack(alignment: .leading, spacing: 2) {
