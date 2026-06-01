@@ -194,9 +194,16 @@ next:
       notes: React SPA has ZERO tests + no framework — only eslint + tsc. Cover dashboard / users / payments pages first.
     # TEST-FREEKASSA → done 2026-06-01 (IPAllowed + ParseAppPayment; 16%→43%).
     - id: TEST-VPN-ENGINE
-      priority: P2
-      title: Test vpn engine.go AddUser/RemoveUser + userapi.go ReplaceUsers
-      notes: Live zero-downtime user provisioning at 0%. clientconfig gen is 91% — this is the runtime half.
+      priority: P3
+      status: partial   # userapi.go done 2026-06-01; engine orchestration remains
+      title: Integration-test SingboxEngine AddUser/RemoveUser orchestration + stats_v2ray
+      notes: |
+        DONE 2026-06-01: UserAPIClient full HTTP contract via httptest (add/remove/
+        replace/health, bearer auth, path-escape, error propagation, empty=[] clear).
+        vpn 26→34%. REMAINDER: engine.go AddUser/RemoveUser wrap userapi + a mutex +
+        writeConfigLocked()→`sing-box check` on disk + SIGHUP fallback — that's
+        integration-level (needs the sing-box binary), already exercised by the e2e
+        sing-box check. stats_v2ray gRPC untested. Low marginal value as a unit test.
     - id: TEST-IOS-CI
       priority: P2
       title: Wire TD-LIBBOX-FETCH so apple tests actually build+run in CI
@@ -431,6 +438,15 @@ done:
         (wrong aud/iss, missing sub, expired, malformed, wrong key, HS256 alg-confusion)
         + disabled-verifier. middleware.go: RequireAuth + RequireAdmin (both self-verify
         and preset-claims paths) + ExtractBearerToken + GetUserFromContext. All green, vet clean.
+    - id: TEST-VPN-ENGINE-USERAPI
+      title: Unit-test the sing-box User API client (live provisioning contract)
+      files: [backend/internal/vpn/userapi_test.go]
+      notes: |
+        vpn 26%→34%. httptest mock of the sing-box fork User API: AddUser (POST 201,
+        body shape), RemoveUser (DELETE, username path-escaping), ReplaceUsers (PUT,
+        empty→"users":[] clear), Health (GET), bearer-auth presence/absence, error
+        propagation (409 carries body+status), connection-refused → "request failed".
+        engine.go orchestration remains (integration-level — see TEST-VPN-ENGINE).
     - id: TEST-FREEKASSA
       title: Unit-test FreeKassa IPAllowed anti-spoof gate + ParseAppPayment
       files:

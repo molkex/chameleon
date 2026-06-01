@@ -51,12 +51,12 @@ backend:
     covers: "secret resolution"
   vpn:
     src_files: 9
-    tests: [clientconfig_test.go, clientconfig_fingerprint, +1]
-    tier: unit
+    tests: [clientconfig_test.go, clientconfig_fingerprint, reality_keys_test.go, singbox_validate_test.go, userapi_test.go]
+    tier: unit + e2e
     status: partial
-    coverage_pct: 26
-    covers: "GenerateClientConfig (91%), uTLS fingerprint rotation, sing-box check via e2e"
-    gaps: "engine.go / userapi.go / stats_v2ray.go = 0% (live user provisioning + stats) → TEST-VPN-ENGINE"
+    coverage_pct: 34
+    covers: "GenerateClientConfig (91%), uTLS fingerprint rotation, reality keypair, sing-box config validate (e2e), UserAPIClient full HTTP contract (add/remove/replace/health, bearer auth, path-escape, error propagation, empty=[] clear) — 2026-06-01"
+    gaps: "engine.go AddUser/RemoveUser orchestration (mutex + writeConfigLocked→sing-box check + SIGHUP fallback) is integration-level — exercised by the e2e sing-box check, low unit ROI; stats_v2ray gRPC untested. TEST-VPN-ENGINE core (userapi) closed."
   auth:
     src_files: 5
     tests: [jwt_test.go, apple_test.go, password_test.go, google_test.go, middleware_test.go, auth_blacklist_key_test.go]
@@ -225,7 +225,7 @@ gaps_by_priority:
     - {id: TEST-ADMIN-SPA,   what: "admin SPA has no test framework — add vitest + smoke tests"}
   P2:
     - {id: TEST-FREEKASSA,   status: DONE-2026-06-01, what: "IPAllowed + ParseAppPayment covered (16%→43%); CreateOrder HTTP client remains (lower risk)"}
-    - {id: TEST-VPN-ENGINE,  what: "vpn engine.go + userapi.go + stats — live user provisioning at 0%"}
+    - {id: TEST-VPN-ENGINE,  status: PARTIAL-2026-06-01, what: "userapi.go HTTP contract DONE (vpn 26→34%); engine.go orchestration is integration-level (e2e sing-box check), stats_v2ray gRPC remains"}
     - {id: TEST-IOS-CI,      what: "wire TD-LIBBOX-FETCH so apple tests actually build+run in CI (currently skipped)"}
   P3:
     - {id: TEST-GEOIP,       what: "geoip IP→country (feeds strict-country routing)"}
