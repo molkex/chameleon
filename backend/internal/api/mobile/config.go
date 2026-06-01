@@ -2,6 +2,7 @@ package mobile
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -33,6 +34,15 @@ func (h *Handler) GetConfig(c echo.Context) error {
 	// Load user from DB by user ID from JWT.
 	user, err := h.DB.FindUserByID(ctx, claims.UserID)
 	if err != nil {
+		// A canceled/expired request context means the CLIENT disconnected
+		// mid-request (flaky RU LTE, app backgrounded) — the in-flight query is
+		// torn down with it. That's not a server error and shouldn't page the
+		// auth/config alert; log at debug and return 499 (client-closed-request).
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			h.Logger.Debug("config: request canceled by client during user lookup",
+				zap.Int64("user_id", claims.UserID), zap.Error(err))
+			return c.NoContent(499)
+		}
 		h.Logger.Error("db: find user by id", zap.Error(err), zap.Int64("user_id", claims.UserID))
 		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
 	}
