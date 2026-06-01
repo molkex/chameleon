@@ -13,12 +13,25 @@ verified: 2026-06-01T23:55:00Z
 # NOW — active blockers, picked up in current session/sprint
 # ============================================================
 now:
-  # All current blockers cleared 2026-06-01:
-  #   ACCT-IDENTITY (P0) + SEC-01 → done (incidents/2026-06-01-acct-identity-demote.md)
-  #   SEC-03 + SEC-04 → done (deployed NL)
-  #   VPN-TG-MEDIA → resolved-by-egress-IP-swap (user-confirmed tentatively); see done log.
-  # Next user-facing step is on-device TestFlight verification of build 94 (1.0.29).
-  cleared: true
+  # ACCT-IDENTITY (P0) + SEC-01/03/04 + VPN-TG-MEDIA + FR-RELAY-LEGS → done 2026-06-01.
+  metrics:
+    - id: TRAFFIC-MULTIEXIT
+      title: Per-user traffic only counted on the NL exit — GRA/relay users show ~0 in admin
+      priority: P2
+      reported: 2026-06-01
+      example: device_3edb3891 (папа, apple, sub→2027) — cumulative_traffic=527KB while actively using VPN
+      root_cause: |
+        Per-user traffic comes from the LOCAL NL sing-box v2ray_api gRPC StatsService
+        (stats_v2ray.go QueryStats "user>>>"). Traffic that exits via GRA (France) or
+        the MSK/SPB relays flows through THOSE sing-box instances, not NL's → never
+        aggregated → the user's real usage isn't counted. Only the NL-exit slice shows.
+      fix_directions: |
+        Collect per-user stats from EVERY exit/relay sing-box (each already exposes a
+        v2ray_api / user API — GRA:15380, MSK:15380) and SUM per vpn_username before
+        writing cumulative_traffic. Or have each node push its deltas to the backend.
+        First: confirm what the admin panel actually queries (cumulative vs period) —
+        527KB may also just round to "0 MB".
+      risk: low (read-only stats aggregation); needs a stats fan-out + dedupe by username.
 
 # ============================================================
 # NEXT — 1-2 week queue, ready to start

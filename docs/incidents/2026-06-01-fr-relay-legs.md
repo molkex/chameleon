@@ -22,6 +22,11 @@ Both exit GRA `54.38.243.162` (France). Verified by real traffic:
 - DB: `vpn_servers` row `relay-fr` (host 185.218.0.43, port 2099, role=exit,
   category=whitelist_bypass, reality_public_key = **GRA's** key — the client
   Reality-handshakes GRA *through* the transparent forward).
+- **GOTCHA (fixed):** the SPB box runs `ufw` (active). nginx listening on :2099
+  is not enough — ufw allowed 443/2096/2098 but NOT 2099, so inbound to :2099
+  timed out (`dial tcp 185.218.0.43:2099: i/o timeout`) and the app showed
+  "SPB → FR" red. Fix: `ufw allow 2099/tcp`. **Any new SPB forward port needs a
+  matching ufw allow.**
 
 ## MSK→FR (217.198.5.52 sing-box ⇄ 54.38.243.162 WireGuard)
 

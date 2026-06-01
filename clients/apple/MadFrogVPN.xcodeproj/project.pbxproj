@@ -61,6 +61,7 @@
 		33422A6321F8D75EA134DBD7 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 9559017B879500FA2F899634 /* PrivacyInfo.xcprivacy */; };
 		348F2960A052562610557B1A /* ConfigStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FC0F827BBF3A30F2EDE9AB3 /* ConfigStore.swift */; };
 		354BC28159DBF91924401A75 /* Products.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 44EE43ED9CEC25421113C6A9 /* Products.storekit */; };
+		367879BE1B6C1A25A1F9846D /* CountryFlagTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C4CD0A25B056DBC6DD6A6D8 /* CountryFlagTests.swift */; };
 		380227CC676ADAB5C1030C5F /* VPNPermissionPrimerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27C5C9C45F3855532EB54D77 /* VPNPermissionPrimerView.swift */; };
 		3AD613678395080BCC587E49 /* WidgetVPNSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DF255FC3085B56FF435958B /* WidgetVPNSnapshot.swift */; };
 		3AF0A8290A7215D2EF09A649 /* RoutingMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7486DEC72FBB5DD5338F158 /* RoutingMode.swift */; };
@@ -375,6 +376,7 @@
 		7195CF498E5531209F7FAD2C /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		73394ADFC3E4785BF545DA45 /* PathPickerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PathPickerTests.swift; sourceTree = "<group>"; };
 		76804A237D70124AC33CC216 /* MadFrogVPNTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = MadFrogVPNTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		7C4CD0A25B056DBC6DD6A6D8 /* CountryFlagTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountryFlagTests.swift; sourceTree = "<group>"; };
 		7C61B1AA0AC6A405D189C34B /* PlatformDevice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformDevice.swift; sourceTree = "<group>"; };
 		828C4AEC2AEC8A2EEB92717E /* ConfigSanitizerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigSanitizerTests.swift; sourceTree = "<group>"; };
 		84CA81E1B48C9260C55A6012 /* ApplicationServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ApplicationServices.framework; path = System/Library/Frameworks/ApplicationServices.framework; sourceTree = SDKROOT; };
@@ -552,6 +554,7 @@
 				C5A01555D3038E7947B6CCD7 /* APIClientSensitiveFlagTests.swift */,
 				46461EB64AC98A85BDA33143 /* AppStateFallbackTests.swift */,
 				828C4AEC2AEC8A2EEB92717E /* ConfigSanitizerTests.swift */,
+				7C4CD0A25B056DBC6DD6A6D8 /* CountryFlagTests.swift */,
 				A68B252ED056950D8E56A513 /* CrashReporterSanitizeTests.swift */,
 				309988BC023B66A61A71333A /* DisconnectNotifierTests.swift */,
 				F45C35BECFE7F5EFD0C26FA7 /* EventTrackerTests.swift */,
@@ -1181,6 +1184,7 @@
 				40EABAB28805EFB67FB4AD26 /* AcctIdentityTests.swift in Sources */,
 				13ACDC2A838051DAD074B9E4 /* AppStateFallbackTests.swift in Sources */,
 				9AB874F30E33334B32A64AA5 /* ConfigSanitizerTests.swift in Sources */,
+				367879BE1B6C1A25A1F9846D /* CountryFlagTests.swift in Sources */,
 				09184E05C76A88DC8AF609D8 /* CrashReporterSanitizeTests.swift in Sources */,
 				C58057A931009CE17264DA4D /* DisconnectNotifierTests.swift in Sources */,
 				4C6EA208EAE28CCEBC970A86 /* EventTrackerTests.swift in Sources */,
