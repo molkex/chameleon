@@ -3,7 +3,7 @@
 # Update when adding/removing domains, switching CF proxy mode, or
 # rotating certs.
 
-verified: 2026-05-28
+verified: 2026-06-01
 
 # Primary production domain.
 madfrog.online:

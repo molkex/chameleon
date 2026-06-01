@@ -1,7 +1,5 @@
 # Chameleon VPN — Troubleshooting
 
-> 🤖 Mirror: [agent-readable YAML](troubleshooting.yaml) — keep in sync. Edit either, sync the other.
-
 ## ⚠ 2026-05-28: USR-09 Phase 2 — App Privacy disclosure MUST be updated before next iOS build submit
 
 ### Why
@@ -455,8 +453,7 @@ idevicesyslog -m "Chameleon" -m "PacketTunnel"
 ### Диагностика (команды для будущих проблем)
 
 ```bash
-# SSH на DE сервер
-sshpass -p "ChameleonDE2026Secure" ssh ubuntu@162.19.242.30
+# DE (162.19.242.30) RETIRED 2026-05-25 — credentials scrubbed.
 
 # Проверить Xray network mode
 sudo docker inspect xray --format='NetworkMode: {{.HostConfig.NetworkMode}}'

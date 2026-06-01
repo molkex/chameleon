@@ -7,7 +7,7 @@ tags: [architecture, overview]
 
 # Chameleon VPN — system overview
 
-One-pager. For depth: [mesh.md](mesh.md) (current state), [target.md](target.md) (where we're heading), [`../decisions/`](../decisions/) (why we chose what).
+One-pager. For depth: [mesh.md](mesh.md) (topology detail — note the v2 scale plan is aspirational), [target.md](target.md) (historical April draft), [`../decisions/`](../decisions/) (why we chose what). Live state: [`../state/project.yaml`](../state/project.yaml).
 
 ## What we ship
 
@@ -60,12 +60,14 @@ chameleon/
 - **iOS release via CLI** → [`../playbooks/ios-cli-release.md`](../playbooks/ios-cli-release.md).
 - **Apple rejection recovery** → [`../playbooks/apple-reject-recovery.md`](../playbooks/apple-reject-recovery.md).
 
-## Operational truths (as of 2026-05-28)
+## Operational truths (as of 2026-06-01)
 
-- 🟢 1.0.27 build 90 LIVE on App Store. EventTracker shipping telemetry → `/admin/app/events`.
-- 🟡 IAPs still in review (re-submitted 2026-05-28). Monetization blocked until APPROVED.
-- 🔴 NL is single point of failure. Hetzner Helsinki is the planned redundancy host ([`../decisions/0004-single-nl-spof.md`](../decisions/0004-single-nl-spof.md)).
-- 🟡 Pre-existing lint debt cataloged: see `roadmap.yaml` → tech_debt.
+> Live snapshot is [`../state/project.yaml`](../state/project.yaml) — read that first; these bullets are the narrative gloss.
+
+- 🟢 **1.0.28 build 91 LIVE** on App Store; **1.0.29 build 98** on TestFlight (pending submit). EventTracker telemetry → `/admin/app/events`.
+- 🟢 **IAPs APPROVED** (all 4, 2026-05-31). Monetization unblocked (non-CIS via StoreKit; RU/CIS via WebPaywall/FreeKassa).
+- 🟢 **Two VPN exits**: NL (147.45.252.234) + GRA/France (54.38.243.162), plus MSK & SPB RU relays. Backend/DB is still single-NL — that SPoF is the open redundancy item (NL-RED-01, [`../decisions/0004-single-nl-spof.md`](../decisions/0004-single-nl-spof.md)).
+- 🟡 Per-user traffic only counted on the NL exit (TRAFFIC-MULTIEXIT). Lint debt: see `roadmap.yaml` → stats.tech_debt_items.
 
 ## When this overview is wrong
 

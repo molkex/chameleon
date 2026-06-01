@@ -4,7 +4,7 @@
 # here first. backend/deploy.sh + docker-compose.yml are the actual
 # moving parts; this file is the at-a-glance map.
 
-verified: 2026-05-28
+verified: 2026-06-01
 
 # NL is the only production node since DE retirement (2026-05-25).
 # See state/servers.yaml for the full mesh.
@@ -91,5 +91,6 @@ external:
     role: payment processor for web paywall (RU/CIS storefronts)
     integration: backend/internal/payments/freekassa
   telemetry:
-    role: structured logs only (zap); no external APM yet
-    crash_reporting: NOT WIRED — LAUNCH-03 pending
+    role: structured logs (zap) + Prometheus/Grafana (node + container metrics, MON-04-INFRA)
+    crash_reporting: Sentry EU (iOS, shipped 1.0.27 build 90/91; decision 0007-sentry-eu)
+    dashboards: grafana.madfrog.online (Prometheus + node-exporter on NL)

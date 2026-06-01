@@ -57,3 +57,7 @@ idb-*/
 # Local DB snapshots / operational backups (not source-controlled)
 backups/
 /clients/apple/Frameworks
+
+# iOS build artifacts
+*.xcarchive
+*.ipa

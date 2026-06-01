@@ -1,7 +1,5 @@
 # Chameleon VPN — Architecture Wiki
 
-> 🤖 Mirror: [agent-readable YAML](operations.yaml) — keep in sync. Edit either, sync the other.
-
 > ⚠️ **STATUS 2026-05-26 — SINGLE-NL WORLD**: DE OVH `162.19.242.30` retired
 > 2026-05-25 (договор истёк, не продлён). Production traffic = NL Timeweb
 > `147.45.252.234` only + MSK relay `217.198.5.52` fronts api.madfrog.online.

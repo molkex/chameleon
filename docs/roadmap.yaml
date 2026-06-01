@@ -7,7 +7,7 @@
 # When something completes, MOVE the entry from now/next/later into done with the date.
 # Deferred = blocked by an external decision, parked.
 
-verified: 2026-06-01T23:55:00Z
+verified: 2026-06-02T00:30:00Z
 
 # ============================================================
 # NOW — active blockers, picked up in current session/sprint
@@ -158,6 +158,15 @@ next:
       title: install_secret round-tripped from iOS
       status: backend_ready
       notes: Backend tolerates absence (Phase 1, shipped 2026-05-27). iOS persists in Keychain + echoes. Strict mode flip after adoption.
+    - id: TD-CERT-PIN
+      priority: P2
+      title: Replace InsecureDelegate (accept-any-cert on direct-IP race) with cert pinning
+      notes: |
+        APIClient.swift InsecureDelegate trusts any TLS cert for the direct-IP/SPB
+        fallback hosts (bounded by a host allowlist + VLESS Reality on the tunnel). The
+        in-code TODO (APIClient.swift:~84) was never tracked. Fix: backend publishes its
+        serving cert fingerprint via /api/v1/server/info, client pins it. Found in the
+        2026-06-01 audit.
 
   client_reliability:
     - id: CFG-01
@@ -288,27 +297,8 @@ next:
     # to GRA's User API), NOT an H2 PSK mismatch — NL & GRA Salamander PSKs are identical and
     # Reality+egress were proven working end-to-end. Fixed by extending RelayUserSyncer to
     # remote exits + exposing GRA :15380 to NL. Hysteria2 leg still baked-only (follow-up).
-    - id: FR-VIA-MSK
-      priority: P3   # demoted 2026-05-31 — direct France works now (user-sync fixed);
-                     # this is only a resilience option if RKN later blocks direct GRA:443.
-      title: "Add fr-via-msk relay chain (RU → MSK relay → WG → France exit)"
-      reported: 2026-05-31
-      rationale: |
-        Direct France (Reality) now works from RU (GRA user-sync fixed 2026-05-31). A
-        fr-via-msk chain (like de-via-msk / nl-via-msk) would route RU clients via the MSK
-        relay (217.198.5.52) over WireGuard to the GRA exit — useful ONLY if RKN later
-        blocks direct GRA:443 from RU. Not urgent while the direct leg works.
-      work_required: |   # relay_exit_peers (migration 010) model; no turnkey script exists
-        1. Generate WG keypair (relay side + exit side).
-        2. MSK relay 217.198.5.52: add WG tunnel to GRA + new VLESS Reality inbound on
-           a free port (e.g. 2098, tag vless-fr) routing into that WG tunnel.
-        3. GRA 54.38.243.162: add WG peer (MSK) + egress route.
-        4. INSERT relay_exit_peers row (relay=msk, exit=gra1, relay_listen_port=2098,
-           relay_inbound_tag=vless-fr, WG keys/subnet) → backend auto-emits fr-via-msk
-           chain in /config (no app build; clients refetch).
-        5. RelayUserSyncer already syncs relay inbounds by tag — wire vless-fr in too.
-      risk: medium-high — touches 2 servers (MSK relay + GRA) + WireGuard + Reality + DB.
-            Agree before touching MSK/GRA.
+    # FR-VIA-MSK RESOLVED 2026-06-01 (user asked for both relay legs) → see done log
+    # + incidents/2026-06-01-fr-relay-legs.md. Built fr-via-msk (port 2099) AND ru-spb-fr.
     - { id: SUBDOMAIN-SCRUB, priority: P2, title: "bot/speedtest.madfrog.online → 85.239.49.28 (the @MadFrogRobot bot host, user-controlled — low takeover risk; crew/apex already on CF, api→MSK). Confirm intentional or repoint." }
 
 # ============================================================
@@ -481,6 +471,22 @@ done:
         (sole-charge revoke → NULL; multi-source keeps coverage; reversal restores). Also
         fixed the payments test harness (init.sql before numbered migrations) which had
         silently broken the pre-existing HasCharge integration tests. Deploy NL 2026-06-01.
+    - id: FR-RELAY-LEGS
+      title: France reachable via both RU relays — SPB→FR (ru-spb-fr) + MSK→FR (fr-via-msk)
+      file: docs/incidents/2026-06-01-fr-relay-legs.md
+      notes: |
+        User asked for France through both relays ("без полумер"). SPB→FR: nginx stream
+        :2099 → GRA:443 + DB row relay-fr (ufw :2099 was the gotcha). MSK→FR: GRA WireGuard
+        server + MSK sing-box vless-fr inbound (:2099) → wg-fr endpoint → GRA, relay_exit_peers
+        msk→gra1. Both verified by real traffic (exit 54.38.243.162). No app build (clients
+        refetch /config). Supersedes the old FR-VIA-MSK "future work" item.
+    - id: UI-POLISH-FLAGS
+      title: Vector country flags (no emoji) everywhere + PRO tappable + one refresh button
+      notes: |
+        Home + server-list flags → vector CountryFlag (build 96/97, no emoji, consistent).
+        PRO badge now opens the paywall; the two confusing server-list refresh buttons
+        merged into one ↻ (build 98). Builds 95-98 (1.0.29) on TestFlight. CountryFlagTests
+        covers the flag→code mapping.
     - id: SETTINGS-L10N
       title: Localize the AUTO-CONNECT / trusted-networks settings section (was hardcoded English)
       files:
@@ -681,7 +687,8 @@ done:
         Initial; dead UDP → .selectedDead (actionable error) instead of a silent
         dead tunnel. Prefer Reality over UDP within a cascade class. Industry rule
         (Psiphon/Outline/sing-box urltest). Ships via app release (build 91+).
-        Unit-test execution blocked by app-group host crash — see memory.
+        Unit-test execution can't RUN locally (app-group host crash in the unsigned
+        sim test bundle) — tests compile + CI builds them; verify via `xcodebuild build`.
     - id: DASH-FMTNUM-FIX
       title: Fix duplicate fmtNum in dashboard.tsx (broke SPA build after #27/#26 merge)
       pr: 29
@@ -972,12 +979,12 @@ done:
 # ============================================================
 # Stats — for at-a-glance sanity check
 # ============================================================
-stats:
-  open_now: 0                 # ALL blockers cleared 2026-06-01 (ACCT-IDENTITY+SEC-01/03/04 done; VPN-TG-MEDIA resolved-by-IP-swap)
-  open_next: ~9               # SETTINGS-L10N+SEC-03+SEC-04 RESOLVED 2026-06-01; GRA-PARITY+SEC-02 2026-05-31
-                              # (direct France works now). Remaining iOS batch: STOREKIT-VERIFY/
-                              # UI-FLAG-HOME/SETTINGS-L10N/SRV-DYNAMIC/FR-SELECT + backend SEC-01/03/04
-  tech_debt_items: 1          # TD-LINT-01/02/DE-PRUNE all closed 2026-05-28; only TD-LIBBOX-FETCH remains
-  decisions_documented: 8     # ADRs in decisions/ (added 0007-sentry-eu + 0008-utls-fingerprint-rotation)
-  incidents_documented: 8     # +2026-05-31-gra-france-user-sync
+stats:                        # counts are approximate; recomputed at the 2026-06-01 audit
+  open_now: 1                 # TRAFFIC-MULTIEXIT (P2). 1.0.29 submit is a step, not a roadmap item.
+  open_next: ~22              # the `next:` queue (launch_checklist, protocols, usr, support, infra,
+                              # monitoring, security, client_reliability...). FR-VIA-MSK + UI-FLAG-HOME +
+                              # FR-SELECT + SETTINGS-L10N now done.
+  tech_debt_items: 2          # TD-LIBBOX-FETCH + TD-CERT-PIN (APIClient InsecureDelegate, see next.security)
+  decisions_documented: 8     # ADRs in decisions/
+  incidents_documented: 11    # docs/incidents/*.md (2× new 2026-06-01: acct-identity-demote, fr-relay-legs)
   playbooks_documented: 4     # apple-reject-recovery, ios-cli-release, deploy-nl, asc-api-checks

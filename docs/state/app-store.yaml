@@ -4,7 +4,7 @@
 # this file blindly — see playbooks/asc-api-checks.md for a 5-line
 # bash snippet to re-fetch state.
 
-verified: 2026-05-31T00:30:00Z
+verified: 2026-06-01
 
 app:
   bundle_id: com.madfrog.vpn
@@ -42,18 +42,23 @@ versions:
   # before submitting for release.
   testflight:
     version: "1.0.29"
-    build: 94                         # supersedes build 93 (93 lacked SETTINGS-L10N)
-    asc_build_id: 8a75c21e-a5f7-42f1-9572-9d46cc216a66
+    build: 98                         # latest; assigned to Internal Testers group
     processingState: VALID            # verified live ASC API 2026-06-01
-    build_uploaded: 2026-06-01T01:51:00Z
+    build_uploaded: 2026-06-01T09:12:00Z
+    note: |
+      Internal-testing builds must be EXPLICITLY assigned to the "Internal Testers"
+      beta group (hasAccessToAllBuilds=false) via ASC API or they don't appear in
+      TestFlight — see playbooks/ios-cli-release.md.
     ships:
       - ACCT-IDENTITY (no anon-demote; Keychain identity; ReauthView recovery ladder)
-      - UI-FLAG-HOME (home card flag resolves selected country)
+      - UI-FLAG-HOME + vector CountryFlag (no emoji) on home & server list
       - SETTINGS-L10N (AUTO-CONNECT section localized EN+RU)
+      - PRO badge opens paywall; two server-list refresh buttons merged into one
       - SEC-01 client behavior (server-side trial-once already deployed)
     pending_verification:
       - STOREKIT-VERIFY (non-CIS Apple ID → 4 products + Restore)
       - ACCT-IDENTITY re-auth ladder on device
+    history: builds 93 (no L10N) · 94 (L10N) · 95 (flag fixes) · 96-97 (vector flags) · 98 (PRO+refresh)
     superseded_builds:
       - build 93 (uploaded 2026-06-01T00:26Z, VALID) — replaced before submission
 

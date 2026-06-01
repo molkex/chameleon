@@ -45,4 +45,4 @@ Implementation: [`clients/apple/MadFrogVPN/Views/PaywallRouter.swift`](../../cli
 
 ## Status
 
-Active. Migration to auto-renewable subscriptions (Subscription Groups) tracked separately in [`../PLAN-auto-renewing-migration.md`](../PLAN-auto-renewing-migration.md) (legacy file; will become a future ADR).
+Active. Migration to auto-renewable subscriptions (Subscription Groups) tracked separately in [`../archive/2026-05/PLAN-auto-renewing-migration.md`](../archive/2026-05/PLAN-auto-renewing-migration.md) (legacy file; will become a future ADR).

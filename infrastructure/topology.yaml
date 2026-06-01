@@ -1,3 +1,10 @@
+# ⛔ DEPRECATED 2026-06-01 — DO NOT TRUST FOR CURRENT STATE.
+#    Canonical server mesh is docs/state/servers.yaml (+ docs/state/project.yaml
+#    snapshot). This file is diverged: it predates the GRA/France exit (2026-05-30)
+#    and the FR relay legs (fr-via-msk / ru-spb-fr, 2026-06-01). Kept only for the
+#    historical protocol-level detail below. Migrate what you still need into
+#    state/servers.yaml, then delete this file.
+#
 # Chameleon VPN Infrastructure Topology
 # Last verified: 2026-05-26 (post-DE retirement)
 # Sources: backend/config.yaml, migrations/, clients/apple/Constants.swift, clientconfig.go, DebugLogsView.swift

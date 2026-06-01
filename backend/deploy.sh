@@ -1,7 +1,7 @@
 #!/bin/bash
 # Chameleon VPN — Deploy Go backend to any node
 # Usage: ./deploy.sh <node> [--with-singbox]
-#   node: de, nl, all
+#   node: nl, all
 #   --with-singbox: also restart singbox (causes brief VPN drop!)
 #
 # sing-box runs OUTSIDE docker-compose as a standalone container.
@@ -21,11 +21,7 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 get_node_config() {
     case "$1" in
         de)
-            NODE_SSH="ubuntu@162.19.242.30"
-            NODE_DIR="/opt/chameleon"
-            NODE_NODE_ID="de-1"
-            NODE_SNI="ads.adfox.ru"
-            NODE_PREBUILT=0
+            echo "DE retired 2026-05-25 — refusing to deploy"; exit 1
             ;;
         nl)
             NODE_SSH="root@147.45.252.234"
@@ -35,12 +31,11 @@ get_node_config() {
             NODE_PREBUILT=1  # 2GB RAM — can't compile Go in Docker
             ;;
         all)
-            "$0" de "${@:2}"
             "$0" nl "${@:2}"
             exit 0
             ;;
         *)
-            echo "Usage: $0 <de|nl|all> [--with-singbox]"
+            echo "Usage: $0 <nl|all> [--with-singbox]"
             exit 1
             ;;
     esac

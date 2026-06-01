@@ -1,0 +1,95 @@
+# project.yaml — START HERE. The token-cheap 30-second snapshot of where the
+# project is RIGHT NOW. A fresh session (human or agent) reads this first, then
+# follows the pointers for depth. It is a curated SNAPSHOT, not a second source
+# of truth — canonical detail lives in the files it points to. Refresh `meta.updated`
+# + the changed lines at the end of every working session.
+#
+# THE SYSTEM (decision 0006 — yaml-state-md-narrative):
+#   project.yaml      → this snapshot + the map (you are here)
+#   state/*.yaml      → canonical current facts (servers, app-store, runtime, domains, payments)
+#   roadmap.yaml      → now / next / later / done   (move items, never delete)
+#   decisions/NNNN-*  → WHY we chose X (ADRs, append-only; supersede, don't edit)
+#   incidents/DATE-*  → what broke + the fix (append-only post-mortems)
+#   playbooks/*.md    → HOW to do a recurring op (deploy, release, recover)
+#   arch/*.md         → system design (overview = current; others may be aspirational)
+#   audits/*.md       → point-in-time audits
+#   archive/          → superseded snapshots/plans (historical)
+# Rule: one fact = one home. YAML for state agents parse, MD for narrative.
+
+meta:
+  updated: 2026-06-01
+  branch: main
+  direction: on_track          # see `assessment` at the bottom
+
+# ── Product ────────────────────────────────────────────────────────────────
+product:
+  name: MadFrog VPN
+  what: Native iOS+macOS VPN with own Go backend; VLESS Reality + sing-box.
+  app_store:                   # canonical: state/app-store.yaml
+    live:        {version: "1.0.28", build: 91, state: READY_FOR_SALE}
+    testflight:  {version: "1.0.29", build: 98, state: VALID}
+    next_step: verify build 98 on TestFlight → submit 1.0.29 to App Store review
+  iap: 4 non-renewing subs, all APPROVED 2026-05-31 (RU/CIS → WebPaywall/FreeKassa)
+
+# ── Infra (canonical: state/servers.yaml) ───────────────────────────────────
+infra:
+  backend_db: NL 147.45.252.234   # sole backend+DB node — SPoF accepted (decision 0004)
+  vpn_exits:
+    - {country: NL, key: nl2,  host: 147.45.252.234}
+    - {country: FR, key: gra1, host: 54.38.243.162}     # live 2nd exit since 2026-05-30
+  relays:                          # RU-side, for users behind RKN whitelists
+    - {key: msk, host: 217.198.5.52, role: relay,            chains:   [nl-via-msk, fr-via-msk]}
+    - {key: spb, host: 185.218.0.43, role: whitelist_bypass, forwards: [ru-spb-nl, ru-spb-fr]}
+  retired: [DE 162.19.242.30]      # 2026-05-25 — do NOT reference in new code/scripts
+
+# ── Stack ───────────────────────────────────────────────────────────────────
+stack:
+  backend: Go 1.25 · Echo v4 · pgx/v5 · go-redis/v9 · Postgres 16 · Redis 7 · Docker/Nginx
+  admin:   React 19 · Tailwind 4 · TanStack · Vite 7   (clients/admin/)
+  apple:   Swift 6 · SwiftUI (iOS17+/macOS14+) · StoreKit2 · NetworkExtension · libbox 1.13  (clients/apple/)
+  vpn:     VLESS Reality TCP (primary) · sing-box 1.13.x client · Xray 25.12.8 server
+           Hysteria2/TUIC present but DISABLED on prod (ports NULL)
+
+# ── Health of the big rocks ─────────────────────────────────────────────────
+health:
+  auth:      green   # ACCT-IDENTITY fixed 2026-06-01 (Keychain identity, no anon-demote)
+  payments:  green   # SEC-04 refund-revoke live; trial-once (SEC-01) live
+  vpn_nl:    green
+  vpn_fr:    green   # direct + via SPB + via MSK, all verified exit 54.38.243.162
+  telemetry: amber   # per-user traffic only counted on NL exit → TRAFFIC-MULTIEXIT
+  redundancy: amber  # backend/DB single-NL; NL-RED-01 (Hetzner Helsinki) planned
+
+# ── Right now (canonical: roadmap.yaml) ─────────────────────────────────────
+now:
+  - TRAFFIC-MULTIEXIT (P2) — GRA/relay users show ~0 traffic in admin (stats only from NL)
+  - SUBMIT 1.0.29 — after on-device TestFlight verification (build 98)
+open_decisions:                  # waiting on the user
+  - SUBDOMAIN-SCRUB — bot/speedtest.madfrog.online → 85.239.49.28 (intentional? repoint?)
+  - SUPPORT-CHAT — Chatwoot vs native in-app vs Telegram deep-link
+
+# ── Shipped 2026-06-01 (detail: roadmap.yaml#done + incidents/2026-06-01-*) ──
+recent:
+  - ACCT-IDENTITY (P0) — no more silent demote of Apple payers to anon trial; ReauthView ladder
+  - SEC-01/03/04 — trial-once, UDP TLS cert-pin, Apple refund→revoke (all deployed NL)
+  - SETTINGS-L10N, UI-FLAG-HOME, vector CountryFlag, PRO tappable, merged refresh button
+  - FR relay legs — SPB→FR (ru-spb-fr) + MSK→FR (fr-via-msk), verified
+  - VPN-TG-MEDIA — resolved by clean-egress IP swap (user-confirmed)
+
+# ── Operational pointers ────────────────────────────────────────────────────
+ops:
+  deploy_backend: "cd backend && ./deploy.sh nl"   # playbooks/deploy-nl.md
+  ios_release:    playbooks/ios-cli-release.md      # archive → ASC → assign to Internal Testers group
+  ssh_nl:   "ssh -i ~/.ssh/claude-code-ssh-key root@147.45.252.234"
+  ssh_gra:  "ssh -i ~/.ssh/claude-code-ssh-key debian@54.38.243.162"
+  ssh_msk:  "ssh -i ~/.ssh/claude-code-ssh-key root@217.198.5.52"
+  ssh_spb:  'sshpass -p "$SPRINTBOX_VPS_PASSWORD" ssh root@185.218.0.43'   # password auth, not key
+
+# ── Are we going the right way? ─────────────────────────────────────────────
+assessment: |
+  YES — on track. Core P0 (auth identity) and the audited security findings
+  (SEC-01..04) are closed and deployed; France is a real 2nd exit with relay
+  diversity; the app is one TestFlight verification away from a 1.0.29 submit.
+  Architecture is sound for current scale. The two honest watch-items are
+  redundancy (single-NL backend/DB — NL-RED-01 planned) and observability
+  (multi-exit traffic accounting — TRAFFIC-MULTIEXIT). Docs follow decision
+  0006; this snapshot + the 2026-06-01 doc cleanup removed the remaining drift.

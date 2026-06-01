@@ -1,7 +1,5 @@
 # Chameleon VPN
 
-> 🤖 Mirror: [agent-readable YAML](README.yaml) — keep in sync. Edit either, sync the other.
-
 Self-hosted VPN platform: Go backend + sing-box + native iOS/macOS app.
 
 ## Architecture
@@ -64,8 +62,7 @@ chameleon/
 ```bash
 # Deploy to a specific node
 cd backend
-./deploy.sh de    # Germany
-./deploy.sh nl    # Netherlands
+./deploy.sh nl    # Netherlands (sole production node)
 ```
 
 Secrets are loaded from `~/.secrets.env` on the deploy machine.
@@ -74,6 +71,6 @@ Secrets are loaded from `~/.secrets.env` on the deploy machine.
 
 | Node | IP | Role |
 |---|---|---|
-| DE | 162.19.242.30 | Backend + VPN |
-| NL | 147.45.252.234 | Backend + VPN |
+| DE | 162.19.242.30 | ~~Backend + VPN~~ RETIRED 2026-05-25 |
+| NL | 147.45.252.234 | Backend + VPN (sole production node) |
 | SPB | 185.218.0.43 | TCP relay |

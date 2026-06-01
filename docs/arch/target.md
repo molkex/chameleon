@@ -1,5 +1,9 @@
 # Target Architecture — Chameleon / MadFrog VPN
 
+> ⚠️ HISTORICAL DRAFT (2026-04-23) — never executed; kept for context. Current
+> design is [overview.md](overview.md); current state is [`../state/project.yaml`](../state/project.yaml).
+> The proposals below (clients/ rename, etc.) did NOT happen and are 40+ days stale.
+
 > Составлено: 2026-04-23
 > Статус: DRAFT — требует одобрения перед исполнением
 > Источник: реальный read проекта (не CLAUDE.md)

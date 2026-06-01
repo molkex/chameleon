@@ -24,7 +24,7 @@ For protocol: **VLESS Reality** beats everything else for RU evasion in 2025-202
 
 ## Decision
 
-- **Server:** sing-box 1.13.5 (custom fork — see [0007-singbox-fork.md](0007-singbox-fork.md) when written) inbounds: VLESS Reality :443/tcp, Hysteria2 :443/udp (where available), TUIC v5 :8443/udp.
+- **Server:** sing-box 1.13.5 (custom fork — see the sing-box fork notes) inbounds: VLESS Reality :443/tcp, Hysteria2 :443/udp (where available), TUIC v5 :8443/udp.
 - **Client:** libbox 1.13 via NetworkExtension. Built from `make lib_apple` (sagernet/gomobile fork). Slices: ios-arm64, ios-arm64_x86_64-simulator, macos-arm64_x86_64.
 - **SNI:** **NEVER** use google.com / cloudflare.com (RKN-blocked patterns). `ads.adfox.ru` is verified clean for RU. New SNI must be checked against RKN block list before adoption.
 - **Migration discipline:** when sing-box version bumps, read `https://sing-box.sagernet.org/migration/` BEFORE generating new configs. Validate with `sing-box check -c config.json` on the server before any client rollout.

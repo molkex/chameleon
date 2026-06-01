@@ -1,8 +1,12 @@
 # Chameleon Mesh Architecture v2
 
-> 🤖 Mirror: [agent-readable YAML](architecture.yaml) — keep in sync. Edit either, sync the other.
+> ⚠️ ASPIRATIONAL (2026-04-22) — the "20+ node / CockroachDB / libp2p" v2 design
+> was NOT built. Current topology is single-NL backend + NL/GRA VPN exits + RU
+> relays — see [`../state/servers.yaml`](../state/servers.yaml) + [overview.md](overview.md).
+> The "current state" detail sections below (iOS network race, MSK/SPB relays) are
+> still accurate; the v2 scale plan is not.
 
-**Status:** In progress (2026-04-22)
+**Status:** Aspirational design, not started (drafted 2026-04-22)
 **Scale target:** 20+ nodes globally
 **Migration tracking branch:** `mesh-v2` (TBD)
 

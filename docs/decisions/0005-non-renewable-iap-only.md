@@ -43,7 +43,7 @@ No auto-renewal. When the period ends, the user sees the paywall again.
 
 - LTV/ARPU lower than auto-renew (industry-wide observation: 30-50% drop after first period).
 - Marketing must remind users to renew (email / push notification).
-- When we want to migrate, see [`../PLAN-auto-renewing-migration.md`](../PLAN-auto-renewing-migration.md) — Apple does NOT allow direct conversion of non-renewing to auto-renewable; we'd add NEW product IDs and let old ones expire.
+- When we want to migrate, see [`../archive/2026-05/PLAN-auto-renewing-migration.md`](../archive/2026-05/PLAN-auto-renewing-migration.md) — Apple does NOT allow direct conversion of non-renewing to auto-renewable; we'd add NEW product IDs and let old ones expire.
 
 ## Status
 

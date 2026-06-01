@@ -1,11 +1,11 @@
 # servers.yaml — canonical list of servers in the Chameleon mesh.
 #
 # Update whenever a server is added, removed, or its role changes.
-# Detailed historical context + protocol-level notes live in
-# `../../infrastructure/topology.yaml` (legacy, still authoritative for
-# deep details; migrate as touched).
+# THIS FILE is canonical for the server mesh. `../../infrastructure/topology.yaml`
+# is DEPRECATED (diverged, missing GRA + FR relay legs) — kept for historical
+# protocol-level notes only.
 
-verified: 2026-05-28           # last time someone confirmed each field by hand
+verified: 2026-06-01
 spof_warning: |
   VPN-exit failover added 2026-05-30: GRA (OVH Gravelines) is a 2nd
   VLESS-Reality+Hysteria2 exit — if NL's VPN IP is RKN-blocked, clients
