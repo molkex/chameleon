@@ -191,10 +191,7 @@ next:
       priority: P1
       title: Add a test framework (vitest) + smoke tests to the admin SPA
       notes: React SPA has ZERO tests + no framework — only eslint + tsc. Cover dashboard / users / payments pages first.
-    - id: TEST-FREEKASSA
-      priority: P2
-      title: Unit-test freekassa client.go IPAllowed + paymentid.go ParseAppPayment
-      notes: Webhook source-IP allowlist (anti-spoof) + payment-ID parsing (mis-parse misroutes credit) at 0%.
+    # TEST-FREEKASSA → done 2026-06-01 (IPAllowed + ParseAppPayment; 16%→43%).
     - id: TEST-VPN-ENGINE
       priority: P2
       title: Test vpn engine.go AddUser/RemoveUser + userapi.go ReplaceUsers
@@ -433,6 +430,16 @@ done:
         (wrong aud/iss, missing sub, expired, malformed, wrong key, HS256 alg-confusion)
         + disabled-verifier. middleware.go: RequireAuth + RequireAdmin (both self-verify
         and preset-claims paths) + ExtractBearerToken + GetUserFromContext. All green, vet clean.
+    - id: TEST-FREEKASSA
+      title: Unit-test FreeKassa IPAllowed anti-spoof gate + ParseAppPayment
+      files:
+        - backend/internal/payments/freekassa/paymentid_test.go
+        - backend/internal/payments/freekassa/client_test.go
+      notes: |
+        freekassa 16%→43%. IPAllowed: port-strip, ipv6, allow-all-on-empty, in/out
+        of list. ParseAppPayment: round-trip + every error shape (wrong prefix, part
+        count, non-numeric user/nonce) + IsApp/IsBot. CreateOrder HTTP client remains
+        (needs httptest mock, lower risk).
     - id: TEST-APPLE-IAP-GATE
       title: Unit-test the Apple IAP JWS rejection gate (partial — see TEST-APPLE-IAP remainder)
       files: [backend/internal/payments/apple/verify_test.go]
@@ -1049,7 +1056,7 @@ done:
 stats:                        # counts are approximate; recomputed at the 2026-06-01 audit
   open_now: 1                 # TRAFFIC-MULTIEXIT (P2). 1.0.29 submit is a step, not a roadmap item.
   open_next: ~30              # the `next:` queue + 8 new TEST-* coverage gaps (testing group).
-  test_gaps_tracked: 7        # was 8; TEST-AUTH-CREDS closed + TEST-APPLE-IAP gate done (invariants remain). state/test-map.yaml
+  test_gaps_tracked: 6        # 8 found; closed AUTH-CREDS + FREEKASSA + APPLE-IAP gate (invariants remain). state/test-map.yaml
   tech_debt_items: 2          # TD-LIBBOX-FETCH + TD-CERT-PIN (APIClient InsecureDelegate, see next.security)
   decisions_documented: 9     # ADRs in decisions/ (0009 = test-map discipline)
   incidents_documented: 11    # docs/incidents/*.md

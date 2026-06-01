@@ -138,12 +138,12 @@ backend:
     gaps: "post-parse invariants (bundle/env/product/expiry/revoked) + happy path need a real Apple-root-signed JWS (sandbox/integration) OR an applyInvariants() seam → TEST-APPLE-IAP (remainder)"
   payments/freekassa:
     src_files: 4
-    tests: [signature_test.go]
+    tests: [signature_test.go, paymentid_test.go, client_test.go]
     tier: unit
     status: partial
-    coverage_pct: 16
-    covers: "webhook signature"
-    gaps: "client.go IPAllowed (anti-spoof allowlist), paymentid.go ParseAppPayment = 0% → TEST-FREEKASSA"
+    coverage_pct: 43
+    covers: "webhook signature; IPAllowed anti-spoof gate (port strip, ipv6, allow-all); ParseAppPayment round-trip + all error shapes; IsApp/IsBot"
+    gaps: "CreateOrder HTTP client (network call) untested — needs httptest mock (lower risk). TEST-FREEKASSA core closed 2026-06-01."
   asc:
     src_files: 1
     tests: []
@@ -224,7 +224,7 @@ gaps_by_priority:
     - {id: TEST-IOS-SUBMGR,  what: "SubscriptionManager StoreKit2 — 0 tests on revenue path"}
     - {id: TEST-ADMIN-SPA,   what: "admin SPA has no test framework — add vitest + smoke tests"}
   P2:
-    - {id: TEST-FREEKASSA,   what: "freekassa client.go IPAllowed + paymentid.go ParseAppPayment"}
+    - {id: TEST-FREEKASSA,   status: DONE-2026-06-01, what: "IPAllowed + ParseAppPayment covered (16%→43%); CreateOrder HTTP client remains (lower risk)"}
     - {id: TEST-VPN-ENGINE,  what: "vpn engine.go + userapi.go + stats — live user provisioning at 0%"}
     - {id: TEST-IOS-CI,      what: "wire TD-LIBBOX-FETCH so apple tests actually build+run in CI (currently skipped)"}
   P3:
