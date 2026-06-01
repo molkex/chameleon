@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"testing"
-	"time"
 )
 
 // TestFunnelSeriesShape pins the contract of the SQL queries that drive
@@ -24,10 +23,15 @@ import (
 func TestFunnelSeriesShape(t *testing.T) {
 	database := startTestDB(t)
 	ctx := context.Background()
-	now := time.Now().UTC()
 
 	// Seed: a few users across the last 14 days with different auth
 	// providers and one with a payment.
+	//
+	// NOTE: CreateUser intentionally does NOT honor the CreatedAt/LastSeen
+	// struct fields — created_at is defaulted to NOW() by the DB (read back
+	// via RETURNING) and there's no last_seen INSERT column. So we set both
+	// columns explicitly afterwards, anchored to NOW(), so the funnel's
+	// windowing and avg_days math stay stable no matter when the test runs.
 	mkUser := func(suffix string, daysAgo int, provider string, lastSeenDaysAgo int) int64 {
 		u := &User{
 			VPNUsername:  ptr(fmt.Sprintf("device_%s", suffix)),
@@ -35,15 +39,22 @@ func TestFunnelSeriesShape(t *testing.T) {
 			VPNShortID:   ptr(""),
 			AuthProvider: ptr(provider),
 			IsActive:     true,
-			CreatedAt:    now.AddDate(0, 0, -daysAgo),
-			UpdatedAt:    now,
-		}
-		if lastSeenDaysAgo >= 0 {
-			ls := now.AddDate(0, 0, -lastSeenDaysAgo)
-			u.LastSeen = &ls
 		}
 		if err := database.CreateUser(ctx, u); err != nil {
 			t.Fatalf("CreateUser(%s): %v", suffix, err)
+		}
+		// Backdate created_at and set last_seen relative to NOW(). A negative
+		// lastSeenDaysAgo means "never seen" → last_seen stays NULL.
+		_, err := database.Pool.Exec(ctx,
+			`UPDATE users
+			    SET created_at = NOW() - ($2::int || ' days')::interval,
+			        last_seen  = CASE WHEN $3::int >= 0
+			                          THEN NOW() - ($3::int || ' days')::interval
+			                          ELSE NULL END
+			  WHERE id = $1`,
+			u.ID, daysAgo, lastSeenDaysAgo)
+		if err != nil {
+			t.Fatalf("backdate user(%s): %v", suffix, err)
 		}
 		return u.ID
 	}
@@ -53,12 +64,13 @@ func TestFunnelSeriesShape(t *testing.T) {
 	mkUser("a03", 3, "device", -1)                 // signed up 3d, never seen
 	mkUser("a04", 1, "device", 1)                  // signed up 1d, active yesterday
 
-	// alpha makes a paid Apple purchase 2 days after signup.
-	paidAt := now.AddDate(0, 0, -8)
+	// alpha makes a paid Apple purchase 2 days after signup (so 8 days ago,
+	// vs the 10-day-old signup → avg_days ≈ 2). Anchored to NOW() so the
+	// gap is constant regardless of the wall clock.
 	_, err := database.Pool.Exec(ctx,
 		`INSERT INTO payments (user_id, source, charge_id, days, status, created_at)
-		 VALUES ($1, 'apple_iap', 'test-charge-001', 30, 'completed', $2)`,
-		alpha, paidAt)
+		 VALUES ($1, 'apple_iap', 'test-charge-001', 30, 'completed', NOW() - INTERVAL '8 days')`,
+		alpha)
 	if err != nil {
 		t.Fatalf("seed payment: %v", err)
 	}
