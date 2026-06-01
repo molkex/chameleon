@@ -174,7 +174,7 @@ backend:
 apple:
   models:
     VPNManager:        {status: partial, tests: [VPNManagerTimeoutTests, VPNManagerOnDemandRulesTests], covers: "raceWithTimeout (MED-006), buildOnDemandRules (LAUNCH-07)", gaps: "tunnel lifecycle / sendMessage — on-device only"}
-    AppState:          {status: partial, tests: [AppStateFallbackTests, AcctIdentityTests, ProxyChainResolverTests], covers: "cascade fallback, shouldAnonReRegister (ACCT-IDENTITY P0), resolveChain", gaps: "1900-LoC orchestration not instantiated"}
+    AppState:          {status: partial, tests: [AppStateFallbackTests, AcctIdentityTests, ProxyChainResolverTests], covers: "cascade fallback, shouldAnonReRegister (ACCT-IDENTITY P0), isUsableConfigPayload (ACCT-IDENTITY-2 — bad cached config must not wipe identity), resolveChain", gaps: "1900-LoC orchestration not instantiated"}
     APIClient:         {status: partial, tests: [APIClientSensitiveFlagTests], covers: "raceLegPlan sensitive-payload gating (H-001/002)", gaps: "hedged-race networking, token refresh, retries"}
     ConfigStore:       {status: partial, tests: [AcctIdentityTests, MigrationLeafToCountryTests], covers: "identity persist/clear, leaf→country migration", gaps: "no dedicated test file (incidental coverage)"}
     PathPicker:        {status: tested, tests: [PathPickerTests], covers: "countryCode(forSelectedTag:), bestLeaf pin+filter"}

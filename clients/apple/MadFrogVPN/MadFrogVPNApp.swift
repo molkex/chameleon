@@ -19,7 +19,8 @@ struct MadFrogVPNApp: App {
         // logSync ensures the line is on disk before init returns; if the
         // log file is empty after a launch we can rule out "missing call
         // site" and look at file system / entitlement issues.
-        TunnelFileLogger.logSync("=== APP LAUNCH (build 38d) base=\(AppConstants.sharedContainerURL.path) ===", category: "boot")
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
+        TunnelFileLogger.logSync("=== APP LAUNCH (build \(build)) base=\(AppConstants.sharedContainerURL.path) ===", category: "boot")
 
         // Libbox needs basePath set so LibboxNewCommandClient can find
         // command.sock created by the extension's CommandServer.

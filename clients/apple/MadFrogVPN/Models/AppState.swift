@@ -230,11 +230,18 @@ class AppState {
         // so fresh config is fetched from API
         repairConfigIfNeeded()
 
-        // Fix: if cached config is an error response (not a valid sing-box config),
-        // clear everything and force re-registration.
-        if let cached = configStore.loadConfig(), cached.contains("\"error\""), !cached.contains("\"outbounds\"") {
-            AppLogger.app.info("initialize: cached config is error response, clearing all")
-            configStore.clear()
+        // ACCT-IDENTITY (P0, recurred on build 98): a cached payload that isn't a
+        // real sing-box config (error body, Cloudflare/relay error page, throttled
+        // response) is a BAD CONFIG, not a sign-out. Discard ONLY the cached config
+        // + start options and re-fetch for the SAME identity. NEVER clear() here —
+        // clear() wipes authProvider/appleUserID and demoted a paying user to a
+        // fresh anonymous trial. (Guard 1 — doFetchAndSave — now prevents such a
+        // body from being cached in the first place; this stays as belt-and-suspenders
+        // for any pre-existing bad cache.)
+        if let cached = configStore.loadConfig(), !AppState.isUsableConfigPayload(cached) {
+            AppLogger.app.info("initialize: cached config is not a usable sing-box config — discarding cache, KEEPING identity (ACCT-IDENTITY)")
+            try? FileManager.default.removeItem(at: AppConstants.configFileURL)
+            UserDefaults(suiteName: AppConstants.appGroupID)?.removeObject(forKey: AppConstants.startOptionsKey)
         }
 
         servers = configStore.parseServersFromConfig()
@@ -511,6 +518,14 @@ class AppState {
     private func doFetchAndSave(username: String) async throws {
         let result = try await apiClient.fetchConfig(username: username, accessToken: configStore.accessToken)
         AppLogger.app.info("fetchAndSaveConfig: got config, length=\(result.config.count)")
+        // ACCT-IDENTITY trip-wire guard: never cache a non-config (error body,
+        // CF/relay error page, throttled/empty response). Caching one is what
+        // armed the initialize() identity-wipe that demoted payers. Treat it as a
+        // transient fetch failure — keep the existing cached config, demote nothing.
+        guard AppState.isUsableConfigPayload(result.config) else {
+            AppLogger.app.error("fetchAndSaveConfig: response is not a usable sing-box config (len=\(result.config.count)) — refusing to cache")
+            throw APIError.networkError("config response was not a valid sing-box config")
+        }
         try configStore.saveConfig(result.config)
         if result.expire > 0 {
             let expireDate = Date(timeIntervalSince1970: TimeInterval(result.expire))
@@ -566,6 +581,21 @@ class AppState {
     /// heavyweight AppState (same pattern as `shouldEscalateBeyondCountry`).
     static func shouldAnonReRegister(authProvider: String?) -> Bool {
         authProvider == nil
+    }
+
+    /// A real sing-box config ALWAYS contains an `outbounds` array. Error JSON
+    /// bodies, Cloudflare/relay HTML error pages, throttled or empty responses
+    /// (common on RU networks via the direct-IP fallback) do NOT. Such a payload
+    /// must NEVER be cached as "the config", and a previously-cached one must be
+    /// discarded WITHOUT touching identity.
+    ///
+    /// This is the ACCT-IDENTITY trip-wire that recurred on build 98: the old
+    /// code cached error bodies, then `initialize()` saw `"error"` in the cache
+    /// and `clear()`-ed the WHOLE identity (authProvider/appleUserID) — demoting
+    /// a paying Apple/Google/email user to a brand-new anonymous trial. Pure +
+    /// static so it's unit-testable without constructing AppState.
+    static func isUsableConfigPayload(_ payload: String) -> Bool {
+        payload.contains("\"outbounds\"")
     }
 
     /// Mark the identity session as needing re-auth WITHOUT touching stored

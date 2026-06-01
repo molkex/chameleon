@@ -420,6 +420,27 @@ deferred:
 # ============================================================
 done:
   "2026-06-01":
+    - id: ACCT-IDENTITY-2
+      title: ACCT-IDENTITY P0 recurrence on build 98 — bad cached config wiped a paying Apple user
+      file: docs/incidents/2026-06-01-acct-identity-demote-recurrence.md
+      priority: P0
+      files:
+        - clients/apple/MadFrogVPN/Models/AppState.swift
+        - clients/apple/MadFrogVPN/MadFrogVPNApp.swift
+        - clients/apple/Tests/UnitTests/AcctIdentityTests.swift
+      notes: |
+        User-reported: on VPN connect the account switched to anon device_0668c8cb.
+        NL proof: paying Apple acct (id 12351, sub→2026-06-15, build 98) demoted to a
+        fresh anon trial (id 159280) 1 second later, on the same iPhone17,1 — on a build
+        that ALREADY had the first ACCT-IDENTITY fix. Root cause = a SECOND path the first
+        fix missed: doFetchAndSave/saveConfig cached ANY /config response (a CF/relay error
+        page on RU LTE), then initialize() clear()'d the whole identity when the cached body
+        had "error"/no "outbounds". Fix: AppState.isUsableConfigPayload (config must have
+        "outbounds"); Guard 1 — doFetchAndSave refuses to cache a non-config; Guard 2 —
+        initialize discards ONLY the bad cache + keeps identity (never clear()). Regression
+        tests in AcctIdentityTests. Also fixed the hardcoded "build 38d" boot-log marker →
+        real CFBundleVersion. build-for-testing green. Ships build 99. Affected acct
+        recoverable via Apple re-sign-in (sub intact).
     - id: TEST-AUTH-CREDS
       title: Unit-test the auth credential path (password + Google + middleware)
       files:
@@ -1136,5 +1157,5 @@ stats:                        # counts are approximate; recomputed at the 2026-0
   test_gaps_tracked: 0        # all 8 found 2026-06-01 closed/addressed. Only 3 P3 remainders left (apple sandbox-JWS, vpn engine.go orchestration, admin page smoke tests). state/test-map.yaml
   tech_debt_items: 1          # TD-CERT-PIN (APIClient InsecureDelegate). TD-LIBBOX-FETCH resolved 2026-06-01; LIBBOX-MAC-STRUCT worked-around.
   decisions_documented: 9     # ADRs in decisions/ (0009 = test-map discipline)
-  incidents_documented: 11    # docs/incidents/*.md
+  incidents_documented: 12    # docs/incidents/*.md (+acct-identity-demote-recurrence 2026-06-01)
   playbooks_documented: 6     # apple-reject-recovery, ios-cli-release, deploy-nl, asc-api-checks, operations, debug-vpn-ios

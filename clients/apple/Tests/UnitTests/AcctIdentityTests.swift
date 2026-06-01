@@ -35,6 +35,32 @@ final class AcctIdentityTests: XCTestCase {
         XCTAssertFalse(AppState.shouldAnonReRegister(authProvider: "email"))
     }
 
+    // MARK: - P0 (recurred build 98): a bad cached config must NOT wipe identity
+
+    /// `isUsableConfigPayload` is the second trip-wire. A real sing-box config
+    /// has `outbounds`; an error/HTML/empty body does not. The recurrence:
+    /// a degraded /config response (CF/relay error page on RU LTE) was cached,
+    /// then `initialize()` clear()'d the whole identity on next launch — demoting
+    /// a paying Apple user (sub→2026-06-15) to a fresh anon `device_0668c8cb`.
+    func testUsableConfigAccepted() {
+        XCTAssertTrue(AppState.isUsableConfigPayload(#"{"outbounds":[{"type":"vless","tag":"nl"}]}"#))
+    }
+
+    func testErrorBodyIsNotUsableConfig() {
+        XCTAssertFalse(AppState.isUsableConfigPayload(#"{"error":"user not found"}"#),
+                       "an error JSON body must never be treated as a config (would arm the identity-wipe)")
+    }
+
+    func testHtmlErrorPageIsNotUsableConfig() {
+        XCTAssertFalse(AppState.isUsableConfigPayload("<html><body>503 Service Unavailable</body></html>"),
+                       "a Cloudflare/relay error page is not a config")
+    }
+
+    func testEmptyOrGarbageIsNotUsableConfig() {
+        XCTAssertFalse(AppState.isUsableConfigPayload(""))
+        XCTAssertFalse(AppState.isUsableConfigPayload("null"))
+    }
+
     // MARK: - ConfigStore identity persistence
 
     func testConfigStorePersistsAndClearsIdentity() throws {
