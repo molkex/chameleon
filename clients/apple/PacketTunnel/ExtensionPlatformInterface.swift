@@ -349,31 +349,35 @@ extension ExtensionPlatformInterface: LibboxCommandServerHandlerProtocol {
     func writeLogs(_ messageList: (any LibboxLogIteratorProtocol)?) {
         guard let messageList else { return }
         while messageList.hasNext() {
-            if let entry = messageList.next() {
-                let levelStr: String
-                switch entry.level {
-                case 0: levelStr = "TRACE"
-                case 1: levelStr = "DEBUG"
-                case 2: levelStr = "INFO"
-                case 3: levelStr = "WARN"
-                case 4: levelStr = "ERROR"
-                case 5: levelStr = "FATAL"
-                default: levelStr = "L\(entry.level)"
-                }
-                TunnelFileLogger.log("[\(levelStr)] \(entry.message)", category: "singbox")
-                // Build-44: feed every sing-box log line to the stall
-                // detector. The detector itself fast-paths non-dial
-                // events (substring check before regex), so the cost
-                // of every-line ingestion is negligible.
-                realStallDetector?.ingest(level: entry.level, message: entry.message)
+            guard let entry = messageList.next() else { continue }
+            // Build-44: feed EVERY line to the stall detector (it fast-paths
+            // non-dial events), regardless of the file-sink filter below.
+            realStallDetector?.ingest(level: entry.level, message: entry.message)
+            // LOG-01 / NE-memory (build 99): drop TRACE(0)/DEBUG(1) before the
+            // file sink. libbox emits them regardless of config log.level, and
+            // writing the flood (the captured logs were 18 MB) is a top allocator
+            // inside the ~50 MB NetworkExtension jetsam cap — sing-box's oom-killer
+            // thrashed "resetting network" at ~46 MiB and crashed the tunnel on
+            // connect. Keep INFO+ (≥2) for diagnostics.
+            guard entry.level >= 2 else { continue }
+            let levelStr: String
+            switch entry.level {
+            case 2: levelStr = "INFO"
+            case 3: levelStr = "WARN"
+            case 4: levelStr = "ERROR"
+            case 5: levelStr = "FATAL"
+            default: levelStr = "L\(entry.level)"
             }
+            TunnelFileLogger.log("[\(levelStr)] \(entry.message)", category: "singbox")
         }
     }
 
     func writeMessage(_ level: Int32, message: String?) {
         guard let message else { return }
-        TunnelFileLogger.log("[L\(level)] \(message)", category: "singbox")
         realStallDetector?.ingest(level: level, message: message)
+        // LOG-01 / NE-memory: keep INFO+ only out of the file sink (see writeLogs).
+        guard level >= 2 else { return }
+        TunnelFileLogger.log("[L\(level)] \(message)", category: "singbox")
     }
 
     func writeDebugMessage(_ message: String?) {

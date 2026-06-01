@@ -299,7 +299,15 @@ class AppState {
         // originalTransactionId — a paying user is never shown a trial, even if
         // their account state got confused. Cheap + silent (no AppStore.sync()).
         let subActive = subscriptionExpire.map { $0 > Date() } ?? false
-        if configStore.username != nil, !subActive {
+        // ACCT-IDENTITY (decision 0010): also run the backstop when we're on an
+        // ANONYMOUS account — a demote can park the device on a fresh anon TRIAL
+        // (so subActive==true) while a real Apple entitlement still exists. Gating
+        // only on !subActive would skip the silent reclaim and strand a payer on
+        // the wrong account → "вернулось без перезахода" never happens. The reclaim
+        // is a no-op when StoreKit has no live entitlement, so it's safe for a
+        // genuine anon user.
+        let onAnonAccount = configStore.authProvider == nil
+        if configStore.username != nil, (!subActive || onAnonAccount) {
             if await subscriptionManager.reconcileEntitlementsSilently() {
                 AppLogger.app.info("initialize: StoreKit entitlement found — re-fetching config after backend reclaim")
                 await silentConfigUpdate()

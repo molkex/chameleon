@@ -232,12 +232,14 @@ next:
         config with France).
     - id: LOG-01
       title: Cap / rotate tunnel singbox.log (unbounded growth)
-      priority: P1
+      priority: P2
+      status: partial   # TRACE/DEBUG dropped at the sink in build 99; size cap remains
       notes: |
         Group-container singbox.log hit 4.3 GB (found + truncated 2026-05-30 on
-        a Mac install). No rotation/size cap — on a real device this fills disk
-        and can wedge the NE. Add a size cap + rotation (or lower log level for
-        release builds) on the libbox/sing-box stdout sink.
+        a Mac install). PARTIAL FIX (build 99): ExtensionPlatformInterface now drops
+        TRACE/DEBUG from the file sink — kills the bulk of the volume (an 18 MB
+        capture) and the NE OOM it caused. REMAINING: a hard size cap + rotation on
+        the log file itself (defensive against INFO+ growth over long sessions).
     - id: CFG-01b
       title: macOS Keychain access group → username nil → config never fetches
       priority: P0
@@ -420,6 +422,32 @@ deferred:
 # ============================================================
 done:
   "2026-06-01":
+    - id: BUILD-99-IDENTITY-OOM
+      title: Build 99 (1.0.29) — silent StoreKit reclaim on anon + extension OOM/log fix + ADR 0010
+      decision_ref: decisions/0010-identity-anchored-accounts.md
+      files:
+        - clients/apple/MadFrogVPN/Models/AppState.swift
+        - clients/apple/PacketTunnel/ExtensionPlatformInterface.swift
+        - clients/apple/project.yml
+        - docs/decisions/0010-identity-anchored-accounts.md
+      notes: |
+        Follow-up to the two ACCT-IDENTITY P0s + the user-reported "вылетает при
+        подключении". Three changes, build 98→99:
+        (1) Silent recovery WITHOUT re-login: initialize() now runs the StoreKit
+            backstop (reconcileEntitlementsSilently) when on an ANON account even if a
+            trial looks active — a demote parks the device on a fresh anon trial while a
+            real Apple entitlement exists; gating only on !subActive skipped the reclaim.
+            No-op when StoreKit has no entitlement. (FreeKassa/identity payers still need
+            one re-auth — security; see ADR 0010.)
+        (2) Extension OOM/crash-on-connect (LOG-01): the NE log sink wrote EVERY
+            sing-box line incl. the TRACE flood (captured log was 18 MB) → sing-box
+            oom-killer thrashed "resetting network" at ~46 MiB of the ~50 MB jetsam cap
+            → tunnel crash. writeLogs/writeMessage now drop TRACE/DEBUG (<INFO) from the
+            file sink (stall detector still gets every line). Big memory + log-size cut.
+        (3) ADR 0010 — identity-anchored accounts (industry-reviewed: RevenueCat/Apple/
+            Mullvad): account anchor = identity (Apple/Google/email/appAccountToken), not
+            device; trial per identity; device/IP gating only as supplementary fraud signal.
+        build-for-testing green. NEXT: cut + upload build 99 to TestFlight.
     - id: ACCT-IDENTITY-2
       title: ACCT-IDENTITY P0 recurrence on build 98 — bad cached config wiped a paying Apple user
       file: docs/incidents/2026-06-01-acct-identity-demote-recurrence.md
@@ -1156,6 +1184,6 @@ stats:                        # counts are approximate; recomputed at the 2026-0
   open_next: ~30              # the `next:` queue + 8 new TEST-* coverage gaps (testing group).
   test_gaps_tracked: 0        # all 8 found 2026-06-01 closed/addressed. Only 3 P3 remainders left (apple sandbox-JWS, vpn engine.go orchestration, admin page smoke tests). state/test-map.yaml
   tech_debt_items: 1          # TD-CERT-PIN (APIClient InsecureDelegate). TD-LIBBOX-FETCH resolved 2026-06-01; LIBBOX-MAC-STRUCT worked-around.
-  decisions_documented: 9     # ADRs in decisions/ (0009 = test-map discipline)
+  decisions_documented: 10    # ADRs in decisions/ (0009 test-map, 0010 identity-anchored accounts)
   incidents_documented: 12    # docs/incidents/*.md (+acct-identity-demote-recurrence 2026-06-01)
   playbooks_documented: 6     # apple-reject-recovery, ios-cli-release, deploy-nl, asc-api-checks, operations, debug-vpn-ios
