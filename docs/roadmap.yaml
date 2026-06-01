@@ -212,10 +212,7 @@ next:
       priority: P2
       title: Wire TD-LIBBOX-FETCH so apple tests actually build+run in CI
       notes: Tests currently graceful-skipped (no Libbox fetch) — a compile-time aspiration, not a gate. Pairs with tech_debt TD-LIBBOX-FETCH.
-    - id: TEST-GEOIP
-      priority: P3
-      title: Unit-test geoip IP→country lookup
-      notes: Feeds strict-country routing + rate-limit + FreeKassa allowlist.
+    # TEST-GEOIP → done 2026-06-01 (isPublicIP gate + Lookup short-circuit + cache; 0→36%).
 
   client_reliability:
     - id: CFG-01
@@ -461,6 +458,14 @@ done:
         (render + variant). Excluded *.test.* from tsc -b so `npm run build` stays
         green. Verified: test:run 10/10, build, lint (0 new warnings). Page-level
         smoke tests deferred → TEST-ADMIN-SPA-PAGES (P3).
+    - id: TEST-GEOIP
+      title: Unit-test geoip isPublicIP gate + Lookup short-circuit/cache
+      files: [backend/internal/geoip/geoip_test.go]
+      notes: |
+        geoip 0%→36%. isPublicIP table (loopback/private/unspecified/link-local/
+        invalid vs public, v4+v6) — the gate that feeds strict-country routing;
+        Lookup non-public short-circuit (no network); fresh-cache hit. ip-api.com
+        fetch path left untested (hardcoded URL, third-party, low value).
     - id: TEST-VPN-ENGINE-USERAPI
       title: Unit-test the sing-box User API client (live provisioning contract)
       files: [backend/internal/vpn/userapi_test.go]
@@ -1100,7 +1105,7 @@ done:
 stats:                        # counts are approximate; recomputed at the 2026-06-01 audit
   open_now: 1                 # TRAFFIC-MULTIEXIT (P2). 1.0.29 submit is a step, not a roadmap item.
   open_next: ~30              # the `next:` queue + 8 new TEST-* coverage gaps (testing group).
-  test_gaps_tracked: 3        # 8 found 2026-06-01; 5 closed (AUTH-CREDS, FREEKASSA, APPLE-IAP, VPN-ENGINE userapi, ADMIN-SPA harness). Open: TEST-IOS-SUBMGR(P1), TEST-IOS-CI(P2), TEST-GEOIP(P3) + 3 P3 remainders. state/test-map.yaml
+  test_gaps_tracked: 2        # 8 found 2026-06-01; 6 closed (AUTH-CREDS, FREEKASSA, APPLE-IAP, VPN-ENGINE userapi, ADMIN-SPA harness, GEOIP). Open: TEST-IOS-SUBMGR(P1), TEST-IOS-CI(P2) + 3 P3 remainders (apple sandbox, vpn engine, admin pages). state/test-map.yaml
   tech_debt_items: 2          # TD-LIBBOX-FETCH + TD-CERT-PIN (APIClient InsecureDelegate, see next.security)
   decisions_documented: 9     # ADRs in decisions/ (0009 = test-map discipline)
   incidents_documented: 11    # docs/incidents/*.md

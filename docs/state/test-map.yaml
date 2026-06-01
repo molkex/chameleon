@@ -152,10 +152,11 @@ backend:
     gaps: "App Store Connect API client (312 loc) untested → low risk (ops tooling)"
   geoip:
     src_files: 1
-    tests: []
-    status: untested
-    coverage_pct: 0
-    gaps: "IP→country (feeds strict-country routing) untested → TEST-GEOIP (P3)"
+    tests: [geoip_test.go]
+    status: partial
+    coverage_pct: 36
+    covers: "isPublicIP gate (loopback/private/unspecified/link-local/invalid vs public, v4+v6); Lookup non-public short-circuit; fresh-cache hit"
+    gaps: "ip-api.com fetch path (hardcoded URL, third-party) untested — low value. TEST-GEOIP closed 2026-06-01."
   email:        {src_files: 2, tests: [], status: untested, coverage_pct: 0, gaps: "magic-link send untested (low risk)"}
   useragent:    {src_files: 1, tests: [], status: untested, coverage_pct: 0}
   cli:          {src_files: 1, tests: [], status: untested, coverage_pct: 0}
@@ -230,4 +231,4 @@ gaps_by_priority:
     - {id: TEST-VPN-ENGINE,  status: PARTIAL-2026-06-01, what: "userapi.go HTTP contract DONE (vpn 26→34%); engine.go orchestration is integration-level (e2e sing-box check), stats_v2ray gRPC remains"}
     - {id: TEST-IOS-CI,      what: "wire TD-LIBBOX-FETCH so apple tests actually build+run in CI (currently skipped)"}
   P3:
-    - {id: TEST-GEOIP,       what: "geoip IP→country (feeds strict-country routing)"}
+    - {id: TEST-GEOIP,       status: DONE-2026-06-01, what: "isPublicIP gate + Lookup short-circuit + cache (0→36%); ip-api fetch path remains (third-party, low value)"}
