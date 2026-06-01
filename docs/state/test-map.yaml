@@ -132,10 +132,10 @@ backend:
     src_files: 1
     tests: [verify_test.go]
     tier: unit
-    status: partial
-    coverage_pct: 52
-    covers: "rejection gate (2026-06-01): assertRealAppleChain (x5c chain length, malformed/2-or-4 segments, bad b64, non-json, std+url b64), New config validation, Verify hostile-input + no-panic guarantee, VerifyNotification empty, msToTime. Forged/short/malformed JWS proven rejected."
-    gaps: "post-parse invariants (bundle/env/product/expiry/revoked) + happy path need a real Apple-root-signed JWS (sandbox/integration) OR an applyInvariants() seam → TEST-APPLE-IAP (remainder)"
+    status: tested
+    coverage_pct: 74
+    covers: "rejection gate (assertRealAppleChain x5c/malformed/b64, Verify hostile-input + no-panic, New, msToTime) + credit-decision invariants via applyInvariants seam (bundle mismatch, sandbox gating, unknown env/product, empty originalTxId, revoked→ErrRevoked, AppAccountToken trim, date mapping)."
+    gaps: "only the real-Apple-signed-JWS parse remains: ParseSignedTransaction signature/chain verify (go-iap pins Apple's prod root) + VerifyNotification go-iap parse — need a sandbox JWS / integration test. TEST-APPLE-IAP largely closed 2026-06-01."
   payments/freekassa:
     src_files: 4
     tests: [signature_test.go, paymentid_test.go, client_test.go]
@@ -219,7 +219,7 @@ infra:
 # ──────────────────────────────────────────────────────────────────────────
 gaps_by_priority:
   P1:
-    - {id: TEST-APPLE-IAP,   what: "payments/apple — rejection gate DONE 2026-06-01 (52%); REMAINDER = post-parse invariants + happy path (needs sandbox JWS or applyInvariants seam)"}
+    - {id: TEST-APPLE-IAP,   status: MOSTLY-DONE-2026-06-01, what: "payments/apple 0→74% (rejection gate + applyInvariants credit logic). REMAINDER = real Apple-signed JWS parse (sandbox/integration test only)"}
     - {id: TEST-AUTH-CREDS,  status: DONE-2026-06-01, what: "auth password (3 formats) + google verify (happy+rejections) + middleware — auth pkg 31%→77%"}
     - {id: TEST-IOS-SUBMGR,  what: "SubscriptionManager StoreKit2 — 0 tests on revenue path"}
     - {id: TEST-ADMIN-SPA,   what: "admin SPA has no test framework — add vitest + smoke tests"}

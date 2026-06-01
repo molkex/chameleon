@@ -173,16 +173,17 @@ next:
   testing:
     # TEST-AUTH-CREDS → done 2026-06-01 (auth 31%→77%).
     - id: TEST-APPLE-IAP
-      priority: P1
-      status: partial   # rejection gate DONE 2026-06-01 (0→52%); remainder below
-      title: payments/apple — cover post-parse invariants + happy path
+      priority: P3
+      status: mostly_done   # 0→74% on 2026-06-01; only the sandbox-parse remainder is left
+      title: payments/apple — sandbox/integration test for the real Apple-signed JWS parse
       notes: |
-        DONE 2026-06-01: rejection gate (assertRealAppleChain x5c/malformed/b64,
-        Verify hostile-input + no-panic, New validation, msToTime) → 0→52%.
-        REMAINDER: bundle/env/product/expiry/revoked invariants + happy path need
-        a real Apple-root-signed JWS (go-iap pins Apple's root) OR a behavior-
-        preserving applyInvariants() seam extracted from Verify so the credit
-        decision is unit-testable with hand-built transactions.
+        DONE 2026-06-01 (0→74%): rejection gate + the applyInvariants seam was
+        extracted from Verify (behavior-preserving) and the full credit-decision
+        logic is now table-tested (bundle/env/product/expiry/revoked/token-trim).
+        REMAINDER (P3): the only uncovered path is ParseSignedTransaction's actual
+        signature/chain verification + VerifyNotification's go-iap parse — go-iap
+        pins Apple's production root, so this needs a sandbox-signed JWS captured
+        into a fixture or a StoreKit sandbox integration test. Low marginal value.
     - id: TEST-IOS-SUBMGR
       priority: P1
       title: Test SubscriptionManager StoreKit2 entitlement/purchase/restore logic
@@ -440,16 +441,20 @@ done:
         of list. ParseAppPayment: round-trip + every error shape (wrong prefix, part
         count, non-numeric user/nonce) + IsApp/IsBot. CreateOrder HTTP client remains
         (needs httptest mock, lower risk).
-    - id: TEST-APPLE-IAP-GATE
-      title: Unit-test the Apple IAP JWS rejection gate (partial — see TEST-APPLE-IAP remainder)
-      files: [backend/internal/payments/apple/verify_test.go]
+    - id: TEST-APPLE-IAP
+      title: Unit-test the Apple IAP verifier — rejection gate + credit-decision invariants
+      files:
+        - backend/internal/payments/apple/verify.go
+        - backend/internal/payments/apple/verify_test.go
       notes: |
-        payments/apple 0%→52%. Pinned the security-critical rejection surface:
-        assertRealAppleChain (x5c chain length incl. Xcode 1-cert local signing,
-        malformed/2-or-4 segments, std+url base64, non-json header), New config
-        validation, Verify hostile-input + no-panic guarantee, VerifyNotification
-        empty, msToTime. Happy path + post-parse invariants remain (TEST-APPLE-IAP,
-        next.testing) — need a sandbox JWS or an applyInvariants seam.
+        payments/apple 0%→74%. (1) Rejection gate: assertRealAppleChain (x5c length
+        incl. Xcode 1-cert local signing, malformed/2-or-4 segments, std+url base64,
+        non-json header), Verify hostile-input + no-panic guarantee, New validation,
+        msToTime. (2) Behavior-preserving refactor: extracted applyInvariants() from
+        Verify so the credit decision is unit-testable — table tests for bundle
+        mismatch, sandbox gating, unknown env/product, empty originalTxId,
+        revoked→ErrRevoked, AppAccountToken trim, date mapping. REMAINDER (P3,
+        next.testing): the real Apple-signed JWS parse needs a sandbox fixture.
     - id: DOCS-MIGRATE
       title: YAML-first docs migration executed — retired OPERATIONS/TROUBLESHOOTING/PAYMENTS + topology.yaml
       notes: |

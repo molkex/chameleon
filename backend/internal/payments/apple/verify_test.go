@@ -3,8 +3,11 @@ package apple
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
+
+	iap "github.com/awa/go-iap/appstore/api"
 )
 
 // These tests pin the security-critical REJECTION surface of the Apple IAP
@@ -124,6 +127,108 @@ func TestVerifyNotificationRejectsEmpty(t *testing.T) {
 	}
 	if _, err := v.VerifyNotification("   "); err == nil || !strings.Contains(err.Error(), "empty") {
 		t.Fatalf("want empty-payload error, got %v", err)
+	}
+}
+
+// --- applyInvariants: the credit-decision logic, testable post-refactor ---
+
+func mustVerifier(t *testing.T, opts ...func(*Config)) *Verifier {
+	t.Helper()
+	cfg := Config{BundleID: "com.madfrog.vpn", Products: map[string]int{"sub.30days": 30}}
+	for _, o := range opts {
+		o(&cfg)
+	}
+	v, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	return v
+}
+
+// baseTx is a valid Production transaction for "sub.30days".
+func baseTx() *iap.JWSTransaction {
+	return &iap.JWSTransaction{
+		BundleID:              "com.madfrog.vpn",
+		ProductID:             "sub.30days",
+		Environment:           iap.Environment("Production"),
+		OriginalTransactionId: "orig-1",
+		TransactionID:         "txn-1",
+		PurchaseDate:          1_700_000_000_000,
+		ExpiresDate:           1_700_500_000_000,
+		AppAccountToken:       "  tok-uuid  ",
+	}
+}
+
+func TestApplyInvariants_Happy(t *testing.T) {
+	v := mustVerifier(t)
+	tx, err := v.applyInvariants(baseTx())
+	if err != nil {
+		t.Fatalf("applyInvariants: %v", err)
+	}
+	if tx.Days != 30 {
+		t.Errorf("Days = %d, want 30", tx.Days)
+	}
+	if tx.Revoked {
+		t.Error("Revoked = true, want false")
+	}
+	if tx.OriginalTransactionID != "orig-1" {
+		t.Errorf("OriginalTransactionID = %q", tx.OriginalTransactionID)
+	}
+	if tx.AppAccountToken != "tok-uuid" {
+		t.Errorf("AppAccountToken = %q, want trimmed %q", tx.AppAccountToken, "tok-uuid")
+	}
+	if tx.PurchaseDate.UnixMilli() != 1_700_000_000_000 {
+		t.Errorf("PurchaseDate = %v", tx.PurchaseDate)
+	}
+	if tx.Environment != EnvProduction {
+		t.Errorf("Environment = %q", tx.Environment)
+	}
+}
+
+func TestApplyInvariants_SandboxAllowed(t *testing.T) {
+	v := mustVerifier(t, func(c *Config) { c.AllowSandbox = true })
+	j := baseTx()
+	j.Environment = iap.Environment("Sandbox")
+	if _, err := v.applyInvariants(j); err != nil {
+		t.Fatalf("sandbox with AllowSandbox=true should pass: %v", err)
+	}
+}
+
+func TestApplyInvariants_Rejections(t *testing.T) {
+	v := mustVerifier(t) // AllowSandbox=false
+	tests := []struct {
+		name    string
+		mut     func(*iap.JWSTransaction)
+		wantErr string
+	}{
+		{"bundle mismatch", func(j *iap.JWSTransaction) { j.BundleID = "com.evil.app" }, "bundle id mismatch"},
+		{"sandbox rejected", func(j *iap.JWSTransaction) { j.Environment = iap.Environment("Sandbox") }, "sandbox transactions are not accepted"},
+		{"unknown environment", func(j *iap.JWSTransaction) { j.Environment = iap.Environment("Xcode") }, "unknown environment"},
+		{"unknown product", func(j *iap.JWSTransaction) { j.ProductID = "sub.999days" }, "unknown product id"},
+		{"empty originalTransactionId", func(j *iap.JWSTransaction) { j.OriginalTransactionId = "" }, "originalTransactionId is empty"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			j := baseTx()
+			tc.mut(j)
+			_, err := v.applyInvariants(j)
+			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("want error containing %q, got %v", tc.wantErr, err)
+			}
+		})
+	}
+}
+
+func TestApplyInvariants_Revoked(t *testing.T) {
+	v := mustVerifier(t)
+	j := baseTx()
+	j.RevocationDate = 1_700_400_000_000
+	tx, err := v.applyInvariants(j)
+	if !errors.Is(err, ErrRevoked) {
+		t.Fatalf("want ErrRevoked, got %v", err)
+	}
+	if tx == nil || !tx.Revoked {
+		t.Fatal("a revoked transaction must still be populated with Revoked=true")
 	}
 }
 

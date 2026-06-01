@@ -124,6 +124,17 @@ func (v *Verifier) Verify(signedJWS string) (result *Transaction, err error) {
 		return nil, fmt.Errorf("apple: parse signed transaction: %w", err)
 	}
 
+	return v.applyInvariants(jws)
+}
+
+// applyInvariants enforces the bundle/environment/product invariants on an
+// already-parsed, signature-verified transaction and maps it to our
+// Transaction. It is split out from Verify so the credit-decision logic can be
+// unit-tested without an Apple-root-signed JWS (which only Apple can produce —
+// go-iap pins the production root CA). Behaviour is identical to the inline
+// version it replaced. Revoked transactions return (tx, ErrRevoked) with the
+// Transaction still populated, so the caller can decide what to do.
+func (v *Verifier) applyInvariants(jws *iap.JWSTransaction) (*Transaction, error) {
 	if jws.BundleID != v.cfg.BundleID {
 		return nil, fmt.Errorf("apple: bundle id mismatch: got %q, want %q", jws.BundleID, v.cfg.BundleID)
 	}
