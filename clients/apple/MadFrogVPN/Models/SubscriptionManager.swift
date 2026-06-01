@@ -30,6 +30,19 @@ final class SubscriptionManager {
 
     static let allProductIDs: [String] = [product30, product90, product180, product365]
 
+    /// Pure decision: does an entitlement to `productID` count as ACTIVE premium
+    /// right now? Centralised so `updatePremiumStatus`, `reconcileEntitlementsSilently`
+    /// (and restore) share ONE definition, and so it can be unit-tested without
+    /// StoreKit. A non-expiring (lifetime) entitlement is active while unrevoked;
+    /// a subscription is active until its `expirationDate`. Unknown products and
+    /// revoked transactions are never active.
+    static func isActiveEntitlement(productID: String, revocationDate: Date?, expirationDate: Date?, now: Date) -> Bool {
+        guard allProductIDs.contains(productID) else { return false }
+        if revocationDate != nil { return false }
+        if let expiry = expirationDate, expiry <= now { return false }
+        return true
+    }
+
     // MARK: - Published State
 
     /// Products fetched from App Store, sorted by duration (30 → 365).
@@ -177,10 +190,11 @@ final class SubscriptionManager {
     func reconcileEntitlementsSilently() async -> Bool {
         var foundActive = false
         for await result in Transaction.currentEntitlements {
-            guard case .verified(let transaction) = result,
-                  Self.allProductIDs.contains(transaction.productID),
-                  transaction.revocationDate == nil else { continue }
-            if let expiry = transaction.expirationDate, expiry <= Date() { continue }
+            guard case .verified(let transaction) = result else { continue }
+            guard Self.isActiveEntitlement(productID: transaction.productID,
+                                           revocationDate: transaction.revocationDate,
+                                           expirationDate: transaction.expirationDate,
+                                           now: Date()) else { continue }
             foundActive = true
             try? await syncTransactionToBackend(transaction, jws: result.jwsRepresentation)
         }
@@ -218,12 +232,11 @@ final class SubscriptionManager {
     private func updatePremiumStatus() async {
         var hasActive = false
         for await result in Transaction.currentEntitlements {
-            guard case .verified(let transaction) = result,
-                  Self.allProductIDs.contains(transaction.productID),
-                  transaction.revocationDate == nil else { continue }
-            if let expiry = transaction.expirationDate {
-                if expiry > Date() { hasActive = true }
-            } else {
+            guard case .verified(let transaction) = result else { continue }
+            if Self.isActiveEntitlement(productID: transaction.productID,
+                                        revocationDate: transaction.revocationDate,
+                                        expirationDate: transaction.expirationDate,
+                                        now: Date()) {
                 hasActive = true
             }
         }

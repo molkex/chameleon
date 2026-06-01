@@ -184,10 +184,6 @@ next:
         signature/chain verification + VerifyNotification's go-iap parse — go-iap
         pins Apple's production root, so this needs a sandbox-signed JWS captured
         into a fixture or a StoreKit sandbox integration test. Low marginal value.
-    - id: TEST-IOS-SUBMGR
-      priority: P1
-      title: Test SubscriptionManager StoreKit2 entitlement/purchase/restore logic
-      notes: Revenue path on iOS has 0 tests. Extract pure decision helpers (like AppState pattern) and pin them.
     - id: TEST-ADMIN-SPA-PAGES
       priority: P3
       title: Page-level smoke tests for the admin SPA (dashboard/users/payments)
@@ -458,6 +454,24 @@ done:
         (render + variant). Excluded *.test.* from tsc -b so `npm run build` stays
         green. Verified: test:run 10/10, build, lint (0 new warnings). Page-level
         smoke tests deferred → TEST-ADMIN-SPA-PAGES (P3).
+    - id: TEST-IOS-SUBMGR
+      title: Pin SubscriptionManager's premium-entitlement decision (revenue path) + fix iOS test build
+      files:
+        - clients/apple/MadFrogVPN/Models/SubscriptionManager.swift
+        - clients/apple/Tests/UnitTests/SubscriptionEntitlementTests.swift
+        - clients/apple/Tests/UnitTests/EventTrackerTests.swift
+      notes: |
+        Behavior-preserving refactor: extracted the active-entitlement decision
+        (duplicated in updatePremiumStatus + reconcileEntitlementsSilently) into a
+        pure `isActiveEntitlement(productID,revocationDate,expirationDate,now)` static,
+        routed both call sites through it, pinned it (future/expired/exactly-now,
+        lifetime no-expiry, revoked, unknown product, all 4 product IDs). StoreKit
+        purchase/restore/listener orchestration stays on-device.
+        ALSO fixed a pre-existing breakage that blocked the whole test bundle:
+        EventTrackerTests had `await` inside XCTAssertEqual autoclosures (illegal under
+        Xcode 26.5 / Swift 6) — hoisted into lets (7 sites). Verified: `xcodebuild
+        build-for-testing -scheme MadFrogVPNTests` exits 0 (tests build; can't RUN
+        locally by design — app-group host crash).
     - id: TEST-GEOIP
       title: Unit-test geoip isPublicIP gate + Lookup short-circuit/cache
       files: [backend/internal/geoip/geoip_test.go]
@@ -1105,7 +1119,7 @@ done:
 stats:                        # counts are approximate; recomputed at the 2026-06-01 audit
   open_now: 1                 # TRAFFIC-MULTIEXIT (P2). 1.0.29 submit is a step, not a roadmap item.
   open_next: ~30              # the `next:` queue + 8 new TEST-* coverage gaps (testing group).
-  test_gaps_tracked: 2        # 8 found 2026-06-01; 6 closed (AUTH-CREDS, FREEKASSA, APPLE-IAP, VPN-ENGINE userapi, ADMIN-SPA harness, GEOIP). Open: TEST-IOS-SUBMGR(P1), TEST-IOS-CI(P2) + 3 P3 remainders (apple sandbox, vpn engine, admin pages). state/test-map.yaml
+  test_gaps_tracked: 1        # 8 found 2026-06-01; 7 closed (AUTH-CREDS, FREEKASSA, APPLE-IAP, VPN-ENGINE userapi, ADMIN-SPA harness, GEOIP, IOS-SUBMGR). Open: TEST-IOS-CI(P2, user picked GH Release host) + 3 P3 remainders (apple sandbox, vpn engine, admin pages). state/test-map.yaml
   tech_debt_items: 2          # TD-LIBBOX-FETCH + TD-CERT-PIN (APIClient InsecureDelegate, see next.security)
   decisions_documented: 9     # ADRs in decisions/ (0009 = test-map discipline)
   incidents_documented: 11    # docs/incidents/*.md

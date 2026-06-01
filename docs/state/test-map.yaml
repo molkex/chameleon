@@ -181,7 +181,7 @@ apple:
     PingService:       {status: partial, tests: [PingServiceTests], covers: "transportFor classifier, cache reads", gaps: "real socket probes not tested"}
     ServerGroup:       {status: partial, tests: [CountryFlagTests, +], covers: "flag→cc mapping (CountryGroup)", gaps: "ServerItem computed props untested"}
     EventTracker:      {status: tested, tests: [EventTrackerTests], covers: "actor queue: buffer/flush/keep-on-fail/persist"}
-    SubscriptionManager: {status: untested, tests: [], gaps: "StoreKit 2 purchase/entitlement/restore = 0 tests. Revenue path → TEST-IOS-SUBMGR"}
+    SubscriptionManager: {status: partial, tests: [SubscriptionEntitlementTests], covers: "isActiveEntitlement pure decision (extracted seam, 2026-06-01): future/expired/exactly-now expiry, lifetime no-expiry → active, revoked, unknown product, all 4 product IDs. Build-for-testing verified.", gaps: "StoreKit purchase/restore/Transaction.updates orchestration = on-device only → TEST-IOS-SUBMGR remainder"}
     L10n:              {status: untested, tests: [], gaps: "localization lookups untested (StringUtils RU plural IS covered)"}
     auth_coordinators: {status: untested, tests: [], gaps: "AppleAuthCoordinator, GoogleAuthCoordinator → TEST-IOS-AUTH (covered indirectly by backend)"}
   shared_well_covered:
@@ -194,8 +194,9 @@ apple:
     - PacketTunnel/* (ExtensionProvider, ExtensionPlatformInterface, RealTrafficStallDetector, TunnelStallProbe) — extension, on-device only
     - Views/* (20 files) — no UI tests
     - CommandClient, Theme/ThemeManager/Haptics, LegRaceProbe, NetworkFingerprint
-  test_files_count: 23
-  ci_status: "graceful-skipped — Libbox fetch missing (TD-LIBBOX-FETCH / TEST-IOS-CI). Tests are compile-time aspiration until wired."
+  test_files_count: 24
+  build_for_testing: "VERIFIED 2026-06-01 — `xcodebuild build-for-testing -scheme MadFrogVPNTests -destination generic/platform=iOS Simulator CODE_SIGNING_ALLOWED=NO` exits 0. Fixed a pre-existing breakage that blocked it: EventTrackerTests had `await` inside XCTAssertEqual autoclosures (illegal under Xcode 26.5 / Swift 6) — hoisted into lets."
+  ci_status: "CI still graceful-skips — Libbox fetch missing (TD-LIBBOX-FETCH / TEST-IOS-CI). Build verified LOCALLY (Libbox present)."
 
 # ──────────────────────────────────────────────────────────────────────────
 # ADMIN SPA (React 19) — NO test framework, NO tests. Only safety net = eslint + tsc.
@@ -224,7 +225,7 @@ gaps_by_priority:
   P1:
     - {id: TEST-APPLE-IAP,   status: MOSTLY-DONE-2026-06-01, what: "payments/apple 0→74% (rejection gate + applyInvariants credit logic). REMAINDER = real Apple-signed JWS parse (sandbox/integration test only)"}
     - {id: TEST-AUTH-CREDS,  status: DONE-2026-06-01, what: "auth password (3 formats) + google verify (happy+rejections) + middleware — auth pkg 31%→77%"}
-    - {id: TEST-IOS-SUBMGR,  what: "SubscriptionManager StoreKit2 — 0 tests on revenue path"}
+    - {id: TEST-IOS-SUBMGR,  status: DONE-2026-06-01, what: "isActiveEntitlement pure decision extracted + pinned (build-for-testing verified); StoreKit orchestration stays on-device"}
     - {id: TEST-ADMIN-SPA,   status: DONE-2026-06-01, what: "vitest+jsdom+RTL harness added, 10 tests (deviceName, cn, Badge smoke). Page-level smoke tests = follow-up"}
   P2:
     - {id: TEST-FREEKASSA,   status: DONE-2026-06-01, what: "IPAllowed + ParseAppPayment covered (16%→43%); CreateOrder HTTP client remains (lower risk)"}

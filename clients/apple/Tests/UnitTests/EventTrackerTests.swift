@@ -30,8 +30,10 @@ final class EventTrackerTests: XCTestCase {
         await tracker.log(name: "paywall.view")
         await tracker.log(name: "paywall.product.tap", properties: ["product_id": "p1"])
 
-        XCTAssertEqual(await tracker.queueDepth, 2)
-        XCTAssertEqual(await sentCount.get(), 0)
+        let depth = await tracker.queueDepth
+        let sent = await sentCount.get()
+        XCTAssertEqual(depth, 2)
+        XCTAssertEqual(sent, 0)
     }
 
     /// `flushNow` drains everything currently queued in one batch and
@@ -55,8 +57,10 @@ final class EventTrackerTests: XCTestCase {
         // Give the spawned Task one tick to land.
         try? await Task.sleep(nanoseconds: 200_000_000)
 
-        XCTAssertEqual(await tracker.queueDepth, 0)
-        XCTAssertEqual(await sent.get().count, 5)
+        let depth = await tracker.queueDepth
+        let sentCount = await sent.get().count
+        XCTAssertEqual(depth, 0)
+        XCTAssertEqual(sentCount, 5)
     }
 
     /// A failed flush (sender returns -1) keeps every event in the
@@ -74,7 +78,8 @@ final class EventTrackerTests: XCTestCase {
         await tracker.flushNow()
         try? await Task.sleep(nanoseconds: 200_000_000)
 
-        XCTAssertEqual(await tracker.queueDepth, 2)
+        let depth = await tracker.queueDepth
+        XCTAssertEqual(depth, 2)
     }
 
     /// The queue is persisted to disk on a successful flush and the
@@ -105,7 +110,8 @@ final class EventTrackerTests: XCTestCase {
             await tracker.log(name: "first.run")
             await tracker.flushNow()
             try? await Task.sleep(nanoseconds: 200_000_000)
-            XCTAssertEqual(await tracker.queueDepth, 0)
+            let depth = await tracker.queueDepth
+            XCTAssertEqual(depth, 0)
         }
 
         // Second "process" — reload from the same storage; persisted
@@ -120,7 +126,8 @@ final class EventTrackerTests: XCTestCase {
                 sender: { _ in 0 }
             )
             await tracker.start()
-            XCTAssertEqual(await tracker.queueDepth, 0)
+            let depth = await tracker.queueDepth
+            XCTAssertEqual(depth, 0)
         }
     }
 }
