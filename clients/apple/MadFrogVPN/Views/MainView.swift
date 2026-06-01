@@ -462,39 +462,31 @@ struct ServerListView: View {
                         dismiss()
                     }
                 }
+                // Single refresh: pulls a fresh config (backend + libbox
+                // urltest) AND re-runs our out-of-band best-of-3 TCP/QUIC
+                // latency probe. Merged from two separate buttons (config
+                // refresh vs ping-all) which read as two confusing "refresh"
+                // icons to users.
                 ToolbarItem(placement: PlatformToolbarPlacement.leading.resolved) {
                     Button {
-                        TunnelFileLogger.log("TAP: refresh config + pings", category: "ui")
+                        TunnelFileLogger.log("TAP: refresh config + ping all (\(allServers.count) servers)", category: "ui")
                         Task {
                             await app.refreshConfig(timeout: .seconds(8))
                             if let group = selectorGroup {
                                 app.commandClient.urlTest(groupTag: group.tag)
                             }
+                            await app.pingService.probeManualAll(allServers)
                         }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                }
-                // LAUNCH-11 — manual "Ping all". Separate from the config
-                // refresh button because that one talks to the backend +
-                // libbox; this one only re-runs our out-of-band TCP/QUIC
-                // probe (best-of-3 per server) and is what the user
-                // actually wants when they don't trust the cached ms
-                // numbers.
-                ToolbarItem(placement: PlatformToolbarPlacement.leading.resolved) {
-                    Button {
-                        TunnelFileLogger.log("TAP: manual ping all (\(allServers.count) servers)", category: "ui")
-                        Task { await app.pingService.probeManualAll(allServers) }
                     } label: {
                         if app.pingService.isProbing {
                             ProgressView()
                                 .controlSize(.small)
                         } else {
-                            Image(systemName: "wave.3.right")
+                            Image(systemName: "arrow.clockwise")
                         }
                     }
-                    .disabled(app.pingService.isProbing || allServers.isEmpty)
-                    .accessibilityLabel(Text("servers.ping.all.a11y", comment: "VoiceOver: re-measure latency for every server"))
+                    .disabled(app.pingService.isProbing)
+                    .accessibilityLabel(Text("servers.ping.all.a11y", comment: "VoiceOver: refresh servers and re-measure latency"))
                 }
             }
         }

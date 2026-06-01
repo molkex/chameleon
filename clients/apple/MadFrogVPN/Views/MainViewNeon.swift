@@ -116,13 +116,18 @@ struct MainViewNeon: View {
             Spacer()
 
             if app.subscriptionExpire != nil {
-                Text("PRO")
-                    .font(.system(size: 11, weight: .black))
-                    .kerning(1.2)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(theme.accent, in: RoundedRectangle(cornerRadius: 8))
-                    .foregroundStyle(theme.background)
+                Button {
+                    showPaywall = true
+                } label: {
+                    Text("PRO")
+                        .font(.system(size: 11, weight: .black))
+                        .kerning(1.2)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(theme.accent, in: RoundedRectangle(cornerRadius: 8))
+                        .foregroundStyle(theme.background)
+                }
+                .buttonStyle(.plain)
             }
 
             Button {
