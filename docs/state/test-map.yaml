@@ -29,7 +29,7 @@ verify:
   singbox_config:      "sing-box check -c <config.json>"                            # ON the server, BEFORE any iPhone test (CLAUDE.md rule)
   apple_build:         "cd clients/apple && xcodegen generate && xcodebuild build -scheme MadFrogVPN -destination 'generic/platform=iOS'"
   apple_note:          "iOS unit tests COMPILE but cannot RUN locally (app-group host crash in unsigned sim build). Verification = xcodebuild build. CI build/test step is graceful-skipped until TD-LIBBOX-FETCH (see TEST-IOS-CI)."
-  admin:               "cd clients/admin && npm run lint && npx tsc -b"             # NO unit tests yet (see TEST-ADMIN-SPA)
+  admin:               "cd clients/admin && npm run test:run && npm run lint && npm run build"  # vitest (10 tests) + eslint + tsc/vite build
 
 # ──────────────────────────────────────────────────────────────────────────
 # BACKEND (Go) — go test ./... GREEN. db/payments tests are integration-tagged.
@@ -200,10 +200,12 @@ apple:
 # ADMIN SPA (React 19) — NO test framework, NO tests. Only safety net = eslint + tsc.
 # ──────────────────────────────────────────────────────────────────────────
 admin:
-  framework: none
-  tests: 0
-  safety_net: "npm run lint (eslint flat config, react-hooks strict) + tsc -b type-check"
-  gap: "zero automated tests; add vitest + smoke tests for critical pages (dashboard, users, payments) → TEST-ADMIN-SPA"
+  framework: "vitest 4 + jsdom + @testing-library/react + jest-dom (added 2026-06-01)"
+  tests: 10   # 3 files
+  verify: "cd clients/admin && npm run test:run"
+  covers: "deviceName (utsname→label, unknown-fallback, trim, null/empty→—); cn (clsx+twMerge tailwind conflict resolution); Badge component smoke (render children, variant data-attr + class) — proves the jsdom+RTL harness e2e"
+  gap: "page-level smoke tests (dashboard/users/payments) still need TanStack Query+Router provider mocking — follow-up. TEST-ADMIN-SPA harness closed 2026-06-01."
+  safety_net: "+ npm run lint (eslint flat config, react-hooks strict) + tsc -b type-check + vite build"
 
 # ──────────────────────────────────────────────────────────────────────────
 # INFRA / config — verified by tooling, not unit tests.
@@ -222,7 +224,7 @@ gaps_by_priority:
     - {id: TEST-APPLE-IAP,   status: MOSTLY-DONE-2026-06-01, what: "payments/apple 0→74% (rejection gate + applyInvariants credit logic). REMAINDER = real Apple-signed JWS parse (sandbox/integration test only)"}
     - {id: TEST-AUTH-CREDS,  status: DONE-2026-06-01, what: "auth password (3 formats) + google verify (happy+rejections) + middleware — auth pkg 31%→77%"}
     - {id: TEST-IOS-SUBMGR,  what: "SubscriptionManager StoreKit2 — 0 tests on revenue path"}
-    - {id: TEST-ADMIN-SPA,   what: "admin SPA has no test framework — add vitest + smoke tests"}
+    - {id: TEST-ADMIN-SPA,   status: DONE-2026-06-01, what: "vitest+jsdom+RTL harness added, 10 tests (deviceName, cn, Badge smoke). Page-level smoke tests = follow-up"}
   P2:
     - {id: TEST-FREEKASSA,   status: DONE-2026-06-01, what: "IPAllowed + ParseAppPayment covered (16%→43%); CreateOrder HTTP client remains (lower risk)"}
     - {id: TEST-VPN-ENGINE,  status: PARTIAL-2026-06-01, what: "userapi.go HTTP contract DONE (vpn 26→34%); engine.go orchestration is integration-level (e2e sing-box check), stats_v2ray gRPC remains"}
