@@ -246,6 +246,15 @@ struct MainViewNeon: View {
                             .font(.system(size: 11, weight: .semibold, design: .monospaced))
                             .foregroundStyle(theme.accent.opacity(0.85))
                             .lineLimit(1)
+                    } else if app.selectedServerTag == nil {
+                        // Auto card (variant A): a descriptive subtitle ("Лучший
+                        // пинг") instead of the ACTIVE/STANDBY status — the AUTO
+                        // chip + the hero "ВЫ ЗАЩИЩЕНЫ" already convey state, and
+                        // the short "Авто" title no longer truncates.
+                        Text(L10n.Home.autoSubtitle)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(theme.textSecondary)
+                            .lineLimit(1)
                     } else {
                         Text(VPNStateHelper.isConnected(app) ? L10n.Home.serverActive : L10n.Home.serverStandby)
                             .font(.system(size: 11, weight: .semibold))
@@ -285,7 +294,9 @@ struct MainViewNeon: View {
 
     private var serverDisplayName: String {
         if app.selectedServerTag == nil {
-            return String(localized: "home.server.auto_long")
+            // Variant A: short "Авто" — the descriptive part moved to the
+            // subtitle ("Лучший пинг"), so the title never truncates.
+            return String(localized: "home.server.auto")
         }
         // Build-32: home pill always shows country only — leg is exposed
         // only via power-mode subtitle (see legSubtitle below). NoFlag variant

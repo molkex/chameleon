@@ -60,6 +60,7 @@
 
 "home.server.auto"               = "Auto";
 "home.server.auto_long"          = "Auto (fastest)";
+"home.server.auto_subtitle"      = "Lowest ping";
 
 /* ===== Onboarding ===== */
 "onboarding.title"               = "MadFrog VPN";

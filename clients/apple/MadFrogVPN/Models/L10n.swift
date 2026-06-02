@@ -63,6 +63,7 @@ enum L10n {
 
         static let autoName        = LKey("home.server.auto")
         static let autoLongName    = LKey("home.server.auto_long")
+        static let autoSubtitle    = LKey("home.server.auto_subtitle")
 
         // Subscription strip
         static let subGetPro        = LKey("home.subscription.get_pro")

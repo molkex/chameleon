@@ -60,6 +60,7 @@
 
 "home.server.auto"               = "Авто";
 "home.server.auto_long"          = "Авто (быстрейший)";
+"home.server.auto_subtitle"      = "Лучший пинг";
 
 /* ===== Онбординг ===== */
 "onboarding.title"               = "MadFrog VPN";
