@@ -1081,9 +1081,20 @@ class AppState {
         if vpnManager.isConnected {
             commandClient.disconnect()
             vpnManager.disconnect()
+            // Stop any in-flight config refresh, but do NOT kick a new one here:
+            // a disconnect-time /config fetch churned the published `servers`
+            // list mid-teardown for no benefit (config is refreshed on launch +
+            // on the next connect).
             refreshTask?.cancel()
-            refreshTask = Task { await silentConfigUpdate() }
             TunnelFileLogger.log("toggleVPN: disconnect requested", category: "ui")
+            // Hold the single-flight guard until the tunnel is actually down.
+            // toggleVPN used to return in ~2 ms, releasing `toggleVPNInFlight`
+            // while the NE was still tearing sing-box down (status stuck on
+            // .disconnecting). A fast second tap then started a connect
+            // mid-teardown — the lag + re-enabled toggle + "ступор" the user hit.
+            // Awaiting (bounded) keeps the CTA in its disabled "ОСТАНОВКА…" state
+            // until truly .disconnected.
+            await vpnManager.waitUntilDisconnected(timeout: .seconds(5))
             return
         }
 
