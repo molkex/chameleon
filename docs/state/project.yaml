@@ -29,8 +29,9 @@ product:
   what: Native iOS+macOS VPN with own Go backend; VLESS Reality + sing-box.
   app_store:                   # canonical: state/app-store.yaml
     live:        {version: "1.0.28", build: 91, state: READY_FOR_SALE}
-    testflight:  {version: "1.0.29", build: 98, state: VALID}
-    next_step: verify build 98 on TestFlight → submit 1.0.29 to App Store review
+    testflight:  {version: "1.0.29", build: 101, state: VALID}
+    in_review:   {version: "1.0.29", build: 101, state: WAITING_FOR_REVIEW}  # submitted 2026-06-02 (account-demote P0 + crash-on-connect + Auto card + disconnect-lag fixes)
+    next_step: await Apple review of 1.0.29 (build 101) → release to App Store on APPROVED
   iap: 4 non-renewing subs, all APPROVED 2026-05-31 (RU/CIS → WebPaywall/FreeKassa)
 
 # ── Infra (canonical: state/servers.yaml) ───────────────────────────────────
@@ -64,7 +65,7 @@ health:
 # ── Right now (canonical: roadmap.yaml) ─────────────────────────────────────
 now:
   - TRAFFIC-MULTIEXIT (P2) — GRA/relay users show ~0 traffic in admin (stats only from NL)
-  - SUBMIT 1.0.29 — after on-device TestFlight verification (build 98)
+  - AWAIT-REVIEW 1.0.29 (build 101) — submitted to App Store 2026-06-02, WAITING_FOR_REVIEW
 open_decisions:                  # waiting on the user
   - SUBDOMAIN-SCRUB — bot/speedtest.madfrog.online → 85.239.49.28 (intentional? repoint?)
   - SUPPORT-CHAT — Chatwoot vs native in-app vs Telegram deep-link

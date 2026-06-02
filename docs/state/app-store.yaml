@@ -42,9 +42,15 @@ versions:
   # before submitting for release.
   testflight:
     version: "1.0.29"
-    build: 98                         # latest; assigned to Internal Testers group
-    processingState: VALID            # verified live ASC API 2026-06-01
-    build_uploaded: 2026-06-01T09:12:00Z
+    build: 101                        # latest; assigned to Internal Testers group
+    processingState: VALID            # verified live ASC API 2026-06-02
+    build_uploaded: 2026-06-02T11:34:00Z
+  in_review:
+    version: "1.0.29"
+    build: 101
+    appStoreState: WAITING_FOR_REVIEW   # submitted to App Store 2026-06-02
+    review_submission: 5bd38954-6866-40a3-8f21-32a530111dfe
+    contents: ACCT-IDENTITY P0 (account no longer demotes to anon trial) + crash-on-connect (NE OOM/log) + silent StoreKit reclaim + Auto card "Лучший пинг" + disconnect-lag fix
     note: |
       Internal-testing builds must be EXPLICITLY assigned to the "Internal Testers"
       beta group (hasAccessToAllBuilds=false) via ASC API or they don't appear in
