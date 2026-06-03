@@ -318,6 +318,15 @@ func (db *DB) WipeUserOnDelete(ctx context.Context, id int64) error {
 	ctx, cancel := defaultTimeout(ctx)
 	defer cancel()
 
+	// SUPPORT-CHAT (ADR 0011): account deletion must remove the user's chat
+	// history (GDPR / 152-ФЗ). WipeUserOnDelete is a SOFT delete — the users
+	// row stays — so support_threads' ON DELETE CASCADE on users(id) does NOT
+	// fire; delete the threads explicitly (messages cascade via thread_id).
+	// No-op when the user has no threads.
+	if _, err := db.Pool.Exec(ctx, `DELETE FROM support_threads WHERE user_id = $1`, id); err != nil {
+		return err
+	}
+
 	tag, err := db.Pool.Exec(ctx,
 		`UPDATE users SET
 			is_active = false,
