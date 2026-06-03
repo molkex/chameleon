@@ -1,4 +1,5 @@
 import XCTest
+import Security
 @testable import MadFrogVPN
 
 /// Keychain in iOS Simulator returns errSecMissingEntitlement (-34018) for
@@ -104,5 +105,36 @@ final class KeychainHelperTests: XCTestCase {
     func testLoadMissingKeyReturnsNil() {
         let key = uniqueKey()
         XCTAssertNil(KeychainHelper.load(key: key))
+    }
+
+    // MARK: - Legacy → data-protection migration (Option A)
+
+    /// An item written the *old* way — plain generic password, no access
+    /// group, no data-protection keychain — must be transparently migrated
+    /// and returned by `load()`. This is what keeps users who signed in on a
+    /// pre-fix build logged in across the update (the macOS trial-on-update
+    /// bug, 2026-06-03). Skips in Simulator like the rest of the suite.
+    func testLoadMigratesLegacyItem() throws {
+        let key = uniqueKey()
+        // Seed the exact legacy location older builds used.
+        let legacy: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "com.madfrog.vpn",
+            kSecAttrAccount as String: key,
+            kSecValueData as String: Data("legacy-token".utf8),
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+        ]
+        SecItemDelete(legacy as CFDictionary)
+        let addStatus = SecItemAdd(legacy as CFDictionary, nil)
+        try XCTSkipUnless(addStatus == errSecSuccess,
+                          "Could not seed a legacy keychain item (status \(addStatus))")
+
+        // First load finds the legacy copy and migrates it forward.
+        XCTAssertEqual(KeychainHelper.load(key: key), "legacy-token")
+        // It stays readable afterwards (now from the canonical location) and
+        // a normal overwrite continues to work.
+        XCTAssertEqual(KeychainHelper.load(key: key), "legacy-token")
+        KeychainHelper.save(key: key, value: "new-token")
+        XCTAssertEqual(KeychainHelper.load(key: key), "new-token")
     }
 }
