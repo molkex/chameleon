@@ -194,10 +194,30 @@ final class PathPicker {
         case "🇺🇸 США": return "us"
         case "🇷🇺 Россия (обход белых списков)", "🇷🇺 Россия": return "ru-spb"
         default:
-            // Unknown label, or a leaf tag handled earlier as a power-mode
-            // pin. Don't filter to empty — let the caller's pool be used as-is.
+            // SRV-DYNAMIC: a NEW country (not in the switch above) must still
+            // resolve so its selection sticks WITHOUT a client update. Its group
+            // tag is either flag-prefixed ("🇪🇸 Испания") or, when no RU name is
+            // known yet, the bare ISO-2 code ("es", the ConfigStore fallback).
+            // Both decode to the cc. A leaf tag ("de-via-msk") or any other string
+            // matches neither → nil (unchanged: callers treat nil as "no filter").
+            if let cc = countryCodeFromFlagPrefix(tag) { return cc }
+            if tag.count == 2, tag.allSatisfy({ $0.isLetter && $0.isLowercase }) { return tag }
             return nil
         }
+    }
+
+    /// Decode two leading regional-indicator symbols (U+1F1E6…U+1F1FF, 🇦…🇿)
+    /// into an ISO-3166-1 alpha-2 code. nil if `s` doesn't begin with a flag.
+    /// Mirror of the backend's cc→flag emission (clientconfig.go countryDisplay).
+    static func countryCodeFromFlagPrefix(_ s: String) -> String? {
+        let scalars = Array(s.unicodeScalars.prefix(2))
+        guard scalars.count == 2 else { return nil }
+        var cc = ""
+        for u in scalars {
+            guard (0x1F1E6...0x1F1FF).contains(u.value) else { return nil }
+            cc.append(Character(UnicodeScalar(UInt8(0x61 + (u.value - 0x1F1E6)))))
+        }
+        return cc
     }
 
     /// True when `leaf` is a valid choice for the given user `selection`:

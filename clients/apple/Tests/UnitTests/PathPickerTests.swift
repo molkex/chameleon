@@ -108,6 +108,32 @@ final class PathPickerTests: XCTestCase {
         XCTAssertNil(PathPicker.countryCode(forSelectedTag: "de-via-msk"))
     }
 
+    // MARK: - SRV-DYNAMIC: new country resolves without a client update
+
+    func testCountryCodeNewCountryFromFlagLabel() {
+        // A NEW country not in the switch — must derive from its flag prefix.
+        XCTAssertEqual(PathPicker.countryCode(forSelectedTag: "🇪🇸 Испания"), "es")
+        XCTAssertEqual(PathPicker.countryCode(forSelectedTag: "🇬🇧 Великобритания"), "gb")
+    }
+
+    func testCountryCodeBareFlagAndBareCC() {
+        XCTAssertEqual(PathPicker.countryCode(forSelectedTag: "🇯🇵"), "jp")
+        XCTAssertEqual(PathPicker.countryCode(forSelectedTag: "es"), "es")  // ConfigStore name-less fallback
+    }
+
+    func testCountryCodeRussiaFlagStillBypassNotRu() {
+        // The explicit ru-spb cases must win over flag-derivation (which would
+        // give a bare "ru") — selecting the RU group means whitelist-bypass.
+        XCTAssertEqual(PathPicker.countryCode(forSelectedTag: "🇷🇺 Россия"), "ru-spb")
+    }
+
+    func testCountryCodeFromFlagPrefixRejectsNonFlag() {
+        XCTAssertNil(PathPicker.countryCodeFromFlagPrefix("de-via-msk"))
+        XCTAssertNil(PathPicker.countryCodeFromFlagPrefix("Auto"))
+        XCTAssertNil(PathPicker.countryCodeFromFlagPrefix("x"))
+        XCTAssertEqual(PathPicker.countryCodeFromFlagPrefix("🇳🇱 Нидерланды"), "nl")
+    }
+
     // MARK: - LeafCandidate.country
 
     func testLeafCountryDE() {
