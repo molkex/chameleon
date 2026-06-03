@@ -30,8 +30,8 @@ product:
   app_store:                   # canonical: state/app-store.yaml
     live:        {version: "1.0.29", build: 101, state: READY_FOR_SALE}   # APPROVED 2026-06-02 (account-demote P0 + crash-on-connect + Auto card + UI-FLAG-HOME)
     in_review:   {version: "1.0.30", build: 102, state: WAITING_FOR_REVIEW}  # iOS, submitted 2026-06-04 (KEYCHAIN-MACOS fix; AFTER_APPROVAL auto-release)
-    testflight:  {version: "1.0.31", build: 103, state: IN_BETA_TESTING}  # iOS, on Internal Testers 2026-06-04 — SUPPORT-CHAT P2 + widget-timer + FR-SELECT (chat testable now); 102 also still on TestFlight
-    next_step: cut 1.0.31/103 (SUPPORT-CHAT P2 + WIDGET-TIMER + FR-SELECT) to TestFlight to test chat; await Apple review of 1.0.30 (102)
+    testflight:  {version: "1.0.31", build: 104, state: UPLOADED}  # iOS, on Internal Testers 2026-06-04 — SUPPORT-CHAT P2 + widget-timer + FR-SELECT, +build104 fixes chat dup-messages & stale-token 401 (b103 was the first on-device chat test)
+    next_step: verify chat on build 104 (dup + token fixes); await Apple review of 1.0.30 (102); then submit 1.0.31 to App Store after privacy policy + ASC data label (5.1.1)
   iap: 4 non-renewing subs, all APPROVED 2026-05-31 (RU/CIS → WebPaywall/FreeKassa)
 
 # ── Infra (canonical: state/servers.yaml) ───────────────────────────────────
@@ -65,15 +65,16 @@ health:
 # ── Right now (canonical: roadmap.yaml) ─────────────────────────────────────
 now:
   # ── RESUME HERE next session (2026-06-04 end-of-session handoff) ──
-  - SUPPORT-CHAT — P0 backend LIVE on NL; P1 widget + P2 in-app WKWebView shipped in build 103
-    (1.0.31) on TestFlight → CHAT IS TESTABLE NOW (Settings → Поддержка). MSK nginx SSE done
-    (live push works). REMAINING before App Store submit of 103 — (1) privacy policy + ASC data
-    label (5.1.1 — chat stores messages, current policy says "no usage metadata"); (2) no admin
-    inbox yet (P3) → agent replies must be injected manually (DB + Redis chat channel) to
-    test the receive path. Open — keep widget BUNDLED or move to hosted chat.madfrog.online.
+  - SUPPORT-CHAT — WORKS end-to-end on device (first test build 103: send + history +
+    SSE online confirmed). build 104 (1.0.31) on TestFlight fixes the 2 bugs that test found —
+    duplicate own-messages (optimistic + SSE echo) and stale-token 401 on first open. MSK nginx
+    SSE done (live push). REMAINING before App Store submit — (1) privacy policy + ASC data label
+    (5.1.1 — chat stores messages, current policy says "no usage metadata"); (2) ADMIN INBOX (P3)
+    not built → agent side has no UI; agent replies injected manually (DB + Redis support:thread:<id>).
+    Open — keep widget BUNDLED or move to hosted chat.madfrog.online.
   - AWAIT-REVIEW 1.0.30 (build 102, KEYCHAIN-MACOS) WAITING_FOR_REVIEW (submitted 2026-06-04,
     AFTER_APPROVAL auto-release). 1.0.29 (101) shipped 2026-06-02. After 1.0.30 ships → submit
-    1.0.31/103 (needs the privacy work above first).
+    1.0.31/104 (needs the privacy work above first).
 open_decisions:                  # waiting on the user
   - SUBDOMAIN-SCRUB — bot/speedtest.madfrog.online → 85.239.49.28 (intentional? repoint?)
   - SUPPORT-CHAT hosting — MVP shipped BUNDLED (not chat.madfrog.online). Keep bundled or

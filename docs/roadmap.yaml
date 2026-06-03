@@ -496,6 +496,35 @@ deferred:
 # ============================================================
 done:
   "2026-06-04":
+    - id: SUPPORT-CHAT-FIXES
+      title: Support chat first-real-use fixes — duplicate own-messages + stale-token 401; cut build 104
+      commits: [1c010bd dup-fix, db13187 token-refresh + build 104]
+      files:
+        - clients/widget/index.html                         # seenIds dedup + POST-response reconcile
+        - clients/apple/MadFrogVPN/Views/SupportChatView.swift  # fetch fresh token in .task, spinner until ready
+        - clients/apple/MadFrogVPN/Models/AppState.swift    # accessTokenForSupportChat() best-effort refresh
+      notes: |
+        First on-device test (build 103, user molkex) surfaced two bugs, both
+        diagnosed against prod (NL logs + DB):
+        (A) DUPLICATE own messages — send() rendered an optimistic bubble (no id)
+            AND the backend re-broadcast the saved message to the thread SSE, so
+            the sender's own message rendered twice (DB had each once → client-only).
+            Fix: widget tracks server ids in seenIds; addMessage dedupes on it
+            (SSE echo / history overlap / reconnect); send() reconciles the
+            optimistic bubble with the POST response id — race-proof either order.
+        (B) STALE-TOKEN 401 on first open ("нет связи" + send fails) — the WKWebView
+            gets a static access-token snapshot and can't refresh; a token that
+            expired while backgrounded 401s (confirmed: support 401 with stale
+            token at 20:59, VALID after the app refreshed). Fix: SupportChatView
+            fetches a freshly-refreshed token (AppState.accessTokenForSupportChat,
+            best-effort) in .task and shows a spinner until ready.
+        Diagnosis used a TEMP debug middleware on the support group (logged
+        Authorization shape + VerifyToken result) — deployed, read, REVERTED +
+        redeployed clean (no debug code left in prod). Receive-path demo: injected
+        an agent reply into thread 1 (DB + Redis publish to support:thread:1) —
+        shows in history; live push needs the chat open (SSE subs were 0 = closed).
+        build 104 (1.0.31) uploaded to TestFlight, carries A+B. No admin inbox yet
+        (P3) → agent replies still injected manually.
     - id: TRAFFIC-MULTIEXIT
       title: Per-user traffic now summed across exits (NL + GRA) — GRA users no longer show ~0
       deployed: NL 2026-06-04 (commits 1c8106e backend + bef783f config)
