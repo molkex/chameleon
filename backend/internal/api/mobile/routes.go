@@ -26,15 +26,15 @@ type Handler struct {
 	DB            *db.DB
 	Redis         *redis.Client
 	JWT           *auth.JWTManager
-	Apple         *auth.AppleVerifier // Sign In With Apple (identity token)
+	Apple         *auth.AppleVerifier  // Sign In With Apple (identity token)
 	Google        *auth.GoogleVerifier // Google Sign-In (id_token)
-	AppleVerifier *apple.Verifier     // App Store IAP JWS verification
+	AppleVerifier *apple.Verifier      // App Store IAP JWS verification
 	Payments      *payments.Service
 	FreeKassa     *freekassa.Client // may be nil if FreeKassa is disabled
-	VPN           vpn.Engine // may be nil if VPN engine is not configured
+	VPN           vpn.Engine        // may be nil if VPN engine is not configured
 	Config        *config.Config
 	GeoIP         *geoip.Resolver
-	Email         email.Sender // transactional email sender (Resend or noop)
+	Email         email.Sender     // transactional email sender (Resend or noop)
 	Metrics       *metrics.Metrics // Prometheus counters; may be nil in tests
 	Logger        *zap.Logger
 }
@@ -83,6 +83,15 @@ func RegisterRoutes(g *echo.Group, h *Handler) {
 	userGroup := g.Group("/user", requireAuth)
 	userGroup.PATCH("/theme", h.SetTheme)
 	userGroup.DELETE("", h.DeleteAccount)
+
+	// SUPPORT-CHAT (ADR 0011) — JWT-required; anon trial users carry a device
+	// JWT so they're covered (tighter rate-limit tier applied in SupportSend).
+	// POST is idempotent via the group-level mw.Idempotency. SSE stream +
+	// chat-token are added in step 3.
+	supportGroup := g.Group("/support", requireAuth)
+	supportGroup.POST("/messages", h.SupportSend)
+	supportGroup.GET("/messages", h.SupportListMessages)
+	supportGroup.GET("/thread", h.SupportThread)
 
 	// Apple App Store Server Notifications V2 — public endpoint (trust comes
 	// from JWS verification, not HTTP auth). Registered at the group root so
