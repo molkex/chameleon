@@ -37,12 +37,31 @@ versions:
       - UI-FLAG-HOME (🌍 instead of flag on home card)
       - SETTINGS-L10N (AUTO-CONNECT section in English)
 
-  # Phase-B build — uploaded to TestFlight, NOT yet submitted to App Store
-  # review. Verify on TestFlight (esp. STOREKIT-VERIFY + ACCT-IDENTITY re-auth)
-  # before submitting for release.
+  # Latest TestFlight build. 1.0.30 (102) carries the macOS keychain re-sign
+  # fix (KEYCHAIN-MACOS). Cut as a NEW train because 1.0.29 (101) is locked in
+  # App Store review → Apple closed the 1.0.29 train (error 90186). 1.0.29's
+  # review is untouched; 1.0.30 App Store submission is a separate later step.
   testflight:
+    version: "1.0.30"
+    build: 102                        # iOS + macOS; VALID; assigned to Internal Testers
+    processingState: VALID            # verified live ASC API 2026-06-03
+    build_uploaded: 2026-06-03T~15:22Z (iOS) / ~15:25Z (macOS)
+    ios_build_id: cc70fbd0-be62-4489-8ce4-1dd613b28480     # app 6761008632
+    mac_build_id: c68729aa-356c-42e3-978e-bd5cebefa9a7     # app 6762887787 (com.madfrog.vpn.mac)
+    ships:
+      - KEYCHAIN-MACOS (data-protection keychain + access group; survives app re-signing)
+      - ACTIVE-METRIC client-side n/a (backend-only, already live)
+    groups:
+      ios:   {id: 19b338f9-82fa-4371-ae21-bea225d94076, hasAccessToAllBuilds: false, assigned: explicit}
+      macos: {id: 32c7c210-fe28-4992-86b5-7be773667ef3, hasAccessToAllBuilds: true,  assigned: auto}
+    note: |
+      keychain-access-groups entitlement (added on MadFrogVPN + MadFrogVPNMac)
+      signed + uploaded cleanly via automatic signing + -allowProvisioningUpdates
+      — no portal capability step needed. macOS Internal Testers group is
+      all-builds (manual POST returns 422; build auto-appears).
+  prev_testflight:
     version: "1.0.29"
-    build: 101                        # latest; assigned to Internal Testers group
+    build: 101                        # superseded by 102 on TestFlight; still the in_review build
     processingState: VALID            # verified live ASC API 2026-06-02
     build_uploaded: 2026-06-02T11:34:00Z
   in_review:

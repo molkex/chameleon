@@ -451,6 +451,17 @@ deferred:
 # ============================================================
 done:
   "2026-06-03":
+    - id: BUILD-102
+      title: Cut 1.0.30 build 102 (iOS+macOS) to TestFlight — carries KEYCHAIN-MACOS fix
+      notes: |
+        1.0.29 (101) is locked in App Store review → Apple closed the 1.0.29 train
+        (err 90186, "train closed for new builds"). Bumped MARKETING_VERSION
+        1.0.29→1.0.30 (build 102), archived + uploaded iOS (app 6761008632) and
+        macOS (app 6762887787). keychain-access-groups signed cleanly via automatic
+        signing + -allowProvisioningUpdates (no portal step). Both VALID + on
+        Internal Testers (iOS explicit-assign; macOS group is all-builds → auto).
+        1.0.29 review untouched. NEXT: after 1.0.29 ships, submit 1.0.30 for review.
+        Commit 677fee6. ids: iOS build cc70fbd0…, macOS build c68729aa….
     - id: ACTIVE-METRIC
       title: Admin "Active (24h/30d)" counts real VPN usage (last_vpn_seen), not just app /config fetches
       incident_ref: incidents/2026-06-03-active-vs-online-metric.md

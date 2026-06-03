@@ -29,9 +29,9 @@ product:
   what: Native iOS+macOS VPN with own Go backend; VLESS Reality + sing-box.
   app_store:                   # canonical: state/app-store.yaml
     live:        {version: "1.0.28", build: 91, state: READY_FOR_SALE}
-    testflight:  {version: "1.0.29", build: 101, state: VALID}
+    testflight:  {version: "1.0.30", build: 102, state: VALID}   # iOS+macOS, KEYCHAIN-MACOS fix, on Internal Testers (2026-06-03)
     in_review:   {version: "1.0.29", build: 101, state: WAITING_FOR_REVIEW}  # submitted 2026-06-02 (account-demote P0 + crash-on-connect + Auto card + disconnect-lag fixes)
-    next_step: await Apple review of 1.0.29 (build 101) → release to App Store on APPROVED
+    next_step: await Apple review of 1.0.29 (build 101) → release on APPROVED; then submit 1.0.30 (102, keychain fix) for App Store review
   iap: 4 non-renewing subs, all APPROVED 2026-05-31 (RU/CIS → WebPaywall/FreeKassa)
 
 # ── Infra (canonical: state/servers.yaml) ───────────────────────────────────
