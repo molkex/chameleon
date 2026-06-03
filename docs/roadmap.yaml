@@ -14,48 +14,8 @@ verified: 2026-06-02T00:30:00Z
 # ============================================================
 now:
   # ACCT-IDENTITY (P0) + SEC-01/03/04 + VPN-TG-MEDIA + FR-RELAY-LEGS → done 2026-06-01.
-  metrics:
-    - id: TRAFFIC-MULTIEXIT
-      title: Per-user traffic only counted on the NL exit — GRA/relay users show ~0 in admin
-      priority: P2
-      reported: 2026-06-01
-      status: backend-done-gated-on-prod-activation   # 2026-06-04
-      example: device_3edb3891 (папа, apple, sub→2027) — cumulative_traffic=527KB while actively using VPN
-      root_cause: |
-        Per-user traffic comes from the LOCAL NL sing-box v2ray_api gRPC StatsService
-        (stats_v2ray.go QueryStats "user>>>"). Traffic that exits via GRA (France) or
-        the MSK/SPB relays flows through THOSE sing-box instances, not NL's → never
-        aggregated → the user's real usage isn't counted. Only the NL-exit slice shows.
-      backend_done: |
-        2026-06-04 — Option A implemented (backend side, default-OFF so deploy is a
-        no-op until configured). vpn.MergeUserTraffic sums per-user deltas across
-        sources; runTrafficCollector now polls the local NL exit + one
-        vpn.StatsCollector per cfg.VPN.RemoteStatsEndpoints entry (each keeps its own
-        gRPC delta state) and merges by username before UpdateTraffic + BumpVPNSeen.
-        A failing source is skipped (logged), not fatal. Test: stats_merge_test.go
-        (5 cases). build/vet/golangci-lint/regression green.
-      remaining_prod_activation: |
-        GATED on user go (touches prod). FACTS (verified 2026-06-04): GRA v2ray_api
-        gRPC listens on 127.0.0.1:8080 (localhost only); User API on 0.0.0.0:15380.
-        MSK has NO :8080 (it's a relay/chain → exit is NL or GRA, so per-user stats
-        live at the exit, not MSK → MSK not needed). So only GRA must be reachable.
-        The gRPC StatsService is UNAUTHENTICATED → must NOT be exposed publicly.
-        Lowest-risk activation (NO sing-box restart / VPN blip): run a forwarder on
-        GRA binding the public IP to 127.0.0.1:8080 (e.g. socat TCP-LISTEN:8081,
-        bind=<gra-ip>,fork,reuseaddr TCP:127.0.0.1:8080 as a systemd unit) + `ufw
-        allow from 147.45.252.234 to any port 8081` + DENY others; then set NL
-        config remote_stats_endpoints:[{name:gra1,addr:"54.38.243.162:8081"}] and
-        redeploy backend (chameleon only, no singbox). Rollback: drop the config
-        line + redeploy (instant no-op) and stop the socat unit + ufw deny.
-      fix_directions: |
-        (superseded by backend_done + remaining_prod_activation above)
-      risk: low (read-only stats aggregation); prod step = a loopback forwarder +
-            firewall on GRA + 1 config line, no VPN restart. Fully reversible.
-      related: |
-        Same NL-only-stats root as ACTIVE-METRIC (done 2026-06-03): last_vpn_seen is
-        bumped only from NL's traffic deltas, so GRA-direct users aren't counted in
-        Active(24h) either. A per-node stats fan-out fixes BOTH traffic totals and
-        active-user counts at once.
+  # TRAFFIC-MULTIEXIT → DONE + deployed + verified 2026-06-04 (see done log).
+  []  # no active blockers
 
 # ============================================================
 # NEXT — 1-2 week queue, ready to start
@@ -535,6 +495,54 @@ deferred:
 # DONE — append-only log. Most recent date first.
 # ============================================================
 done:
+  "2026-06-04":
+    - id: TRAFFIC-MULTIEXIT
+      title: Per-user traffic now summed across exits (NL + GRA) — GRA users no longer show ~0
+      deployed: NL 2026-06-04 (commits 1c8106e backend + bef783f config)
+      files:
+        - backend/internal/vpn/stats.go            # MergeUserTraffic
+        - backend/internal/vpn/stats_merge_test.go # 5 cases
+        - backend/cmd/chameleon/main.go            # runTrafficCollector multi-source + remoteStatsSource
+        - backend/internal/config/config.go        # RemoteStatsEndpoint / RemoteStatsEndpoints
+        - backend/config.production.yaml           # remote_stats_endpoints: gra1
+      notes: |
+        Option A (pull): runTrafficCollector now polls the local NL exit + one
+        vpn.StatsCollector per cfg.VPN.RemoteStatsEndpoints (each keeps its own
+        gRPC delta state) and vpn.MergeUserTraffic sums per-user deltas by username
+        before UpdateTraffic + BumpVPNSeen. A failing source is skipped (logged),
+        not fatal. Default empty = NL-only (no-op until configured).
+        PROD activation (GRA): GRA v2ray_api gRPC is bound 127.0.0.1:8080, so a
+        systemd socat forwarder on GRA (v2ray-stats-forward.service, 0.0.0.0:8081 →
+        127.0.0.1:8080) exposes it, ufw-allowed ONLY from NL 147.45.252.234 (mirrors
+        the existing 15380 rule); no sing-box restart, no VPN blip. NL config
+        remote_stats_endpoints:[{name:gra1,addr:"54.38.243.162:8081"}] + deploy.sh nl.
+        VERIFIED 2026-06-04: "multi-exit stats source configured" logged, zero
+        "remote stats query failed", traffic ticks clean, and an ESTAB gRPC conn
+        NL→GRA:8081→sing-box:8080 confirmed on the wire. singbox untouched (Up 3d).
+        MSK is a relay (exit=NL/GRA) → not a stats source. Also closes the GRA half
+        of the ACTIVE-METRIC NL-only-stats residual (last_vpn_seen now bumped for
+        GRA users too). Rollback: drop the config line + redeploy; stop socat + ufw deny.
+    - id: BUILD-103
+      title: Cut 1.0.31 build 103 (iOS) to TestFlight — SUPPORT-CHAT P2 + widget-timer + FR-SELECT
+      commit: d1493c6
+      notes: |
+        Plan X: 1.0.29 shipped (live), 1.0.30/102 (keychain) submitted to App Store
+        review standalone; build 103 carries the chat + widget-timer + FR-SELECT to
+        TestFlight for testing before App Store. 1.0.30 train was in review → bumped
+        to 1.0.31. Archived + exported + uploaded (** EXPORT SUCCEEDED **), VALID,
+        assigned to Internal Testers (verified via include=betaGroups; the
+        /betaGroups/{id}/builds reverse query lags/lies — use include). enc=False
+        (export compliance set). internalBuildState=IN_BETA_TESTING. SUPPORT-CHAT P0
+        step 4b (MSK nginx SSE) done same day. STILL before App Store submit of 103:
+        privacy policy + ASC data label (5.1.1).
+    - id: SUBMIT-1.0.30
+      title: Submit iOS 1.0.30 (build 102, KEYCHAIN-MACOS) to App Store review
+      notes: |
+        1.0.29 (101) was APPROVED → READY_FOR_SALE 2026-06-02, which unblocked the
+        1.0.30 submit. Created the 1.0.30 appStoreVersion, set ru/en-US release notes,
+        attached build 102, submitted via reviewSubmissions (WAITING_FOR_REVIEW,
+        AFTER_APPROVAL auto-release). Decoupled from the chat build (Plan X) so the
+        keychain fix isn't held behind chat privacy-policy work.
   "2026-06-03":
     - id: WIDGET-TIMER
       title: Home-widget "Защищено" timer reset on transparent restarts (app 19:27:21 vs widget 0:12)

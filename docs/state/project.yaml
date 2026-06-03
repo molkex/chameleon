@@ -59,31 +59,36 @@ health:
   payments:  green   # SEC-04 refund-revoke live; trial-once (SEC-01) live
   vpn_nl:    green
   vpn_fr:    green   # direct + via SPB + via MSK, all verified exit 54.38.243.162
-  telemetry: amber   # per-user traffic only counted on NL exit → TRAFFIC-MULTIEXIT
+  telemetry: green   # TRAFFIC-MULTIEXIT live 2026-06-04 — NL+GRA per-user stats summed; MSK/SPB chain to those exits
   redundancy: amber  # backend/DB single-NL; NL-RED-01 (Hetzner Helsinki) planned
 
 # ── Right now (canonical: roadmap.yaml) ─────────────────────────────────────
 now:
-  # ── RESUME HERE next session (2026-06-03 end-of-session handoff) ──
-  - SUPPORT-CHAT — P0 backend LIVE on NL; P1 widget + P2 in-app WKWebView BUILT (committed,
-    ride next build). NOT yet usable by users. TO FINISH (see roadmap#support p1_p2_progress) —
-    (1) cut app build 103 (chat + widget-timer + FR-SELECT ride it; keychain already in 102),
-    (2) MSK relay nginx SSE block step 4b (live push; without it send+history work, agent
-    reply needs reopen), (3) privacy policy + ASC label before App Store submit (5.1.1).
-  - BUILD-103 (pending, version 1.0.31) — carries SUPPORT-CHAT P2 + WIDGET-TIMER +
-    FR-SELECT/SRV-DYNAMIC. → TestFlight first so user can test the chat, THEN App Store
-    (after privacy policy + ASC label). 1.0.30 train is in review → 103 must be 1.0.31.
+  # ── RESUME HERE next session (2026-06-04 end-of-session handoff) ──
+  - SUPPORT-CHAT — P0 backend LIVE on NL; P1 widget + P2 in-app WKWebView shipped in build 103
+    (1.0.31) on TestFlight → CHAT IS TESTABLE NOW (Settings → Поддержка). MSK nginx SSE done
+    (live push works). REMAINING before App Store submit of 103 — (1) privacy policy + ASC data
+    label (5.1.1 — chat stores messages, current policy says "no usage metadata"); (2) no admin
+    inbox yet (P3) → agent replies must be injected manually (DB + Redis chat channel) to
+    test the receive path. Open — keep widget BUNDLED or move to hosted chat.madfrog.online.
   - AWAIT-REVIEW 1.0.30 (build 102, KEYCHAIN-MACOS) WAITING_FOR_REVIEW (submitted 2026-06-04,
-    AFTER_APPROVAL). 1.0.29 (101) shipped 2026-06-02. Plan X chosen: keychain fix decoupled
-    from the risky chat build (privacy/5.1.1) and shipped standalone.
-  - TRAFFIC-MULTIEXIT (P2) — GRA/relay users show ~0 traffic in admin (stats only from NL).
+    AFTER_APPROVAL auto-release). 1.0.29 (101) shipped 2026-06-02. After 1.0.30 ships → submit
+    1.0.31/103 (needs the privacy work above first).
 open_decisions:                  # waiting on the user
   - SUBDOMAIN-SCRUB — bot/speedtest.madfrog.online → 85.239.49.28 (intentional? repoint?)
   - SUPPORT-CHAT hosting — MVP shipped BUNDLED (not chat.madfrog.online). Keep bundled or
     move to hosted later? (one-line URL switch in SupportChatView.)
 
-# ── Shipped 2026-06-01 (detail: roadmap.yaml#done + incidents/2026-06-01-*) ──
+# ── Shipped (detail: roadmap.yaml#done + incidents/*) ──
 recent:
+  - TRAFFIC-MULTIEXIT (2026-06-04, deployed+verified NL) — per-user traffic now summed across
+    exits (NL + GRA). runTrafficCollector polls each cfg.remote_stats_endpoints exit + merges by
+    username (vpn.MergeUserTraffic). GRA reached via a socat forwarder (GRA:8081→127.0.0.1:8080,
+    ufw NL-only) — no VPN restart. Verified on the wire (ESTAB NL→GRA gRPC, zero errors). telemetry→green.
+  - BUILD-103 / 1.0.31 (2026-06-04) — SUPPORT-CHAT P2 + widget-timer + FR-SELECT cut to TestFlight
+    (Internal Testers, IN_BETA_TESTING). MSK nginx SSE (step 4b) done → chat live-push works.
+  - SUBMIT-1.0.30 (2026-06-04) — 1.0.29 APPROVED→live unblocked it; 1.0.30/102 (keychain) submitted
+    to App Store review standalone (Plan X — decoupled from the chat build's privacy-policy gate).
   - SUPPORT-CHAT (2026-06-03) — built end-to-end — P0 backend DEPLOYED to NL (mig 020
     support_chat_threads/messages, REST send/list/thread, SSE+Redis, chat-token, 90d purge,
     rate-limit tiers, wipe-on-delete); P1 web widget (clients/widget) approved; P2 in-app
