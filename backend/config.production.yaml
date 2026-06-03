@@ -51,6 +51,14 @@ vpn:
   clash_api_port: 9090
   user_api_port: 15380
   user_api_secret: "${USER_API_SECRET}"
+  # TRAFFIC-MULTIEXIT (2026-06-04): NL (sole backend) sums per-user traffic from
+  # remote exits' v2ray_api gRPC. GRA's stats (127.0.0.1:8080 on GRA) are reached
+  # via a loopback socat forwarder on GRA:8081, ufw-allowed to NL only. Only the
+  # NL backend reads this; other nodes don't run chameleon. MSK is a relay
+  # (exit=NL/GRA) so it's not a stats source.
+  remote_stats_endpoints:
+    - name: gra1
+      addr: "54.38.243.162:8081"
   # UDP protocols — set per-node in deploy.sh (DE: 443/8443, NL: 0/0)
   hysteria2_port: 0
   tuic_port: 0
