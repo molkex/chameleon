@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<title>MadFrog · Поддержка</title>
+<!--
+  SUPPORT-CHAT P1 — hosted chat widget (ADR 0011). Self-contained, no build step:
+  served at chat.madfrog.online and embedded via WKWebView in the iOS/macOS app
+  (P2). Talks to the backend built in P0:
+    GET  /api/v1/mobile/support/chat-token   (host app already has the access token)
+    GET  /api/v1/mobile/support/messages?since=<id>
+    POST /api/v1/mobile/support/messages   {text}
+    GET  /api/v1/mobile/support/stream?token=<chat-token>   (SSE)
+
+  The native app injects auth + theme + lang via:
+    window.initChat({ apiBase, accessToken, theme: 'neon'|'calm', lang: 'ru'|'en' })
+  Opened standalone with no initChat() call → PREVIEW mode (sample conversation),
+  so designers/PMs can see the UX without a live token.
+-->
+<style>
+  :root {
+    /* neon theme (default — matches the app hero) */
+    --bg-0:#05140d; --bg-1:#0b2018; --bg-card:#0f1b15; --bg-card-2:#12241b;
+    --accent:#7cff6b; --accent-dim:#3a7a33; --pink:#ff4d9d;
+    --txt:#eafff0; --txt-dim:#8aa595; --line:rgba(124,255,107,.14);
+    --bubble-user:linear-gradient(135deg,#7cff6b,#46d36a); --bubble-user-txt:#05140d;
+    --bubble-agent:#16241d; --shadow:0 8px 30px rgba(0,0,0,.45);
+    --radius:20px;
+  }
+  :root[data-theme="calm"]{
+    --bg-0:#0a0e14; --bg-1:#0d131c; --bg-card:#121922; --bg-card-2:#161f2a;
+    --accent:#5cc8ff; --accent-dim:#2a6f96; --pink:#ff7eb6;
+    --txt:#eef3f8; --txt-dim:#8696a8; --line:rgba(92,200,255,.14);
+    --bubble-user:linear-gradient(135deg,#5cc8ff,#3aa0e6); --bubble-user-txt:#04121c;
+    --bubble-agent:#1a2533;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;margin:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+    background:radial-gradient(120% 90% at 50% -10%,var(--bg-1),var(--bg-0) 60%);
+    color:var(--txt); display:flex; flex-direction:column; height:100dvh; overflow:hidden;
+  }
+  /* ── header ── */
+  header{
+    display:flex; align-items:center; gap:12px; padding:14px 18px;
+    padding-top:max(14px,env(safe-area-inset-top));
+    border-bottom:1px solid var(--line); background:rgba(5,20,13,.6);
+    backdrop-filter:blur(12px); position:relative; z-index:2;
+  }
+  .logo{font-size:26px; filter:drop-shadow(0 0 8px var(--accent))}
+  .htitle{font-weight:800; font-size:17px; letter-spacing:.2px}
+  .hsub{display:flex; align-items:center; gap:6px; font-size:12px; color:var(--txt-dim); margin-top:1px}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent)}
+  .dot.off{background:#6b6b6b;box-shadow:none}
+  .spacer{flex:1}
+  .theme-btn{background:none;border:1px solid var(--line);color:var(--txt-dim);
+    border-radius:10px;padding:6px 10px;font-size:12px;cursor:pointer}
+  /* ── messages ── */
+  main{flex:1; overflow-y:auto; padding:18px 14px 8px; display:flex; flex-direction:column; gap:10px;
+    scroll-behavior:smooth; -webkit-overflow-scrolling:touch}
+  .msg{max-width:82%; padding:10px 14px; border-radius:18px; font-size:15px; line-height:1.4;
+    word-wrap:break-word; animation:pop .18s ease-out}
+  @keyframes pop{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .msg.user{align-self:flex-end; background:var(--bubble-user); color:var(--bubble-user-txt);
+    border-bottom-right-radius:6px; font-weight:560}
+  .msg.agent{align-self:flex-start; background:var(--bubble-agent); color:var(--txt);
+    border-bottom-left-radius:6px; border:1px solid var(--line)}
+  .msg.system{align-self:center; background:none; color:var(--txt-dim); font-size:12.5px; text-align:center; max-width:90%}
+  .time{display:block; font-size:10.5px; opacity:.6; margin-top:4px; font-variant-numeric:tabular-nums}
+  .msg.user .time{text-align:right}
+  .daysep{align-self:center;color:var(--txt-dim);font-size:11px;letter-spacing:.5px;text-transform:uppercase;margin:6px 0}
+  /* ── composer ── */
+  footer{padding:10px 12px; padding-bottom:max(10px,env(safe-area-inset-bottom));
+    border-top:1px solid var(--line); background:rgba(5,20,13,.6); backdrop-filter:blur(12px)}
+  .composer{display:flex; align-items:flex-end; gap:10px; background:var(--bg-card);
+    border:1px solid var(--line); border-radius:24px; padding:6px 6px 6px 16px}
+  textarea{flex:1; background:none; border:none; color:var(--txt); font:inherit; font-size:15px;
+    resize:none; outline:none; max-height:120px; padding:8px 0; line-height:1.35}
+  textarea::placeholder{color:var(--txt-dim)}
+  .send{flex:none; width:40px; height:40px; border-radius:50%; border:none; cursor:pointer;
+    background:var(--bubble-user); color:var(--bubble-user-txt); font-size:18px; font-weight:700;
+    display:grid; place-items:center; transition:transform .12s, opacity .12s}
+  .send:disabled{opacity:.4; cursor:default}
+  .send:not(:disabled):active{transform:scale(.9)}
+  .typing{align-self:flex-start;display:flex;gap:4px;padding:12px 16px;background:var(--bubble-agent);
+    border:1px solid var(--line);border-radius:18px;border-bottom-left-radius:6px}
+  .typing span{width:7px;height:7px;border-radius:50%;background:var(--txt-dim);animation:blink 1.2s infinite}
+  .typing span:nth-child(2){animation-delay:.2s} .typing span:nth-child(3){animation-delay:.4s}
+  @keyframes blink{0%,60%,100%{opacity:.3}30%{opacity:1}}
+  .banner{text-align:center;font-size:12px;color:var(--pink);padding:6px}
+</style>
+</head>
+<body>
+  <header>
+    <div class="logo">🐸</div>
+    <div>
+      <div class="htitle" id="t-title">Поддержка MadFrog</div>
+      <div class="hsub"><span class="dot" id="conn-dot"></span><span id="conn-text">на связи</span></div>
+    </div>
+    <div class="spacer"></div>
+    <button class="theme-btn" id="theme-toggle">тема</button>
+  </header>
+
+  <main id="messages" aria-live="polite"></main>
+  <div class="banner" id="banner" hidden></div>
+
+  <footer>
+    <form class="composer" id="composer">
+      <textarea id="input" rows="1" placeholder="Опишите проблему…" maxlength="4000" autocomplete="off"></textarea>
+      <button class="send" id="send" type="submit" aria-label="Отправить">↑</button>
+    </form>
+  </footer>
+
+<script>
+(function () {
+  "use strict";
+
+  // ── i18n ──
+  const STR = {
+    ru:{title:"Поддержка MadFrog",online:"на связи",offline:"нет связи",connecting:"подключение…",
+        placeholder:"Опишите проблему…",welcome:"Здравствуйте! Опишите, что случилось — ответим как можно скорее.",
+        sendErr:"Не отправилось. Проверьте связь и попробуйте ещё раз.",today:"Сегодня"},
+    en:{title:"MadFrog Support",online:"online",offline:"offline",connecting:"connecting…",
+        placeholder:"Describe your issue…",welcome:"Hi! Tell us what happened — we'll reply as soon as we can.",
+        sendErr:"Couldn't send. Check your connection and try again.",today:"Today"},
+  };
+
+  const cfg = { apiBase:"", accessToken:null, theme:"neon", lang:"ru", chatToken:null };
+  let lastId = 0, sse = null, L = STR.ru, sending = false;
+
+  const $ = id => document.getElementById(id);
+  const msgsEl = $("messages");
+
+  function applyLang(){
+    L = STR[cfg.lang] || STR.ru;
+    document.documentElement.lang = cfg.lang;
+    $("t-title").textContent = L.title;
+    $("input").placeholder = L.placeholder;
+    setConn(connState);
+  }
+  function applyTheme(){ document.documentElement.setAttribute("data-theme", cfg.theme); }
+
+  let connState = "connecting";
+  function setConn(s){
+    connState = s;
+    $("conn-dot").classList.toggle("off", s!=="online");
+    $("conn-text").textContent = s==="online"?L.online : s==="offline"?L.offline : L.connecting;
+  }
+
+  function fmtTime(d){ return d.toLocaleTimeString(cfg.lang==="ru"?"ru-RU":"en-US",{hour:"2-digit",minute:"2-digit"}); }
+
+  function addMessage(m, animate=true){
+    if (m.id && m.id <= lastId && m.sender!=="local") return;       // dedupe by id
+    if (m.id) lastId = Math.max(lastId, m.id);
+    const el = document.createElement("div");
+    el.className = "msg " + (m.sender==="user"||m.sender==="local"?"user":m.sender==="system"?"system":"agent");
+    if(!animate) el.style.animation="none";
+    el.textContent = m.body;
+    if (m.sender!=="system"){
+      const t=document.createElement("span"); t.className="time";
+      t.textContent=fmtTime(m.created_at?new Date(m.created_at):new Date());
+      el.appendChild(t);
+    }
+    msgsEl.appendChild(el);
+    msgsEl.scrollTop = msgsEl.scrollHeight;
+  }
+
+  function banner(text){ const b=$("banner"); if(!text){b.hidden=true;return;} b.textContent=text; b.hidden=false; }
+
+  // ── networking ──
+  async function api(path, opts){
+    const r = await fetch(cfg.apiBase + path, Object.assign({
+      headers:{ "Content-Type":"application/json", "Authorization":"Bearer "+cfg.accessToken },
+    }, opts));
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    return r.status===204?null:r.json();
+  }
+
+  async function loadHistory(){
+    const data = await api("/api/v1/mobile/support/messages?since="+lastId);
+    (data.messages||[]).forEach(m=>addMessage(m,false));
+  }
+
+  async function openStream(){
+    try{
+      const tok = await api("/api/v1/mobile/support/chat-token");
+      cfg.chatToken = tok.token;
+    }catch(e){ setConn("offline"); return; }
+    if(sse) sse.close();
+    sse = new EventSource(cfg.apiBase + "/api/v1/mobile/support/stream?token="+encodeURIComponent(cfg.chatToken)+"&since="+lastId);
+    sse.onopen = ()=>setConn("online");
+    sse.onmessage = ev=>{ try{ addMessage(JSON.parse(ev.data)); }catch(_){} };
+    sse.onerror = ()=>{ setConn("connecting"); /* EventSource auto-reconnects; token refreshed on next open */ };
+  }
+
+  async function send(text){
+    if(sending || !text.trim()) return;
+    sending = true; $("send").disabled = true;
+    addMessage({sender:"local", body:text, created_at:new Date()});   // optimistic
+    try{
+      if(PREVIEW){ previewReply(text); }
+      else { await api("/api/v1/mobile/support/messages",{method:"POST",body:JSON.stringify({text})}); }
+      banner("");
+    }catch(e){ banner(L.sendErr); }
+    finally{ sending=false; $("send").disabled=false; }
+  }
+
+  // ── composer UX ──
+  const input = $("input");
+  function autoGrow(){ input.style.height="auto"; input.style.height=Math.min(input.scrollHeight,120)+"px"; }
+  input.addEventListener("input", autoGrow);
+  input.addEventListener("keydown", e=>{ if(e.key==="Enter" && !e.shiftKey){ e.preventDefault(); $("composer").requestSubmit(); }});
+  $("composer").addEventListener("submit", e=>{ e.preventDefault(); const v=input.value; input.value=""; autoGrow(); send(v); });
+  $("theme-toggle").addEventListener("click", ()=>{ cfg.theme=cfg.theme==="neon"?"calm":"neon"; applyTheme(); });
+
+  // ── public bridge for the native app ──
+  window.initChat = function(opts){
+    Object.assign(cfg, opts||{});
+    applyTheme(); applyLang();
+    PREVIEW = false;
+    setConn("connecting");
+    loadHistory().then(openStream).catch(()=>setConn("offline"));
+  };
+
+  // ── PREVIEW mode (opened standalone, no initChat) ──
+  let PREVIEW = true;
+  function previewReply(userText){
+    setConn("online");
+    const t=document.createElement("div"); t.className="typing"; t.innerHTML="<span></span><span></span><span></span>";
+    msgsEl.appendChild(t); msgsEl.scrollTop=msgsEl.scrollHeight;
+    setTimeout(()=>{ t.remove(); addMessage({sender:"agent",body:"Спасибо, передал! Сейчас посмотрю по вашему аккаунту 👀",created_at:new Date()}); }, 1100);
+  }
+  function startPreview(){
+    applyTheme(); applyLang(); setConn("online");
+    addMessage({sender:"system",body:L.today,created_at:new Date()},false);
+    addMessage({sender:"agent",body:L.welcome,created_at:new Date(Date.now()-3600e3)},false);
+    addMessage({sender:"user",body:"После обновления на маке слетел аккаунт на триал 😩",created_at:new Date(Date.now()-3500e3)},false);
+    addMessage({sender:"agent",body:"Это известный момент с keychain — фикс уже в TestFlight (1.0.30). Обнови сборку и зайди через «Войти с Apple» — подписка вернётся, она привязана к Apple ID.",created_at:new Date(Date.now()-3400e3)},false);
+  }
+
+  // boot: PREVIEW unless the host calls initChat() within a tick.
+  setTimeout(()=>{ if(PREVIEW) startPreview(); }, 50);
+})();
+</script>
+</body>
+</html>
