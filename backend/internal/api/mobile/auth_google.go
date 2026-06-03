@@ -12,8 +12,6 @@ import (
 	"github.com/chameleonvpn/chameleon/internal/db"
 )
 
-const hour = time.Hour
-
 // GoogleSignInRequest is the body for POST /api/mobile/auth/google.
 type GoogleSignInRequest struct {
 	IDToken  string `json:"id_token"`

@@ -30,6 +30,8 @@ jobs:
 
       - name: Fetch Libbox.xcframework
         id: libbox
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ -x scripts/fetch-libbox.sh ]; then
             ./scripts/fetch-libbox.sh
