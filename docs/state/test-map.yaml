@@ -51,11 +51,11 @@ backend:
     covers: "secret resolution"
   vpn:
     src_files: 9
-    tests: [clientconfig_test.go, clientconfig_fingerprint, reality_keys_test.go, singbox_validate_test.go, userapi_test.go]
+    tests: [clientconfig_test.go, clientconfig_fingerprint, reality_keys_test.go, singbox_validate_test.go, userapi_test.go, stats_merge_test.go]
     tier: unit + e2e
     status: partial
     coverage_pct: 34
-    covers: "GenerateClientConfig (91%), uTLS fingerprint rotation, reality keypair, sing-box config validate (e2e), UserAPIClient full HTTP contract (add/remove/replace/health, bearer auth, path-escape, error propagation, empty=[] clear) — 2026-06-01"
+    covers: "GenerateClientConfig (91%), uTLS fingerprint rotation, reality keypair, sing-box config validate (e2e), UserAPIClient full HTTP contract (add/remove/replace/health, bearer auth, path-escape, error propagation, empty=[] clear) — 2026-06-01; MergeUserTraffic multi-exit per-user delta summation (single-source passthrough, overlapping/nil/empty/3-way) — 2026-06-04 TRAFFIC-MULTIEXIT"
     gaps: "engine.go AddUser/RemoveUser orchestration (mutex + writeConfigLocked→sing-box check + SIGHUP fallback) is integration-level — exercised by the e2e sing-box check, low unit ROI; stats_v2ray gRPC untested. TEST-VPN-ENGINE core (userapi) closed."
   auth:
     src_files: 5

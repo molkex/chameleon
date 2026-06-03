@@ -314,8 +314,23 @@ func run() error {
 		}
 	}()
 
+	// TRAFFIC-MULTIEXIT: build a stats collector per remote exit (GRA, etc.)
+	// so the collector sums their per-user deltas with NL's. Empty config =
+	// NL-only (default). Each collector keeps its own gRPC delta state.
+	var remoteStats []remoteStatsSource
+	for _, ep := range cfg.VPN.RemoteStatsEndpoints {
+		if ep.Addr == "" {
+			continue
+		}
+		remoteStats = append(remoteStats, remoteStatsSource{
+			name: ep.Name,
+			sc:   vpn.NewStatsCollector("", ep.Addr, logger.Named("stats-"+ep.Name)),
+		})
+		logger.Info("multi-exit stats source configured", zap.String("exit", ep.Name), zap.String("addr", ep.Addr))
+	}
+
 	// Start background traffic collector (every 60 seconds).
-	go runTrafficCollector(ctx, logger, database, engine, 60*time.Second)
+	go runTrafficCollector(ctx, logger, database, engine, remoteStats, 60*time.Second)
 
 	// SUPPORT-CHAT retention (ADR 0011): hard-delete support threads closed
 	// >90 days ago (messages cascade). Daily sweep.
@@ -415,9 +430,19 @@ func run() error {
 	return nil
 }
 
+// remoteStatsSource pairs a remote exit's v2ray_api stats collector with a
+// label for logging (TRAFFIC-MULTIEXIT).
+type remoteStatsSource struct {
+	name string
+	sc   *vpn.StatsCollector
+}
+
 // runTrafficCollector periodically queries the VPN engine for traffic stats
-// and records them to the database.
-func runTrafficCollector(ctx context.Context, logger *zap.Logger, database *db.DB, engine vpn.Engine, interval time.Duration) {
+// and records them to the database. With remote exits configured
+// (TRAFFIC-MULTIEXIT), it also pulls each remote's per-user deltas and sums
+// them with the local NL slice before writing, so users who exit via GRA /
+// relays are counted in cumulative_traffic + last_vpn_seen.
+func runTrafficCollector(ctx context.Context, logger *zap.Logger, database *db.DB, engine vpn.Engine, remotes []remoteStatsSource, interval time.Duration) {
 	logger = logger.Named("traffic-collector")
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -437,11 +462,28 @@ func runTrafficCollector(ctx context.Context, logger *zap.Logger, database *db.D
 			logger.Info("traffic collector stopped")
 			return
 		case <-ticker.C:
-			traffic, err := engine.QueryTraffic(ctx)
-			if err != nil {
+			// Gather per-user deltas from the local NL exit + every remote exit,
+			// then sum by username (TRAFFIC-MULTIEXIT). A failing source is
+			// skipped (logged) rather than dropping the whole tick — NL stats
+			// being momentarily unavailable shouldn't zero out GRA accounting.
+			sources := make([][]vpn.UserTraffic, 0, 1+len(remotes))
+			if local, err := engine.QueryTraffic(ctx); err != nil {
 				logger.Debug("query traffic failed (sing-box may not be ready)", zap.Error(err))
+			} else {
+				sources = append(sources, local)
+			}
+			for _, r := range remotes {
+				rt, err := r.sc.QueryTraffic(ctx)
+				if err != nil {
+					logger.Debug("remote stats query failed", zap.String("exit", r.name), zap.Error(err))
+					continue
+				}
+				sources = append(sources, rt)
+			}
+			if len(sources) == 0 {
 				continue
 			}
+			traffic := vpn.MergeUserTraffic(sources...)
 
 			// Users with a non-zero delta this interval actually moved VPN
 			// traffic → they're "active" in the real sense. Collect them and

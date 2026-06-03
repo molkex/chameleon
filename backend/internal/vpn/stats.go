@@ -117,6 +117,36 @@ func (s *StatsCollector) QueryTraffic(ctx context.Context) ([]UserTraffic, error
 	return s.v2rayStats.QueryUserTraffic(ctx)
 }
 
+// MergeUserTraffic sums per-user traffic deltas from multiple sources (the NL
+// exit plus any remote exits) into one slice keyed by username.
+//
+// TRAFFIC-MULTIEXIT: each exit's v2ray_api reports only the bytes that flowed
+// through THAT node, so a user who exits via France (GRA) shows ~0 on NL. The
+// traffic collector pulls every exit's deltas and merges them here before
+// writing cumulative_traffic / last_vpn_seen, so the admin total reflects all
+// exits. The single-source case (NL-only, the default) returns as-is — no
+// allocation on the hot path.
+func MergeUserTraffic(sources ...[]UserTraffic) []UserTraffic {
+	if len(sources) == 1 {
+		return sources[0]
+	}
+	agg := make(map[string]UserTraffic)
+	for _, src := range sources {
+		for _, t := range src {
+			cur := agg[t.Username]
+			cur.Username = t.Username
+			cur.Upload += t.Upload
+			cur.Download += t.Download
+			agg[t.Username] = cur
+		}
+	}
+	out := make([]UserTraffic, 0, len(agg))
+	for _, t := range agg {
+		out = append(out, t)
+	}
+	return out
+}
+
 // OnlineUsers returns the count of recently active users.
 //
 // sing-box 1.13 clash_api connections are short-lived (HTTP request/response),

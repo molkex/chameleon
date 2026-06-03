@@ -19,19 +19,38 @@ now:
       title: Per-user traffic only counted on the NL exit — GRA/relay users show ~0 in admin
       priority: P2
       reported: 2026-06-01
+      status: backend-done-gated-on-prod-activation   # 2026-06-04
       example: device_3edb3891 (папа, apple, sub→2027) — cumulative_traffic=527KB while actively using VPN
       root_cause: |
         Per-user traffic comes from the LOCAL NL sing-box v2ray_api gRPC StatsService
         (stats_v2ray.go QueryStats "user>>>"). Traffic that exits via GRA (France) or
         the MSK/SPB relays flows through THOSE sing-box instances, not NL's → never
         aggregated → the user's real usage isn't counted. Only the NL-exit slice shows.
+      backend_done: |
+        2026-06-04 — Option A implemented (backend side, default-OFF so deploy is a
+        no-op until configured). vpn.MergeUserTraffic sums per-user deltas across
+        sources; runTrafficCollector now polls the local NL exit + one
+        vpn.StatsCollector per cfg.VPN.RemoteStatsEndpoints entry (each keeps its own
+        gRPC delta state) and merges by username before UpdateTraffic + BumpVPNSeen.
+        A failing source is skipped (logged), not fatal. Test: stats_merge_test.go
+        (5 cases). build/vet/golangci-lint/regression green.
+      remaining_prod_activation: |
+        GATED on user go (touches prod). FACTS (verified 2026-06-04): GRA v2ray_api
+        gRPC listens on 127.0.0.1:8080 (localhost only); User API on 0.0.0.0:15380.
+        MSK has NO :8080 (it's a relay/chain → exit is NL or GRA, so per-user stats
+        live at the exit, not MSK → MSK not needed). So only GRA must be reachable.
+        The gRPC StatsService is UNAUTHENTICATED → must NOT be exposed publicly.
+        Lowest-risk activation (NO sing-box restart / VPN blip): run a forwarder on
+        GRA binding the public IP to 127.0.0.1:8080 (e.g. socat TCP-LISTEN:8081,
+        bind=<gra-ip>,fork,reuseaddr TCP:127.0.0.1:8080 as a systemd unit) + `ufw
+        allow from 147.45.252.234 to any port 8081` + DENY others; then set NL
+        config remote_stats_endpoints:[{name:gra1,addr:"54.38.243.162:8081"}] and
+        redeploy backend (chameleon only, no singbox). Rollback: drop the config
+        line + redeploy (instant no-op) and stop the socat unit + ufw deny.
       fix_directions: |
-        Collect per-user stats from EVERY exit/relay sing-box (each already exposes a
-        v2ray_api / user API — GRA:15380, MSK:15380) and SUM per vpn_username before
-        writing cumulative_traffic. Or have each node push its deltas to the backend.
-        First: confirm what the admin panel actually queries (cumulative vs period) —
-        527KB may also just round to "0 MB".
-      risk: low (read-only stats aggregation); needs a stats fan-out + dedupe by username.
+        (superseded by backend_done + remaining_prod_activation above)
+      risk: low (read-only stats aggregation); prod step = a loopback forwarder +
+            firewall on GRA + 1 config line, no VPN restart. Fully reversible.
       related: |
         Same NL-only-stats root as ACTIVE-METRIC (done 2026-06-03): last_vpn_seen is
         bumped only from NL's traffic deltas, so GRA-direct users aren't counted in

@@ -147,6 +147,16 @@ type AuthConfig struct {
 	AppleExtraBundleIDs []string `yaml:"apple_extra_bundle_ids"`
 }
 
+// RemoteStatsEndpoint points at another exit node's v2ray_api gRPC StatsService
+// so the traffic collector can pull that node's per-user counters and sum them
+// with the local NL slice (TRAFFIC-MULTIEXIT). Empty list = NL-only (default,
+// behaviour unchanged). The gRPC StatsService is unauthenticated, so Addr must
+// be reachable ONLY from this backend (firewall to NL / loopback forwarder).
+type RemoteStatsEndpoint struct {
+	Name string `yaml:"name"` // human label, e.g. "gra1"
+	Addr string `yaml:"addr"` // host:port of the exit's v2ray_api gRPC, e.g. "54.38.243.162:8080"
+}
+
 // VPNConfig controls VPN protocol settings and server entries.
 type VPNConfig struct {
 	ListenPort      int           `yaml:"listen_port"`       // default: 2096
@@ -160,6 +170,9 @@ type VPNConfig struct {
 	UserAPIPort     int           `yaml:"user_api_port"`     // default: 15380; 0 = disabled
 	UserAPISecret   string        `yaml:"user_api_secret"`   // supports ${ENV_VAR}
 	V2RayAPIPort    int           `yaml:"v2ray_api_port"`    // default: 8080; gRPC StatsService for per-user traffic
+	// TRAFFIC-MULTIEXIT: remote exit nodes (GRA, etc.) whose per-user stats
+	// are summed with NL's. Default empty = NL-only. See RemoteStatsEndpoint.
+	RemoteStatsEndpoints []RemoteStatsEndpoint `yaml:"remote_stats_endpoints"`
 	// UDP protocols — Hysteria2 and TUIC v5 share a TLS cert.
 	Hysteria2Port int    `yaml:"hysteria2_port"`  // 0 = disabled
 	TUICPort      int    `yaml:"tuic_port"`       // 0 = disabled
