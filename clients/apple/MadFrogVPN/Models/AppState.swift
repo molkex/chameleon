@@ -549,6 +549,16 @@ class AppState {
         Task { [pingService] in await pingService.probe(allItems) }
     }
 
+    /// Best-effort-fresh access token for the support-chat WKWebView, which
+    /// can't refresh on its own (no refresh token in the webview, by design).
+    /// The stored access token may have expired while the app was backgrounded
+    /// (it 401s the chat with a confusing "нет связи"), so refresh proactively;
+    /// on failure fall back to whatever is stored (tryRefreshToken keeps it).
+    func accessTokenForSupportChat() async -> String {
+        _ = await tryRefreshToken()
+        return configStore.accessToken ?? ""
+    }
+
     private func tryRefreshToken() async -> Bool {
         guard let refreshToken = configStore.refreshToken else { return false }
         do {

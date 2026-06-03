@@ -15,14 +15,26 @@ struct SupportChatView: View {
     @Environment(ThemeManager.self) private var themeManager
     @Environment(\.dismiss) private var dismiss
 
+    // nil = still fetching a fresh access token. The webview can't refresh on
+    // its own, so we hand it a guaranteed-fresh token (else a token that
+    // expired while backgrounded 401s the chat into a confusing "нет связи").
+    @State private var token: String?
+
     var body: some View {
         NavigationStack {
-            SupportChatWebView(
-                accessToken: app.configStore.accessToken ?? "",
-                theme: themeManager.current.id, // "neon" | "calm"
-                lang: Locale.current.language.languageCode?.identifier == "ru" ? "ru" : "en"
-            )
-            .ignoresSafeArea(edges: .bottom)
+            Group {
+                if let token {
+                    SupportChatWebView(
+                        accessToken: token,
+                        theme: themeManager.current.id, // "neon" | "calm"
+                        lang: Locale.current.language.languageCode?.identifier == "ru" ? "ru" : "en"
+                    )
+                    .ignoresSafeArea(edges: .bottom)
+                } else {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
             .navigationTitle(Text(L10n.Settings.contactSupport))
             .iosInlineNavTitle()
             .toolbar {
@@ -31,6 +43,7 @@ struct SupportChatView: View {
                 }
             }
         }
+        .task { token = await app.accessTokenForSupportChat() }
     }
 }
 
