@@ -119,4 +119,34 @@ final class VPNControlIntentsBehaviorTests: XCTestCase {
         WidgetVPNSnapshot.write(connected: true, to: nil)
         WidgetVPNSnapshot.write(connected: false, to: nil)
     }
+
+    // MARK: - connect timestamp is idempotent across transparent restarts
+
+    func testWriteConnectedPreservesSessionStartAcrossRestarts() throws {
+        // Reproduces the user-reported 2026-06-03 split (app 19:27:21 vs widget
+        // 0:12): publishWidgetState(connected:true) re-fires on every startTunnel
+        // (On-Demand reconnect / extension relaunch). write(true) must PRESERVE
+        // the existing session-start timestamp, not reset it to now.
+        let suiteName = "widget-snapshot-tests-\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("could not create scratch UserDefaults suite"); return
+        }
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        // Simulate a long-running session: stamped ~19h ago.
+        let longAgo = Date().timeIntervalSince1970 - 70_000
+        defaults.set(longAgo, forKey: AppConstants.vpnConnectedAtKey)
+
+        // A transparent restart re-publishes .connected.
+        WidgetVPNSnapshot.write(connected: true, to: defaults)
+        XCTAssertEqual(defaults.double(forKey: AppConstants.vpnConnectedAtKey), longAgo, accuracy: 0.5,
+                       "transparent restart must NOT reset the session-start timestamp")
+
+        // A real disconnect clears it; the next genuine connect stamps fresh.
+        WidgetVPNSnapshot.write(connected: false, to: defaults)
+        XCTAssertNil(defaults.object(forKey: AppConstants.vpnConnectedAtKey))
+        WidgetVPNSnapshot.write(connected: true, to: defaults)
+        XCTAssertGreaterThan(defaults.double(forKey: AppConstants.vpnConnectedAtKey), longAgo + 1,
+                             "after a real disconnect, the next connect stamps a fresh timestamp")
+    }
 }

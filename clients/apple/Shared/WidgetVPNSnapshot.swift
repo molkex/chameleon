@@ -39,7 +39,19 @@ struct WidgetVPNSnapshot: Equatable {
     static func write(connected: Bool, to defaults: UserDefaults?) {
         guard let defaults else { return }
         if connected {
-            defaults.set(Date().timeIntervalSince1970, forKey: AppConstants.vpnConnectedAtKey)
+            // Idempotent: keep the existing "session start" timestamp across
+            // TRANSPARENT tunnel restarts (On-Demand reconnect, extension
+            // jetsam-relaunch, a re-published .connected). publishWidgetState
+            // runs inside startTunnel, which re-fires on those events — and the
+            // old unconditional `set(now)` reset the widget's "Защищено X" back
+            // to ~0 while the app's in-memory timer (guarded by `vpnConnectedAt
+            // == nil`) kept the true value, so the app showed 19:27:21 and the
+            // widget showed 0:12 (user-reported 2026-06-03). Only stamp on the
+            // FIRST connect of a session; `false` (real disconnect) clears it,
+            // so the next genuine connect stamps fresh.
+            if defaults.double(forKey: AppConstants.vpnConnectedAtKey) <= 0 {
+                defaults.set(Date().timeIntervalSince1970, forKey: AppConstants.vpnConnectedAtKey)
+            }
         } else {
             defaults.removeObject(forKey: AppConstants.vpnConnectedAtKey)
         }
