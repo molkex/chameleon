@@ -99,7 +99,7 @@ next:
     - id: SUPPORT-CHAT
       title: Customer support chat — self-hosted, real-time, multi-platform
       priority: high
-      status: P0_in_progress   # Go backend done 2026-06-03 (steps 1,2,3,5); see below
+      status: P0_deployed   # backend done + deployed to NL 2026-06-03 (steps 1,2,3,4a,5); see below
       p0_progress: |
         Go side COMPLETE + tested + pushed (plan: docs/plans/support-chat-p0.md):
         step 1 DB (migration 020, support.go, wipe) bb63e53 · step 2 REST API
@@ -108,10 +108,15 @@ next:
         retention sweep 091f33d. 4 decisions locked: anon-can-chat, push fast-follow,
         90d hard-delete, migration 020 (019 was taken). Tests: db integration (6) +
         auth chat-token (4) + mobile pure helpers; build/vet/golangci-lint green.
-        REMAINING for P0: step 4 nginx SSE location (NL via deploy.sh + MSK/SPB
-        hand-applied — MSK config not in repo) + the backend DEPLOY that applies
-        migration 020 and exposes the endpoints. Then P1 web widget makes it visible.
-        Gating before next App Store submit: privacy policy + ASC label (5.1.1).
+        DEPLOYED to NL 2026-06-03: migration 020 applied (support_chat_threads +
+        support_chat_messages — renamed from support_threads/messages, 54f0b83, to
+        avoid a LEGACY support_messages table that exists on NL but is NOT in the
+        repo migrations), endpoints live (401 without auth), NL nginx SSE location
+        (d073b38). REMAINING for P0: step 4b — MSK/SPB relay nginx SSE block (not in
+        repo → SSH; deferred until P1 since there's no SSE consumer yet). Then P1 web
+        widget makes it visible. Gating before next App Store submit: privacy policy
+        + ASC label (5.1.1). NOTE: NL carries legacy tables not in repo migrations —
+        \dt before CREATE TABLE on a generic name.
       priority_was: planned
       decision_ref: decisions/0011-self-hosted-support-chat.md
       re_requested: 2026-05-31

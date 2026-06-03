@@ -1,7 +1,15 @@
 ---
 title: SUPPORT-CHAT — P0 backend core, detailed implementation plan
 date: 2026-06-03
-status: IN PROGRESS — Go side done (steps 1,2,3,5: bb63e53, bf438d2, 03c30c9, 091f33d); remaining = step 4 nginx + backend deploy (migration 020)
+status: |
+  P0 mostly DONE + DEPLOYED to NL (2026-06-03). Steps 1,2,3,5 (bb63e53, bf438d2,
+  03c30c9, 091f33d) + step 4a NL deploy (migration 020 applied, endpoints live,
+  NL nginx SSE location d073b38). Tables renamed support_chat_* (54f0b83) to dodge
+  a LEGACY support_messages table that exists on NL but isn't in the repo migrations.
+  REMAINING: step 4b MSK/SPB relay nginx SSE block (not in repo → SSH; deferred to
+  P1, no SSE consumer yet) + P1 web widget (first user-visible piece).
+  ⚠️ Landmine for future migrations: NL has legacy tables NOT in repo migrations —
+  `\dt` before CREATE TABLE on a generic name.
 decision_ref: decisions/0011-self-hosted-support-chat.md
 roadmap: SUPPORT-CHAT (next.support)
 ---
