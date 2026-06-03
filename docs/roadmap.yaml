@@ -99,7 +99,20 @@ next:
     - id: SUPPORT-CHAT
       title: Customer support chat — self-hosted, real-time, multi-platform
       priority: high
-      status: planned   # decision made 2026-06-02; Chatwoot lean retracted
+      status: P0_in_progress   # Go backend done 2026-06-03 (steps 1,2,3,5); see below
+      p0_progress: |
+        Go side COMPLETE + tested + pushed (plan: docs/plans/support-chat-p0.md):
+        step 1 DB (migration 020, support.go, wipe) bb63e53 · step 2 REST API
+        (send/list/thread + anon/authed rate-limit tiers) bf438d2 · step 3 SSE +
+        Redis fan-out + chat-token (single-purpose-guarded) 03c30c9 · step 5 90d
+        retention sweep 091f33d. 4 decisions locked: anon-can-chat, push fast-follow,
+        90d hard-delete, migration 020 (019 was taken). Tests: db integration (6) +
+        auth chat-token (4) + mobile pure helpers; build/vet/golangci-lint green.
+        REMAINING for P0: step 4 nginx SSE location (NL via deploy.sh + MSK/SPB
+        hand-applied — MSK config not in repo) + the backend DEPLOY that applies
+        migration 020 and exposes the endpoints. Then P1 web widget makes it visible.
+        Gating before next App Store submit: privacy policy + ASC label (5.1.1).
+      priority_was: planned
       decision_ref: decisions/0011-self-hosted-support-chat.md
       re_requested: 2026-05-31
       decision: |
@@ -241,6 +254,15 @@ next:
         sing-box check. stats_v2ray gRPC untested. Low marginal value as a unit test.
     # TEST-IOS-CI → done 2026-06-01 (fetch-libbox.sh + libbox-v1.13.5 release asset; ios.yml builds + compiles tests).
     # TEST-GEOIP → done 2026-06-01 (isPublicIP gate + Lookup short-circuit + cache; 0→36%).
+    - id: TEST-SUPPORT-API
+      priority: P3
+      title: Integration-test the support-chat HTTP handlers (send/list/thread/SSE)
+      notes: |
+        DB layer (support_test.go, 6 tests) + chat-token (chat_token_test.go, 4) +
+        pure helpers (chatCapForTier/normalizeChatBody) ARE covered. GAP: the
+        handlers themselves (SupportSend rate-limit tiers via Redis, SupportStream
+        SSE replay+fan-out) need an httptest + test-DB + miniredis harness. Medium
+        effort; the security-critical chat-token replay-guard is already unit-tested.
 
   client_reliability:
     - id: CFG-01

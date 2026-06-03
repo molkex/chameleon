@@ -1,7 +1,7 @@
 ---
 title: SUPPORT-CHAT — P0 backend core, detailed implementation plan
 date: 2026-06-03
-status: draft (awaiting review — code not started)
+status: IN PROGRESS — Go side done (steps 1,2,3,5: bb63e53, bf438d2, 03c30c9, 091f33d); remaining = step 4 nginx + backend deploy (migration 020)
 decision_ref: decisions/0011-self-hosted-support-chat.md
 roadmap: SUPPORT-CHAT (next.support)
 ---
