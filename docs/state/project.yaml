@@ -64,15 +64,33 @@ health:
 
 # ── Right now (canonical: roadmap.yaml) ─────────────────────────────────────
 now:
-  - TRAFFIC-MULTIEXIT (P2) — GRA/relay users show ~0 traffic in admin (stats only from NL)
-  - AWAIT-REVIEW 1.0.29 (build 101) — submitted to App Store 2026-06-02, WAITING_FOR_REVIEW
+  # ── RESUME HERE next session (2026-06-03 end-of-session handoff) ──
+  - SUPPORT-CHAT — P0 backend LIVE on NL; P1 widget + P2 in-app WKWebView BUILT (committed,
+    ride next build). NOT yet usable by users. TO FINISH (roadmap#support p1_p2_progress):
+    (1) cut app build 103 (chat + widget-timer + FR-SELECT ride it; keychain already in 102),
+    (2) MSK relay nginx SSE block step 4b (live push; without it send+history work, agent
+    reply needs reopen), (3) privacy policy + ASC label before App Store submit (5.1.1).
+  - BUILD-103 (pending) — carries SUPPORT-CHAT P2 + WIDGET-TIMER + FR-SELECT/SRV-DYNAMIC.
+  - AWAIT-REVIEW 1.0.29 (build 101) in App Store review; 1.0.30 (build 102, keychain fix) on
+    TestFlight — after 101 ships, submit 1.0.30 (then 1.0.31/103 with chat).
+  - TRAFFIC-MULTIEXIT (P2) — GRA/relay users show ~0 traffic in admin (stats only from NL).
 open_decisions:                  # waiting on the user
   - SUBDOMAIN-SCRUB — bot/speedtest.madfrog.online → 85.239.49.28 (intentional? repoint?)
-  - SUPPORT-CHAT — route DECIDED 2026-06-02 (build self-hosted SSE, ADR 0011); now awaiting
-    GO to build + 4 open decisions (Android/Windows stack, push-in-first-ship, anon-chat, retention)
+  - SUPPORT-CHAT hosting — MVP shipped BUNDLED (not chat.madfrog.online). Keep bundled or
+    move to hosted later? (one-line URL switch in SupportChatView.)
 
 # ── Shipped 2026-06-01 (detail: roadmap.yaml#done + incidents/2026-06-01-*) ──
 recent:
+  - SUPPORT-CHAT (2026-06-03) — built end-to-end: P0 backend DEPLOYED to NL (mig 020
+    support_chat_threads/messages, REST send/list/thread, SSE+Redis, chat-token, 90d purge,
+    rate-limit tiers, wipe-on-delete); P1 web widget (clients/widget) approved; P2 in-app
+    WKWebView replaces mailto Support. Remaining: build 103 + MSK nginx 4b + privacy. ADR 0011.
+  - WIDGET-TIMER + FR-SELECT/SRV-DYNAMIC + CI-green (2026-06-03) — Home widget "Защищено"
+    timer no longer resets on transparent restarts; new-country picker selection sticks; fixed
+    2 pre-existing red CI workflows. All ride build 103.
+  - BUILD-102 / 1.0.30 (2026-06-03) — keychain re-sign fix (KEYCHAIN-MACOS) cut to TestFlight
+    iOS+macOS (1.0.29/101 train was closed → bumped to 1.0.30). LAUNCH-02 → deferred (non-renewing
+    subs can't Family Share). config.go cancel-alert deployed.
   - ACTIVE-METRIC (2026-06-03, deployed NL) — admin "Active (24h)" was app-/config-fetches
     only → could read below live "Online". Added users.last_vpn_seen (mig 019) bumped by the
     traffic collector; Active = app OR VPN. last_seen/DAU/funnel untouched.
