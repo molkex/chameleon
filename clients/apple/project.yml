@@ -54,6 +54,11 @@ targets:
       - path: Shared
         excludes:
           - "**/.DS_Store"
+      # SUPPORT-CHAT P2: bundle the chat web widget (canonical: clients/widget)
+      # so SupportChatView's WKWebView can load it. Same "write-once" file that
+      # will later be hosted at chat.madfrog.online.
+      - path: ../widget/index.html
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.madfrog.vpn
@@ -143,6 +148,9 @@ targets:
       - path: Shared
         excludes:
           - "**/.DS_Store"
+      # SUPPORT-CHAT P2: bundle the chat web widget (see iOS target).
+      - path: ../widget/index.html
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.madfrog.vpn.mac

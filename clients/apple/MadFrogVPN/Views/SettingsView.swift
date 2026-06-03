@@ -16,6 +16,7 @@ struct SettingsView: View {
     @State private var showAccount = false
     @State private var showTerms = false
     @State private var showPrivacy = false
+    @State private var showSupportChat = false
     // LAUNCH-07 — Auto-connect on untrusted Wi-Fi state.
     // Local mirrors of the persisted prefs so the toggles feel snappy; AppState
     // writes through to ConfigStore + NETunnelProviderManager on change.
@@ -251,22 +252,9 @@ struct SettingsView: View {
                                 row(icon: "hand.raised", title: L10n.Paywall.privacy,
                                     showChevron: true) { showPrivacy = true }
                                 divider
-                                Link(destination: URL(string: "mailto:support@madfrog.online")!) {
-                                    HStack(spacing: 14) {
-                                        iconCircle("envelope")
-                                        Text(L10n.Settings.contactSupport)
-                                            .font(theme.font(size: 16, weight: .medium))
-                                            .foregroundStyle(theme.textPrimary)
-                                        Spacer()
-                                        Image(systemName: "chevron.right")
-                                            .font(.system(size: 12, weight: .semibold))
-                                            .foregroundStyle(theme.textSecondary.opacity(0.5))
-                                    }
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 14)
-                                    .contentShape(Rectangle())
-                                }
-                                .buttonStyle(.plain)
+                                row(icon: "bubble.left.and.bubble.right",
+                                    title: L10n.Settings.contactSupport,
+                                    showChevron: true) { showSupportChat = true }
                                 divider
                                 HStack(spacing: 14) {
                                     iconCircle("info.circle")
@@ -358,6 +346,10 @@ struct SettingsView: View {
                     LegalView(title: L10n.Legal.privacyTitle, body: L10n.Legal.privacyBody)
                 }
                 .macSheetSize()
+            }
+            .sheet(isPresented: $showSupportChat) {
+                SupportChatView()
+                    .macSheetSize()
             }
             .alert(L10n.Settings.trustedAddTitle, isPresented: $showAddSSIDAlert) {
                 TextField(L10n.Settings.trustedAddPlaceholder, text: $pendingSSIDInput)

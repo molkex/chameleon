@@ -20,6 +20,7 @@
 		0EBA362331D54BBEFC487615 /* PacketTunnelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C3AA0F75FD43492C173B8C4 /* PacketTunnelProvider.swift */; };
 		0FC9AE84FD306E56C652B4A5 /* Products.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 44EE43ED9CEC25421113C6A9 /* Products.storekit */; };
 		106123C14FB6D8563F89EEF7 /* MainViewNeon.swift in Sources */ = {isa = PBXBuildFile; fileRef = F64AFDF15C8A5F646A1C431B /* MainViewNeon.swift */; };
+		1119A5D2AA29A3208C3F67E0 /* SupportChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6D8E54A1A778779BA507B09 /* SupportChatView.swift */; };
 		11AAD0CBBD52EE06355ACA56 /* ThemePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE8C33AF6B8E237DD5BC9D5B /* ThemePickerView.swift */; };
 		11CC47593EBE388CEBE2BB79 /* ConfigSanitizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E043C787773D9E89FA561E25 /* ConfigSanitizer.swift */; };
 		13082BC2A19418CDE5ED74CC /* PathPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F0B078C63922A356A8633EF /* PathPicker.swift */; };
@@ -174,6 +175,7 @@
 		A6F4C7DE3D8BA428F4C7274E /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEBE74F9DD0282A5EA7B00DE /* APIClient.swift */; };
 		A6FA0066799E9EBAE4C11500 /* NetworkFingerprint.swift in Sources */ = {isa = PBXBuildFile; fileRef = D74E8F46235E55DCBC83A95C /* NetworkFingerprint.swift */; };
 		A9410234681C29EBD3B2FB1A /* LegRaceProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F3382ABA99A753C80BA61E9 /* LegRaceProbe.swift */; };
+		AB5EAB598EA00EBDA5F0AE2F /* index.html in Resources */ = {isa = PBXBuildFile; fileRef = 5E1F8BD9DF2E0E500B1EBED2 /* index.html */; };
 		AF2008FBFCD6A201C00555AB /* PlatformViewExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11EBC90E3AED9A381EEA7F2F /* PlatformViewExtensions.swift */; };
 		B12BD63053EC36D717193BCE /* TrafficHealthMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 850D3937870EEB29F3CD7BD9 /* TrafficHealthMonitorTests.swift */; };
 		B47890D763FC848171491E96 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 16E41091FB71C918EFBEF6B9 /* Localizable.strings */; };
@@ -212,6 +214,7 @@
 		D0204995C6A45774531865CC /* libresolv.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = C4C20C0AE163F2C1F4C77012 /* libresolv.tbd */; };
 		D05105F5750E89121A262ED5 /* ConfigStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FC0F827BBF3A30F2EDE9AB3 /* ConfigStore.swift */; };
 		D15236DEDA6726380031CE01 /* VPNErrorMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = E683952FD2B39BA18604AB73 /* VPNErrorMapper.swift */; };
+		D4C081AEDAB5824F5BC356B2 /* SupportChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6D8E54A1A778779BA507B09 /* SupportChatView.swift */; };
 		D717B77A40D44CEB055D6DE9 /* CoreText.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 98143383638BB4DB362C29BE /* CoreText.framework */; };
 		D80ED4D3D36A076CC16B66A6 /* CountryFlag.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8005A0F02E6E8BBC2A49BFB /* CountryFlag.swift */; };
 		D8F45BBB3E644482A3AD64F0 /* CoreLocation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 872DE7900BBC5982BA0688E8 /* CoreLocation.framework */; };
@@ -227,6 +230,7 @@
 		E192518FF4AAD355DE6154DA /* L10n.swift in Sources */ = {isa = PBXBuildFile; fileRef = F48680996CDA6DA1906F2747 /* L10n.swift */; };
 		E1C7677A6E0BD00FC7138CFC /* CommandClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E4759379DDD3262CA6B47A9 /* CommandClient.swift */; };
 		E257B962BF7B37686FAE5DD4 /* NetworkExtension.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 21AE788D6595D4029A9B4AD5 /* NetworkExtension.framework */; };
+		E32CD5318E3F6A85994FE915 /* index.html in Resources */ = {isa = PBXBuildFile; fileRef = 5E1F8BD9DF2E0E500B1EBED2 /* index.html */; };
 		E32DB7E13D8E769D573670CE /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0CB7FDF9EA71B70EF8E2BB5 /* MainView.swift */; };
 		E35A516FCAEA005E57A84298 /* EventTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 152624A9F613DE119B5A4872 /* EventTracker.swift */; };
 		E3C336C2E13E13465E4B048E /* LegRaceProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F3382ABA99A753C80BA61E9 /* LegRaceProbe.swift */; };
@@ -365,6 +369,7 @@
 		52F25CA4945E63F7C3CB0355 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		5B0DF204F6C9DA8DCF48C6FE /* PacketTunnelMac.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PacketTunnelMac.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		5DD9BD8C985A9147E4CEAB1C /* LegalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegalView.swift; sourceTree = "<group>"; };
+		5E1F8BD9DF2E0E500B1EBED2 /* index.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = index.html; sourceTree = "<group>"; };
 		60E77ADEA1CE787C940AA0BE /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		6378A272B7EFCCF1FBCDFBFE /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
 		63D44CCDFB75CAF34F8A4F3C /* MadFrogVPNMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MadFrogVPNMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -435,6 +440,7 @@
 		E043C787773D9E89FA561E25 /* ConfigSanitizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigSanitizer.swift; sourceTree = "<group>"; };
 		E2BA26B8B7F99DE0D1317CFA /* EmailSignInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailSignInView.swift; sourceTree = "<group>"; };
 		E683952FD2B39BA18604AB73 /* VPNErrorMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VPNErrorMapper.swift; sourceTree = "<group>"; };
+		E6D8E54A1A778779BA507B09 /* SupportChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupportChatView.swift; sourceTree = "<group>"; };
 		E8EF3541F56531E6A2C1EA76 /* MenuBarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarContent.swift; sourceTree = "<group>"; };
 		E95E9718D8CE81EE4E41BE02 /* MainViewCalm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewCalm.swift; sourceTree = "<group>"; };
 		E9C795586D98E530507B81D4 /* ru */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ru; path = ru.lproj/Localizable.strings; sourceTree = "<group>"; };
@@ -597,6 +603,7 @@
 				9165FAC1D21DF4F01B68654F /* PaywallView.swift */,
 				1B22C5FF3DB584F3F6AB7B17 /* ReauthView.swift */,
 				7195CF498E5531209F7FAD2C /* SettingsView.swift */,
+				E6D8E54A1A778779BA507B09 /* SupportChatView.swift */,
 				AE8C33AF6B8E237DD5BC9D5B /* ThemePickerView.swift */,
 				27C5C9C45F3855532EB54D77 /* VPNPermissionPrimerView.swift */,
 				8F6C0D910C8814F24440E9B4 /* WebPaywallView.swift */,
@@ -658,6 +665,14 @@
 				9BFE7E8B5C268A8B4E1F44C8 /* SingBoxConfigPatcher.swift */,
 			);
 			path = Networking;
+			sourceTree = "<group>";
+		};
+		548DF0F8745938DA90D907FD /* widget */ = {
+			isa = PBXGroup;
+			children = (
+				5E1F8BD9DF2E0E500B1EBED2 /* index.html */,
+			);
+			path = widget;
 			sourceTree = "<group>";
 		};
 		58ADF1794AEBE66A0770D2F0 /* Models */ = {
@@ -727,6 +742,7 @@
 		AA33328DF43C9489AEE1E0AB = {
 			isa = PBXGroup;
 			children = (
+				CDC7399CAEC6EE6BE7428F09 /* clients */,
 				FC8377BC9C71183C1DE16DAF /* MadFrogVPN */,
 				65BFE3031C081A4CE410DA57 /* MadFrogWidget */,
 				149097BB0659E889881AA558 /* PacketTunnel */,
@@ -735,6 +751,15 @@
 				6EEC108E284B59CB79FB98A0 /* Frameworks */,
 				EC3A3EDD394553EF29F1AA2D /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		CDC7399CAEC6EE6BE7428F09 /* clients */ = {
+			isa = PBXGroup;
+			children = (
+				548DF0F8745938DA90D907FD /* widget */,
+			);
+			name = clients;
+			path = ..;
 			sourceTree = "<group>";
 		};
 		EC3A3EDD394553EF29F1AA2D /* Products */ = {
@@ -981,6 +1006,7 @@
 				B47890D763FC848171491E96 /* Localizable.strings in Resources */,
 				FAAAD09A083C269FA8C30EBB /* PrivacyInfo.xcprivacy in Resources */,
 				354BC28159DBF91924401A75 /* Products.storekit in Resources */,
+				AB5EAB598EA00EBDA5F0AE2F /* index.html in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -992,6 +1018,7 @@
 				B5F8C1AECBBB9D9B61265F72 /* Localizable.strings in Resources */,
 				33422A6321F8D75EA134DBD7 /* PrivacyInfo.xcprivacy in Resources */,
 				0FC9AE84FD306E56C652B4A5 /* Products.storekit in Resources */,
+				E32CD5318E3F6A85994FE915 /* index.html in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1057,6 +1084,7 @@
 				934A48D7A3E16EF72051A39D /* SingBoxConfigPatcher.swift in Sources */,
 				55972B317CA20A3BB89BD209 /* StringUtils.swift in Sources */,
 				ED2932322BA67C98F3937409 /* SubscriptionManager.swift in Sources */,
+				1119A5D2AA29A3208C3F67E0 /* SupportChatView.swift in Sources */,
 				942A96B073B8A5480C18FD7B /* Theme.swift in Sources */,
 				DE990DCFB1EDE9CF6D509867 /* ThemeManager.swift in Sources */,
 				11AAD0CBBD52EE06355ACA56 /* ThemePickerView.swift in Sources */,
@@ -1152,6 +1180,7 @@
 				8C50FBC490B8B107D281C129 /* SingBoxConfigPatcher.swift in Sources */,
 				1F68F876A67C5D653E37D340 /* StringUtils.swift in Sources */,
 				5284A2E0344730B0592F5215 /* SubscriptionManager.swift in Sources */,
+				D4C081AEDAB5824F5BC356B2 /* SupportChatView.swift in Sources */,
 				B988B34E1D31DA0B7F335675 /* Theme.swift in Sources */,
 				BACEC61FEE678594868C78AF /* ThemeManager.swift in Sources */,
 				BC0EB19FC3432F56C64386DD /* ThemePickerView.swift in Sources */,
