@@ -65,7 +65,7 @@ health:
 # ── Right now (canonical: roadmap.yaml) ─────────────────────────────────────
 now:
   # ── RESUME HERE next session (2026-06-04 end-of-session handoff) ──
-  - SUPPORT-CHAT — WORKS end-to-end on device (first test build 103: send + history +
+  - SUPPORT-CHAT — WORKS end-to-end on device (first test build 103 — send + history +
     SSE online confirmed). build 104 (1.0.31) on TestFlight fixes the 2 bugs that test found —
     duplicate own-messages (optimistic + SSE echo) and stale-token 401 on first open. MSK nginx
     SSE done (live push). REMAINING before App Store submit — (1) privacy policy + ASC data label
