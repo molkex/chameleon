@@ -129,6 +129,7 @@
 
   const cfg = { apiBase:"", accessToken:null, theme:"neon", lang:"ru", chatToken:null };
   let lastId = 0, sse = null, L = STR.ru, sending = false;
+  const seenIds = new Set();   // every server id we've rendered — dedupes the SSE echo of our own sends, history overlap, and reconnect replay
 
   const $ = id => document.getElementById(id);
   const msgsEl = $("messages");
@@ -152,8 +153,11 @@
   function fmtTime(d){ return d.toLocaleTimeString(cfg.lang==="ru"?"ru-RU":"en-US",{hour:"2-digit",minute:"2-digit"}); }
 
   function addMessage(m, animate=true){
-    if (m.id && m.id <= lastId && m.sender!=="local") return;       // dedupe by id
-    if (m.id) lastId = Math.max(lastId, m.id);
+    if (m.id){
+      if (seenIds.has(m.id)) return null;          // already rendered (SSE echo / history overlap / reconnect replay)
+      seenIds.add(m.id);
+      lastId = Math.max(lastId, m.id);
+    }
     const el = document.createElement("div");
     el.className = "msg " + (m.sender==="user"||m.sender==="local"?"user":m.sender==="system"?"system":"agent");
     if(!animate) el.style.animation="none";
@@ -165,6 +169,7 @@
     }
     msgsEl.appendChild(el);
     msgsEl.scrollTop = msgsEl.scrollHeight;
+    return el;
   }
 
   function banner(text){ const b=$("banner"); if(!text){b.hidden=true;return;} b.textContent=text; b.hidden=false; }
@@ -198,10 +203,26 @@
   async function send(text){
     if(sending || !text.trim()) return;
     sending = true; $("send").disabled = true;
-    addMessage({sender:"local", body:text, created_at:new Date()});   // optimistic
+    const optimistic = addMessage({sender:"local", body:text, created_at:new Date()});   // optimistic, no id yet
     try{
       if(PREVIEW){ previewReply(text); }
-      else { await api("/api/v1/mobile/support/messages",{method:"POST",body:JSON.stringify({text})}); }
+      else {
+        const saved = await api("/api/v1/mobile/support/messages",{method:"POST",body:JSON.stringify({text})});
+        // Reconcile with the SSE echo of our own message (backend re-broadcasts it
+        // to this thread's stream). Race-proof either way:
+        if (saved && saved.id){
+          if (seenIds.has(saved.id)){
+            if (optimistic) optimistic.remove();              // echo already rendered it → drop the optimistic bubble
+          } else {
+            seenIds.add(saved.id);                            // claim the id → addMessage dedupes the echo
+            lastId = Math.max(lastId, saved.id);
+            if (optimistic && saved.created_at){
+              const t = optimistic.querySelector(".time");
+              if (t) t.textContent = fmtTime(new Date(saved.created_at));
+            }
+          }
+        }
+      }
       banner("");
     }catch(e){ banner(L.sendErr); }
     finally{ sending=false; $("send").disabled=false; }
