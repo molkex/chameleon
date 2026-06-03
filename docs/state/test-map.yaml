@@ -114,11 +114,11 @@ backend:
     gaps: "most handlers uncovered"
   db:
     src_files: 11
-    tests: [9 files — ALL integration-tagged]
+    tests: [10 files — ALL integration-tagged]
     tier: integration
     status: tested
     coverage_pct: n/a
-    covers: "users, payments, servers, charges round-trips (testcontainers PG)"
+    covers: "users, payments, servers, charges round-trips (testcontainers PG); active=app-OR-VPN counts + BumpVPNSeen (users_active_test.go, ACTIVE-METRIC 2026-06-03)"
     gaps: "0% when Docker absent → unverified in CI-without-Docker. See TEST-IOS-CI sibling concern for infra."
   payments:
     src_files: 1
@@ -187,7 +187,7 @@ apple:
   shared_well_covered:
     - ConfigSanitizer (ConfigSanitizerTests)
     - SingBoxConfigPatcher, LastWorkingLegStore, LeafRankingStore, RoutingMode
-    - StringUtils (RU pluralisation), KeychainHelper (XCTSkip in sim)
+    - StringUtils (RU pluralisation), KeychainHelper (XCTSkip in sim; now also covers legacy→data-protection-keychain migration — KEYCHAIN-MACOS fix 2026-06-03)
     - VPNControlIntents, CountryFlag, CrashReporter (sanitize), DisconnectNotifier
     - TrafficHealthMonitor, ServerTagShape
   untested_surfaces:

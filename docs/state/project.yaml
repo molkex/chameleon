@@ -19,7 +19,7 @@
 # Test coverage + how-to-verify each layer: state/test-map.yaml (decision 0009).
 
 meta:
-  updated: 2026-06-01
+  updated: 2026-06-03
   branch: main
   direction: on_track          # see `assessment` at the bottom
 
@@ -68,10 +68,17 @@ now:
   - AWAIT-REVIEW 1.0.29 (build 101) — submitted to App Store 2026-06-02, WAITING_FOR_REVIEW
 open_decisions:                  # waiting on the user
   - SUBDOMAIN-SCRUB — bot/speedtest.madfrog.online → 85.239.49.28 (intentional? repoint?)
-  - SUPPORT-CHAT — Chatwoot vs native in-app vs Telegram deep-link
+  - SUPPORT-CHAT — route DECIDED 2026-06-02 (build self-hosted SSE, ADR 0011); now awaiting
+    GO to build + 4 open decisions (Android/Windows stack, push-in-first-ship, anon-chat, retention)
 
 # ── Shipped 2026-06-01 (detail: roadmap.yaml#done + incidents/2026-06-01-*) ──
 recent:
+  - ACTIVE-METRIC (2026-06-03, deployed NL) — admin "Active (24h)" was app-/config-fetches
+    only → could read below live "Online". Added users.last_vpn_seen (mig 019) bumped by the
+    traffic collector; Active = app OR VPN. last_seen/DAU/funnel untouched.
+  - KEYCHAIN-MACOS (2026-06-03) — Mac "акк→trial after update" was NOT a real demote;
+    legacy keychain ACL is signature-bound. Fixed → data-protection keychain + access
+    group + seamless migration (incidents/2026-06-03-macos-keychain-trial-on-update.md)
   - DOCS-MIGRATE + TEST-MAP — retired ~2300 legacy doc lines; new state/test-map.yaml +
     ADR 0009 (coverage discipline); OPERATIONS/TROUBLESHOOTING/PAYMENTS/topology.yaml gone
   - ACCT-IDENTITY (P0) — no more silent demote of Apple payers to anon trial; ReauthView ladder

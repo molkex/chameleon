@@ -91,45 +91,74 @@ next:
 
   support:
     - id: SUPPORT-CHAT
-      title: Customer support chat (help desk, not team chat)
+      title: Customer support chat — self-hosted, real-time, multi-platform
       priority: high
-      status: design_done_awaiting_decision
-      re_requested: 2026-05-31   # user asked again, specifically wants IN-APP messaging
-      open_fork: |
-        User (2026-05-31) wants an in-app "messages with support" system. Two routes:
-          A) Chatwoot (existing design below) — embed the web widget in-app; omnichannel
-             (web + Telegram + email), but needs a VPS (~€4.5/mo) + external service.
-          B) NATIVE in-app messaging — own support_threads/support_messages tables +
-             mobile API (send/list, unread badge, push on reply) + a chat screen in the
-             app + a reply inbox in the admin SPA. No external infra, fully on-brand,
-             privacy-clean (we host it), reuses existing auth + APNs. More dev (~iOS
-             screen + 2 endpoints + admin page), no monthly cost. Fits the privacy-brand
-             rationale that drove us away from SaaS in the first place.
-          C) Telegram deep-link fallback (fastest, zero build) — kept as interim.
-        DECISION NEEDED from user before building. If B, file an ADR superseding the
-        Chatwoot lean in the decision text below.
+      status: planned   # decision made 2026-06-02; Chatwoot lean retracted
+      decision_ref: decisions/0011-self-hosted-support-chat.md
+      re_requested: 2026-05-31
       decision: |
-        Picked Chatwoot self-hosted on a dedicated Hetzner CX22 (4 GB/2vCPU,
-        ~€4.5/mo) over: SaaS (Intercom/Tawk = US servers, bad for a VPN
-        privacy brand), Rocket.Chat/Mattermost (team-chat tools, wrong
-        category), FreeScout (cheaper but live-chat is a paid addon + dated
-        UX). Chatwoot is omnichannel — web widget + Telegram bot + email all
-        land in one inbox. Do NOT self-host on NL: it's 1.9 GB and already
-        swapping; Chatwoot needs 2-4 GB.
-      synergy: |
-        The same CX22 box can later double as NL-RED-01 (Hetzner Helsinki
-        redundancy) — amortizes the cost. Keep the existing @MadFrogRobot
-        Telegram bot, wire it as a Chatwoot channel rather than replacing it.
-      blocked_on: user approval to provision + pay for the VPS
-      next_steps:
-        - Provision Hetzner CX22 (Helsinki region → also serves NL-RED-01)
-        - Chatwoot via docker-compose + nginx + chat.madfrog.online (CF DNS)
-        - Connect @MadFrogRobot as a Telegram inbox channel
-        - Embed web widget in iOS app + landing
-      fallback: |
-        If user wants $0/fast instead: in-app "Support" button deep-links to
-        the Telegram bot. ~1-2 days, zero infra. Measure volume first, build
-        Chatwoot only if Telegram becomes unwieldy.
+        BUILD on our own stack (Go+Echo+pgx+Redis + admin SPA + APNs-to-be), NOT Chatwoot.
+        Realtime = SSE + Redis pub/sub. Cross-platform delivery = ONE hosted web chat widget
+        at chat.madfrog.online embedded via webview on every platform (write once; native per
+        platform is a later, same-API upgrade). Agent side = admin SPA inbox. @MadFrogRobot
+        folds in as an inbound Telegram channel. Full rationale + alternatives in ADR 0011.
+        Verified by 4-agent stack analysis 2026-06-02.
+      key_findings:   # all greenfield — verified against code, NOT assumed
+        - APNs push-to-device does NOT exist (backend + iOS) — only Apple sub-webhook + LOCAL
+          notifications today. Needs a NEW APNs .p8 key (≠ ASC key), aps-environment, HTTP/2 sender.
+        - No WKWebView anywhere — WebPaywallView is native SwiftUI opening external Safari.
+          The embedded chat webview is brand-new client infra.
+        - No SSE/WebSocket exists; Redis pub/sub exists only for cluster user-sync (reusable pattern).
+        - Privacy-policy CONFLICT — legal.privacy.body says "we don't store usage metadata";
+          chat messages contradict it. Must update policy + ASC nutrition label before next submit (Guideline 5.1.1).
+      sse_gotchas:    # MUST fix before SSE works in prod — see ADR 0011
+        - http.Server.WriteTimeout 30s (cmd/chameleon/main.go) kills the stream → set 0.
+        - Echo global ContextTimeout{30s} (internal/api/server.go) cancels ctx → SSE route outside it.
+        - nginx proxy_buffering on + proxy_read_timeout 30s at NL/SPB/MSK → add SSE location
+          (buffering off, long timeouts, http 1.1). Route via api.madfrog.online (bypass CF).
+        - MSK relay nginx config NOT in repo → fetch/edit/apply on 217.198.5.52 (deploy blocker).
+        - EventSource/URLSession SSE can't set headers → chat token via query param.
+      phases:
+        P0_backend_core: |
+          migration 019 (support_threads+support_messages) + DB layer + mobile API
+          (send/list since=/thread/SSE stream) + short-lived chat-token endpoint + Redis fan-out
+          + SSE infra fixes (WriteTimeout/Echo-ctx/nginx) + user-keyed rate limit + WipeUserOnDelete
+          extension + tests. ~9 dev-days.
+        P1_web_widget: |
+          hosted chat SPA at chat.madfrog.online: thread + composer, EventSource + since= reconnect,
+          window.initChat({token,theme,lang}) bridge protocol, RU/EN, theme CSS vars (calm/neon),
+          mobile keyboard handling. ~4-5 dev-days. THE write-once surface for all 4 platforms.
+        P2_apple_embed: |
+          WKWebView wrapper (UIViewRepresentable/NSViewRepresentable) + JS bridge (openURL/badge/token),
+          fetch chat token before load, replace mailto: in SettingsView.swift:254, sheet UX. ~3-4 dev-days.
+        P3_admin_inbox: |
+          clients/admin/src/pages/inbox.tsx (thread list + conversation + composer) + admin SSE stream +
+          sidebar unread badge + canned replies + internal notes + assignment + user-profile link. ~5-6 dev-days.
+        P4_push: |
+          APNs key/.p8 + aps-environment entitlements + Go push package (HTTP/2 sender) + migration 020
+          device_push_tokens + registration endpoint + iOS registerForRemoteNotifications + deep-link on tap
+          + unread badge sync. ~3-4 dev-days. (Decide: in first ship or fast-follow.)
+        P5_telegram_bridge: |
+          HMAC-authed POST /admin/support/inbound + outbound callback to @MadFrogRobot (separate repo,
+          MSK box, needs ufw + a /api/send-message endpoint). ~2 dev-days incl bot changes.
+        P6_android_windows: |
+          embed the SAME web widget (Android WebView / Windows WebView2) + FCM / WNS-or-WebPush
+          token registration. BLOCKED on the platform-stack decision; ~+5 dev-days each when those apps exist.
+      improvements_ranked:   # the "улучшения сразу" — pick after MVP
+        P0: [i18n RU/EN]
+        P1: [read receipts, business-hours auto-reply, "proactive nudge on repeated VPN-connect failures via TrafficHealthMonitor"]
+        P2: [typing indicators, "one-tap diagnostic snapshot (device/iOS/server/last-error) into the thread", "FAQ self-serve deflection — measure volume first"]
+        P3: [image/file attachments — BLOCKED: needs object storage, B2 is backup-only today]
+      open_decisions:   # owed by user — see ADR 0011; none block the iOS/macOS MVP
+        - Android & Windows client stack (Kotlin/Compose? Flutter? Electron? WinUI3?)
+        - APNs push in first ship, or foreground-only MVP + push fast-follow?
+        - Anonymous trial users — allowed to chat (tighter rate limit) or gated to authed?
+        - Message retention policy (e.g. hard-delete 90d after thread close)?
+      effort_total: ~25-30 dev-days for full multi-platform; iOS/macOS MVP (P0-P3) ~21-24.
+      blocked_on: user GO to start build + the 4 open_decisions above.
+      interim: |
+        Until built: in-app "Support" still = mailto:support@madfrog.online (SettingsView.swift:254)
+        + @MadFrogRobot Telegram bot. Telegram deep-link is the zero-build fallback if MVP slips.
 
   infrastructure:
     - id: NL-RED-01
@@ -421,6 +450,56 @@ deferred:
 # DONE — append-only log. Most recent date first.
 # ============================================================
 done:
+  "2026-06-03":
+    - id: ACTIVE-METRIC
+      title: Admin "Active (24h/30d)" counts real VPN usage (last_vpn_seen), not just app /config fetches
+      incident_ref: incidents/2026-06-03-active-vs-online-metric.md
+      deployed: NL 2026-06-03 (commit d17130d, migration 019)
+      files:
+        - backend/migrations/019_last_vpn_seen.sql
+        - backend/internal/db/users.go
+        - backend/internal/db/users_active_test.go
+        - backend/cmd/chameleon/main.go
+      notes: |
+        Dashboard "Online: 35" > "Active (24h): 16" looked self-contradictory.
+        Cause: Active = last_seen-in-24h, and last_seen only bumps on
+        GET /mobile/config (touchDevice). VPN = connect-once-leave-on → tunnel
+        moves traffic for days w/o re-fetching config → active user drops out of
+        24h window while still live in sing-box Online count.
+        Fix: users.last_vpn_seen, bumped by runTrafficCollector for users with a
+        non-zero traffic delta; CountActive24h/30d = last_seen OR last_vpn_seen.
+        last_seen left alone → DAU/retention/funnel stay "app engagement".
+        Verified on prod (last_vpn_seen populates within ~2 ticks). Residual:
+        NL-only stats; GRA-direct users not captured → folds into TRAFFIC-MULTIEXIT.
+    - id: KEYCHAIN-MACOS
+      title: macOS "account → trial after update" — legacy keychain ACL is signature-bound; moved to data-protection keychain + access group
+      incident_ref: incidents/2026-06-03-macos-keychain-trial-on-update.md
+      files:
+        - clients/apple/Shared/KeychainHelper.swift
+        - clients/apple/MadFrogVPN/MadFrogVPN.entitlements
+        - clients/apple/MadFrogVPNMac/MadFrogVPNMac.entitlements
+        - clients/apple/Tests/UnitTests/KeychainHelperTests.swift
+      notes: |
+        User hit "акк сменился на трел (на маке)" after updating. Diagnosed as NO
+        real demote — keychain (device_b6f01ebb/12351), app-group UD
+        (subscriptionExpire 2026-06-15) and NL DB (auth_provider=apple, paid) all
+        agreed on the paid account. `GroupContainersAlias` is just a symlink →
+        `Group Containers` (red herring).
+        Root cause: KeychainHelper used a plain generic-password item with NO
+        access group / NO data-protection keychain ⇒ on macOS items live in the
+        legacy file keychain whose ACL is bound to the binary's code signature.
+        Old build (38d, dev) → build 101 (different signature) ⇒ first read failed
+        the ACL ⇒ username read nil ⇒ MadFrogVPNApp root gate showed OnboardingView
+        (trial). initialize() does NOT anon-register on username==nil, so identity
+        survived; recovered once keychain access was granted.
+        Fix (Option A): kSecUseDataProtectionKeychain:true + explicit
+        kSecAttrAccessGroup (99W3C374T2.com.madfrog.vpn.keychain) in KeychainHelper,
+        with seamless legacy→DP dual-read MIGRATION so no existing user (iOS or
+        macOS) is logged out. Entitlement keychain-access-groups added to the 2
+        main-app targets only (extensions/widget never call the keychain).
+        Type-check + plutil-lint green; full build = CI (Libbox not local).
+        Follow-up: backfill authProvider/appleUserID for legacy Apple accounts
+        (12351 lacks them ⇒ no anti-demote gate / silent reauth on Mac).
   "2026-06-01":
     - id: BUILD-99-IDENTITY-OOM
       title: Build 99 (1.0.29) — silent StoreKit reclaim on anon + extension OOM/log fix + ADR 0010
@@ -1184,6 +1263,6 @@ stats:                        # counts are approximate; recomputed at the 2026-0
   open_next: ~30              # the `next:` queue + 8 new TEST-* coverage gaps (testing group).
   test_gaps_tracked: 0        # all 8 found 2026-06-01 closed/addressed. Only 3 P3 remainders left (apple sandbox-JWS, vpn engine.go orchestration, admin page smoke tests). state/test-map.yaml
   tech_debt_items: 1          # TD-CERT-PIN (APIClient InsecureDelegate). TD-LIBBOX-FETCH resolved 2026-06-01; LIBBOX-MAC-STRUCT worked-around.
-  decisions_documented: 10    # ADRs in decisions/ (0009 test-map, 0010 identity-anchored accounts)
+  decisions_documented: 11    # ADRs in decisions/ (0009 test-map, 0010 identity-anchored accounts, 0011 self-hosted support chat)
   incidents_documented: 12    # docs/incidents/*.md (+acct-identity-demote-recurrence 2026-06-01)
   playbooks_documented: 6     # apple-reject-recovery, ios-cli-release, deploy-nl, asc-api-checks, operations, debug-vpn-ios
