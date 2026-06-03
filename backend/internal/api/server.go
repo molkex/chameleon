@@ -6,6 +6,7 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -37,14 +38,14 @@ type Server struct {
 	// Ctx is the lifetime context — cancellation signals background goroutines
 	// (rate-limiter cleanup, cluster sync) to exit cleanly. Set by main.go
 	// before calling NewServer.
-	Ctx    context.Context
-	Config *config.Config
-	DB     *db.DB
-	Redis  *redis.Client
-	JWT    *auth.JWTManager
-	Apple  *auth.AppleVerifier
-	Google *auth.GoogleVerifier
-	Email  email.Sender
+	Ctx     context.Context
+	Config  *config.Config
+	DB      *db.DB
+	Redis   *redis.Client
+	JWT     *auth.JWTManager
+	Apple   *auth.AppleVerifier
+	Google  *auth.GoogleVerifier
+	Email   email.Sender
 	VPN     vpn.Engine // VPN engine interface (may be nil)
 	Syncer  *cluster.Syncer
 	Metrics *metrics.Metrics // Prometheus collectors; may be nil in tests
@@ -151,6 +152,13 @@ func (s *Server) setupMiddleware(e *echo.Echo) {
 	// observe the deadline via c.Request().Context().
 	e.Use(echomw.ContextTimeoutWithConfig(echomw.ContextTimeoutConfig{
 		Timeout: 30 * time.Second,
+		// SUPPORT-CHAT: the SSE stream is long-lived — a 30s context deadline
+		// would cut it. Skip only that exact path; every other route keeps the
+		// 30s guard. (The per-connection write deadline is cleared in the
+		// handler via ResponseController; see mobile.SupportStream.)
+		Skipper: func(c echo.Context) bool {
+			return strings.HasSuffix(c.Path(), "/support/stream")
+		},
 	}))
 }
 
@@ -441,4 +449,3 @@ func (s *Server) httpErrorHandler(err error, c echo.Context) {
 		_ = c.JSON(code, resp)
 	}
 }
-

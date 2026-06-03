@@ -12,6 +12,8 @@ package mobile
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -119,11 +121,9 @@ func (h *Handler) SupportSend(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
 	}
 
-	// step 3 will publish msg to Redis channel support:thread:{id} here for SSE.
-
-	return c.JSON(http.StatusOK, chatMessageDTO{
-		ID: msg.ID, Sender: msg.Sender, Body: msg.Body, CreatedAt: msg.CreatedAt,
-	})
+	dto := chatMessageDTO{ID: msg.ID, Sender: msg.Sender, Body: msg.Body, CreatedAt: msg.CreatedAt}
+	h.publishChatMessage(ctx, thread.ID, dto) // SSE fan-out (best-effort)
+	return c.JSON(http.StatusOK, dto)
 }
 
 // SupportListMessages handles GET /support/messages?since=<id>.
@@ -195,4 +195,136 @@ func (h *Handler) chatRateAllow(ctx context.Context, userID int64, anon bool) bo
 		h.Redis.Expire(ctx, key, time.Minute)
 	}
 	return n <= int64(chatCapForTier(anon))
+}
+
+// chatChannel is the Redis pub/sub channel for a thread's live messages.
+func chatChannel(threadID int64) string {
+	return "support:thread:" + strconv.FormatInt(threadID, 10)
+}
+
+// publishChatMessage fans a message out to live SSE subscribers of the thread.
+// Best-effort: on a Redis miss the client simply falls back to GET
+// /support/messages?since= polling, so we never fail the write on this.
+func (h *Handler) publishChatMessage(ctx context.Context, threadID int64, dto chatMessageDTO) {
+	if h.Redis == nil {
+		return
+	}
+	payload, err := json.Marshal(dto)
+	if err != nil {
+		return
+	}
+	if err := h.Redis.Publish(ctx, chatChannel(threadID), payload).Err(); err != nil {
+		h.Logger.Warn("support: redis publish failed", zap.Int64("thread_id", threadID), zap.Error(err))
+	}
+}
+
+// SupportChatToken handles GET /support/chat-token — a short-lived token the
+// hosted chat webview uses to open the SSE stream (EventSource can't send an
+// Authorization header). JWT-required (the normal access token).
+func (h *Handler) SupportChatToken(c echo.Context) error {
+	claims := auth.GetUserFromContext(c)
+	if claims == nil {
+		return c.JSON(http.StatusUnauthorized, ErrorResponse{Error: "unauthorized"})
+	}
+	token, err := h.JWT.CreateChatToken(claims.UserID)
+	if err != nil {
+		h.Logger.Error("support: chat-token", zap.Int64("user_id", claims.UserID), zap.Error(err))
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
+	}
+	return c.JSON(http.StatusOK, map[string]any{
+		"token":      token,
+		"expires_in": int(auth.ChatTokenTTL.Seconds()),
+	})
+}
+
+// SupportStream handles GET /support/stream?token=<chat-token> — the SSE live
+// feed. Authenticated by the short-lived chat-token (NOT Bearer), so it lives
+// outside the requireAuth group, and the global 30s ContextTimeout skips this
+// path (server.go) so the stream isn't cut. Idempotency already bypasses GET.
+func (h *Handler) SupportStream(c echo.Context) error {
+	uid, err := h.JWT.VerifyChatToken(c.QueryParam("token"))
+	if err != nil || uid <= 0 {
+		return c.JSON(http.StatusUnauthorized, ErrorResponse{Error: "unauthorized"})
+	}
+	if h.Redis == nil {
+		return c.JSON(http.StatusServiceUnavailable, ErrorResponse{Error: "stream unavailable"})
+	}
+	ctx := c.Request().Context()
+	thread, err := h.DB.OpenOrGetThread(ctx, uid)
+	if err != nil {
+		h.Logger.Error("support: stream open thread", zap.Int64("user_id", uid), zap.Error(err))
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
+	}
+
+	resp := c.Response()
+	resp.Header().Set("Content-Type", "text/event-stream")
+	resp.Header().Set("Cache-Control", "no-cache")
+	resp.Header().Set("Connection", "keep-alive")
+	resp.Header().Set("X-Accel-Buffering", "no") // belt vs nginx buffering
+	resp.WriteHeader(http.StatusOK)
+
+	// Long-lived stream: clear the per-connection write deadline that
+	// http.Server.WriteTimeout (30s, main.go:370) would otherwise impose —
+	// without weakening it for any other route. echo.Response.Unwrap (v4.15)
+	// exposes the underlying conn to the controller.
+	_ = http.NewResponseController(resp).SetWriteDeadline(time.Time{})
+
+	// Catch-up replay: everything newer than the client's last id.
+	if backlog, err := h.DB.ListMessages(ctx, thread.ID, sseSinceID(c), 200); err == nil {
+		for _, m := range backlog {
+			writeChatSSE(resp, chatMessageDTO{ID: m.ID, Sender: m.Sender, Body: m.Body, CreatedAt: m.CreatedAt})
+		}
+		resp.Flush()
+	}
+
+	pubsub := h.Redis.Subscribe(ctx, chatChannel(thread.ID))
+	defer func() { _ = pubsub.Close() }()
+	msgCh := pubsub.Channel()
+
+	keepalive := time.NewTicker(20 * time.Second)
+	defer keepalive.Stop()
+
+	for {
+		select {
+		case <-ctx.Done(): // client disconnected
+			return nil
+		case <-keepalive.C:
+			if _, err := fmt.Fprint(resp, ": ping\n\n"); err != nil {
+				return nil
+			}
+			resp.Flush()
+		case rm, ok := <-msgCh:
+			if !ok {
+				return nil
+			}
+			if _, err := fmt.Fprintf(resp, "data: %s\n\n", rm.Payload); err != nil {
+				return nil
+			}
+			resp.Flush()
+		}
+	}
+}
+
+// sseSinceID resolves the resume point from Last-Event-ID (SSE reconnect) or
+// the ?since= query param. 0 = replay the whole thread.
+func sseSinceID(c echo.Context) int64 {
+	raw := c.Request().Header.Get("Last-Event-ID")
+	if raw == "" {
+		raw = c.QueryParam("since")
+	}
+	id, _ := strconv.ParseInt(raw, 10, 64)
+	if id < 0 {
+		id = 0
+	}
+	return id
+}
+
+// writeChatSSE writes one message as an SSE event with an id: line so the
+// browser can resume via Last-Event-ID after a drop.
+func writeChatSSE(resp *echo.Response, dto chatMessageDTO) {
+	payload, err := json.Marshal(dto)
+	if err != nil {
+		return
+	}
+	_, _ = fmt.Fprintf(resp, "id: %d\ndata: %s\n\n", dto.ID, payload)
 }

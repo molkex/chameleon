@@ -11,7 +11,7 @@ const (
 	issuer = "chameleon"
 
 	// claimTokenType is the custom claim key that distinguishes refresh tokens.
-	claimTokenType = "token_type"
+	claimTokenType   = "token_type"
 	tokenTypeRefresh = "refresh"
 )
 
@@ -27,6 +27,10 @@ type Claims struct {
 	Username  string `json:"username"`
 	Role      string `json:"role,omitempty"`
 	TokenType string `json:"token_type,omitempty"`
+	// Purpose marks single-purpose tokens (e.g. "chat-sse"). Access tokens
+	// leave it empty; parseToken rejects any token carrying it, so a chat-SSE
+	// token can never be replayed as a Bearer access credential.
+	Purpose string `json:"purpose,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -85,13 +89,13 @@ func (j *JWTManager) CreateTokenPair(userID int64, username, role string) (*Toke
 	// --- refresh token ---
 	refreshExp := now.Add(j.refreshTTL)
 	refreshClaims := jwt.MapClaims{
-		"user_id":    userID,
-		"username":   username,
-		"role":       role,
+		"user_id":      userID,
+		"username":     username,
+		"role":         role,
 		claimTokenType: tokenTypeRefresh,
-		"iss":        issuer,
-		"iat":        jwt.NewNumericDate(now),
-		"exp":        jwt.NewNumericDate(refreshExp),
+		"iss":          issuer,
+		"iat":          jwt.NewNumericDate(now),
+		"exp":          jwt.NewNumericDate(refreshExp),
 	}
 
 	refreshToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims).SignedString(j.secret)
@@ -150,6 +154,52 @@ func (j *JWTManager) VerifyRefreshToken(tokenString string) (*Claims, error) {
 	}, nil
 }
 
+// ChatTokenTTL is how long a SUPPORT-CHAT SSE token is valid. Short by design:
+// the webview fetches a fresh one right before opening the EventSource.
+const ChatTokenTTL = 10 * time.Minute
+
+const chatTokenPurpose = "chat-sse"
+
+// CreateChatToken issues a short-lived token for the SUPPORT-CHAT SSE stream.
+// The hosted chat webview's EventSource can't set an Authorization header, so
+// the stream authenticates via ?token=. The purpose=chat-sse claim keeps it
+// from being replayed as a normal access token (parseToken/VerifyToken expect
+// the structured Claims shape and never accept this).
+func (j *JWTManager) CreateChatToken(userID int64) (string, error) {
+	now := time.Now()
+	claims := jwt.MapClaims{
+		"user_id": userID,
+		"purpose": chatTokenPurpose,
+		"iss":     issuer,
+		"iat":     jwt.NewNumericDate(now),
+		"exp":     jwt.NewNumericDate(now.Add(ChatTokenTTL)),
+	}
+	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(j.secret)
+}
+
+// VerifyChatToken validates a chat-SSE token and returns its user id.
+func (j *JWTManager) VerifyChatToken(tokenString string) (int64, error) {
+	token, err := jwt.Parse(tokenString, j.keyFunc,
+		jwt.WithIssuer(issuer),
+		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+	)
+	if err != nil {
+		return 0, fmt.Errorf("auth: invalid chat token: %w", err)
+	}
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok || !token.Valid {
+		return 0, fmt.Errorf("auth: invalid chat token claims")
+	}
+	if p, _ := claims["purpose"].(string); p != chatTokenPurpose {
+		return 0, fmt.Errorf("auth: token is not a chat token")
+	}
+	uid, ok := claims["user_id"].(float64)
+	if !ok || uid <= 0 {
+		return 0, fmt.Errorf("auth: chat token missing user_id")
+	}
+	return int64(uid), nil
+}
+
 // parseToken is the internal parser for access tokens. It rejects any token
 // carrying token_type=refresh — otherwise a 30-day refresh credential could
 // be presented as a Bearer access token on every RequireAuth route.
@@ -167,6 +217,9 @@ func (j *JWTManager) parseToken(tokenString string) (*Claims, error) {
 	}
 	if claims.TokenType == tokenTypeRefresh {
 		return nil, fmt.Errorf("auth: refresh token cannot be used as access token")
+	}
+	if claims.Purpose != "" {
+		return nil, fmt.Errorf("auth: %s token cannot be used as access token", claims.Purpose)
 	}
 
 	return claims, nil

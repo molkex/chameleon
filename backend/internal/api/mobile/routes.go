@@ -92,6 +92,13 @@ func RegisterRoutes(g *echo.Group, h *Handler) {
 	supportGroup.POST("/messages", h.SupportSend)
 	supportGroup.GET("/messages", h.SupportListMessages)
 	supportGroup.GET("/thread", h.SupportThread)
+	supportGroup.GET("/chat-token", h.SupportChatToken)
+
+	// SSE live stream — authenticated by the short-lived chat-token via
+	// ?token= (EventSource can't set headers), so it is NOT under requireAuth.
+	// The global 30s ContextTimeout skips this path (see server.go); GET is
+	// already exempt from mw.Idempotency.
+	g.GET("/support/stream", h.SupportStream)
 
 	// Apple App Store Server Notifications V2 — public endpoint (trust comes
 	// from JWS verification, not HTTP auth). Registered at the group root so
