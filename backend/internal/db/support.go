@@ -46,16 +46,16 @@ func scanSupportThread(row pgx.Row) (*SupportThread, error) {
 }
 
 // OpenOrGetThread returns the user's current open thread, creating one if none
-// exists. Atomic via the partial unique index (idx_support_threads_user_open):
+// exists. Atomic via the partial unique index (idx_support_chat_threads_user_open):
 // the no-op DO UPDATE makes RETURNING yield the existing row on conflict.
 func (db *DB) OpenOrGetThread(ctx context.Context, userID int64) (*SupportThread, error) {
 	ctx, cancel := defaultTimeout(ctx)
 	defer cancel()
 
 	row := db.Pool.QueryRow(ctx, `
-		INSERT INTO support_threads (user_id) VALUES ($1)
+		INSERT INTO support_chat_threads (user_id) VALUES ($1)
 		ON CONFLICT (user_id) WHERE status = 'open'
-		DO UPDATE SET last_message_at = support_threads.last_message_at
+		DO UPDATE SET last_message_at = support_chat_threads.last_message_at
 		RETURNING `+supportThreadCols, userID)
 	return scanSupportThread(row)
 }
@@ -74,7 +74,7 @@ func (db *DB) AppendMessage(ctx context.Context, threadID int64, sender, body st
 
 	var m SupportMessage
 	err = tx.QueryRow(ctx, `
-		INSERT INTO support_messages (thread_id, sender, body)
+		INSERT INTO support_chat_messages (thread_id, sender, body)
 		VALUES ($1, $2, $3)
 		RETURNING id, thread_id, sender, body, created_at, read_at`,
 		threadID, sender, body).Scan(&m.ID, &m.ThreadID, &m.Sender, &m.Body, &m.CreatedAt, &m.ReadAt)
@@ -83,7 +83,7 @@ func (db *DB) AppendMessage(ctx context.Context, threadID int64, sender, body st
 	}
 
 	if _, err = tx.Exec(ctx,
-		`UPDATE support_threads SET last_message_at = NOW() WHERE id = $1`, threadID); err != nil {
+		`UPDATE support_chat_threads SET last_message_at = NOW() WHERE id = $1`, threadID); err != nil {
 		return nil, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -104,7 +104,7 @@ func (db *DB) ListMessages(ctx context.Context, threadID, sinceID int64, limit i
 	}
 	rows, err := db.Pool.Query(ctx, `
 		SELECT id, thread_id, sender, body, created_at, read_at
-		FROM support_messages
+		FROM support_chat_messages
 		WHERE thread_id = $1 AND id > $2
 		ORDER BY id ASC
 		LIMIT $3`, threadID, sinceID, limit)
@@ -132,7 +132,7 @@ func (db *DB) ThreadOwnedBy(ctx context.Context, threadID, userID int64) (bool, 
 
 	var ok bool
 	err := db.Pool.QueryRow(ctx,
-		`SELECT EXISTS(SELECT 1 FROM support_threads WHERE id = $1 AND user_id = $2)`,
+		`SELECT EXISTS(SELECT 1 FROM support_chat_threads WHERE id = $1 AND user_id = $2)`,
 		threadID, userID).Scan(&ok)
 	return ok, err
 }
@@ -145,7 +145,7 @@ func (db *DB) CloseThread(ctx context.Context, threadID int64) error {
 	defer cancel()
 
 	tag, err := db.Pool.Exec(ctx,
-		`UPDATE support_threads SET status = 'closed', closed_at = NOW()
+		`UPDATE support_chat_threads SET status = 'closed', closed_at = NOW()
 		 WHERE id = $1 AND status = 'open'`, threadID)
 	if err != nil {
 		return err
@@ -164,7 +164,7 @@ func (db *DB) PurgeClosedThreadsOlderThan(ctx context.Context, age time.Duration
 	defer cancel()
 
 	tag, err := db.Pool.Exec(ctx,
-		`DELETE FROM support_threads
+		`DELETE FROM support_chat_threads
 		 WHERE status = 'closed' AND closed_at < NOW() - $1::interval`,
 		age.String())
 	if err != nil {

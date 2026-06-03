@@ -150,7 +150,7 @@ func TestPurgeClosedThreadsOlderThan(t *testing.T) {
 		t.Fatalf("close old: %v", err)
 	}
 	if _, err := database.Pool.Exec(ctx,
-		`UPDATE support_threads SET closed_at = NOW() - INTERVAL '101 days' WHERE id = $1`, oldT.ID); err != nil {
+		`UPDATE support_chat_threads SET closed_at = NOW() - INTERVAL '101 days' WHERE id = $1`, oldT.ID); err != nil {
 		t.Fatalf("backdate: %v", err)
 	}
 
@@ -170,7 +170,7 @@ func TestPurgeClosedThreadsOlderThan(t *testing.T) {
 
 	// The old thread (and its messages, via cascade) is gone; the recent one stays.
 	var oldMsgs int
-	_ = database.Pool.QueryRow(ctx, `SELECT count(*) FROM support_messages WHERE thread_id = $1`, oldT.ID).Scan(&oldMsgs)
+	_ = database.Pool.QueryRow(ctx, `SELECT count(*) FROM support_chat_messages WHERE thread_id = $1`, oldT.ID).Scan(&oldMsgs)
 	if oldMsgs != 0 {
 		t.Errorf("old thread messages not cascade-deleted: %d", oldMsgs)
 	}
@@ -191,8 +191,8 @@ func TestWipeUserOnDeleteRemovesChat(t *testing.T) {
 	}
 
 	var threads, msgs int
-	_ = database.Pool.QueryRow(ctx, `SELECT count(*) FROM support_threads WHERE user_id = $1`, uid).Scan(&threads)
-	_ = database.Pool.QueryRow(ctx, `SELECT count(*) FROM support_messages WHERE thread_id = $1`, th.ID).Scan(&msgs)
+	_ = database.Pool.QueryRow(ctx, `SELECT count(*) FROM support_chat_threads WHERE user_id = $1`, uid).Scan(&threads)
+	_ = database.Pool.QueryRow(ctx, `SELECT count(*) FROM support_chat_messages WHERE thread_id = $1`, th.ID).Scan(&msgs)
 	if threads != 0 || msgs != 0 {
 		t.Errorf("account-delete left chat behind: threads=%d msgs=%d", threads, msgs)
 	}

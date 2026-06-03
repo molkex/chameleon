@@ -20,7 +20,7 @@
 
 BEGIN;
 
-CREATE TABLE IF NOT EXISTS support_threads (
+CREATE TABLE IF NOT EXISTS support_chat_threads (
     id              BIGSERIAL PRIMARY KEY,
     user_id         BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     status          VARCHAR(16) NOT NULL DEFAULT 'open'
@@ -33,16 +33,16 @@ CREATE TABLE IF NOT EXISTS support_threads (
 
 -- At most one OPEN thread per user. A closed thread doesn't conflict, so the
 -- user's next message after a close starts a fresh thread.
-CREATE UNIQUE INDEX IF NOT EXISTS idx_support_threads_user_open
-    ON support_threads (user_id) WHERE status = 'open';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_support_chat_threads_user_open
+    ON support_chat_threads (user_id) WHERE status = 'open';
 
 -- Drives the 90-day purge job.
-CREATE INDEX IF NOT EXISTS idx_support_threads_closed_at
-    ON support_threads (closed_at) WHERE closed_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_support_chat_threads_closed_at
+    ON support_chat_threads (closed_at) WHERE closed_at IS NOT NULL;
 
-CREATE TABLE IF NOT EXISTS support_messages (
+CREATE TABLE IF NOT EXISTS support_chat_messages (
     id          BIGSERIAL PRIMARY KEY,
-    thread_id   BIGINT NOT NULL REFERENCES support_threads(id) ON DELETE CASCADE,
+    thread_id   BIGINT NOT NULL REFERENCES support_chat_threads(id) ON DELETE CASCADE,
     sender      VARCHAR(8) NOT NULL
                     CHECK (sender IN ('user', 'agent', 'system')),
     body        TEXT NOT NULL,
@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS support_messages (
 
 -- Serves both "all messages in a thread" and the since=<lastId> incremental
 -- fetch the SSE catch-up + poll fallback use (id is monotonic).
-CREATE INDEX IF NOT EXISTS idx_support_messages_thread_id_id
-    ON support_messages (thread_id, id);
+CREATE INDEX IF NOT EXISTS idx_support_chat_messages_thread_id_id
+    ON support_chat_messages (thread_id, id);
 
 COMMIT;
