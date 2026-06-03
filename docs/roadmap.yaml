@@ -43,9 +43,10 @@ now:
 # ============================================================
 next:
   launch_checklist:
-    - id: LAUNCH-02
-      title: Family Sharing flag enabled on subscriptions in ASC
-      priority: P0
+    # LAUNCH-02 (Family Sharing flag) → DEFERRED 2026-06-03. Apple supports Family
+    # Sharing ONLY for non-consumables + auto-renewable subs; our 4 products are all
+    # NON_RENEWING_SUBSCRIPTION (familySharable=False, verified ASC API) per ADR 0005.
+    # The flag is not settable → blocked on AUTO-RENEW-IAP migration. Moved to deferred.
     - id: LAUNCH-09
       title: Live traffic sparkline on home (up/down last 5 min)
       priority: P1
@@ -327,6 +328,7 @@ next:
     - id: FR-SELECT
       title: 'Tapping 🇫🇷 fr in the picker reverts to Auto (selection won''t stick)'
       priority: P1
+      status: resolved   # 2026-06-03: the bare-"fr"-store root is gone in current code (CountryGroup.tag = "🇫🇷 Франция", resolves to "fr"); defensive cc-resolution + tests added f0263cd. Verify on 1.0.30 b102.
       effort: small
       reported: 2026-05-31
       finding: |
@@ -342,7 +344,8 @@ next:
 
     - id: SRV-DYNAMIC
       title: Adding a NEW country needs an app build (3 hardcoded country tables)
-      priority: P1
+      priority: P2   # was P1 — selection half done
+      status: selection-done   # 2026-06-03 (f0263cd): PathPicker.countryCode now derives cc from flag/bare-cc → new-country ROUTING selection sticks with no build. REMAINING (cosmetic): derive the group LABEL flag + a RU country name for new ccs (ConfigStore.countryDisplay + backend clientconfig.go) so picker shows "🇪🇸 Испания" not "es" — needs the name-source decision (x/text RU vs DB column vs bundled ISO table).
       effort: medium
       files:
         - backend/internal/vpn/clientconfig.go            # countryDisplay :52
@@ -446,6 +449,14 @@ tech_debt:
 # DEFERRED — needs human decision before queueing
 # ============================================================
 deferred:
+  - id: LAUNCH-02
+    question: Family Sharing flag on subscriptions
+    finding: |
+      Verified 2026-06-03 via ASC API — all 4 products are NON_RENEWING_SUBSCRIPTION
+      (familySharable=False). Apple supports Family Sharing ONLY for non-consumables
+      and auto-renewable subscriptions; non-renewing subs are ineligible, so the flag
+      cannot be set. NOT a quick toggle.
+    blocked_on: AUTO-RENEW-IAP (would require migrating to auto-renewable subs) + ADR 0005
   - id: AUTO-RENEW-IAP
     question: Migrate from non-renewing to auto-renewable subscriptions?
     decision_ref: decisions/0005-non-renewable-iap-only.md
