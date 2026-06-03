@@ -471,6 +471,18 @@ deferred:
 # ============================================================
 done:
   "2026-06-03":
+    - id: WIDGET-TIMER
+      title: Home-widget "Защищено" timer reset on transparent restarts (app 19:27:21 vs widget 0:12)
+      commit: 72437ef
+      notes: |
+        User-reported (screenshots): app hero showed 19:27:21, Home widget showed
+        0:12 for the same session. publishWidgetState(connected:true) runs in
+        startTunnel (re-fires on On-Demand reconnect / extension jetsam-relaunch,
+        cf LOG-01), and WidgetVPNSnapshot.write(true) unconditionally set
+        vpnConnectedAtKey=now → reset the widget baseline while the app's in-memory
+        timer (guarded by ==nil) kept the true value. Fix: write(true) is idempotent
+        (preserves existing session-start ts; false clears). Test added; build-for-testing
+        green. Rides next iOS build (post-1.0.30 b102, NOT in b102).
     - id: BUILD-102
       title: Cut 1.0.30 build 102 (iOS+macOS) to TestFlight — carries KEYCHAIN-MACOS fix
       notes: |
