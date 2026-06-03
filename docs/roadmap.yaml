@@ -32,6 +32,11 @@ now:
         First: confirm what the admin panel actually queries (cumulative vs period) —
         527KB may also just round to "0 MB".
       risk: low (read-only stats aggregation); needs a stats fan-out + dedupe by username.
+      related: |
+        Same NL-only-stats root as ACTIVE-METRIC (done 2026-06-03): last_vpn_seen is
+        bumped only from NL's traffic deltas, so GRA-direct users aren't counted in
+        Active(24h) either. A per-node stats fan-out fixes BOTH traffic totals and
+        active-user counts at once.
 
 # ============================================================
 # NEXT — 1-2 week queue, ready to start
@@ -239,7 +244,13 @@ next:
   client_reliability:
     - id: CFG-01
       title: macOS config-fetch silently no-ops (username nil) + no staleness guard
-      priority: P1
+      priority: P2   # was P1 — root cause (a) fixed
+      status: root-cause-fixed
+      remaining: |
+        (a) keychain-access-group root cause → FIXED by KEYCHAIN-MACOS (data-protection
+        keychain + kSecAttrAccessGroup + migration), shipped 1.0.30 b102 2026-06-03.
+        STILL OPEN: (b) surface fetch failure in the picker instead of silent cache
+        fallback; (c) staleness guard (config older than N hours warns / forces refetch).
       notes: |
         Found 2026-05-30 on the LIVE App Store build (1.0.27 / 90) running as
         iOS-app-on-Mac. Picker was frozen on a 2026-05-21 roster (retired DE, no
@@ -269,10 +280,7 @@ next:
         TRACE/DEBUG from the file sink — kills the bulk of the volume (an 18 MB
         capture) and the NE OOM it caused. REMAINING: a hard size cap + rotation on
         the log file itself (defensive against INFO+ growth over long sessions).
-    - id: CFG-01b
-      title: macOS Keychain access group → username nil → config never fetches
-      priority: P0
-      notes: Root cause of stale config on Mac. Add com.apple.developer.keychain-access-groups ($(AppIdentifierPrefix)com.madfrog.vpn) to MadFrogVPNMac.entitlements + kSecAttrAccessGroup on macOS. See audits/2026-05-30-internal-audit.md.
+    # CFG-01b (P0, macOS keychain-access-groups missing) → DONE 2026-06-03 (KEYCHAIN-MACOS). See done log.
     - id: UX-VPN
       title: Surface "another VPN holds the tunnel" instead of silent Disconnected
       priority: P1
@@ -302,6 +310,7 @@ next:
     - id: UI-FLAG-HOME
       title: Home card shows 🌍 instead of country flag when a country is selected (AUTO)
       priority: P1
+      status: shipped_in_1.0.29   # fixed in build 94+ (vector CountryFlag), riding 1.0.29 b101 in App Store review; live on approval
       effort: small
       files:
         - clients/apple/MadFrogVPN/Views/MainViewNeon.swift
@@ -509,6 +518,11 @@ done:
         macOS) is logged out. Entitlement keychain-access-groups added to the 2
         main-app targets only (extensions/widget never call the keychain).
         Type-check + plutil-lint green; full build = CI (Libbox not local).
+        CLOSES roadmap CFG-01b (P0, macOS keychain-access-groups missing, from the
+        2026-05-30 audit) AND the root cause (a) of CFG-01 — same bug: username nil on
+        macOS made config-fetch silently no-op (stale-config-for-9-days) AND showed the
+        trial/onboarding screen. CFG-01 drops to P2 (remaining: UI surfacing + staleness guard).
+        Shipped on TestFlight in 1.0.30 b102; pending on-device confirm.
         Follow-up: backfill authProvider/appleUserID for legacy Apple accounts
         (12351 lacks them ⇒ no anti-demote gate / silent reauth on Mac).
   "2026-06-01":
@@ -1275,5 +1289,5 @@ stats:                        # counts are approximate; recomputed at the 2026-0
   test_gaps_tracked: 0        # all 8 found 2026-06-01 closed/addressed. Only 3 P3 remainders left (apple sandbox-JWS, vpn engine.go orchestration, admin page smoke tests). state/test-map.yaml
   tech_debt_items: 1          # TD-CERT-PIN (APIClient InsecureDelegate). TD-LIBBOX-FETCH resolved 2026-06-01; LIBBOX-MAC-STRUCT worked-around.
   decisions_documented: 11    # ADRs in decisions/ (0009 test-map, 0010 identity-anchored accounts, 0011 self-hosted support chat)
-  incidents_documented: 12    # docs/incidents/*.md (+acct-identity-demote-recurrence 2026-06-01)
+  incidents_documented: 14    # docs/incidents/*.md (+2026-06-03 macos-keychain-trial + active-vs-online-metric)
   playbooks_documented: 6     # apple-reject-recovery, ios-cli-release, deploy-nl, asc-api-checks, operations, debug-vpn-ios
