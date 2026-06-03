@@ -99,7 +99,20 @@ next:
     - id: SUPPORT-CHAT
       title: Customer support chat — self-hosted, real-time, multi-platform
       priority: high
-      status: P0_deployed   # backend done + deployed to NL 2026-06-03 (steps 1,2,3,4a,5); see below
+      status: P0_deployed_P1_P2_built   # backend live on NL; widget + in-app webview built (ride next build); see below
+      p1_p2_progress: |
+        P1 (b763c99) chat web widget clients/widget/index.html — on-brand neon/calm,
+        RU/EN, real API wiring (chat-token→SSE, POST send, since= catch-up) +
+        window.initChat bridge; design approved. P2 (669a7a3) SupportChatView WKWebView
+        hosts the bundled widget (loadHTMLString baseURL=api origin → same-origin, no
+        CORS), injects initChat(token/theme/lang); Settings "Поддержка" row now opens it
+        instead of mailto. iOS+macOS build green. DEVIATION from ADR 0011: widget is
+        BUNDLED (not hosted at chat.madfrog.online) for the MVP — same file, switch to
+        hosted later by pointing the webview at the URL.
+        REMAINING for users to actually use it: (1) cut a new app build (103) — chat
+        rides it; (2) step 4b MSK relay nginx SSE block (api.madfrog.online path) for
+        LIVE push — without it send + history work, live agent replies need a reopen;
+        (3) privacy policy + ASC label before App Store submit (5.1.1).
       p0_progress: |
         Go side COMPLETE + tested + pushed (plan: docs/plans/support-chat-p0.md):
         step 1 DB (migration 020, support.go, wipe) bb63e53 · step 2 REST API
