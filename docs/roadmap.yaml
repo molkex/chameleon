@@ -109,10 +109,14 @@ next:
         instead of mailto. iOS+macOS build green. DEVIATION from ADR 0011: widget is
         BUNDLED (not hosted at chat.madfrog.online) for the MVP — same file, switch to
         hosted later by pointing the webview at the URL.
-        REMAINING for users to actually use it: (1) cut a new app build (103) — chat
-        rides it; (2) step 4b MSK relay nginx SSE block (api.madfrog.online path) for
-        LIVE push — without it send + history work, live agent replies need a reopen;
-        (3) privacy policy + ASC label before App Store submit (5.1.1).
+        REMAINING for users to actually use it: (1) build 103 (1.0.31) UPLOADING to
+        TestFlight 2026-06-04 (chat + widget-timer + FR-SELECT ride it); (2) DONE
+        2026-06-04 — step 4b MSK relay nginx SSE block added (regex location
+        /api/(v1/)?mobile/support/stream, proxy_read_timeout 3600s, buffering off,
+        reload OK; routing verified = backend 401 through MSK→NL). SPB is VPN-only,
+        not in the API path → N/A; (3) STILL OPEN: privacy policy + ASC label before
+        App Store submit (5.1.1) — TestFlight does not need it. No admin inbox yet
+        (P3) → agent replies must be injected manually to test the receive path.
       p0_progress: |
         Go side COMPLETE + tested + pushed (plan: docs/plans/support-chat-p0.md):
         step 1 DB (migration 020, support.go, wipe) bb63e53 · step 2 REST API
@@ -125,10 +129,12 @@ next:
         support_chat_messages — renamed from support_threads/messages, 54f0b83, to
         avoid a LEGACY support_messages table that exists on NL but is NOT in the
         repo migrations), endpoints live (401 without auth), NL nginx SSE location
-        (d073b38). REMAINING for P0: step 4b — MSK/SPB relay nginx SSE block (not in
-        repo → SSH; deferred until P1 since there's no SSE consumer yet). Then P1 web
-        widget makes it visible. Gating before next App Store submit: privacy policy
-        + ASC label (5.1.1). NOTE: NL carries legacy tables not in repo migrations —
+        (d073b38). P0 step 4b DONE 2026-06-04 — MSK relay nginx SSE location added
+        via SSH (regex /api/(v1/)?mobile/support/stream → NL:80, read-timeout 3600s,
+        buffering off; nginx -t + reload OK; backup .bak-20260604-sse). SPB is a
+        VPN-only stream forwarder, not in the api.madfrog.online path → N/A. P0 fully
+        deployed. Gating before next App Store submit: privacy policy + ASC label
+        (5.1.1). NOTE: NL carries legacy tables not in repo migrations —
         \dt before CREATE TABLE on a generic name.
       priority_was: planned
       decision_ref: decisions/0011-self-hosted-support-chat.md

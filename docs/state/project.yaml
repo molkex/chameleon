@@ -19,7 +19,7 @@
 # Test coverage + how-to-verify each layer: state/test-map.yaml (decision 0009).
 
 meta:
-  updated: 2026-06-03
+  updated: 2026-06-04
   branch: main
   direction: on_track          # see `assessment` at the bottom
 
@@ -28,10 +28,10 @@ product:
   name: MadFrog VPN
   what: Native iOS+macOS VPN with own Go backend; VLESS Reality + sing-box.
   app_store:                   # canonical: state/app-store.yaml
-    live:        {version: "1.0.28", build: 91, state: READY_FOR_SALE}
-    testflight:  {version: "1.0.30", build: 102, state: VALID}   # iOS+macOS, KEYCHAIN-MACOS fix, on Internal Testers (2026-06-03)
-    in_review:   {version: "1.0.29", build: 101, state: WAITING_FOR_REVIEW}  # submitted 2026-06-02 (account-demote P0 + crash-on-connect + Auto card + disconnect-lag fixes)
-    next_step: await Apple review of 1.0.29 (build 101) → release on APPROVED; then submit 1.0.30 (102, keychain fix) for App Store review
+    live:        {version: "1.0.29", build: 101, state: READY_FOR_SALE}   # APPROVED 2026-06-02 (account-demote P0 + crash-on-connect + Auto card + UI-FLAG-HOME)
+    in_review:   {version: "1.0.30", build: 102, state: WAITING_FOR_REVIEW}  # iOS, submitted 2026-06-04 (KEYCHAIN-MACOS fix; AFTER_APPROVAL auto-release)
+    testflight:  {version: "1.0.30", build: 102, state: VALID}   # iOS+macOS, on Internal Testers; build 103 (chat) to ride next
+    next_step: cut 1.0.31/103 (SUPPORT-CHAT P2 + WIDGET-TIMER + FR-SELECT) to TestFlight to test chat; await Apple review of 1.0.30 (102)
   iap: 4 non-renewing subs, all APPROVED 2026-05-31 (RU/CIS → WebPaywall/FreeKassa)
 
 # ── Infra (canonical: state/servers.yaml) ───────────────────────────────────
@@ -70,9 +70,12 @@ now:
     (1) cut app build 103 (chat + widget-timer + FR-SELECT ride it; keychain already in 102),
     (2) MSK relay nginx SSE block step 4b (live push; without it send+history work, agent
     reply needs reopen), (3) privacy policy + ASC label before App Store submit (5.1.1).
-  - BUILD-103 (pending) — carries SUPPORT-CHAT P2 + WIDGET-TIMER + FR-SELECT/SRV-DYNAMIC.
-  - AWAIT-REVIEW 1.0.29 (build 101) in App Store review; 1.0.30 (build 102, keychain fix) on
-    TestFlight — after 101 ships, submit 1.0.30 (then 1.0.31/103 with chat).
+  - BUILD-103 (pending, version 1.0.31) — carries SUPPORT-CHAT P2 + WIDGET-TIMER +
+    FR-SELECT/SRV-DYNAMIC. → TestFlight first so user can test the chat, THEN App Store
+    (after privacy policy + ASC label). 1.0.30 train is in review → 103 must be 1.0.31.
+  - AWAIT-REVIEW 1.0.30 (build 102, KEYCHAIN-MACOS) WAITING_FOR_REVIEW (submitted 2026-06-04,
+    AFTER_APPROVAL). 1.0.29 (101) shipped 2026-06-02. Plan X chosen: keychain fix decoupled
+    from the risky chat build (privacy/5.1.1) and shipped standalone.
   - TRAFFIC-MULTIEXIT (P2) — GRA/relay users show ~0 traffic in admin (stats only from NL).
 open_decisions:                  # waiting on the user
   - SUBDOMAIN-SCRUB — bot/speedtest.madfrog.online → 85.239.49.28 (intentional? repoint?)
