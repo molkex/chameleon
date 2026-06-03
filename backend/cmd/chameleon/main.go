@@ -263,14 +263,14 @@ func run() error {
 			ShortIDs:   cfg.VPN.Reality.ShortIDs,
 			SNI:        sni,
 		},
-		ClashAPIPort:    cfg.VPN.ClashAPIPort,
-		ClientMTU:       cfg.VPN.ClientMTU,
-		DNSRemote:       cfg.VPN.DNSRemote,
-		DNSDirect:       cfg.VPN.DNSDirect,
-		UrltestInterval: cfg.VPN.UrltestInterval.String(),
-		UserAPIPort:     cfg.VPN.UserAPIPort,
-		UserAPISecret:   cfg.VPN.UserAPISecret,
-		V2RayAPIPort:    cfg.VPN.V2RayAPIPort,
+		ClashAPIPort:          cfg.VPN.ClashAPIPort,
+		ClientMTU:             cfg.VPN.ClientMTU,
+		DNSRemote:             cfg.VPN.DNSRemote,
+		DNSDirect:             cfg.VPN.DNSDirect,
+		UrltestInterval:       cfg.VPN.UrltestInterval.String(),
+		UserAPIPort:           cfg.VPN.UserAPIPort,
+		UserAPISecret:         cfg.VPN.UserAPISecret,
+		V2RayAPIPort:          cfg.VPN.V2RayAPIPort,
 		Hysteria2Port:         cfg.VPN.Hysteria2Port,
 		TUICPort:              cfg.VPN.TUICPort,
 		UDPCertPath:           cfg.VPN.UDPCertPath,
@@ -439,10 +439,16 @@ func runTrafficCollector(ctx context.Context, logger *zap.Logger, database *db.D
 				continue
 			}
 
+			// Users with a non-zero delta this interval actually moved VPN
+			// traffic → they're "active" in the real sense. Collect them and
+			// stamp last_vpn_seen so the dashboard's Active (24h/30d) counts
+			// VPN usage, not just /config fetches. See migration 019.
+			activeVPN := make([]string, 0, len(traffic))
 			for _, t := range traffic {
 				if t.Upload == 0 && t.Download == 0 {
 					continue
 				}
+				activeVPN = append(activeVPN, t.Username)
 
 				if err := database.UpdateTraffic(ctx, t.Username, t.Upload, t.Download); err != nil {
 					logger.Error("update traffic", zap.Error(err), zap.String("user", t.Username))
@@ -451,6 +457,10 @@ func runTrafficCollector(ctx context.Context, logger *zap.Logger, database *db.D
 				if err := database.InsertTrafficSnapshot(ctx, t.Username, t.Upload, t.Download); err != nil {
 					logger.Error("insert traffic snapshot", zap.Error(err), zap.String("user", t.Username))
 				}
+			}
+
+			if err := database.BumpVPNSeen(ctx, activeVPN); err != nil {
+				logger.Error("bump last_vpn_seen", zap.Error(err), zap.Int("users", len(activeVPN)))
 			}
 
 			if len(traffic) > 0 {

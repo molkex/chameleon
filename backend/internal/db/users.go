@@ -605,9 +605,12 @@ func (db *DB) CountActiveUsers(ctx context.Context) (int64, error) {
 	return count, err
 }
 
-// CountActive24h returns users whose last_seen is within the last 24
-// hours. Real engagement signal — anyone whose app actually pinged the
-// backend recently. Excludes churned signups.
+// CountActive24h returns users who USED THE SERVICE in the last 24 hours —
+// either the app pinged the backend (last_seen, bumped on /config) OR they
+// moved VPN traffic (last_vpn_seen, bumped by the traffic collector). The OR
+// is what keeps this metric sane next to the live "Online" count: a VPN is
+// "connect once, leave it on", so last_seen alone (app opens) undercounts and
+// could read LOWER than Online. last_seen stays untouched for DAU/funnel.
 func (db *DB) CountActive24h(ctx context.Context) (int64, error) {
 	ctx, cancel := defaultTimeout(ctx)
 	defer cancel()
@@ -615,13 +618,14 @@ func (db *DB) CountActive24h(ctx context.Context) (int64, error) {
 	var count int64
 	err := db.Pool.QueryRow(ctx, `
 		SELECT count(*) FROM users
-		WHERE last_seen >= NOW() - INTERVAL '24 hours'`).Scan(&count)
+		WHERE last_seen     >= NOW() - INTERVAL '24 hours'
+		   OR last_vpn_seen >= NOW() - INTERVAL '24 hours'`).Scan(&count)
 	return count, err
 }
 
-// CountActive30d returns users whose last_seen is within the last 30
-// days. Used on the dashboard as the long-window engagement count, to
-// match the Funnel page's "signups window" window.
+// CountActive30d returns users who used the service (app OR VPN traffic) in
+// the last 30 days. Long-window engagement count on the dashboard. See
+// CountActive24h for why both columns are OR'd.
 func (db *DB) CountActive30d(ctx context.Context) (int64, error) {
 	ctx, cancel := defaultTimeout(ctx)
 	defer cancel()
@@ -629,8 +633,26 @@ func (db *DB) CountActive30d(ctx context.Context) (int64, error) {
 	var count int64
 	err := db.Pool.QueryRow(ctx, `
 		SELECT count(*) FROM users
-		WHERE last_seen >= NOW() - INTERVAL '30 days'`).Scan(&count)
+		WHERE last_seen     >= NOW() - INTERVAL '30 days'
+		   OR last_vpn_seen >= NOW() - INTERVAL '30 days'`).Scan(&count)
 	return count, err
+}
+
+// BumpVPNSeen sets last_vpn_seen = NOW() for the given VPN usernames — the
+// users who moved traffic in the latest collector interval. Called from
+// runTrafficCollector. Batched in a single statement; unknown usernames are
+// simply not matched. No-op on an empty slice.
+func (db *DB) BumpVPNSeen(ctx context.Context, vpnUsernames []string) error {
+	if len(vpnUsernames) == 0 {
+		return nil
+	}
+	ctx, cancel := defaultTimeout(ctx)
+	defer cancel()
+
+	_, err := db.Pool.Exec(ctx, `
+		UPDATE users SET last_vpn_seen = NOW()
+		WHERE vpn_username = ANY($1)`, vpnUsernames)
+	return err
 }
 
 // CountTotalUsers returns the total number of users.
@@ -857,12 +879,12 @@ func (db *DB) UpdateInstallSecret(ctx context.Context, userID int64, secret stri
 // requested time window; the traffic collector writes deltas, so SUM == real
 // traffic, not max-over-cumulative.
 type TrafficOutlier struct {
-	UserID       int64
-	VPNUsername  string
-	Bytes        int64
-	LastSeen     *time.Time
-	LastCountry  string
-	IsActive     bool
+	UserID      int64
+	VPNUsername string
+	Bytes       int64
+	LastSeen    *time.Time
+	LastCountry string
+	IsActive    bool
 }
 
 // TopTrafficUsers returns the top N users by traffic in the last `days` days.
