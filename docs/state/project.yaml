@@ -66,7 +66,7 @@ health:
 now:
   # ── RESUME HERE next session (2026-06-03 end-of-session handoff) ──
   - SUPPORT-CHAT — P0 backend LIVE on NL; P1 widget + P2 in-app WKWebView BUILT (committed,
-    ride next build). NOT yet usable by users. TO FINISH (roadmap#support p1_p2_progress):
+    ride next build). NOT yet usable by users. TO FINISH (see roadmap#support p1_p2_progress) —
     (1) cut app build 103 (chat + widget-timer + FR-SELECT ride it; keychain already in 102),
     (2) MSK relay nginx SSE block step 4b (live push; without it send+history work, agent
     reply needs reopen), (3) privacy policy + ASC label before App Store submit (5.1.1).
@@ -81,10 +81,10 @@ open_decisions:                  # waiting on the user
 
 # ── Shipped 2026-06-01 (detail: roadmap.yaml#done + incidents/2026-06-01-*) ──
 recent:
-  - SUPPORT-CHAT (2026-06-03) — built end-to-end: P0 backend DEPLOYED to NL (mig 020
+  - SUPPORT-CHAT (2026-06-03) — built end-to-end — P0 backend DEPLOYED to NL (mig 020
     support_chat_threads/messages, REST send/list/thread, SSE+Redis, chat-token, 90d purge,
     rate-limit tiers, wipe-on-delete); P1 web widget (clients/widget) approved; P2 in-app
-    WKWebView replaces mailto Support. Remaining: build 103 + MSK nginx 4b + privacy. ADR 0011.
+    WKWebView replaces mailto Support. Remaining — build 103 + MSK nginx 4b + privacy. ADR 0011.
   - WIDGET-TIMER + FR-SELECT/SRV-DYNAMIC + CI-green (2026-06-03) — Home widget "Защищено"
     timer no longer resets on transparent restarts; new-country picker selection sticks; fixed
     2 pre-existing red CI workflows. All ride build 103.
