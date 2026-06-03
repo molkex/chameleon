@@ -317,6 +317,10 @@ func run() error {
 	// Start background traffic collector (every 60 seconds).
 	go runTrafficCollector(ctx, logger, database, engine, 60*time.Second)
 
+	// SUPPORT-CHAT retention (ADR 0011): hard-delete support threads closed
+	// >90 days ago (messages cascade). Daily sweep.
+	go runSupportRetention(ctx, logger, database, 24*time.Hour)
+
 	// MON-04: Prometheus collectors + background refreshers for live-VPN
 	// gauges (15s) and DAU gauge (60s). Both goroutines exit when ctx is
 	// cancelled (the defer cancel() at function top).
@@ -466,6 +470,46 @@ func runTrafficCollector(ctx context.Context, logger *zap.Logger, database *db.D
 			if len(traffic) > 0 {
 				logger.Info("traffic recorded", zap.Int("users", len(traffic)))
 			}
+		}
+	}
+}
+
+// runSupportRetention hard-deletes support threads closed more than 90 days ago
+// (messages cascade via the thread_id FK), satisfying the SUPPORT-CHAT retention
+// policy (ADR 0011). Daily sweep; the first runs ~1 min after start so it never
+// piles onto boot. Exits when ctx is cancelled.
+func runSupportRetention(ctx context.Context, logger *zap.Logger, database *db.DB, interval time.Duration) {
+	logger = logger.Named("support-retention")
+	const retain = 90 * 24 * time.Hour
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	select {
+	case <-ctx.Done():
+		return
+	case <-time.After(time.Minute):
+	}
+
+	sweep := func() {
+		n, err := database.PurgeClosedThreadsOlderThan(ctx, retain)
+		if err != nil {
+			logger.Warn("purge closed support threads failed", zap.Error(err))
+			return
+		}
+		if n > 0 {
+			logger.Info("purged closed support threads", zap.Int64("count", n))
+		}
+	}
+
+	sweep()
+	for {
+		select {
+		case <-ctx.Done():
+			logger.Info("support retention stopped")
+			return
+		case <-ticker.C:
+			sweep()
 		}
 	}
 }
