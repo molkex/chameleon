@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ru"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MadFrog — Воронка: от установки до оплаты</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Balsamiq+Sans:wght@400;700&family=Archivo:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#f6f1e3;--ink:#2f2a1f;--soft:#6b6452;--card:#fffdf6;
+    --s1:#67ab47;--s2:#4f93c4;--s3:#9466c4;--pay:#d9a531;--warn:#cf8a8a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:"Archivo",system-ui,sans-serif;line-height:1.5;
+    background-image:radial-gradient(circle at 1px 1px,rgba(47,42,31,.05) 1px,transparent 0);background-size:22px 22px}
+  .wrap{max-width:1000px;margin:0 auto;padding:30px 24px 90px}
+  .bal{font-family:"Balsamiq Sans",cursive}
+  .brand{display:flex;align-items:center;gap:12px}.brand .frog{font-size:28px}
+  h1{font-family:"Balsamiq Sans",cursive;font-size:28px;margin:0}
+  .v{font-family:"Balsamiq Sans",cursive;font-size:12px;color:var(--soft);border:1.5px solid var(--ink);border-radius:8px;padding:2px 8px;transform:rotate(-2deg)}
+  .sub{color:var(--soft);font-size:14px;margin:8px 0 24px;max-width:64ch}
+  .back{font-family:"Balsamiq Sans",cursive;font-size:13px;text-decoration:none;color:var(--ink);border:1.5px solid var(--ink);border-radius:9px;padding:4px 11px;background:#fffdf6;box-shadow:2px 2px 0 rgba(47,42,31,.13)}
+  h2{font-family:"Balsamiq Sans",cursive;font-size:21px;margin:30px 0 12px}
+
+  /* funnel */
+  .funnel{display:flex;flex-direction:column;align-items:center;gap:0}
+  .stage{position:relative;display:flex;align-items:center;justify-content:center;
+    border:2px solid;border-radius:12px;box-shadow:3px 3px 0 rgba(47,42,31,.14);
+    padding:13px 18px;background:var(--card);transition:transform .1s}
+  .stage:hover{transform:translateY(-1px)}
+  .stage .num{font-family:"Balsamiq Sans",cursive;font-weight:700;font-size:24px;margin-right:12px}
+  .stage .lab{font-size:13.5px;font-weight:500}
+  .stage .lab small{display:block;color:var(--soft);font-size:11.5px;font-weight:400}
+  .s-dl{border-color:var(--soft);border-style:dashed;background:#f4efe0;color:var(--soft)}
+  .s-1{border-color:var(--s1)} .s-2{border-color:var(--s2)} .s-3{border-color:var(--s3)} .s-pay{border-color:var(--pay);background:#fbf2d8}
+  .conv{font-family:"Balsamiq Sans",cursive;font-size:12px;color:var(--soft);padding:5px 0;display:flex;align-items:center;gap:6px}
+  .conv .pct{background:#fffdf6;border:1.5px solid var(--ink);border-radius:8px;padding:1px 9px;color:var(--ink)}
+  .drop{color:var(--warn)}
+
+  /* big takeaway */
+  .takeaway{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:8px}
+  .tk{background:var(--card);border:2px solid var(--ink);border-radius:14px;padding:16px;box-shadow:3px 3px 0 rgba(47,42,31,.13)}
+  .tk .big{font-family:"Balsamiq Sans",cursive;font-size:26px}.tk .l{font-size:12px;color:var(--soft);margin-top:5px}
+
+  /* panels */
+  .panels{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .panel{background:var(--card);border:2px solid var(--ink);border-radius:14px;padding:16px 18px;box-shadow:3px 3px 0 rgba(47,42,31,.12)}
+  .panel h3{font-family:"Balsamiq Sans",cursive;font-size:16px;margin:0 0 12px}
+  .row{display:flex;align-items:center;gap:10px;margin:7px 0;font-size:13.5px}
+  .row .nm{width:120px;color:var(--soft)}
+  .row .track{flex:1;height:14px;background:#efe8d4;border:1.5px solid rgba(47,42,31,.2);border-radius:6px;overflow:hidden}
+  .row .fill{height:100%}
+  .row .vv{font-family:"Balsamiq Sans",cursive;font-weight:700;width:54px;text-align:right}
+  /* burner bars */
+  .bars{display:flex;align-items:flex-end;gap:8px;height:130px;padding-top:8px}
+  .bcol{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px}
+  .bcol .bar{width:80%;background:var(--s1);border:1.5px solid #4d8a32;border-radius:5px 5px 0 0}
+  .bcol.spike .bar{background:var(--pay);border-color:#b3851f}
+  .bcol .d{font-family:"Balsamiq Sans",cursive;font-size:11px;color:var(--soft)}
+  .bcol .n{font-family:"Balsamiq Sans",cursive;font-size:12px;font-weight:700}
+
+  /* insights */
+  .ins{background:#fffdf6;border:2px solid var(--s1);border-radius:16px;padding:20px 24px;box-shadow:4px 4px 0 rgba(47,42,31,.16);margin-top:8px}
+  .ins h3{font-family:"Balsamiq Sans",cursive;font-size:19px;margin:0 0 10px}
+  .ins ul{margin:0;padding-left:4px;list-style:none}
+  .ins li{font-size:14px;color:var(--ink);padding:7px 0 7px 26px;position:relative;border-bottom:1px dashed rgba(47,42,31,.15)}
+  .ins li:last-child{border-bottom:none}
+  .ins li .mk{position:absolute;left:0;top:7px;font-family:"Balsamiq Sans",cursive;font-weight:700}
+  .ins li.good .mk{color:var(--s1)} .ins li.gap .mk{color:var(--warn)} .ins li.note .mk{color:var(--s2)}
+  .meta{font-family:"Balsamiq Sans",cursive;font-size:11.5px;color:var(--soft);margin-top:8px}
+  footer{margin-top:34px;font-family:"Balsamiq Sans",cursive;font-size:12px;color:var(--soft);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;border-top:2px solid var(--ink);padding-top:16px}
+  @media (max-width:780px){.takeaway,.panels{grid-template-columns:1fr}.stage{width:100%!important}}
+</style></head>
+<body>
+<div class="wrap">
+
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+    <div class="brand"><span class="frog">🐸</span><h1>Воронка — от установки до оплаты</h1><span class="v">живые данные · 4 июня</span></div>
+    <a class="back" href="madfrog-plan.html">← к плану</a>
+  </div>
+  <p class="sub">Реальные цифры из нашей базы (345 пользователей) и App Store. Видно, где сильны (активация) и где главный разрыв (монетизация).</p>
+
+  <!-- FUNNEL -->
+  <div class="funnel">
+    <div class="stage s-dl" style="width:760px"><span class="num">~300+</span><span class="lab">Скачали в App Store <small>точное число — Apple-отчёт генерируется; оценка по burner-окну</small></span></div>
+    <div class="conv"><span class="pct">~88%</span> установка → регистрация</div>
+
+    <div class="stage s-1" style="width:720px"><span class="num">345</span><span class="lab">Зарегистрировались <small>Apple 199 · аноним 119 · Google 23 · email 4</small></span></div>
+    <div class="conv"><span class="pct">86%</span> открыли приложение</div>
+
+    <div class="stage s-2" style="width:618px"><span class="num">296</span><span class="lab">Запустили приложение <small>дошли до главного экрана</small></span></div>
+    <div class="conv"><span class="pct">87%</span> успешно подключили VPN</div>
+
+    <div class="stage s-2" style="width:536px"><span class="num">257</span><span class="lab">Подключились к VPN <small>активация — продукт реально работает (56 — неуспешно)</small></span></div>
+    <div class="conv"><span class="pct drop">5.1%</span> из подключившихся → оплата</div>
+
+    <div class="stage s-pay" style="width:200px"><span class="num">13</span><span class="lab">Оплатили <small>12 FreeKassa (РФ) · Apple IAP 0</small></span></div>
+  </div>
+
+  <div class="conv" style="justify-content:center;margin-top:6px">Сквозная конверсия регистрация → оплата: <span class="pct" style="margin-left:6px">3.8%</span></div>
+
+  <!-- TAKEAWAYS -->
+  <h2>Состояние сейчас</h2>
+  <div class="takeaway">
+    <div class="tk"><div class="big">26</div><div class="l">активная подписка прямо сейчас (платные + действующие триалы)</div></div>
+    <div class="tk"><div class="big">329</div><div class="l">активны за 30 дней (заходили или подключали VPN)</div></div>
+    <div class="tk"><div class="big">≈3 489 ₽</div><div class="l">выручка всего (12 оплат FreeKassa + 1 промо)</div></div>
+  </div>
+
+  <!-- PANELS -->
+  <h2>Разбивки</h2>
+  <div class="panels">
+    <div class="panel">
+      <h3>Откуда пользователи (вход)</h3>
+      <div class="row"><span class="nm">Apple</span><span class="track"><span class="fill" style="width:58%;background:var(--s2)"></span></span><span class="vv">199</span></div>
+      <div class="row"><span class="nm">Аноним (device)</span><span class="track"><span class="fill" style="width:34%;background:var(--s3)"></span></span><span class="vv">119</span></div>
+      <div class="row"><span class="nm">Google</span><span class="track"><span class="fill" style="width:7%;background:var(--s1)"></span></span><span class="vv">23</span></div>
+      <div class="row"><span class="nm">E-mail</span><span class="track"><span class="fill" style="width:2%;background:var(--pay)"></span></span><span class="vv">4</span></div>
+    </div>
+    <div class="panel">
+      <h3>Платежи</h3>
+      <div class="row"><span class="nm">FreeKassa / СБП (РФ)</span><span class="track"><span class="fill" style="width:92%;background:var(--s1)"></span></span><span class="vv">12</span></div>
+      <div class="row"><span class="nm">Apple IAP</span><span class="track"><span class="fill" style="width:0%;background:var(--warn)"></span></span><span class="vv">0</span></div>
+      <div class="row"><span class="nm">Промо / админ</span><span class="track"><span class="fill" style="width:8%;background:var(--pay)"></span></span><span class="vv">1</span></div>
+      <p class="meta">Весь реальный доход — из РФ через FreeKassa. Apple IAP пока 0 оплат (3 попытки отменены) → проверить западный пейволл.</p>
+    </div>
+  </div>
+
+  <!-- BURNER -->
+  <h2>Откуда пришла база — burner-вспышка</h2>
+  <div class="panel">
+    <div class="bars">
+      <div class="bcol"><div class="n">21</div><div class="bar" style="height:14%"></div><div class="d">27.05</div></div>
+      <div class="bcol spike"><div class="n">110</div><div class="bar" style="height:70%"></div><div class="d">28.05</div></div>
+      <div class="bcol spike"><div class="n">158</div><div class="bar" style="height:100%"></div><div class="d">29.05</div></div>
+      <div class="bcol"><div class="n">6</div><div class="bar" style="height:5%"></div><div class="d">30.05</div></div>
+      <div class="bcol"><div class="n">6</div><div class="bar" style="height:5%"></div><div class="d">31.05</div></div>
+      <div class="bcol"><div class="n">5</div><div class="bar" style="height:4%"></div><div class="d">02.06</div></div>
+      <div class="bcol"><div class="n">3</div><div class="bar" style="height:3%"></div><div class="d">04.06</div></div>
+    </div>
+    <p class="meta">268 регистраций (78% всей базы) пришли за 2 дня 28–29 мая — это и есть burner-приложение. После снятия по РКН поток упал до ~5/день. Вывод: канал работает, но живёт 2 суток → нужен поток публикаций (см. роадмап).</p>
+  </div>
+
+  <!-- INSIGHTS -->
+  <h2>Выводы</h2>
+  <div class="ins">
+    <ul>
+      <li class="good"><span class="mk">✓</span><b>Сильная активация.</b> 86% открывают приложение, 87% из них успешно подключают VPN — продукт работает, технический путь чистый.</li>
+      <li class="gap"><span class="mk">!</span><b>Монетизация — главный разрыв.</b> Сквозная конверсия рег→оплата 3.8%. Цель 6–8% — короткий онбординг, СБП без трения, таймер-оффер.</li>
+      <li class="note"><span class="mk">i</span><b>Платят только в РФ (FreeKassa).</b> Apple IAP — 0 оплат при 3 попытках. Проверить западный пейволл и StoreKit-верификацию.</li>
+      <li class="note"><span class="mk">i</span><b>Пейволл видят немногие (9).</b> Почти все на активном триале — реальная монетизация начнётся, когда триалы истекут. Нужен возврат-флоу к оплате.</li>
+      <li class="good"><span class="mk">✓</span><b>Канал привлечения подтверждён.</b> 268 регистраций за 2 дня с одной публикации. Масштаб — в потоке публикаций (Android/RuStore) без риска для Apple.</li>
+    </ul>
+  </div>
+
+  <footer><span>MadFrog · Воронка (живые данные NL + App Store)</span><span>docs/plans/funnel.html</span></footer>
+</div>
+</body></html>
