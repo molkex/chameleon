@@ -62,6 +62,7 @@ const Audit = lazy(() => import("./pages/audit"));
 const Status = lazy(() => import("./pages/status"));
 const Funnel = lazy(() => import("./pages/funnel"));
 const Events = lazy(() => import("./pages/events"));
+const Inbox = lazy(() => import("./pages/inbox"));
 const Login = lazy(() => import("./pages/login"));
 
 // ── Routes ──
@@ -171,12 +172,18 @@ const eventsRoute = createRoute({
   component: Events,
 });
 
+const inboxRoute = createRoute({
+  getParentRoute: () => layoutRoute,
+  path: "/inbox",
+  component: Inbox,
+});
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
   layoutRoute.addChildren([
     indexRoute, usersRoute, nodesRoute, serversRoute, protocolsRoute,
     shieldRoute, settingsRoute, adminsRoute, auditRoute, statusRoute,
-    funnelRoute, eventsRoute,
+    funnelRoute, eventsRoute, inboxRoute,
   ]),
 ]);
 
