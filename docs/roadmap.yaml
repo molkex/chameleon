@@ -88,6 +88,14 @@ next:
         - admin CRUD /admin/announcements (read adminMW, write adminOnly) + mobile
           GET /api/v1/mobile/announcements/active (requireAuth).
         - admin SPA "Анонсы" page (list + create/edit dialog + toggle + delete).
+        TARGETING (2026-06-04, deployed NL + e2e-verified, NO app build): an
+        announcement can target a segment, resolved server-side from the authed
+        user so build 110+ uses it unchanged. migration 025 adds audience
+        (all|trial|paid|expired) + platform (all|ios|macos); the mobile endpoint
+        classifies the user — sub = expired | trial (active, no payment) | paid
+        (active + completed payment, db.UserHasPaid) — and filters
+        (announcementMatches/platformFromOS, unit-tested). Admin form has the two
+        selectors + a 🎯 line. Country/app-version targeting deferred.
         iOS DONE (build 110, 2026-06-04): Models/Announcement.swift +
         APIClient.fetchActiveAnnouncements + AppState.activeAnnouncement /
         loadActiveAnnouncement (skips dismissed) / dismissActiveAnnouncement +

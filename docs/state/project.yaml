@@ -89,8 +89,10 @@ recent:
     (mig 024 announcements + ActiveAnnouncements active-AND-in-window + admin CRUD + mobile
     /announcements/active) + admin "Анонсы" page DEPLOYED to NL + full authed CRUD e2e verified on prod.
     iOS: centered dismissible card (variant B, neon/calm theme, kind badge + optional CTA), loaded on
-    auth + foreground, dismissed-ids remembered — build 110. Reach = real users on the next App Store
-    release of 1.0.31.
+    auth + foreground, dismissed-ids remembered — build 110. TARGETING (2026-06-04, deployed NL,
+    e2e-verified, NO app build): per-announcement audience (all/trial/paid/expired) + platform
+    (all/ios/macos), filtered server-side from the authed user (mig 025, db.UserHasPaid). Reach = real
+    users on the next App Store release of 1.0.31.
   - BROADCAST-PUSH (2026-06-04, SHIPPED — admin live on NL, no app build) — admin "Рассылка" page
     (/admin/app/push) sends an APNs push to ALL registered device tokens: compose title+body, live
     preview, recipient count, confirm dialog, 24-worker fan-out + 410-prune + audit log
