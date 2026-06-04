@@ -110,6 +110,26 @@
   .msi .when{font-family:var(--mono);font-size:10px;color:var(--mut);letter-spacing:.08em;text-transform:uppercase}
   .msi .lab{font-size:13.5px;color:var(--ink);margin-top:6px;font-weight:500;line-height:1.3}
 
+  /* execution path — что за чем */
+  .path{position:relative;margin-top:6px}
+  .pstep{display:grid;grid-template-columns:46px 1fr;gap:20px;position:relative;padding-bottom:16px}
+  .pstep:not(:last-child)::before{content:"";position:absolute;left:22px;top:48px;bottom:-2px;width:2px;
+    background:linear-gradient(var(--line-2),var(--line))}
+  .pnode{width:46px;height:46px;border-radius:50%;border:1px solid var(--line-2);background:var(--panel);
+    display:grid;place-items:center;font-family:var(--mono);font-size:15px;color:var(--green);z-index:1}
+  .pstep.goal .pnode{border-color:var(--gold);color:var(--gold);font-size:18px;background:linear-gradient(180deg,rgba(214,178,105,.14),transparent)}
+  .pbody{border:1px solid var(--line);background:var(--panel);padding:14px 18px}
+  .pstep.goal .pbody{border-color:var(--gold);background:linear-gradient(110deg,rgba(214,178,105,.07),transparent 70%)}
+  .pw{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut)}
+  .pw b{color:var(--ink);font-family:var(--serif);font-weight:500;font-size:17px;letter-spacing:0;text-transform:none;margin-left:10px}
+  .pchips{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+  .chip{font-size:12.5px;color:var(--ink-soft);border:1px solid var(--line);border-left:2px solid var(--mut);
+    background:#0f130d;padding:6px 11px;display:inline-flex;align-items:center}
+  .chip.t1{border-left-color:var(--green)} .chip.t2{border-left-color:var(--gold)} .chip.t3{border-left-color:var(--cool)}
+  .chip .seq{font-family:var(--mono);font-size:10px;color:var(--gold);margin-right:7px}
+  .pnote{font-size:12.5px;color:var(--mut);margin-top:11px;line-height:1.5}
+  .pgoal{font-family:var(--serif);font-weight:500;font-size:22px;letter-spacing:-.01em}
+
   /* KPI tiles */
   .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
   .kpi{border:1px solid var(--line);background:var(--panel);padding:18px}
@@ -190,9 +210,67 @@
     </div>
   </section>
 
-  <!-- 04 NOW / NEXT / LATER -->
+  <!-- 04 EXECUTION PATH -->
+  <section class="reveal" style="animation-delay:.18s">
+    <div class="sec-head"><span class="sec-no">04</span><h2 class="sec-title">Путь выполнения — что за чем</h2></div>
+    <p class="sub">Сверху вниз — порядок во времени. Внутри шага — задачи параллельно. Цвет = опора (A зелёный · B золотой · C голубой).</p>
+    <div class="path">
+      <div class="pstep">
+        <div class="pnode">1</div>
+        <div class="pbody">
+          <div class="pw">Нед. 1<b>Быстрый старт</b></div>
+          <div class="pchips">
+            <span class="chip t1">Доп. iOS-витрина</span>
+            <span class="chip t1">Бот — прямая продажа</span>
+            <span class="chip t2">Воронка v1</span>
+          </div>
+          <div class="pnote">Три задачи параллельно — выручка и данные с первой недели, минимум риска.</div>
+        </div>
+      </div>
+      <div class="pstep">
+        <div class="pnode">2</div>
+        <div class="pbody">
+          <div class="pw">Нед. 2–4<b>Android для масштаба</b></div>
+          <div class="pchips">
+            <span class="chip t1"><span class="seq">сначала</span>Android-клиент</span>
+            <span class="chip t3"><span class="seq">затем</span>Публикация в RuStore</span>
+          </div>
+          <div class="pnote">Главный канал роста без угрозы Apple. Зависит от шага: клиент → публикация.</div>
+        </div>
+      </div>
+      <div class="pstep">
+        <div class="pnode">3</div>
+        <div class="pbody">
+          <div class="pw">Мес. 2<b>Оптимизация воронки</b></div>
+          <div class="pchips">
+            <span class="chip t2">Конверсия 6% → 7%</span>
+            <span class="chip t2">Офферы и удержание</span>
+          </div>
+          <div class="pnote">На данных из шага 1 поднимаем долю оплат.</div>
+        </div>
+      </div>
+      <div class="pstep">
+        <div class="pnode">4</div>
+        <div class="pbody">
+          <div class="pw">Мес. 3+<b>Масштабирование</b></div>
+          <div class="pchips">
+            <span class="chip t1">Конвейер публикаций Android</span>
+            <span class="chip t1">Google Play — мир</span>
+            <span class="chip t2">Рефералы · A/B</span>
+          </div>
+          <div class="pnote">Поток публикаций по отлаженной схеме + выход за пределы РФ.</div>
+        </div>
+      </div>
+      <div class="pstep goal">
+        <div class="pnode">★</div>
+        <div class="pbody"><div class="pgoal">Рост выручки из РФ — цель ×3</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 NOW / NEXT / LATER -->
   <section class="reveal" style="animation-delay:.2s">
-    <div class="sec-head"><span class="sec-no">04</span><h2 class="sec-title">Now · Next · Later</h2></div>
+    <div class="sec-head"><span class="sec-no">05</span><h2 class="sec-title">Now · Next · Later</h2></div>
     <p class="sub">Приоритет по горизонтам, а не по жёстким датам (формат ProdPad). Цвет карточки = стратегическая опора.</p>
     <div class="nnl">
       <div class="nnl-col now">
@@ -224,7 +302,7 @@
 
   <!-- 05 INITIATIVES TABLE -->
   <section class="reveal" style="animation-delay:.25s">
-    <div class="sec-head"><span class="sec-no">05</span><h2 class="sec-title">Реестр инициатив</h2></div>
+    <div class="sec-head"><span class="sec-no">06</span><h2 class="sec-title">Реестр инициатив</h2></div>
     <p class="sub">RICE — приоритет (охват × влияние × уверенность ÷ трудозатраты). Трудозатраты: ●○○ = S, ●●○ = M, ●●● = L.</p>
     <div class="tblscroll">
     <table class="tbl">
@@ -248,7 +326,7 @@
 
   <!-- 06 TIMELINE (milestones) -->
   <section class="reveal" style="animation-delay:.3s">
-    <div class="sec-head"><span class="sec-no">06</span><h2 class="sec-title">Майлстоуны</h2></div>
+    <div class="sec-head"><span class="sec-no">07</span><h2 class="sec-title">Майлстоуны</h2></div>
     <div class="ms">
       <div class="msi"><div class="dia"></div><div class="when">нед. 1</div><div class="lab">M1 — доп. iOS-витрина live</div></div>
       <div class="msi"><div class="dia"></div><div class="when">нед. 1</div><div class="lab">M2 — первая оплата через прямой канал</div></div>
@@ -260,7 +338,7 @@
 
   <!-- 07 KPI -->
   <section class="reveal" style="animation-delay:.35s">
-    <div class="sec-head"><span class="sec-no">07</span><h2 class="sec-title">KPI и метрики</h2></div>
+    <div class="sec-head"><span class="sec-no">08</span><h2 class="sec-title">KPI и метрики</h2></div>
     <div class="kpis">
       <div class="kpi"><div class="v">×3</div><div class="l">платящих / мес из РФ (North-Star)</div><div class="tg">цель квартала</div></div>
       <div class="kpi"><div class="v" style="color:var(--gold)">7%</div><div class="l">конверсия установка → оплата</div><div class="tg">с текущих ~4%</div></div>
@@ -272,7 +350,7 @@
 
   <!-- 08 RISKS -->
   <section class="reveal" style="animation-delay:.4s">
-    <div class="sec-head"><span class="sec-no">08</span><h2 class="sec-title">Риски и митигация</h2></div>
+    <div class="sec-head"><span class="sec-no">09</span><h2 class="sec-title">Риски и митигация</h2></div>
     <div class="rmwrap">
       <div class="matrix">
         <svg viewBox="0 0 420 320" role="img" aria-label="Матрица вероятность-влияние">
@@ -309,7 +387,7 @@
 
   <!-- 09 ASSUMPTIONS / DEPENDENCIES -->
   <section class="reveal" style="animation-delay:.45s;border-bottom:none">
-    <div class="sec-head"><span class="sec-no">09</span><h2 class="sec-title">Допущения и зависимости</h2></div>
+    <div class="sec-head"><span class="sec-no">10</span><h2 class="sec-title">Допущения и зависимости</h2></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
       <div class="panel" style="padding:20px 22px">
         <div class="mlabel" style="color:var(--gold)">Допущения</div>
