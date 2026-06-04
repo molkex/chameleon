@@ -45,6 +45,10 @@ backend:
   secrets:
     src_files: 1
     tests: [secrets_test.go]
+  storage:
+    src_files: 2
+    tests: [attachment_test.go]
+    covers: "B2 attachment helpers — MIME allowlist, size bounds (1..10MiB), filename sanitize, key scheme support/<thread>/<uuid>/, KeyBelongsToThread authz (2026-06-04). minio-go presign (PresignPut/Get/Delete) exercised e2e on prod (register→presign→PUT→GET byte-match), not unit-tested (needs live B2)."
     tier: unit
     status: tested
     coverage_pct: 80

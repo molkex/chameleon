@@ -30,8 +30,8 @@ product:
   app_store:                   # canonical: state/app-store.yaml
     live:        {version: "1.0.29", build: 101, state: READY_FOR_SALE}   # APPROVED 2026-06-02 (account-demote P0 + crash-on-connect + Auto card + UI-FLAG-HOME)
     in_review:   {version: "1.0.30", build: 102, state: WAITING_FOR_REVIEW}  # iOS, submitted 2026-06-04 (KEYCHAIN-MACOS fix; AFTER_APPROVAL auto-release)
-    testflight:  {version: "1.0.31", build: 104, state: UPLOADED}  # iOS, on Internal Testers 2026-06-04 — SUPPORT-CHAT P2 + widget-timer + FR-SELECT, +build104 fixes chat dup-messages & stale-token 401 (b103 was the first on-device chat test)
-    next_step: verify chat on build 104 (dup + token fixes); await Apple review of 1.0.30 (102); then submit 1.0.31 to App Store after privacy policy + ASC data label (5.1.1)
+    testflight:  {version: "1.0.31", build: 105, state: UPLOADING}  # iOS, Internal Testers — SUPPORT-CHAT chat: P2 webview, dup+token fixes (b104), +b105 diagnostic-snapshot button (#3a) + photo/file attachments (#2). b103 first chat test.
+    next_step: verify chat on build 105 (attachments + diagnostic); await Apple review of 1.0.30 (102); then submit 1.0.31 to App Store after privacy policy + ASC data label (5.1.1)
   iap: 4 non-renewing subs, all APPROVED 2026-05-31 (RU/CIS → WebPaywall/FreeKassa)
 
 # ── Infra (canonical: state/servers.yaml) ───────────────────────────────────
@@ -65,13 +65,15 @@ health:
 # ── Right now (canonical: roadmap.yaml) ─────────────────────────────────────
 now:
   # ── RESUME HERE next session (2026-06-04 end-of-session handoff) ──
-  - SUPPORT-CHAT — WORKS end-to-end (client build 103 tested; build 104 fixes dup-messages +
-    stale-token 401; both on TestFlight). AGENT SIDE NOW LIVE — admin SPA Поддержка page
-    (/admin/app/inbox) — list threads, read, reply → pushes to client via Redis SSE (P3 MVP
-    deployed 2026-06-04). MSK nginx SSE done. REMAINING before App Store submit — privacy policy
-    + ASC data label (5.1.1 — chat stores messages, policy says "no usage metadata"). Later (full
-    P3) — admin-SSE live vs poll, canned replies, notes, assignment, Telegram bridge. Open — widget
-    BUNDLED vs hosted chat.madfrog.online.
+  - SUPPORT-CHAT — WORKS end-to-end + feature-complete for MVP. Client chat (webview) — send,
+    history, SSE live, dup+token fixes (b104), diagnostic-snapshot button + photo/file attachments
+    (b105, on TestFlight). AGENT SIDE LIVE — admin SPA Поддержка page at /admin/app/inbox — list,
+    read, reply + attachments → push to client via Redis SSE (deployed). Attachments via B2 presigned
+    (verified e2e on prod). MSK nginx SSE done. REMAINING before App Store submit — privacy policy
+    + ASC data label (5.1.1 — chat stores messages/files, policy says no-usage-metadata). NOT yet
+    built — P4 APNs PUSH (client gets no notification when support replies — only sees on
+    open/history), 3b auto-attach singbox.log, full-P3 polish (admin-SSE, canned replies, notes,
+    assignment, Telegram bridge). Open — widget BUNDLED vs hosted chat.madfrog.online.
   - AWAIT-REVIEW 1.0.30 (build 102, KEYCHAIN-MACOS) WAITING_FOR_REVIEW (submitted 2026-06-04,
     AFTER_APPROVAL auto-release). 1.0.29 (101) shipped 2026-06-02. After 1.0.30 ships → submit
     1.0.31/104 (needs the privacy work above first).

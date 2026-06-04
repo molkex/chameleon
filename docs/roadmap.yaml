@@ -496,6 +496,36 @@ deferred:
 # ============================================================
 done:
   "2026-06-04":
+    - id: SUPPORT-CHAT-ATTACHMENTS
+      title: Photo/file attachments in support chat (#2) — B2 presigned, client + agent
+      deployed: NL 2026-06-04 (backend e5776d0 + UIs 108b880 + env 1cebc1e); e2e verified on prod
+      commits: [e5776d0 backend, 108b880 widget+admin UI, 1cebc1e deploy-env-fix]
+      files:
+        - backend/internal/storage/{storage.go,attachment.go,attachment_test.go}  # minio-go B2 client + helpers
+        - backend/migrations/021_support_attachments.sql                          # attachment_{key,mime,name,size}
+        - backend/internal/db/support.go                                          # AppendMessageWithAttachment, CollectPurgeableAttachmentKeys
+        - backend/internal/api/{mobile,admin}/support.go                          # presign endpoints + DTO.attachment
+        - backend/{docker-compose.yml,deploy.sh}                                  # B2_* env → container (args 26-30)
+        - clients/widget/index.html                                               # 📎 attach + render
+        - clients/admin/src/pages/inbox.tsx                                       # Paperclip attach + render
+      notes: |
+        Industry-standard object storage: backend never proxies bytes. Flow —
+        POST .../attachments/presign {filename,mime,size} → {upload_url,key};
+        client PUTs raw bytes to B2 (presigned, Content-Type header, no auth);
+        send/reply with attachment_*; message DTO carries attachment{url(presigned
+        GET 1h),mime,name,size}. B2 = madfrog-vpn-backups bucket, support/<thread>/
+        <uuid>/ prefix, key authz (KeyBelongsToThread), 10MiB + MIME allowlist,
+        retention deletes B2 bytes on 90d purge. Storage graceful-nil (503) when
+        B2_* unset. Built via 3 subagents (backend + widget + admin), I fixed the
+        contract + verified.
+        DEPLOY GOTCHA (fixed 1cebc1e): the .env heredoc runs in the remote
+        `bash -s --` block under set -u; secrets are POSITIONAL ARGS not env, so a
+        new B2_* in the heredoc needs matching args (now 26-30) or the deploy aborts
+        "B2_KEY_ID unbound" before recreating the container (prod stayed healthy on
+        the old image — no outage).
+        VERIFIED e2e on prod 2026-06-04: register→presign→PUT(B2 200)→send→
+        presigned-GET download, content byte-match. Client widget rides build 105;
+        admin inbox live now. Test data cleaned up.
     - id: SUPPORT-CHAT-DIAG
       title: One-tap diagnostic snapshot button in the chat (#3a "отправить лог")
       commit: 124b462
