@@ -137,3 +137,66 @@ func TestThreadUserID(t *testing.T) {
 		t.Errorf("ThreadUserID(unknown) = %v, want ErrNotFound", err)
 	}
 }
+
+// ── BROADCAST-PUSH ──────────────────────────────────────────────────────────
+
+func TestAllPushTokensAndStats(t *testing.T) {
+	database := startTestDB(t)
+	ctx := context.Background()
+	u1 := createChatUser(t, database, ctx, "bcast_a", "aaaaaaaa-0000-4000-8000-00000000f001")
+	u2 := createChatUser(t, database, ctx, "bcast_b", "aaaaaaaa-0000-4000-8000-00000000f002")
+
+	// u1: two iOS devices; u2: one macOS device.
+	for _, tok := range []string{"bcastA1", "bcastA2"} {
+		if err := database.UpsertPushToken(ctx, u1, tok, "ios"); err != nil {
+			t.Fatalf("UpsertPushToken: %v", err)
+		}
+	}
+	if err := database.UpsertPushToken(ctx, u2, "bcastB1", "macos"); err != nil {
+		t.Fatalf("UpsertPushToken: %v", err)
+	}
+
+	all, err := database.AllPushTokens(ctx)
+	if err != nil {
+		t.Fatalf("AllPushTokens: %v", err)
+	}
+	if len(all) != 3 {
+		t.Errorf("AllPushTokens = %d, want 3", len(all))
+	}
+
+	total, byPlat, err := database.PushTokenStats(ctx)
+	if err != nil {
+		t.Fatalf("PushTokenStats: %v", err)
+	}
+	if total != 3 {
+		t.Errorf("total = %d, want 3", total)
+	}
+	if byPlat["ios"] != 2 || byPlat["macos"] != 1 {
+		t.Errorf("byPlatform = %v, want ios:2 macos:1", byPlat)
+	}
+}
+
+func TestBroadcastLogRoundTrip(t *testing.T) {
+	database := startTestDB(t)
+	ctx := context.Background()
+
+	id, err := database.InsertBroadcast(ctx, "Привет 🐸", "Новый сервер во Франции", 10, 8, 2, "admin")
+	if err != nil {
+		t.Fatalf("InsertBroadcast: %v", err)
+	}
+	if id <= 0 {
+		t.Fatalf("InsertBroadcast id = %d, want > 0", id)
+	}
+
+	list, err := database.ListBroadcasts(ctx, 10)
+	if err != nil {
+		t.Fatalf("ListBroadcasts: %v", err)
+	}
+	if len(list) != 1 {
+		t.Fatalf("ListBroadcasts len = %d, want 1", len(list))
+	}
+	b := list[0]
+	if b.Title != "Привет 🐸" || b.Total != 10 || b.Sent != 8 || b.Failed != 2 || b.AdminUser != "admin" {
+		t.Errorf("broadcast row mismatch: %+v", b)
+	}
+}

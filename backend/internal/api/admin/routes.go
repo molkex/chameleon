@@ -109,6 +109,13 @@ func RegisterRoutes(g *echo.Group, h *Handler, jwtManager *auth.JWTManager) {
 	support.POST("/threads/:id/status", h.SupportSetThreadStatus)
 	support.POST("/threads/:id/attachments/presign", h.SupportAdminPresignUpload)
 
+	// Push broadcast (BROADCAST-PUSH). Read = adminMW; the "send to all" blast
+	// is privileged → adminOnly, like delete/extend.
+	pushGroup := g.Group("/push", adminMW)
+	pushGroup.GET("/stats", h.PushStats)
+	pushGroup.GET("/broadcasts", h.PushBroadcasts)
+	pushGroup.POST("/broadcast", h.PushBroadcast, adminOnly)
+
 	// Users. List/get are read; delete/extend are destructive → admin only.
 	users := g.Group("/users", adminMW)
 	users.GET("", h.ListUsers)
