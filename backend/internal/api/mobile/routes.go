@@ -109,6 +109,10 @@ func RegisterRoutes(g *echo.Group, h *Handler) {
 	// admin handler, which holds the APNs client).
 	g.POST("/push/register", h.PushRegister, requireAuth)
 
+	// In-app announcements (INAPP-ANNOUNCEMENTS) — the client polls this on app
+	// open for the active announcement set; admin authoring is in the admin API.
+	g.GET("/announcements/active", h.GetActiveAnnouncements, requireAuth)
+
 	// Apple App Store Server Notifications V2 — public endpoint (trust comes
 	// from JWS verification, not HTTP auth). Registered at the group root so
 	// Apple sees /api/mobile/subscription/notification AND

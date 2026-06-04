@@ -116,6 +116,14 @@ func RegisterRoutes(g *echo.Group, h *Handler, jwtManager *auth.JWTManager) {
 	pushGroup.GET("/broadcasts", h.PushBroadcasts)
 	pushGroup.POST("/broadcast", h.PushBroadcast, adminOnly)
 
+	// In-app announcements (INAPP-ANNOUNCEMENTS). Read = adminMW; mutations
+	// (create/edit/delete) are privileged → adminOnly.
+	annGroup := g.Group("/announcements", adminMW)
+	annGroup.GET("", h.ListAnnouncements)
+	annGroup.POST("", h.CreateAnnouncement, adminOnly)
+	annGroup.PUT("/:id", h.UpdateAnnouncement, adminOnly)
+	annGroup.DELETE("/:id", h.DeleteAnnouncement, adminOnly)
+
 	// Users. List/get are read; delete/extend are destructive → admin only.
 	users := g.Group("/users", adminMW)
 	users.GET("", h.ListUsers)
