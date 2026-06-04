@@ -31,7 +31,7 @@ product:
     live:        {version: "1.0.29", build: 101, state: READY_FOR_SALE}   # APPROVED 2026-06-02 (account-demote P0 + crash-on-connect + Auto card + UI-FLAG-HOME)
     in_review:   {version: "1.0.30", build: 102, state: WAITING_FOR_REVIEW}  # iOS, submitted 2026-06-04 (KEYCHAIN-MACOS fix; AFTER_APPROVAL auto-release)
     testflight:  {version: "1.0.31", build: 106, state: IN_BETA_TESTING}  # iOS, Internal Testers 2026-06-04 — SUPPORT-CHAT chat feature-complete; b104 dup+token fixes, b105 diagnostic+attachments, b106 APNs push (P4). b103 first chat test.
-    next_step: verify chat+push on build 106; await Apple review of 1.0.30 (102); then submit 1.0.31 to App Store after privacy policy + ASC data label (5.1.1)
+    next_step: redeploy admin SPA (composer-visibility fix) + cut next iOS build (diag "Отправить лог" now sends real singbox.log w/ fresh token); verify chat+push on build 106; await Apple review of 1.0.30 (102); then submit 1.0.31 to App Store after privacy policy + ASC data label (5.1.1)
   iap: 4 non-renewing subs, all APPROVED 2026-05-31 (RU/CIS → WebPaywall/FreeKassa)
 
 # ── Infra (canonical: state/servers.yaml) ───────────────────────────────────
@@ -84,6 +84,12 @@ open_decisions:                  # waiting on the user
 
 # ── Shipped (detail: roadmap.yaml#done + incidents/*) ──
 recent:
+  - SUPPORT-CHAT-LOGFIX (2026-06-04, built — iOS pending build, admin pending redeploy) — two
+    reported bugs fixed. (1) the native "Отправить лог" button silently no-op'd (used the cached/
+    expired access token → 401); now it refreshes the token AND attaches the real singbox.log tail
+    (256 KiB cap, text/plain, presign→PUT→message) + confirm dialog + success/failure feedback. This
+    is #3b auto-attach. (2) admin inbox composer was clipped (ScrollArea flex-1 missing min-h-0);
+    one-class fix. iOS+macOS+admin builds all green; tailLogText unit-tested.
   - TRAFFIC-MULTIEXIT (2026-06-04, deployed+verified NL) — per-user traffic now summed across
     exits (NL + GRA). runTrafficCollector polls each cfg.remote_stats_endpoints exit + merges by
     username (vpn.MergeUserTraffic). GRA reached via a socat forwarder (GRA:8081→127.0.0.1:8080,

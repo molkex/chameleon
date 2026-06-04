@@ -20,6 +20,9 @@ struct SupportChatView: View {
     // expired while backgrounded 401s the chat into a confusing "нет связи").
     @State private var token: String?
     @State private var sendingDiag = false
+    @State private var showDiagConfirm = false
+    @State private var showDiagError = false
+    @State private var diagSuccessTick = 0   // drives .sensoryFeedback on a successful send
 
     var body: some View {
         NavigationStack {
@@ -42,24 +45,55 @@ struct SupportChatView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button { dismiss() } label: { Image(systemName: "xmark") }
                 }
-                // "Отправить лог" — one-tap diagnostic snapshot into the thread.
+                // "Отправить лог" — one-tap diagnostic snapshot + real singbox.log
+                // into the thread. Confirm first (the log carries connection
+                // metadata) and surface success/failure (it used to be silent).
                 ToolbarItem(placement: .primaryAction) {
                     Button {
                         guard !sendingDiag else { return }
-                        sendingDiag = true
-                        Task {
-                            await app.sendSupportDiagnostic()
-                            sendingDiag = false
-                        }
+                        showDiagConfirm = true
                     } label: {
-                        Image(systemName: "stethoscope")
+                        if sendingDiag {
+                            ProgressView()
+                        } else {
+                            Image(systemName: "stethoscope")
+                        }
                     }
                     .disabled(token == nil || sendingDiag)
                     .accessibilityLabel(Text("Отправить диагностику"))
                 }
             }
+            .confirmationDialog(
+                "Отправить в поддержку диагностику и журнал подключения?",
+                isPresented: $showDiagConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("Отправить") { sendDiagnostic() }
+                Button("Отмена", role: .cancel) {}
+            } message: {
+                Text("Журнал может содержать адреса серверов и технические данные подключения.")
+            }
+            .alert("Не удалось отправить", isPresented: $showDiagError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Проверьте подключение к интернету и попробуйте ещё раз.")
+            }
+            .sensoryFeedback(.success, trigger: diagSuccessTick)
         }
         .task { token = await app.accessTokenForSupportChat() }
+    }
+
+    private func sendDiagnostic() {
+        guard !sendingDiag else { return }
+        sendingDiag = true
+        Task {
+            let result = await app.sendSupportDiagnostic()
+            sendingDiag = false
+            switch result {
+            case .sent: diagSuccessTick &+= 1
+            case .failed: showDiagError = true
+            }
+        }
     }
 }
 

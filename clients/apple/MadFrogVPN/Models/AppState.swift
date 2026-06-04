@@ -623,16 +623,75 @@ class AppState {
         pendingSupportChatOpen = true
     }
 
-    /// One-tap diagnostic snapshot for the support chat ("отправить лог" button).
-    /// Gathers app/device/VPN state the webview can't see and posts it as a user
-    /// message; the open chat renders it via SSE/history. Best-effort.
-    func sendSupportDiagnostic() async {
-        guard let token = configStore.accessToken else { return }
+    /// Outcome of the one-tap "Отправить лог" action so the chat view can give
+    /// the user feedback (it used to fail completely silently).
+    enum SupportDiagnosticResult { case sent, failed }
+
+    /// One-tap diagnostic for the support chat ("Отправить лог" button). Ships
+    /// the app/device/VPN snapshot (state the webview can't see) AS the message
+    /// body, plus the tail of the tunnel's singbox.log as a text/plain
+    /// attachment so support sees the real connection log. The open chat renders
+    /// it via SSE/history.
+    ///
+    /// Uses a FRESHLY refreshed token — the cached `accessToken` may have expired
+    /// while the app was backgrounded, which 401'd this into a silent no-op (the
+    /// reported "лог не отправляется"; same root cause the webview's
+    /// `accessTokenForSupportChat()` already fixed). Falls back to a text-only
+    /// snapshot when there's no log yet (VPN never connected) or attachments are
+    /// unavailable (B2 down → presign 503), so support always gets *something*.
+    func sendSupportDiagnostic() async -> SupportDiagnosticResult {
+        let token = await accessTokenForSupportChat()
+        guard !token.isEmpty else { return .failed }
+        let snapshot = buildDiagnosticSnapshot()
+        if let logData = Self.readSingboxLogTail() {
+            do {
+                try await apiClient.sendSupportAttachment(
+                    text: snapshot, fileData: logData,
+                    filename: "singbox.log", mime: "text/plain",
+                    accessToken: token)
+                return .sent
+            } catch {
+                AppLogger.app.error("sendSupportDiagnostic (with log) failed: \(error.localizedDescription) — retrying text-only")
+                // fall through to the text-only path below
+            }
+        }
         do {
-            try await apiClient.sendSupportMessage(text: buildDiagnosticSnapshot(), accessToken: token)
+            try await apiClient.sendSupportMessage(text: snapshot, accessToken: token)
+            return .sent
         } catch {
             AppLogger.app.error("sendSupportDiagnostic failed: \(error.localizedDescription)")
+            return .failed
         }
+    }
+
+    /// Read the tail of the tunnel's singbox.log from the shared App Group
+    /// container, capped so a huge log never blows past the 10 MiB attachment
+    /// limit (the file has historically grown to GBs before the sink-level
+    /// TRACE/DEBUG drop — see LOG-01). Returns nil when the log doesn't exist
+    /// yet (VPN never connected) or can't be read.
+    static func readSingboxLogTail(maxBytes: Int = 256 * 1024) -> Data? {
+        let logURL = AppConstants.sharedContainerURL.appendingPathComponent("singbox.log")
+        guard let handle = try? FileHandle(forReadingFrom: logURL) else { return nil }
+        defer { try? handle.close() }
+        let size = (try? handle.seekToEnd()) ?? 0
+        guard size > 0 else { return nil }
+        let truncated = size > UInt64(maxBytes)
+        let offset = truncated ? size - UInt64(maxBytes) : 0
+        try? handle.seek(toOffset: offset)
+        guard let data = try? handle.readToEnd(), !data.isEmpty else { return nil }
+        return Self.tailLogText(data, truncated: truncated).data(using: .utf8)
+    }
+
+    /// Decode a (possibly mid-UTF-8 / mid-line) tail slice into a clean log
+    /// string: when the slice was cut from a larger file, drop the leading
+    /// partial line and prepend a truncation marker. Pure → unit-tested.
+    static func tailLogText(_ data: Data, truncated: Bool) -> String {
+        var text = String(decoding: data, as: UTF8.self)
+        guard truncated else { return text }
+        if let nl = text.firstIndex(of: "\n") {
+            text = String(text[text.index(after: nl)...])
+        }
+        return "…(обрезано, показан хвост журнала)\n" + text
     }
 
     private func buildDiagnosticSnapshot() -> String {

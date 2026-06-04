@@ -496,6 +496,42 @@ deferred:
 # ============================================================
 done:
   "2026-06-04":
+    - id: SUPPORT-CHAT-LOGFIX
+      title: '"Отправить лог" actually sends (fresh token) + ships the real singbox.log; admin composer no longer clipped'
+      status: built_pending_build_and_deploy   # iOS rides next TestFlight build; admin needs SPA redeploy
+      files:
+        - clients/apple/MadFrogVPN/Views/SupportChatView.swift   # confirm dialog + success/failure feedback + ProgressView
+        - clients/apple/MadFrogVPN/Models/AppState.swift         # sendSupportDiagnostic (fresh token + log attach + result), readSingboxLogTail, tailLogText
+        - clients/apple/MadFrogVPN/Models/APIClient.swift        # sendSupportAttachment (presign→PUT→message)
+        - clients/apple/Tests/UnitTests/SupportDiagnosticLogTests.swift  # 5 cases for tailLogText
+        - clients/admin/src/pages/inbox.tsx                      # ScrollArea min-h-0 (composer visibility)
+      notes: |
+        Two user-reported bugs on build 106 / live admin:
+        (1) "лог не отправляется при нажатии" — the stethoscope diag button used
+            the CACHED configStore.accessToken; after the app was backgrounded that
+            token had expired → POST /support/messages 401 → caught → logged →
+            SILENT no-op. (The webview chat already got the fresh-token fix in
+            build 104; the native button was missed.) Fix: sendSupportDiagnostic now
+            awaits accessTokenForSupportChat() (best-effort refresh, same as the
+            webview). PLUS it now attaches the REAL tunnel log: readSingboxLogTail
+            reads the App-Group singbox.log, tails the last 256 KiB (the file has
+            historically grown to GBs — LOG-01), drops the partial first line +
+            marks truncation (tailLogText, pure + unit-tested incl. mid-UTF8), and
+            uploads it as a text/plain attachment via the SAME presign→PUT→message
+            flow the widget uses (verified e2e on prod). Snapshot text rides as the
+            body; falls back to text-only when there's no log / B2 down. A confirm
+            dialog gates the send (the log carries server IPs / connection metadata)
+            and the result now surfaces — success haptic (.sensoryFeedback), failure
+            alert — instead of failing silently. This is the #3b "auto-attach
+            singbox.log" item, unblocked by attachments.
+        (2) "из админки не видно как отправить сообщение" — the conversation
+            ScrollArea was flex-1 WITHOUT min-h-0, so (default min-height:auto) it
+            grew under all messages and pushed the composer past the Card's
+            overflow-hidden edge → composer invisible. Fix: min-h-0 on the messages
+            ScrollArea → it shrinks + scrolls internally, composer pinned. One class.
+        VERIFY: iOS build-for-testing + macOS build both SUCCEEDED; admin tsc+vite
+        build clean. iOS on-device pending next TestFlight build; admin pending SPA
+        redeploy to NL.
     - id: SUPPORT-CHAT-P4-PUSH
       title: APNs push — client gets notified when a support agent replies
       deployed: NL backend 2026-06-04 (commit d72d4e3, push enabled verified); iOS rides build 106

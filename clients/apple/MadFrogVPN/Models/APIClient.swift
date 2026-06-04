@@ -748,6 +748,86 @@ class APIClient {
         }
     }
 
+    /// Response of POST /support/attachments/presign.
+    private struct SupportPresignResponse: Decodable {
+        let uploadURL: String
+        let key: String
+        enum CodingKeys: String, CodingKey {
+            case uploadURL = "upload_url"
+            case key
+        }
+    }
+
+    /// POST a support message AS THE USER WITH AN ATTACHMENT — used by the
+    /// "Отправить лог" button to ship the real singbox.log (the diagnostic
+    /// snapshot rides as the message body). Three steps, mirroring the web
+    /// widget's sendAttachment:
+    ///   1. presign a short-lived B2 PUT URL (Bearer-auth, our api host),
+    ///   2. PUT the raw bytes straight to B2 — a CLEAN request with only
+    ///      Content-Type (the signature is in the URL; adding Authorization /
+    ///      telemetry headers is unnecessary and risks the SigV4 host match),
+    ///   3. POST the message referencing the uploaded key.
+    /// Single request each to the non-CF api host — NO direct-IP fallback race
+    /// (a POST must not double-send).
+    func sendSupportAttachment(
+        text: String,
+        fileData: Data,
+        filename: String,
+        mime: String,
+        accessToken: String
+    ) async throws {
+        // 1. presign
+        guard let presignURL = URL(string: AppConstants.baseURL + "/api/v1/mobile/support/attachments/presign") else {
+            throw APIError.networkError("Invalid support URL")
+        }
+        var presignReq = URLRequest(url: presignURL)
+        presignReq.httpMethod = "POST"
+        presignReq.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        presignReq.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        presignReq.httpBody = try JSONSerialization.data(withJSONObject: [
+            "filename": filename, "mime": mime, "size": fileData.count,
+        ])
+        presignReq.timeoutInterval = 15
+        let (presignData, presignResp) = try await URLSession.shared.data(for: applyTelemetry(to: presignReq))
+        guard let presignHTTP = presignResp as? HTTPURLResponse else { throw APIError.networkError("No response") }
+        if presignHTTP.statusCode == 401 { throw APIError.unauthorized }
+        guard (200...299).contains(presignHTTP.statusCode) else { throw APIError.serverError(presignHTTP.statusCode) }
+        let presign = try JSONDecoder().decode(SupportPresignResponse.self, from: presignData)
+
+        // 2. PUT raw bytes to B2 (presigned — clean request, no auth/telemetry)
+        guard let putURL = URL(string: presign.uploadURL) else { throw APIError.networkError("Invalid upload URL") }
+        var putReq = URLRequest(url: putURL)
+        putReq.httpMethod = "PUT"
+        putReq.setValue(mime, forHTTPHeaderField: "Content-Type")
+        putReq.httpBody = fileData
+        putReq.timeoutInterval = 30
+        let (_, putResp) = try await URLSession.shared.data(for: putReq)
+        guard let putHTTP = putResp as? HTTPURLResponse, (200...299).contains(putHTTP.statusCode) else {
+            throw APIError.networkError("Upload failed")
+        }
+
+        // 3. POST the message referencing the uploaded key
+        guard let msgURL = URL(string: AppConstants.baseURL + "/api/v1/mobile/support/messages") else {
+            throw APIError.networkError("Invalid support URL")
+        }
+        var msgReq = URLRequest(url: msgURL)
+        msgReq.httpMethod = "POST"
+        msgReq.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        msgReq.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        msgReq.httpBody = try JSONSerialization.data(withJSONObject: [
+            "text": text,
+            "attachment_key": presign.key,
+            "attachment_mime": mime,
+            "attachment_name": filename,
+            "attachment_size": fileData.count,
+        ])
+        msgReq.timeoutInterval = 15
+        let (_, msgResp) = try await URLSession.shared.data(for: applyTelemetry(to: msgReq))
+        guard let msgHTTP = msgResp as? HTTPURLResponse else { throw APIError.networkError("No response") }
+        if msgHTTP.statusCode == 401 { throw APIError.unauthorized }
+        guard (200...299).contains(msgHTTP.statusCode) else { throw APIError.serverError(msgHTTP.statusCode) }
+    }
+
     // MARK: - Push Notifications
 
     /// Register the APNs device token with the backend (SUPPORT-CHAT P4) so it

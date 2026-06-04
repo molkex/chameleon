@@ -174,6 +174,7 @@
 		A6AC0803683CB64628D5F99D /* libresolv.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = C4C20C0AE163F2C1F4C77012 /* libresolv.tbd */; };
 		A6F4C7DE3D8BA428F4C7274E /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEBE74F9DD0282A5EA7B00DE /* APIClient.swift */; };
 		A6FA0066799E9EBAE4C11500 /* NetworkFingerprint.swift in Sources */ = {isa = PBXBuildFile; fileRef = D74E8F46235E55DCBC83A95C /* NetworkFingerprint.swift */; };
+		A741E7E95068B7C7EBE70977 /* SupportDiagnosticLogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B86A56C3AD664DF36D6422DB /* SupportDiagnosticLogTests.swift */; };
 		A9410234681C29EBD3B2FB1A /* LegRaceProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F3382ABA99A753C80BA61E9 /* LegRaceProbe.swift */; };
 		AB5EAB598EA00EBDA5F0AE2F /* index.html in Resources */ = {isa = PBXBuildFile; fileRef = 5E1F8BD9DF2E0E500B1EBED2 /* index.html */; };
 		AF2008FBFCD6A201C00555AB /* PlatformViewExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11EBC90E3AED9A381EEA7F2F /* PlatformViewExtensions.swift */; };
@@ -414,6 +415,7 @@
 		B62C04CE43B2CD4056A38DC9 /* DisconnectNotifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisconnectNotifier.swift; sourceTree = "<group>"; };
 		B7E6B6FE7A966818AE262F20 /* StatusWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusWidget.swift; sourceTree = "<group>"; };
 		B8005A0F02E6E8BBC2A49BFB /* CountryFlag.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountryFlag.swift; sourceTree = "<group>"; };
+		B86A56C3AD664DF36D6422DB /* SupportDiagnosticLogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupportDiagnosticLogTests.swift; sourceTree = "<group>"; };
 		BBFDC2ECDA133E88358061B7 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		BD660F09A2FD36D53775C288 /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = System/Library/Frameworks/AppKit.framework; sourceTree = SDKROOT; };
 		C18C942EF28864C26636822B /* Libbox.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Libbox.xcframework; path = Frameworks/Libbox.xcframework; sourceTree = "<group>"; };
@@ -578,6 +580,7 @@
 				4B0F8A49025B0790BD2D4EC7 /* SingBoxConfigPatcherTests.swift */,
 				9B07C7F761E8467D5C74E4CD /* StringUtilsTests.swift */,
 				A238DFA5F1520E5CBB83FCD8 /* SubscriptionEntitlementTests.swift */,
+				B86A56C3AD664DF36D6422DB /* SupportDiagnosticLogTests.swift */,
 				850D3937870EEB29F3CD7BD9 /* TrafficHealthMonitorTests.swift */,
 				D8BA0442D38049EA8D16B48E /* VPNControlIntentsBehaviorTests.swift */,
 				ADB65A53BF4FC3C3AA645847 /* VPNManagerOnDemandRulesTests.swift */,
@@ -1232,6 +1235,7 @@
 				771D7D152382CD54123F1A34 /* SingBoxConfigPatcherTests.swift in Sources */,
 				88554DBB410CBE11723FF7F3 /* StringUtilsTests.swift in Sources */,
 				787BD10C48028CFD57C227D3 /* SubscriptionEntitlementTests.swift in Sources */,
+				A741E7E95068B7C7EBE70977 /* SupportDiagnosticLogTests.swift in Sources */,
 				B12BD63053EC36D717193BCE /* TrafficHealthMonitorTests.swift in Sources */,
 				3DC5082569D21467B3C6D82B /* VPNControlIntentsBehaviorTests.swift in Sources */,
 				0EABA873BD504C158A7F3B0D /* VPNManagerOnDemandRulesTests.swift in Sources */,

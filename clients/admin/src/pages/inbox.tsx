@@ -332,8 +332,10 @@ export default function InboxPage() {
                 </Badge>
               </div>
 
-              {/* Messages */}
-              <ScrollArea className="flex-1">
+              {/* Messages — min-h-0 lets flex-1 actually shrink the ScrollArea
+                  (default min-height:auto would let it grow under all messages
+                  and push the composer past the card's overflow-hidden edge). */}
+              <ScrollArea className="min-h-0 flex-1">
                 <div className="flex flex-col gap-3 p-4">
                   {messagesLoading ? (
                     Array.from({ length: 4 }).map((_, i) => (
