@@ -74,6 +74,17 @@ struct MadFrogVPNApp: App {
                                 .environment(appState)
                                 .environment(themeManager)
                         }
+                        // INAPP-ANNOUNCEMENTS: a centered, dismissible card over
+                        // the home when there's an active announcement.
+                        .overlay {
+                            if let announcement = appState.activeAnnouncement {
+                                AnnouncementView(announcement: announcement)
+                                    .environment(appState)
+                                    .environment(themeManager)
+                                    .zIndex(1)
+                            }
+                        }
+                        .animation(.snappy(duration: 0.28), value: appState.activeAnnouncement)
                 } else {
                     OnboardingView()
                 }
@@ -81,6 +92,11 @@ struct MadFrogVPNApp: App {
             .environment(appState)
             .environment(themeManager)
             .task { await appState.initialize() }
+            .task(id: appState.isAuthenticated) {
+                // Fetch the active announcement once the user is authenticated
+                // (cold launch). Re-foreground is handled by the scenePhase hook.
+                if appState.isAuthenticated { await appState.loadActiveAnnouncement() }
+            }
             .task {
                 // SUPPORT-CHAT P4: wire the live AppState into the notification
                 // delegate so APNs token delivery + support-reply taps can reach
@@ -126,6 +142,7 @@ struct MadFrogVPNApp: App {
                 Task { await appState.handleScenePhaseChange(active: isActive) }
                 if isActive {
                     Task { await appState.handleForeground() }
+                    Task { await appState.loadActiveAnnouncement() } // INAPP-ANNOUNCEMENTS
                 }
             }
             .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in

@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		00E8CC66B486F5AB297A52AE /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6378A272B7EFCCF1FBCDFBFE /* KeychainHelper.swift */; };
+		01BF500F4A13282FFBD0EDDD /* Announcement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8088B4CB467F045A63443C0F /* Announcement.swift */; };
 		030161ACB3667CD2C0B7B723 /* PlatformViewExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11EBC90E3AED9A381EEA7F2F /* PlatformViewExtensions.swift */; };
 		036CD2D91F90C3AD5CCB20E3 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = CCCD550DC6BC4C053791BDB4 /* GoogleSignIn */; };
 		03D46FF6FD8EF369819CAAEC /* PlatformViewExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11EBC90E3AED9A381EEA7F2F /* PlatformViewExtensions.swift */; };
@@ -68,6 +69,7 @@
 		3AF0A8290A7215D2EF09A649 /* RoutingMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7486DEC72FBB5DD5338F158 /* RoutingMode.swift */; };
 		3BF98D7ADE7ABDDECE5AE129 /* PaywallRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFB204D1606673779D65246 /* PaywallRouter.swift */; };
 		3D5CD29E33D3D9DEAAF82763 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = 2FF6BC24091433B905A043FD /* Sentry */; };
+		3D8D0B700B30EF7E497F5252 /* AnnouncementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7942ED58C1C5E2580B179033 /* AnnouncementView.swift */; };
 		3DC5082569D21467B3C6D82B /* VPNControlIntentsBehaviorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8BA0442D38049EA8D16B48E /* VPNControlIntentsBehaviorTests.swift */; };
 		3E4CEA517362B9201ED91C6E /* ExtensionProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12590681176DC24ED028641E /* ExtensionProvider.swift */; };
 		3F7F812CF4EBD00E9969B70B /* libresolv.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = C4C20C0AE163F2C1F4C77012 /* libresolv.tbd */; };
@@ -99,6 +101,7 @@
 		648635E45417860A6FDE9488 /* EventTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 152624A9F613DE119B5A4872 /* EventTracker.swift */; };
 		65313A361B8F13E330805908 /* APIClientSensitiveFlagTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A01555D3038E7947B6CCD7 /* APIClientSensitiveFlagTests.swift */; };
 		65DA59A2CDC30F2588EF80ED /* StatusWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7E6B6FE7A966818AE262F20 /* StatusWidget.swift */; };
+		66C604DD3B3F931BFED819E7 /* Announcement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8088B4CB467F045A63443C0F /* Announcement.swift */; };
 		6796802AABB7434354F3280B /* LeafRankingStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD40F85317EC15AD9DC28123 /* LeafRankingStoreTests.swift */; };
 		6A8DE20C7A5B339770CC4E77 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0CB7FDF9EA71B70EF8E2BB5 /* MainView.swift */; };
 		6B44D4AE2C892A6DB3116CF4 /* L10n.swift in Sources */ = {isa = PBXBuildFile; fileRef = F48680996CDA6DA1906F2747 /* L10n.swift */; };
@@ -241,6 +244,7 @@
 		E99FC7119377C8BAED207807 /* AppleAuthCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A2105C436C4E871B1CFB916 /* AppleAuthCoordinator.swift */; };
 		EB087C443D026C56DB4CEC2F /* VPNManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04FC8CF248986C535F825CAB /* VPNManager.swift */; };
 		EB519AA99D0A4BC7475737BA /* LastWorkingLegStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDCBB9F4E8DCDA4AC3C58517 /* LastWorkingLegStore.swift */; };
+		EC33F5478770C0A71BD7DF4C /* AnnouncementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7942ED58C1C5E2580B179033 /* AnnouncementView.swift */; };
 		ED2932322BA67C98F3937409 /* SubscriptionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C254991A86781B863F8BA92C /* SubscriptionManager.swift */; };
 		ED5396ADB182E2FFB067DD30 /* CrashReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAC8BAE4A43BD5B41A19063D /* CrashReporter.swift */; };
 		EE042CF563179D081005D9EE /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33A809CDAD52A1FB3A57D0A1 /* Constants.swift */; };
@@ -383,8 +387,10 @@
 		7195CF498E5531209F7FAD2C /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		73394ADFC3E4785BF545DA45 /* PathPickerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PathPickerTests.swift; sourceTree = "<group>"; };
 		76804A237D70124AC33CC216 /* MadFrogVPNTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = MadFrogVPNTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		7942ED58C1C5E2580B179033 /* AnnouncementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementView.swift; sourceTree = "<group>"; };
 		7C4CD0A25B056DBC6DD6A6D8 /* CountryFlagTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountryFlagTests.swift; sourceTree = "<group>"; };
 		7C61B1AA0AC6A405D189C34B /* PlatformDevice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformDevice.swift; sourceTree = "<group>"; };
+		8088B4CB467F045A63443C0F /* Announcement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Announcement.swift; sourceTree = "<group>"; };
 		828C4AEC2AEC8A2EEB92717E /* ConfigSanitizerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigSanitizerTests.swift; sourceTree = "<group>"; };
 		84CA81E1B48C9260C55A6012 /* ApplicationServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ApplicationServices.framework; path = System/Library/Frameworks/ApplicationServices.framework; sourceTree = SDKROOT; };
 		850D3937870EEB29F3CD7BD9 /* TrafficHealthMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrafficHealthMonitorTests.swift; sourceTree = "<group>"; };
@@ -593,6 +599,7 @@
 			isa = PBXGroup;
 			children = (
 				F4EBA8BF2FC663C0650E1255 /* AccountView.swift */,
+				7942ED58C1C5E2580B179033 /* AnnouncementView.swift */,
 				B8005A0F02E6E8BBC2A49BFB /* CountryFlag.swift */,
 				3C86B933890A16DB4069C1A5 /* DebugLogsView.swift */,
 				E2BA26B8B7F99DE0D1317CFA /* EmailSignInView.swift */,
@@ -681,6 +688,7 @@
 		58ADF1794AEBE66A0770D2F0 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				8088B4CB467F045A63443C0F /* Announcement.swift */,
 				FEBE74F9DD0282A5EA7B00DE /* APIClient.swift */,
 				2A2105C436C4E871B1CFB916 /* AppleAuthCoordinator.swift */,
 				6EA1C04CBF00045661691673 /* AppState.swift */,
@@ -1042,6 +1050,8 @@
 			files = (
 				A6F4C7DE3D8BA428F4C7274E /* APIClient.swift in Sources */,
 				810BCB5D9294C89E73DD3930 /* AccountView.swift in Sources */,
+				01BF500F4A13282FFBD0EDDD /* Announcement.swift in Sources */,
+				EC33F5478770C0A71BD7DF4C /* AnnouncementView.swift in Sources */,
 				B77BC729E2F213EC14220EE7 /* AppState.swift in Sources */,
 				8E14DDF4A3DED8C5DD74F8A3 /* AppleAuthCoordinator.swift in Sources */,
 				E1C7677A6E0BD00FC7138CFC /* CommandClient.swift in Sources */,
@@ -1138,6 +1148,8 @@
 			files = (
 				C4967670CBC9B506176AAA06 /* APIClient.swift in Sources */,
 				BDF2B0388311B0C69188B3E4 /* AccountView.swift in Sources */,
+				66C604DD3B3F931BFED819E7 /* Announcement.swift in Sources */,
+				3D8D0B700B30EF7E497F5252 /* AnnouncementView.swift in Sources */,
 				A58383CFF190561236D7F7B7 /* AppState.swift in Sources */,
 				E99FC7119377C8BAED207807 /* AppleAuthCoordinator.swift in Sources */,
 				E70D83F87454714019114F62 /* CommandClient.swift in Sources */,
@@ -1542,7 +1554,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 109;
+				CURRENT_PROJECT_VERSION = 110;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = 99W3C374T2;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -1619,7 +1631,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 109;
+				CURRENT_PROJECT_VERSION = 110;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = 99W3C374T2;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;

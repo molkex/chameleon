@@ -856,6 +856,28 @@ class APIClient {
         }
     }
 
+    // MARK: - In-app announcements (INAPP-ANNOUNCEMENTS)
+
+    /// Fetch the announcements currently in their show-window. Best-effort, read
+    /// only — single request to the non-CF api host (no fallback race needed).
+    func fetchActiveAnnouncements(accessToken: String) async throws -> [Announcement] {
+        guard let url = URL(string: AppConstants.baseURL + "/api/v1/mobile/announcements/active") else {
+            throw APIError.networkError("Invalid announcements URL")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 12
+
+        let (data, response) = try await URLSession.shared.data(for: applyTelemetry(to: request))
+        guard let http = response as? HTTPURLResponse else { throw APIError.networkError("No response") }
+        if http.statusCode == 401 { throw APIError.unauthorized }
+        guard (200...299).contains(http.statusCode) else { throw APIError.serverError(http.statusCode) }
+
+        struct Resp: Decodable { let announcements: [Announcement] }
+        return try JSONDecoder().decode(Resp.self, from: data).announcements
+    }
+
     // MARK: - Subscription Verification
 
     /// Result of POST /api/mobile/subscription/verify.

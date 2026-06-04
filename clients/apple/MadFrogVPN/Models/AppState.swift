@@ -623,6 +623,37 @@ class AppState {
         pendingSupportChatOpen = true
     }
 
+    // MARK: - In-app announcements (INAPP-ANNOUNCEMENTS)
+
+    /// The announcement currently presented as a card over the home, or nil.
+    /// The root view observes this and overlays `AnnouncementView`.
+    var activeAnnouncement: Announcement?
+
+    private static let dismissedAnnouncementsKey = "dismissedAnnouncementIDs"
+
+    /// Best-effort: fetch the active announcement set and present the first one
+    /// the user hasn't dismissed. No-op while one is already showing, on a
+    /// missing token, or on any network error (announcements are non-critical).
+    func loadActiveAnnouncement() async {
+        guard activeAnnouncement == nil, let token = configStore.accessToken else { return }
+        let list = (try? await apiClient.fetchActiveAnnouncements(accessToken: token)) ?? []
+        guard !list.isEmpty else { return }
+        let dismissed = Set(UserDefaults.standard.array(forKey: Self.dismissedAnnouncementsKey) as? [Int] ?? [])
+        if let next = list.first(where: { !dismissed.contains($0.id) }) {
+            activeAnnouncement = next
+        }
+    }
+
+    /// Dismiss the shown announcement and remember it so it never reappears.
+    func dismissActiveAnnouncement() {
+        guard let ann = activeAnnouncement else { return }
+        var dismissed = UserDefaults.standard.array(forKey: Self.dismissedAnnouncementsKey) as? [Int] ?? []
+        if !dismissed.contains(ann.id) { dismissed.append(ann.id) }
+        if dismissed.count > 200 { dismissed = Array(dismissed.suffix(200)) } // bound the set
+        UserDefaults.standard.set(dismissed, forKey: Self.dismissedAnnouncementsKey)
+        activeAnnouncement = nil
+    }
+
     /// Outcome of the one-tap "Отправить лог" action so the chat view can give
     /// the user feedback (it used to fail completely silently).
     enum SupportDiagnosticResult { case sent, failed }
