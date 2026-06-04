@@ -454,6 +454,23 @@ next:
 # LATER — backlog, no current pull
 # ============================================================
 later:
+  ru_growth:
+    - id: RU-EXPANSION
+      title: RU client acquisition — more channels without risking the main Apple account
+      priority: P1
+      plan: docs/plans/ru-expansion.html   # detailed visual plan (3 tracks + phases)
+      constraint: |
+        Single Apple Developer account (no separate account available). So NO iOS
+        burner-app churn — a pack of similar VPN apps trips Guideline 4.3 (spam) and
+        Apple terminates the WHOLE account, killing the live MadFrog. Burner churn
+        belongs OFF the Apple account (Android/RuStore) or off-store (Telegram).
+      tracks:
+        - "A · iOS (safe, ~1-2d): ONE extra RU App Store listing — new bundle + distinct store identity (name w/o 'VPN', icon, screenshots), same backend via an XcodeGen variant target; RU onboarding → FreeKassa/SBP. Max 1 on the account; don't clone-republish."
+        - "B · Android + RuStore (scale, ~2-4w): the real churn channel — RuStore tolerates VPN, free dev account on the ИП, separate from Apple. New Android client (sing-box/Hiddify fork or Kotlin+libbox) on the existing backend/VLESS. Bonus: Google Play."
+        - "C · Telegram/web direct (quick, ~2-3d, zero risk): @MadFrogRobot already exists — sell sub + hand out config in the bot + landing."
+      benchmark: "~300 downloads / 12 payments / 2-day window (~4% conv); optimize RU funnel → 6-8%."
+      next: "Phase 1 = Track A (iOS variant target) + Track C (Telegram) in parallel; Phase 2 = Track B (Android+RuStore)."
+
   features:
     - Kill switch UI toggle (NEOnDemandRule exists, expose in Settings)
     - Live traffic stats (Clash API already tracks, render in UI)

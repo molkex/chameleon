@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ru"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MadFrog · План экспансии RU</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root{--accent:#7cff6b;--pink:#ff4d9d;--cyan:#5cc8ff;--amber:#ffc24d}
+  body{background:radial-gradient(120% 80% at 50% -10%,#0b2018,#05140d 55%);color:#eafff0;
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif}
+  .card{background:linear-gradient(180deg,#12241b,#0f1b15);border:1px solid rgba(124,255,107,.14)}
+  .glow{text-shadow:0 0 18px rgba(124,255,107,.45)}
+  .chip{font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px}
+  .step{position:relative;padding-left:20px}
+  .step::before{content:"";position:absolute;left:2px;top:8px;width:7px;height:7px;border-radius:50%;background:var(--accent)}
+  h2{letter-spacing:.3px}
+</style></head>
+<body class="px-5 py-8 md:px-10">
+<div class="max-w-5xl mx-auto">
+
+  <!-- HEADER -->
+  <div class="flex items-center gap-3 mb-1">
+    <span class="text-3xl">🐸</span>
+    <h1 class="text-3xl font-extrabold glow">MadFrog · План экспансии RU</h1>
+  </div>
+  <p class="text-sm text-[#8aa595] mb-6">Цель: больше RU-клиентов · Ограничение: один Apple-аккаунт · Принцип: основной MadFrog (live) держим вне риска · ред. 2026-06-04</p>
+
+  <!-- CONSTRAINT BANNER -->
+  <div class="rounded-2xl p-4 mb-8" style="background:rgba(255,77,157,.10);border:1px solid rgba(255,77,157,.35)">
+    <div class="flex items-start gap-3">
+      <span class="text-xl">⛔</span>
+      <div>
+        <div class="font-bold text-[#ff8ac0]">Жёсткое правило №1 — не churn'им iOS на общем аккаунте</div>
+        <p class="text-sm text-[#d8b5c6] mt-1 leading-relaxed">РКН-снятие аккаунт не банит. Но пачка похожих VPN-приложений = <b>Guideline 4.3 (spam)</b> → Apple терминирует <b>весь аккаунт</b>, включая live-MadFrog с выручкой. Матожидание плохое: +пара сотен скачиваний vs −весь бизнес. Поэтому конвейер burner'ов — только вне Apple-аккаунта (Android/RuStore) или вне сторов (Telegram).</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3 TRACKS -->
+  <h2 class="text-xl font-bold mb-3">Три трека</h2>
+  <div class="grid md:grid-cols-3 gap-4 mb-10">
+
+    <!-- TRACK A -->
+    <div class="card rounded-2xl p-5">
+      <div class="flex items-center justify-between mb-2">
+        <span class="chip" style="background:rgba(124,255,107,.16);color:var(--accent)">A · iOS</span>
+        <span class="chip" style="background:rgba(255,194,77,.16);color:var(--amber)">риск: средний</span>
+      </div>
+      <div class="text-lg font-bold mb-1">+1 RU-витрина в App Store</div>
+      <p class="text-xs text-[#8aa595] mb-3">Безопасно · быстро · ~1–2 дня</p>
+      <div class="space-y-1.5 text-sm text-[#cfe9d8]">
+        <div class="step">Новый bundle + <b>другая витрина</b>: имя (без «VPN»), иконка, скрины, описание</div>
+        <div class="step">XcodeGen вариант-таргет: параметры бренда → та же кодовая база</div>
+        <div class="step">RU-онбординг в 1 экран → <b>FreeKassa/СБП</b> + таймер-оффер</div>
+        <div class="step">Бренд MadFrog — внутри, после установки</div>
+        <div class="step">После снятия — <b>не клонировать сразу</b> (это 4.3-триггер)</div>
+      </div>
+      <div class="mt-3 pt-3 border-t border-[#1e3a2a] text-xs text-[#8aa595]">переиспользуем <b class="text-[#eafff0]">~95% кода</b> + весь backend · <b class="text-[#ff8ac0]">максимум 1</b> доп. iOS-app на аккаунте</div>
+    </div>
+
+    <!-- TRACK B -->
+    <div class="card rounded-2xl p-5" style="border-color:rgba(92,200,255,.22)">
+      <div class="flex items-center justify-between mb-2">
+        <span class="chip" style="background:rgba(92,200,255,.16);color:var(--cyan)">B · Android</span>
+        <span class="chip" style="background:rgba(124,255,107,.16);color:var(--accent)">риск: низкий</span>
+      </div>
+      <div class="text-lg font-bold mb-1">Android + RuStore = масштаб</div>
+      <p class="text-xs text-[#8aa595] mb-3">Настоящий churn-канал · ~2–4 недели</p>
+      <div class="space-y-1.5 text-sm text-[#cfe9d8]">
+        <div class="step">RuStore <b>терпит VPN</b> (не снимает) · аккаунт <b>бесплатный</b>, на ИП — отдельно от Apple</div>
+        <div class="step">Android-клиент: форк sing-box/Hiddify под наш backend, либо Kotlin + libbox</div>
+        <div class="step">Auth (наш JWT API), подписка (FreeKassa веб), конфиг (/mobile/config), relays</div>
+        <div class="step">Гнать пачками / обновлять без РКН-снятий</div>
+        <div class="step">Бонус: Google Play — международный охват</div>
+      </div>
+      <div class="mt-3 pt-3 border-t border-[#173042] text-xs text-[#8aa595]">backend <b class="text-[#eafff0]">100%</b> + VPN-протокол <b class="text-[#eafff0]">100%</b> · UI — заново · <b class="text-[#5cc8ff]">новая платформа</b></div>
+    </div>
+
+    <!-- TRACK C -->
+    <div class="card rounded-2xl p-5">
+      <div class="flex items-center justify-between mb-2">
+        <span class="chip" style="background:rgba(124,255,107,.16);color:var(--accent)">C · Direct</span>
+        <span class="chip" style="background:rgba(124,255,107,.16);color:var(--accent)">риск: ноль</span>
+      </div>
+      <div class="text-lg font-bold mb-1">Telegram / сайт напрямую</div>
+      <p class="text-xs text-[#8aa595] mb-3">Быстрый прирост · ~2–3 дня</p>
+      <div class="space-y-1.5 text-sm text-[#cfe9d8]">
+        <div class="step"><b>@MadFrogRobot</b> уже есть: продажа подписки + выдача конфига в боте</div>
+        <div class="step">Лендинг: оплата + инструкция установки (профиль/ссылка)</div>
+        <div class="step">Промо в RU-каналах / посевы</div>
+        <div class="step">Ловит самых мотивированных — нулевой риск для аккаунтов</div>
+      </div>
+      <div class="mt-3 pt-3 border-t border-[#1e3a2a] text-xs text-[#8aa595]">backend <b class="text-[#eafff0]">100%</b> · бот <b class="text-[#eafff0]">есть</b> · усилить дёшево</div>
+    </div>
+  </div>
+
+  <!-- TIMELINE -->
+  <h2 class="text-xl font-bold mb-3">План по фазам</h2>
+  <div class="space-y-3 mb-10">
+    <div class="card rounded-xl p-4 flex gap-4 items-start">
+      <span class="chip mt-0.5" style="background:rgba(124,255,107,.16);color:var(--accent)">Фаза 1 · неделя 1</span>
+      <div class="text-sm text-[#cfe9d8]"><b>Быстрые безопасные победы.</b> Трек A (+1 iOS-витрина) + Трек C (усилить Telegram/сайт). Параллельно. Минимум риска, максимум скорости — данные о конверсии собираем сразу.</div>
+    </div>
+    <div class="card rounded-xl p-4 flex gap-4 items-start" style="border-color:rgba(92,200,255,.22)">
+      <span class="chip mt-0.5" style="background:rgba(92,200,255,.16);color:var(--cyan)">Фаза 2 · недели 2–4</span>
+      <div class="text-sm text-[#cfe9d8]"><b>Масштаб без риска для Apple.</b> Трек B — Android-клиент + RuStore-аккаунт на ИП. Это даёт настоящий «burner»-конвейер, которого нельзя на iOS. Backend/протокол уже готовы — работа в Android-шелле.</div>
+    </div>
+    <div class="card rounded-xl p-4 flex gap-4 items-start">
+      <span class="chip mt-0.5" style="background:rgba(255,194,77,.16);color:var(--amber)">Фаза 3 · далее</span>
+      <div class="text-sm text-[#cfe9d8]"><b>Оптимизация воронки + повтор.</b> A/B онбординга, таймер-офферы, ретеншн. Android-пачки на RuStore по накатанному. iOS-витрину переподавать только с изменениями.</div>
+    </div>
+  </div>
+
+  <!-- FUNNEL ECONOMICS -->
+  <div class="grid md:grid-cols-2 gap-4 mb-10">
+    <div class="card rounded-2xl p-5">
+      <div class="font-bold mb-2">📊 Текущий бенчмарк (твои данные)</div>
+      <div class="flex items-end gap-6">
+        <div><div class="text-3xl font-extrabold glow">300+</div><div class="text-xs text-[#8aa595]">скачиваний / 2 дня</div></div>
+        <div><div class="text-3xl font-extrabold glow">12</div><div class="text-xs text-[#8aa595]">оплат</div></div>
+        <div><div class="text-3xl font-extrabold" style="color:var(--cyan)">~4%</div><div class="text-xs text-[#8aa595]">конверсия</div></div>
+      </div>
+      <p class="text-xs text-[#8aa595] mt-3">Окно жизни ~2 суток → воронку надо выжимать сразу.</p>
+    </div>
+    <div class="card rounded-2xl p-5">
+      <div class="font-bold mb-2">🎯 Что поднимаем конверсию</div>
+      <div class="space-y-1.5 text-sm text-[#cfe9d8]">
+        <div class="step">RU-онбординг в 1 экран (без лишних шагов)</div>
+        <div class="step">FreeKassa/СБП сразу, без Apple-IAP трения</div>
+        <div class="step">Таймер-оффер «−50% сегодня»</div>
+        <div class="step">Цель: <b>4% → 6–8%</b></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACCOUNT SAFETY -->
+  <div class="rounded-2xl p-5 mb-10" style="background:rgba(255,77,157,.07);border:1px solid rgba(255,77,157,.28)">
+    <div class="font-bold text-[#ff8ac0] mb-2">🛡 Правила безопасности аккаунта</div>
+    <div class="grid md:grid-cols-2 gap-x-8 gap-y-1.5 text-sm text-[#d8b5c6]">
+      <div class="step" style="--accent:var(--pink)">Основной MadFrog (international) — не трогаем, держим «чистым»</div>
+      <div class="step" style="--accent:var(--pink)">Максимум +1 iOS-app на этом аккаунте, не клонировать</div>
+      <div class="step" style="--accent:var(--pink)">Churn — только Android/RuStore (свой аккаунт) или Telegram</div>
+      <div class="step" style="--accent:var(--pink)">Слово «VPN» — не в названии iOS-листинга (РКН/Apple-скан)</div>
+    </div>
+  </div>
+
+  <!-- RECOMMENDATION -->
+  <div class="card rounded-2xl p-5" style="border-color:rgba(124,255,107,.3)">
+    <div class="font-bold text-[var(--accent)] mb-2">✅ Рекомендация — порядок захода</div>
+    <ol class="space-y-2 text-sm text-[#cfe9d8] list-decimal list-inside">
+      <li><b>Сейчас:</b> Трек A (вариант-таргет iOS, ~часы) + Трек C (Telegram) — быстро и безопасно.</li>
+      <li><b>Масштаб:</b> Трек B (Android + RuStore) — настоящий churn-канал без угрозы Apple.</li>
+      <li><b>Дальше:</b> оптимизация воронки и повтор по накатанному.</li>
+    </ol>
+  </div>
+
+  <p class="text-center text-xs text-[#5a6f63] mt-8">MadFrog · стратегия RU · этот файл живёт в docs/plans/ru-expansion.html</p>
+</div>
+</body></html>
