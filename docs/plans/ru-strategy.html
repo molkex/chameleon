@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="ru"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MadFrog — Стратегия расширения на рынке России</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,360;9..144,460;9..144,560&family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0d0b; --bg2:#0d110e; --panel:#11150f;
+    --ink:#ece8dc; --ink-soft:#c8c8bd; --mut:#878d80; --faint:#5c6258;
+    --line:rgba(236,232,220,.10); --line-2:rgba(236,232,220,.18);
+    --accent:#b6d98a;            /* restrained signal green */
+    --gold:#d6b269;              /* secondary, for data accents */
+    --risk-low:#9fc27a; --risk-mid:#d2b15e; --risk-high:#cf8a8a;
+    --serif:"Fraunces",Georgia,serif;
+    --sans:"Archivo",system-ui,sans-serif;
+    --mono:"IBM Plex Mono",ui-monospace,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--bg); color:var(--ink); font-family:var(--sans);
+    -webkit-font-smoothing:antialiased; line-height:1.6;
+    background-image:
+      radial-gradient(60% 40% at 85% -5%, rgba(182,217,138,.05), transparent 60%),
+      radial-gradient(50% 35% at 0% 8%, rgba(214,178,105,.04), transparent 60%);
+  }
+  /* faint grain */
+  body::before{
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0; opacity:.025;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .wrap{position:relative; z-index:1; max-width:980px; margin:0 auto; padding:0 28px 120px}
+
+  /* ── masthead ── */
+  header.mast{padding:80px 0 44px; border-bottom:1px solid var(--line-2)}
+  .kicker{font-family:var(--mono); font-size:11.5px; letter-spacing:.34em; text-transform:uppercase; color:var(--accent)}
+  .mast h1{font-family:var(--serif); font-weight:460; font-size:clamp(40px,7vw,76px); line-height:1.02;
+    letter-spacing:-.015em; margin:20px 0 0; max-width:14ch}
+  .mast h1 em{font-style:italic; color:var(--gold)}
+  .standfirst{font-family:var(--serif); font-weight:360; font-size:clamp(17px,2.1vw,21px); line-height:1.5;
+    color:var(--ink-soft); max-width:54ch; margin:24px 0 0}
+  .mast .meta{font-family:var(--mono); font-size:11.5px; color:var(--faint); letter-spacing:.06em; margin-top:28px;
+    display:flex; gap:22px; flex-wrap:wrap}
+
+  /* ── section scaffold ── */
+  section{padding:56px 0; border-bottom:1px solid var(--line)}
+  .sec-head{display:flex; align-items:baseline; gap:18px; margin-bottom:26px}
+  .sec-no{font-family:var(--mono); font-size:13px; color:var(--accent); letter-spacing:.1em}
+  .sec-title{font-family:var(--serif); font-weight:460; font-size:clamp(22px,3vw,30px); letter-spacing:-.01em; margin:0}
+  .lead{font-size:17px; color:var(--ink-soft); max-width:66ch}
+  .lead.big{font-family:var(--serif); font-weight:360; font-size:clamp(18px,2.2vw,22px); line-height:1.55; color:var(--ink); max-width:60ch}
+  strong{color:var(--ink); font-weight:600}
+
+  /* ── constraint callout ── */
+  .callout{border:1px solid var(--line-2); border-left:2px solid var(--risk-high);
+    background:linear-gradient(180deg,rgba(207,138,138,.05),transparent); padding:26px 28px; margin-top:8px}
+  .callout .tag{font-family:var(--mono); font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:var(--risk-high)}
+  .callout p{margin:12px 0 0; color:var(--ink-soft); font-size:16px; max-width:70ch}
+
+  /* ── directions ── */
+  .dir{padding:38px 0; border-top:1px solid var(--line)}
+  .dir:first-of-type{border-top:none}
+  .dir-top{display:grid; grid-template-columns:1fr auto; gap:24px; align-items:start}
+  .dir-id{font-family:var(--mono); font-size:13px; color:var(--gold); letter-spacing:.14em; display:block; margin-bottom:8px}
+  .dir-title{font-family:var(--serif); font-weight:500; font-size:clamp(24px,3.4vw,34px); line-height:1.05; letter-spacing:-.01em; margin:0}
+  .dir-suite{font-size:16.5px; color:var(--ink-soft); margin:14px 0 0; max-width:62ch}
+  /* params card */
+  .params{font-family:var(--mono); font-size:12px; min-width:204px; border:1px solid var(--line);
+    background:var(--panel); padding:16px 18px}
+  .prow{display:flex; justify-content:space-between; gap:14px; padding:7px 0; border-bottom:1px solid var(--line)}
+  .prow:last-child{border-bottom:none}
+  .prow .k{color:var(--mut); letter-spacing:.04em}
+  .prow .v{color:var(--ink)}
+  .meter{display:flex; gap:4px; margin-top:2px}
+  .seg{width:22px; height:6px; background:rgba(236,232,220,.12)}
+  .seg.on-low{background:var(--risk-low)} .seg.on-mid{background:var(--risk-mid)} .seg.on-high{background:var(--risk-high)}
+  /* three-col detail */
+  .grid3{display:grid; grid-template-columns:repeat(3,1fr); gap:30px; margin-top:26px}
+  .col h4{font-family:var(--mono); font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--accent); margin:0 0 12px; font-weight:500}
+  .col.minus h4{color:var(--mut)}
+  .col ul{list-style:none; margin:0; padding:0}
+  .col li{font-size:14.5px; color:var(--ink-soft); padding:0 0 10px 16px; position:relative; line-height:1.5}
+  .col li::before{content:""; position:absolute; left:0; top:9px; width:6px; height:1px; background:var(--accent)}
+  .col.minus li::before{background:var(--faint)}
+
+  /* ── timeline ── */
+  .phase{display:grid; grid-template-columns:170px 1fr; gap:28px; padding:22px 0; border-top:1px solid var(--line)}
+  .phase:first-of-type{border-top:none}
+  .phase .when{font-family:var(--mono); font-size:12px; color:var(--accent); letter-spacing:.06em}
+  .phase .when .ph{display:block; font-size:24px; font-family:var(--serif); color:var(--ink); letter-spacing:0; margin-bottom:4px; font-weight:460}
+  .phase .what{font-size:16px; color:var(--ink-soft); max-width:64ch}
+
+  /* ── economics ── */
+  .econ{display:grid; grid-template-columns:1.1fr 1fr; gap:0; border:1px solid var(--line-2)}
+  .econ > div{padding:30px 32px}
+  .econ .now{border-right:1px solid var(--line)}
+  .metrics{display:flex; gap:34px; flex-wrap:wrap; align-items:flex-end}
+  .metric .fig{font-family:var(--serif); font-weight:500; font-size:46px; line-height:1; letter-spacing:-.02em; font-variant-numeric:tabular-nums}
+  .metric .fig.accent{color:var(--accent)}
+  .metric .fig .u{font-size:24px; color:var(--mut)}
+  .metric .lab{font-family:var(--mono); font-size:11px; color:var(--mut); letter-spacing:.08em; margin-top:8px; text-transform:uppercase}
+  .levers{margin:0; padding:0; list-style:none}
+  .levers li{font-size:14.5px; color:var(--ink-soft); padding:8px 0 8px 18px; position:relative; border-bottom:1px solid var(--line)}
+  .levers li:last-child{border-bottom:none}
+  .levers li::before{content:"→"; position:absolute; left:0; color:var(--gold); font-family:var(--mono); font-size:13px}
+
+  /* ── principles ── */
+  .principles{counter-reset:p; display:grid; grid-template-columns:1fr 1fr; gap:0 40px}
+  .principles div{counter-increment:p; padding:16px 0; border-top:1px solid var(--line); font-size:15px; color:var(--ink-soft); position:relative; padding-left:38px}
+  .principles div::before{content:"0" counter(p); position:absolute; left:0; top:16px; font-family:var(--mono); font-size:12px; color:var(--gold)}
+
+  /* ── recommendation ── */
+  .reco{border:1px solid var(--accent); border-radius:0; padding:34px 36px; margin-top:8px;
+    background:linear-gradient(180deg,rgba(182,217,138,.05),transparent)}
+  .reco .tag{font-family:var(--mono); font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:var(--accent)}
+  .reco p{font-family:var(--serif); font-weight:360; font-size:clamp(19px,2.4vw,25px); line-height:1.45; color:var(--ink); margin:14px 0 0; max-width:54ch}
+
+  footer{padding-top:40px; font-family:var(--mono); font-size:11px; color:var(--faint); letter-spacing:.06em;
+    display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px}
+
+  /* ── entrance motion ── */
+  @media (prefers-reduced-motion:no-preference){
+    .reveal{opacity:0; transform:translateY(14px); animation:rise .9s cubic-bezier(.2,.7,.2,1) forwards}
+    @keyframes rise{to{opacity:1; transform:none}}
+  }
+  @media (max-width:760px){
+    .dir-top{grid-template-columns:1fr} .grid3{grid-template-columns:1fr; gap:22px}
+    .econ{grid-template-columns:1fr} .econ .now{border-right:none; border-bottom:1px solid var(--line)}
+    .phase{grid-template-columns:1fr; gap:8px} .principles{grid-template-columns:1fr}
+  }
+</style></head>
+<body>
+<div class="wrap">
+
+  <!-- MASTHEAD -->
+  <header class="mast reveal">
+    <div class="kicker">MadFrog — внутренний документ</div>
+    <h1>Расширение на рынке <em>России</em></h1>
+    <p class="standfirst">Привлечение пользователей в условиях блокировок и ограничений магазинов приложений — без угрозы для основного бизнеса.</p>
+    <div class="meta"><span>Версия 1.0</span><span>4 июня 2026</span><span>Конфиденциально</span></div>
+  </header>
+
+  <!-- 00 SUMMARY -->
+  <section class="reveal" style="animation-delay:.05s">
+    <div class="sec-head"><span class="sec-no">00</span><h2 class="sec-title">Краткое резюме</h2></div>
+    <p class="lead big">Основное приложение работает и приносит выручку, но в российском App Store держится около двух суток до снятия по требованию регулятора. За это окно одна публикация даёт порядка 300 установок и 12 оплат. Задача — масштабировать привлечение, не подвергая риску основной аккаунт. Ниже — три направления дистрибуции, ранжированные по риску и отдаче, и план запуска по фазам.</p>
+  </section>
+
+  <!-- 01 CONSTRAINT -->
+  <section class="reveal" style="animation-delay:.1s">
+    <div class="sec-head"><span class="sec-no">01</span><h2 class="sec-title">Контекст и ключевое ограничение</h2></div>
+    <p class="lead" style="margin-bottom:22px">Снятие приложения по требованию регулятора само по себе не наказывает аккаунт разработчика — это исполнение Apple внешнего предписания. Риск иной природы.</p>
+    <div class="callout">
+      <div class="tag">Ограничение</div>
+      <p>Доступен <strong>один</strong> аккаунт Apple. Серия похожих публикаций трактуется по правилу <strong>4.3 (дубли / спам)</strong> и ведёт к блокировке всего аккаунта — вместе с работающим основным приложением. Следствие: поток одноразовых публикаций недопустим в Apple и должен жить <strong>вне его</strong> — на Android / RuStore или вне магазинов. Основное приложение остаётся изолированным.</p>
+    </div>
+  </section>
+
+  <!-- 02 DIRECTIONS -->
+  <section class="reveal" style="animation-delay:.15s">
+    <div class="sec-head"><span class="sec-no">02</span><h2 class="sec-title">Направления</h2></div>
+
+    <!-- I -->
+    <article class="dir">
+      <div class="dir-top">
+        <div>
+          <span class="dir-id">Направление I</span>
+          <h3 class="dir-title">Дополнительная витрина в App Store</h3>
+          <p class="dir-suite">Одна новая публикация в Apple под отдельным именем, иконкой и описанием; внутри — та же кодовая база и инфраструктура.</p>
+        </div>
+        <div class="params">
+          <div class="prow"><span class="k">Трудозатраты</span><span class="v">низкие</span></div>
+          <div class="prow"><span class="k">Срок</span><span class="v">1–2 дня</span></div>
+          <div class="prow"><span class="k">Переиспользование</span><span class="v">~95%</span></div>
+          <div class="prow"><span class="k">Риск</span><span class="meter"><i class="seg on-mid"></i><i class="seg on-mid"></i><i class="seg"></i></span></div>
+        </div>
+      </div>
+      <div class="grid3">
+        <div class="col"><h4>Что даёт</h4><ul><li>Второй канал привлечения в самом ёмком магазине</li><li>Быстрый запуск на готовой кодовой базе</li></ul></div>
+        <div class="col"><h4>Плюсы</h4><ul><li>Переиспользует почти весь код и бэкенд</li><li>Знакомая среда публикации и оплаты</li></ul></div>
+        <div class="col minus"><h4>Ограничения</h4><ul><li>Окно жизни около двух суток</li><li>На общем аккаунте допустима только одна такая витрина</li><li>Нельзя клонировать после снятия</li></ul></div>
+      </div>
+    </article>
+
+    <!-- II -->
+    <article class="dir">
+      <div class="dir-top">
+        <div>
+          <span class="dir-id">Направление II</span>
+          <h3 class="dir-title">Android и RuStore</h3>
+          <p class="dir-suite">Клиент под Android, опубликованный в RuStore. Отдельный бесплатный аккаунт разработчика, оформленный на ИП и не связанный с Apple.</p>
+        </div>
+        <div class="params">
+          <div class="prow"><span class="k">Трудозатраты</span><span class="v">высокие</span></div>
+          <div class="prow"><span class="k">Срок</span><span class="v">2–4 недели</span></div>
+          <div class="prow"><span class="k">Переиспользование</span><span class="v">бэкенд 100%</span></div>
+          <div class="prow"><span class="k">Риск</span><span class="meter"><i class="seg on-low"></i><i class="seg"></i><i class="seg"></i></span></div>
+        </div>
+      </div>
+      <div class="grid3">
+        <div class="col"><h4>Что даёт</h4><ul><li>Устойчивый канал масштабирования</li><li>Допустим поток публикаций без угрозы для Apple</li></ul></div>
+        <div class="col"><h4>Плюсы</h4><ul><li>RuStore терпим к VPN — не снимает</li><li>Аккаунт отделён от Apple</li><li>Бэкенд и протокол уже готовы</li><li>Бонусом — выход в Google Play на мировой рынок</li></ul></div>
+        <div class="col minus"><h4>Ограничения</h4><ul><li>Новая платформа — нужен Android-клиент</li><li>Срок до месяца, интерфейс с нуля</li></ul></div>
+      </div>
+    </article>
+
+    <!-- III -->
+    <article class="dir">
+      <div class="dir-top">
+        <div>
+          <span class="dir-id">Направление III</span>
+          <h3 class="dir-title">Прямая дистрибуция — Telegram и сайт</h3>
+          <p class="dir-suite">Продажа подписки и выдача конфигурации напрямую через бот @MadFrogRobot и сайт. Пользователь подключается в стороннем клиенте по ссылке; собственное приложение в магазине не требуется.</p>
+        </div>
+        <div class="params">
+          <div class="prow"><span class="k">Трудозатраты</span><span class="v">низкие</span></div>
+          <div class="prow"><span class="k">Срок</span><span class="v">2–3 дня</span></div>
+          <div class="prow"><span class="k">Переиспользование</span><span class="v">бэкенд 100%</span></div>
+          <div class="prow"><span class="k">Риск</span><span class="meter"><i class="seg"></i><i class="seg"></i><i class="seg"></i></span></div>
+        </div>
+      </div>
+      <div class="grid3">
+        <div class="col"><h4>Что даёт</h4><ul><li>Канал с нулевым риском снятия</li><li>Самый короткий запуск</li></ul></div>
+        <div class="col"><h4>Плюсы</h4><ul><li>Нет публикации — нечего блокировать</li><li>Бот и выдача конфигов уже работают</li><li>Самая мотивированная аудитория</li></ul></div>
+        <div class="col minus"><h4>Ограничения</h4><ul><li>Выше порог входа: сторонний клиент + импорт ссылки</li><li>Ниже охват «холодной» аудитории</li></ul></div>
+      </div>
+    </article>
+  </section>
+
+  <!-- 03 TIMELINE -->
+  <section class="reveal" style="animation-delay:.2s">
+    <div class="sec-head"><span class="sec-no">03</span><h2 class="sec-title">План по фазам</h2></div>
+    <div class="phase"><div class="when"><span class="ph">Фаза 1</span>неделя 1</div><div class="what"><strong>Быстрые безопасные победы.</strong> Направления I и III параллельно — выручка с минимальным риском и сбор данных по конверсии для последующей оптимизации.</div></div>
+    <div class="phase"><div class="when"><span class="ph">Фаза 2</span>недели 2–4</div><div class="what"><strong>Масштаб вне риска Apple.</strong> Направление II — Android-клиент и аккаунт RuStore. Опора для потока публикаций; бэкенд и протокол переиспользуются.</div></div>
+    <div class="phase"><div class="when"><span class="ph">Фаза 3</span>далее</div><div class="what"><strong>Оптимизация и тиражирование.</strong> Улучшение воронки, повтор по отлаженной схеме; iOS-витрина переподаётся только с содержательными изменениями.</div></div>
+  </section>
+
+  <!-- 04 ECONOMICS -->
+  <section class="reveal" style="animation-delay:.25s">
+    <div class="sec-head"><span class="sec-no">04</span><h2 class="sec-title">Юнит-экономика</h2></div>
+    <div class="econ">
+      <div class="now">
+        <div class="metrics">
+          <div class="metric"><div class="fig">300<span class="u">+</span></div><div class="lab">установок / 2 суток</div></div>
+          <div class="metric"><div class="fig">12</div><div class="lab">оплат</div></div>
+          <div class="metric"><div class="fig accent">4<span class="u">%</span></div><div class="lab">конверсия сейчас</div></div>
+        </div>
+        <p class="lead" style="font-size:14.5px; margin-top:22px; color:var(--mut)">Текущий ориентир с одной публикации. Короткое окно жизни требует выжимать воронку немедленно.</p>
+      </div>
+      <div>
+        <div class="metric" style="margin-bottom:18px"><div class="fig accent">6–8<span class="u">%</span></div><div class="lab">цель по конверсии</div></div>
+        <ul class="levers">
+          <li>Вход в один экран, без лишних шагов</li>
+          <li>Оплата картой / СБП без задержек магазина</li>
+          <li>Ограниченное по времени предложение</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 PRINCIPLES -->
+  <section class="reveal" style="animation-delay:.3s">
+    <div class="sec-head"><span class="sec-no">05</span><h2 class="sec-title">Принципы безопасности</h2></div>
+    <div class="principles">
+      <div>Основное приложение изолировано и не участвует в экспериментах.</div>
+      <div>Не более одной дополнительной витрины в Apple; без повторного клонирования.</div>
+      <div>Поток публикаций — только вне Apple (Android / RuStore) или вне магазинов.</div>
+      <div>Слово «VPN» не выносится в название публикации в Apple.</div>
+    </div>
+  </section>
+
+  <!-- 06 RECOMMENDATION -->
+  <section class="reveal" style="animation-delay:.35s; border-bottom:none">
+    <div class="sec-head"><span class="sec-no">06</span><h2 class="sec-title">Рекомендация</h2></div>
+    <div class="reco">
+      <div class="tag">Порядок захода</div>
+      <p>Начать с направлений I и III немедленно — быстрая безопасная выручка. Направление II развернуть как опору для масштабирования. Основной аккаунт держать вне риска.</p>
+    </div>
+  </section>
+
+  <footer>
+    <span>MadFrog · Стратегия RU</span>
+    <span>docs/plans/ru-strategy.html</span>
+  </footer>
+</div>
+</body></html>
