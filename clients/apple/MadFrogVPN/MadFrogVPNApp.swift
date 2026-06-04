@@ -98,6 +98,11 @@ struct MadFrogVPNApp: App {
                 if appState.isAuthenticated { await appState.loadActiveAnnouncement() }
             }
             .task {
+                // Clear any leftover app-icon badge on cold launch (a support push
+                // set badge:1 while the app was closed). scenePhase covers re-foreground.
+                try? await UNUserNotificationCenter.current().setBadgeCount(0)
+            }
+            .task {
                 // SUPPORT-CHAT P4: wire the live AppState into the notification
                 // delegate so APNs token delivery + support-reply taps can reach
                 // it. The delegate is a process-lifetime singleton; the link is
@@ -143,6 +148,9 @@ struct MadFrogVPNApp: App {
                 if isActive {
                     Task { await appState.handleForeground() }
                     Task { await appState.loadActiveAnnouncement() } // INAPP-ANNOUNCEMENTS
+                    // A support-reply push sets the app-icon badge to 1; clear it
+                    // when the user opens the app (it has no in-app meaning once seen).
+                    Task { try? await UNUserNotificationCenter.current().setBadgeCount(0) }
                 }
             }
             .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
