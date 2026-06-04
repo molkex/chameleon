@@ -55,11 +55,11 @@ versions:
   # review is untouched; 1.0.30 App Store submission is a separate later step.
   testflight:
     version: "1.0.31"
-    build: 108                        # iOS; assigned to Internal Testers
-    processingState: PROCESSING       # uploaded 2026-06-04 ~14:58Z, VALID poll in flight
-    build_uploaded: 2026-06-04T~14:58Z (iOS)
+    build: 109                        # iOS; assigned to Internal Testers (108 superseded untested)
+    processingState: PROCESSING       # uploaded 2026-06-04 ~16:55Z, VALID poll in flight
+    build_uploaded: 2026-06-04T~16:55Z (iOS)
     ships:
-      - SUPPORT-CHAT-POLISH (diag confirm → alert; widget welcome/day-separators/file-bubble)
+      - SUPPORT-CHAT-POLISH (diag confirm → alert; widget welcome/day-separators/file-bubble; branded log filename madfrog-log-*)
       - SUPPORT-CHAT-LOGFIX (b107: diag "Отправить лог" — fresh token + real singbox.log attach)
       - (cumulative 1.0.31 train) support chat P2-P4, attachments, APNs push, widget-timer, FR-SELECT
     groups:

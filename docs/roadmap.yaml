@@ -497,8 +497,8 @@ deferred:
 done:
   "2026-06-04":
     - id: SUPPORT-CHAT-POLISH
-      title: Chat polish — diag confirm alert, widget welcome/day-separators/file-bubble, admin close-reopen + filter + canned replies
-      status: shipped   # admin DEPLOYED+verified live on NL; iOS/widget on TestFlight build 108
+      title: Chat polish — diag confirm alert, widget welcome/day-separators/file-bubble, branded log filename, admin close-reopen + filter + canned replies
+      status: shipped   # admin DEPLOYED+verified live on NL; iOS/widget on TestFlight build 109 (108 superseded untested)
       files:
         - clients/apple/MadFrogVPN/Views/SupportChatView.swift   # confirmationDialog → alert
         - clients/widget/index.html                              # welcome-on-empty, day separators, file-bubble (caption-above + meta column)
@@ -517,6 +517,9 @@ done:
           for FILE attachments the caption now renders ABOVE the chip so "diagnostic
           text + singbox.log" reads as ONE message (confirmed one DB row: body +
           attachment — the "two messages" was purely visual).
+        - branded log filename (build 109): the upload was named "singbox.log"
+          (leaks the engine, not unique) → AppState.diagnosticLogFilename() =
+          "madfrog-log-<yyyyMMdd-HHmmss>.log" (on-disk file unchanged). Unit-tested.
         Admin inbox (deployed to NL + verified live — endpoint 403 unauth like /reply,
         asset serves "Закрыть"/"Быстрые ответы"):
         - close (resolve) / reopen a thread: POST /admin/support/threads/:id/status,

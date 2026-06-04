@@ -30,7 +30,7 @@ product:
   app_store:                   # canonical: state/app-store.yaml
     live:        {version: "1.0.29", build: 101, state: READY_FOR_SALE}   # APPROVED 2026-06-02 (account-demote P0 + crash-on-connect + Auto card + UI-FLAG-HOME)
     in_review:   {version: "1.0.30", build: 102, state: WAITING_FOR_REVIEW}  # iOS, submitted 2026-06-04 (KEYCHAIN-MACOS fix; AFTER_APPROVAL auto-release)
-    testflight:  {version: "1.0.31", build: 108, state: IN_BETA_TESTING}  # iOS, Internal Testers 2026-06-04 — b108: chat polish (diag confirm alert + widget welcome/day-sep/file-bubble). b107 diag "Отправить лог" fix, b106 APNs push (P4), b105 diagnostic+attachments, b104 dup+token fixes, b103 first chat test.
+    testflight:  {version: "1.0.31", build: 109, state: IN_BETA_TESTING}  # iOS, Internal Testers 2026-06-04 — b109: chat polish (diag confirm alert + widget welcome/day-sep/file-bubble + branded log filename madfrog-log-*). b108 superseded (untested). b107 diag "Отправить лог" fix, b106 APNs push (P4), b105 diagnostic+attachments.
     next_step: redeploy admin SPA (composer-visibility fix) + cut next iOS build (diag "Отправить лог" now sends real singbox.log w/ fresh token); verify chat+push on build 106; await Apple review of 1.0.30 (102); then submit 1.0.31 to App Store after privacy policy + ASC data label (5.1.1)
   iap: 4 non-renewing subs, all APPROVED 2026-05-31 (RU/CIS → WebPaywall/FreeKassa)
 
