@@ -308,6 +308,11 @@ export default function UsersPage() {
                         }
                         return <span className="text-zinc-600">—</span>;
                       })()}
+                      {user.store_country && (
+                        <div className="mt-0.5 text-xs text-zinc-500" title="App Store регион (storefront), откуда скачали">
+                          🛍 {user.store_country}
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell className="text-sm text-zinc-400">{formatLastSeen(user.last_seen)}</TableCell>
                     <TableCell className="text-sm text-zinc-400">

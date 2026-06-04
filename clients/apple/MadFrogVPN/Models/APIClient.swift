@@ -201,6 +201,10 @@ class APIClient {
         #endif
         req.setValue(DeviceTelemetry.modelIdentifier, forHTTPHeaderField: "X-Device-Model")
         req.setValue(DeviceTelemetry.installDateISO, forHTTPHeaderField: "X-Install-Date")
+        // STORE-COUNTRY: App Store storefront, cached at launch (SubscriptionManager).
+        if let store = UserDefaults.standard.string(forKey: AppConstants.storeCountryKey), !store.isEmpty {
+            req.setValue(store, forHTTPHeaderField: "X-Store-Country")
+        }
         // Explicit Accept-Language — the backend uses the first token to
         // localize transactional emails (magic link). URLSession does set
         // this by default but only in iOS/macOS locales; explicit keeps

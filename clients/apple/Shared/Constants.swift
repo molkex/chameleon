@@ -100,6 +100,7 @@ enum AppConstants {
     static let grpcAvailableKey = "grpcAvailable"
     static let selectedServerTagKey = "selectedServerTag"
     static let subscriptionExpireKey = "subscriptionExpire"
+    static let storeCountryKey = "storeCountryCode"   // cached App Store storefront (X-Store-Country)
     // Routing mode: "smart" (default) | "ru-direct" | "full-vpn".
     // Controls the three sing-box selectors: "RU Traffic", "Blocked Traffic",
     // "Default Route". See RoutingMode.applyToClash() for the mapping.

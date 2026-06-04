@@ -201,6 +201,7 @@ func (h *Handler) touchDevice(userID int64, c echo.Context) {
 		DeviceModel:    firstValue(req.Header.Get("X-Device-Model"), 64),
 		IOSVersion:     firstValue(req.Header.Get("X-iOS-Version"), 32),
 		AcceptLanguage: firstValue(req.Header.Get("Accept-Language"), 128),
+		StoreCountry:   firstValue(req.Header.Get("X-Store-Country"), 8),
 	}
 
 	go func() {

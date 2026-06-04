@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -805,6 +806,7 @@ type DeviceInfo struct {
 	DeviceModel    string
 	IOSVersion     string
 	AcceptLanguage string
+	StoreCountry   string // App Store storefront country (X-Store-Country header)
 }
 
 // TouchUserDevice bumps last_seen to NOW() and overlays any non-empty fields
@@ -827,11 +829,27 @@ func (db *DB) TouchUserDevice(ctx context.Context, userID int64, info DeviceInfo
 			timezone          = CASE WHEN $10 = '' THEN timezone          ELSE $10 END,
 			device_model      = CASE WHEN $11 = '' THEN device_model      ELSE $11 END,
 			ios_version       = CASE WHEN $12 = '' THEN ios_version       ELSE $12 END,
-			accept_language   = CASE WHEN $13 = '' THEN accept_language   ELSE $13 END
+			accept_language   = CASE WHEN $13 = '' THEN accept_language   ELSE $13 END,
+			store_country     = CASE WHEN $14 = '' THEN store_country     ELSE $14 END
 		WHERE id = $1`,
 		userID, info.IP, info.UserAgent, info.AppVersion, info.OSName, info.OSVersion,
 		info.Country, info.CountryName, info.City,
-		info.Timezone, info.DeviceModel, info.IOSVersion, info.AcceptLanguage)
+		info.Timezone, info.DeviceModel, info.IOSVersion, info.AcceptLanguage, info.StoreCountry)
+	return err
+}
+
+// SetStoreCountry records the App Store storefront country for a user (from an
+// IAP transaction's storefront). No-op for an empty value so we never wipe a
+// known storefront.
+func (db *DB) SetStoreCountry(ctx context.Context, userID int64, storefront string) error {
+	storefront = strings.TrimSpace(storefront)
+	if storefront == "" {
+		return nil
+	}
+	ctx, cancel := defaultTimeout(ctx)
+	defer cancel()
+	_, err := db.Pool.Exec(ctx,
+		`UPDATE users SET store_country = $2 WHERE id = $1`, userID, storefront)
 	return err
 }
 

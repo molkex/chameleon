@@ -292,6 +292,11 @@ class AppState {
             properties: ["authenticated": isAuthenticated]
         )
 
+        // STORE-COUNTRY: cache the App Store storefront once so APIClient can
+        // attach it as X-Store-Country on every request (admin visibility of the
+        // download region). Fire-and-forget — never delays launch.
+        Task { await subscriptionManager.cacheStorefrontCountry() }
+
         // Refresh config silently on app launch (only if already signed in)
         if configStore.username != nil {
             await silentConfigUpdate()

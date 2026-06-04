@@ -84,6 +84,14 @@ final class SubscriptionManager {
 
     // MARK: - Load Products
 
+    /// Cache the App Store storefront country (e.g. "USA", "RUS") so APIClient
+    /// can attach it as the X-Store-Country header — the backend records it on
+    /// the user for admin visibility of the download region. Best-effort.
+    func cacheStorefrontCountry() async {
+        guard let code = await Storefront.current?.countryCode, !code.isEmpty else { return }
+        UserDefaults.standard.set(code, forKey: AppConstants.storeCountryKey)
+    }
+
     func loadProducts() async {
         isLoading = true
         purchaseError = nil

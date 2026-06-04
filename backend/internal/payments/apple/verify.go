@@ -46,6 +46,7 @@ type Transaction struct {
 	OriginalTransactionID string // stable across renewals; use as charge_id for non-renewing
 	ProductID             string
 	BundleID              string
+	Storefront            string // 3-letter App Store storefront country (e.g. "USA", "RUS")
 	Environment           Environment
 	PurchaseDate          time.Time
 	ExpiresDate           time.Time
@@ -165,6 +166,7 @@ func (v *Verifier) applyInvariants(jws *iap.JWSTransaction) (*Transaction, error
 		OriginalTransactionID: jws.OriginalTransactionId,
 		ProductID:             jws.ProductID,
 		BundleID:              jws.BundleID,
+		Storefront:            jws.Storefront,
 		Environment:           env,
 		PurchaseDate:          msToTime(jws.PurchaseDate),
 		ExpiresDate:           msToTime(jws.ExpiresDate),

@@ -1,6 +1,7 @@
 package mobile
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -198,6 +199,20 @@ func (h *Handler) VerifySubscription(c echo.Context) error {
 	}
 
 	ctx := c.Request().Context()
+
+	// Record the App Store storefront from this verified transaction (admin
+	// visibility, STORE-COUNTRY backfill for payers). Detached + best-effort so
+	// it never blocks or fails the purchase flow.
+	if tx.Storefront != "" {
+		uid, sf := claims.UserID, tx.Storefront
+		go func() {
+			bg, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := h.DB.SetStoreCountry(bg, uid, sf); err != nil {
+				h.Logger.Warn("set store country", zap.Error(err), zap.Int64("user_id", uid))
+			}
+		}()
+	}
 
 	// charge_id strategy depends on product type:
 	//   - non-renewing: originalTransactionId (stable, one per purchase)
