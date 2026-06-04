@@ -538,6 +538,25 @@ deferred:
 # ============================================================
 done:
   "2026-06-04":
+    - id: SUBMIT-1.0.31
+      title: Submit 1.0.31 (build 112) to App Store — privacy policy updated (5.1.1) + badge fix
+      status: in_review   # WAITING_FOR_REVIEW, AFTER_APPROVAL auto-release
+      notes: |
+        1.0.30 (102, KEYCHAIN-MACOS) shipped → READY_FOR_SALE, which opened the train.
+        Created appStoreVersion 1.0.31, attached build 112, set RU+en-US release notes
+        (support chat / push / fixes), releaseType AFTER_APPROVAL, submitted via
+        reviewSubmissions. State = WAITING_FOR_REVIEW.
+        PRIVACY (5.1.1) — the original gate: updated all four privacy surfaces to
+        disclose support chat (messages/files/diagnostics, 90d retention), push token,
+        connection/device context (incl. App Store region), and first-party events,
+        and to scope the no-logs promise to VPN traffic (we DO record the API-connection
+        IP for anti-fraud). in-app legal.privacy.body RU+EN ride build 112; web
+        /app/privacy (EN) + apex /privacy (RU) deployed + verified live.
+        STILL ON USER: the ASC App Privacy nutrition label (web-only, no public API) —
+        add chat/push/diagnostics data types.
+        BADGE FIX (da3fd11): support-reply push set aps.badge=1 but nothing cleared it →
+        sticky "1". Now setBadgeCount(0) on launch + foreground. Rides train 1.0.32
+        (1.0.31 is locked in review).
     - id: STORE-COUNTRY
       title: Capture + show the App Store download region (storefront) in admin
       status: backend_admin_shipped_ios_b111   # IAP backfill + admin display live on NL; client-send rides build 111

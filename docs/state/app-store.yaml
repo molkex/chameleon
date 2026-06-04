@@ -79,11 +79,14 @@ versions:
     processingState: VALID            # verified live ASC API 2026-06-02
     build_uploaded: 2026-06-02T11:34:00Z
   in_review:
-    version: "1.0.29"
-    build: 101
-    appStoreState: WAITING_FOR_REVIEW   # submitted to App Store 2026-06-02
-    review_submission: 5bd38954-6866-40a3-8f21-32a530111dfe
-    contents: ACCT-IDENTITY P0 (account no longer demotes to anon trial) + crash-on-connect (NE OOM/log) + silent StoreKit reclaim + Auto card "Лучший пинг" + disconnect-lag fix
+    version: "1.0.31"
+    build: 112
+    appStoreVersion_id: 830edfff-f1b2-4d4b-9c73-0493caf90d48
+    build_id: d5a45335-f82e-4808-8ac0-648dd64057f4
+    appStoreState: WAITING_FOR_REVIEW   # submitted to App Store 2026-06-04, AFTER_APPROVAL auto-release
+    review_submission: 0c3c5752-c146-4344-b59b-edaf9ab5d736
+    contents: support chat (P2-P4) + APNs push + in-app announcements + store-country + chat polish; in-app PRIVACY POLICY updated for 5.1.1 (chat/push/device-context disclosed)
+    user_todo: ASC App Privacy nutrition label (web-only, no public API) — add chat/push/diagnostics data types before the reviewer picks it up
     note: |
       Internal-testing builds must be EXPLICITLY assigned to the "Internal Testers"
       beta group (hasAccessToAllBuilds=false) via ASC API or they don't appear in

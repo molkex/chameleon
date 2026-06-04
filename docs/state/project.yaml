@@ -28,10 +28,13 @@ product:
   name: MadFrog VPN
   what: Native iOS+macOS VPN with own Go backend; VLESS Reality + sing-box.
   app_store:                   # canonical: state/app-store.yaml
-    live:        {version: "1.0.29", build: 101, state: READY_FOR_SALE}   # APPROVED 2026-06-02 (account-demote P0 + crash-on-connect + Auto card + UI-FLAG-HOME)
-    in_review:   {version: "1.0.30", build: 102, state: WAITING_FOR_REVIEW}  # iOS, submitted 2026-06-04 (KEYCHAIN-MACOS fix; AFTER_APPROVAL auto-release)
-    testflight:  {version: "1.0.31", build: 111, state: IN_BETA_TESTING}  # iOS, Internal Testers 2026-06-04 — b111: sends X-Store-Country (STORE-COUNTRY). b110 in-app announcements, b109 chat polish + log filename, b107 diag log fix, b106 APNs push (P4).
-    next_step: redeploy admin SPA (composer-visibility fix) + cut next iOS build (diag "Отправить лог" now sends real singbox.log w/ fresh token); verify chat+push on build 106; await Apple review of 1.0.30 (102); then submit 1.0.31 to App Store after privacy policy + ASC data label (5.1.1)
+    live:        {version: "1.0.30", build: 102, state: READY_FOR_SALE}   # APPROVED 2026-06-04 (KEYCHAIN-MACOS)
+    in_review:   {version: "1.0.31", build: 112, state: WAITING_FOR_REVIEW}  # iOS, submitted 2026-06-04 — support chat + push + announcements + store-country + updated privacy (5.1.1); AFTER_APPROVAL auto-release
+    testflight:  {version: "1.0.31", build: 112, state: IN_BETA_TESTING}  # iOS — b112 in-app privacy policy update; b111 X-Store-Country, b110 announcements, b109 chat polish, b107 diag log fix, b106 APNs push (P4)
+    next_step: |
+      (1) USER: update App Privacy nutrition label in ASC web (chat/push/diagnostics) — no public API.
+      (2) await Apple review of 1.0.31 (112). (3) badge-clear fix (committed da3fd11) rides the NEXT
+      train 1.0.32 — cut when bundling more fixes (1.0.31 train is closed while in review).
   iap: 4 non-renewing subs, all APPROVED 2026-05-31 (RU/CIS → WebPaywall/FreeKassa)
 
 # ── Infra (canonical: state/servers.yaml) ───────────────────────────────────
