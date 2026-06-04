@@ -67,7 +67,7 @@ now:
   # ── RESUME HERE next session (2026-06-04 end-of-session handoff) ──
   - SUPPORT-CHAT — WORKS end-to-end (client build 103 tested; build 104 fixes dup-messages +
     stale-token 401; both on TestFlight). AGENT SIDE NOW LIVE — admin SPA Поддержка page
-    (/admin/app/inbox): list threads, read, reply → pushes to client via Redis SSE (P3 MVP
+    (/admin/app/inbox) — list threads, read, reply → pushes to client via Redis SSE (P3 MVP
     deployed 2026-06-04). MSK nginx SSE done. REMAINING before App Store submit — privacy policy
     + ASC data label (5.1.1 — chat stores messages, policy says "no usage metadata"). Later (full
     P3): admin-SSE live vs poll, canned replies, notes, assignment, Telegram bridge. Open — widget
