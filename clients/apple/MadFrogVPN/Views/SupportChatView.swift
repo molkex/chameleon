@@ -19,6 +19,7 @@ struct SupportChatView: View {
     // its own, so we hand it a guaranteed-fresh token (else a token that
     // expired while backgrounded 401s the chat into a confusing "нет связи").
     @State private var token: String?
+    @State private var sendingDiag = false
 
     var body: some View {
         NavigationStack {
@@ -40,6 +41,21 @@ struct SupportChatView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button { dismiss() } label: { Image(systemName: "xmark") }
+                }
+                // "Отправить лог" — one-tap diagnostic snapshot into the thread.
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        guard !sendingDiag else { return }
+                        sendingDiag = true
+                        Task {
+                            await app.sendSupportDiagnostic()
+                            sendingDiag = false
+                        }
+                    } label: {
+                        Image(systemName: "stethoscope")
+                    }
+                    .disabled(token == nil || sendingDiag)
+                    .accessibilityLabel(Text("Отправить диагностику"))
                 }
             }
         }

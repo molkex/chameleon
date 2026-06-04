@@ -720,6 +720,34 @@ class APIClient {
         return token
     }
 
+    // MARK: - Support chat
+
+    /// POST a support message AS THE USER — used by the in-chat "send diagnostic"
+    /// button (the widget normally does this from JS; the native button needs its
+    /// own path to attach device/VPN state the webview can't see). Single request
+    /// to the non-CF api host — NO direct-IP fallback race (a POST must not
+    /// double-send).
+    func sendSupportMessage(text: String, accessToken: String) async throws {
+        guard let url = URL(string: AppConstants.baseURL + "/api/v1/mobile/support/messages") else {
+            throw APIError.networkError("Invalid support URL")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["text": text])
+        request.timeoutInterval = 15
+
+        let (_, response) = try await URLSession.shared.data(for: applyTelemetry(to: request))
+        guard let http = response as? HTTPURLResponse else {
+            throw APIError.networkError("No response")
+        }
+        if http.statusCode == 401 { throw APIError.unauthorized }
+        guard (200...299).contains(http.statusCode) else {
+            throw APIError.serverError(http.statusCode)
+        }
+    }
+
     // MARK: - Subscription Verification
 
     /// Result of POST /api/mobile/subscription/verify.

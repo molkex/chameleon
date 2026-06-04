@@ -66,6 +66,18 @@ enum PlatformDevice {
         #endif
     }
 
+    /// Hardware model identifier, e.g. "iPhone17,1" / "Mac15,3" (utsname.machine).
+    /// Used in the support-chat diagnostic snapshot — the marketing name isn't
+    /// available without a lookup table, but the raw model is enough for triage.
+    static var hardwareModel: String {
+        var sysinfo = utsname()
+        uname(&sysinfo)
+        let model = withUnsafePointer(to: &sysinfo.machine) {
+            $0.withMemoryRebound(to: CChar.self, capacity: 1) { String(cString: $0) }
+        }
+        return model.isEmpty ? "unknown" : model
+    }
+
     /// Legacy UserDefaults key from the pre-Keychain identifier scheme. Kept
     /// read-only as a migration seed source (see legacyUserDefaultsIdentifier).
     private static let fallbackKey = "com.madfrog.vpn.deviceIdentifier"

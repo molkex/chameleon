@@ -559,6 +559,45 @@ class AppState {
         return configStore.accessToken ?? ""
     }
 
+    /// One-tap diagnostic snapshot for the support chat ("отправить лог" button).
+    /// Gathers app/device/VPN state the webview can't see and posts it as a user
+    /// message; the open chat renders it via SSE/history. Best-effort.
+    func sendSupportDiagnostic() async {
+        guard let token = configStore.accessToken else { return }
+        do {
+            try await apiClient.sendSupportMessage(text: buildDiagnosticSnapshot(), accessToken: token)
+        } catch {
+            AppLogger.app.error("sendSupportDiagnostic failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func buildDiagnosticSnapshot() -> String {
+        let appV = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
+        let provider = configStore.authProvider ?? "anon"
+        return """
+        📋 Диагностика
+        • App: \(appV) (\(build))
+        • Device: \(PlatformDevice.hardwareModel), iOS \(PlatformDevice.systemVersion)
+        • Server: \(VPNStateHelper.selectedServerName(self))
+        • VPN: \(vpnStatusLabel)
+        • Account: \(provider)
+        • Last error: \(errorMessage ?? "—")
+        """
+    }
+
+    private var vpnStatusLabel: String {
+        switch vpnManager.status {
+        case .connected: return "connected"
+        case .connecting: return "connecting"
+        case .disconnecting: return "disconnecting"
+        case .disconnected: return "disconnected"
+        case .reasserting: return "reasserting"
+        case .invalid: return "invalid"
+        @unknown default: return "unknown"
+        }
+    }
+
     private func tryRefreshToken() async -> Bool {
         guard let refreshToken = configStore.refreshToken else { return false }
         do {
