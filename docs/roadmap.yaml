@@ -496,6 +496,38 @@ deferred:
 # ============================================================
 done:
   "2026-06-04":
+    - id: SUPPORT-CHAT-P4-PUSH
+      title: APNs push — client gets notified when a support agent replies
+      deployed: NL backend 2026-06-04 (commit d72d4e3, push enabled verified); iOS rides build 106
+      commits: [d72d4e3 backend+iOS]
+      files:
+        - backend/internal/push/{push.go,push_test.go}     # APNs HTTP/2 sender (ES256 provider JWT)
+        - backend/migrations/022_device_push_tokens.sql
+        - backend/internal/db/push.go                       # token upsert/list/delete
+        - backend/internal/api/mobile/push.go               # POST /push/register
+        - backend/internal/api/admin/support.go             # send-on-agent-reply
+        - backend/{docker-compose.yml,deploy.sh}            # APNS_* env (.p8 as APNS_KEY_P8_B64, args 31-34)
+        - clients/apple/MadFrogVPN/MadFrogVPN.entitlements + MadFrogVPNMac  # aps-environment=production
+        - clients/apple/MadFrogVPN/Models/{AppState.swift,APIClient.swift}  # register + token POST + deep-link flag
+        - clients/apple/MadFrogVPN/MadFrogVPNApp.swift      # AppDelegate token-handoff + root deep-link sheet
+      notes: |
+        APNs Auth Key 67FDF5G68V created in the Apple Developer portal (via browser,
+        Sandbox & Production, Team Scoped) → ~/private_keys + ~/.secrets.env (APNS_*).
+        Push Notifications capability enabled on com.madfrog.vpn via ASC API.
+        Backend: internal/push HTTP/2 sender signs an ES256 provider JWT (iss=team,
+        kid=keyid, cached 50min), POSTs api.push.apple.com/3/device/<tok>; graceful-
+        nil when APNS_* unset. On an AGENT reply, admin SupportReply resolves the
+        thread owner's device_push_tokens and pushes {type:support_reply,thread_id}
+        (best-effort goroutine, prunes 410 BadDeviceToken). iOS: aps-environment
+        entitlement, registers for remote notifications after sign-in, POSTs the hex
+        token to /push/register, and a support_reply tap opens SupportChatView via a
+        root deep-link sheet. DEPLOYED + verified: migration 022 applied, container
+        env set, log "support push enabled (APNs)", /push/register live (401 w/o auth).
+        iOS ships in build 106 (TestFlight). End-to-end on-device verification pending
+        (needs a real device token + an agent reply). aps-environment=production →
+        TestFlight/App Store register in the production APNs env; the key is Sandbox
+        & Production so it covers both. DEPLOY note: APNS_* are remote args 31-34 in
+        deploy.sh (same set-u positional-arg pattern as B2 26-30).
     - id: SUPPORT-CHAT-ATTACHMENTS
       title: Photo/file attachments in support chat (#2) — B2 presigned, client + agent
       deployed: NL 2026-06-04 (backend e5776d0 + UIs 108b880 + env 1cebc1e); e2e verified on prod
