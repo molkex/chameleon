@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ru"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MadFrog — Единый план: что есть · стратегия · путь</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Balsamiq+Sans:wght@400;700&family=Archivo:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/roughjs@4.6.6/bundled/rough.js"></script>
+<style>
+  :root{
+    --paper:#f6f1e3;--ink:#2f2a1f;--soft:#6b6452;--card:#fffdf6;
+    --vpn:#67ab47;--acc:#4f93c4;--pay:#d9a531;--keep:#9466c4;--ana:#3fa6a0;--infra:#9a9277;
+    --now:#ffd64a;--now-b:#c89a13;--now-t:#3a2c00;
+    --scale:#cba6ea;--scale-b:#9466c4;--scale-t:#2c1842;
+    --later:#e3ddcb;--later-b:#b6ae95;--later-t:#46412f;
+    --goal:#a9e189;--goal-b:#67ab47;--goal-t:#173309;--done:#7fb262;
+    --risk-mid:#d9a531;--risk-low:#67ab47;--risk-zero:#3fa6a0;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:"Archivo",system-ui,sans-serif;line-height:1.5;
+    background-image:radial-gradient(circle at 1px 1px,rgba(47,42,31,.05) 1px,transparent 0);background-size:22px 22px}
+  .bal{font-family:"Balsamiq Sans",cursive}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px 90px}
+
+  /* nav */
+  .nav{position:sticky;top:0;z-index:50;background:rgba(246,241,227,.92);backdrop-filter:blur(6px);
+    border-bottom:2px solid var(--ink);margin-bottom:8px}
+  .nav-in{max-width:1080px;margin:0 auto;padding:11px 24px;display:flex;align-items:center;gap:14px}
+  .nav .b{font-family:"Balsamiq Sans",cursive;font-weight:700;font-size:18px;display:flex;align-items:center;gap:8px}
+  .nav .links{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+  .nav a{font-family:"Balsamiq Sans",cursive;font-size:13px;text-decoration:none;color:var(--ink);
+    border:1.5px solid var(--ink);border-radius:9px;padding:4px 11px;background:#fffdf6;box-shadow:2px 2px 0 rgba(47,42,31,.13)}
+  .nav a:hover{background:var(--now)}
+
+  /* section */
+  .sec{padding:30px 0 8px}
+  h2.s{font-family:"Balsamiq Sans",cursive;font-size:26px;margin:18px 0 4px;display:flex;align-items:center;gap:12px}
+  h2.s .n{width:34px;height:34px;border-radius:50%;background:var(--ink);color:var(--paper);display:grid;place-items:center;font-size:16px}
+  .lead{color:var(--soft);font-size:14.5px;margin:6px 0 18px;max-width:66ch}
+  h3.c{font-family:"Balsamiq Sans",cursive;font-size:19px;margin:26px 0 4px;display:flex;align-items:center;gap:10px}
+  h3.c .bar{width:24px;height:6px;border-radius:3px}
+  .note{color:var(--soft);font-size:13px;margin:0 0 14px}
+
+  /* cards generic */
+  .results{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .rt{background:var(--card);border:2px solid var(--ink);border-radius:14px;padding:15px;box-shadow:3px 3px 0 rgba(47,42,31,.14)}
+  .rt .big{font-family:"Balsamiq Sans",cursive;font-size:24px;line-height:1.05}
+  .rt .lab{font-size:12px;color:var(--soft);margin-top:6px}
+  .plats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .plat{background:var(--card);border:2px solid var(--ink);border-radius:13px;padding:13px;box-shadow:3px 3px 0 rgba(47,42,31,.12)}
+  .plat .nm{font-family:"Balsamiq Sans",cursive;font-weight:700;font-size:15.5px;display:flex;align-items:center;gap:8px}
+  .st{font-size:10.5px;font-family:"Balsamiq Sans",cursive;border-radius:8px;padding:1px 7px;border:1.5px solid}
+  .st.live{color:#2c6a16;border-color:#69a84a;background:#e7f5dd}
+  .st.soon{color:#7a5b15;border-color:#cda644;background:#f7eed3}
+  .plat .gives{font-size:12px;color:var(--soft);margin-top:8px}
+  .plat .gives b{color:var(--ink)}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .cap{background:var(--card);border:2px solid;border-radius:12px;padding:12px 14px;box-shadow:3px 3px 0 rgba(47,42,31,.1)}
+  .cap .ct{font-family:"Balsamiq Sans",cursive;font-weight:700;font-size:14px;line-height:1.15}
+  .cap .gv{font-size:12px;color:var(--soft);margin-top:7px;padding-top:7px;border-top:1px dashed rgba(47,42,31,.18)}
+  .cap .gv .arr{font-weight:700;margin-right:5px}
+  .c-vpn{border-color:var(--vpn)}.c-vpn .arr{color:var(--vpn)} .c-acc{border-color:var(--acc)}.c-acc .arr{color:var(--acc)}
+  .c-pay{border-color:var(--pay)}.c-pay .arr{color:var(--pay)} .c-keep{border-color:var(--keep)}.c-keep .arr{color:var(--keep)}
+  .c-ana{border-color:var(--ana)}.c-ana .arr{color:var(--ana)} .c-infra{border-color:var(--infra)}.c-infra .arr{color:var(--infra)}
+  .lever{margin-top:26px;background:#fffdf6;border:2px solid var(--goal-b);border-radius:16px;padding:20px 24px;box-shadow:4px 4px 0 rgba(47,42,31,.16)}
+  .lever .t{font-family:"Balsamiq Sans",cursive;font-size:19px}
+  .lever p{margin:8px 0 0;font-size:14px;color:var(--soft);max-width:74ch}.lever p b{color:var(--ink)}
+
+  /* strategy */
+  .constraint{background:#fdecec;border:2px solid #d98a8a;border-radius:14px;padding:18px 22px;box-shadow:3px 3px 0 rgba(47,42,31,.12);margin-bottom:18px}
+  .constraint .t{font-family:"Balsamiq Sans",cursive;font-size:17px;color:#9c3b3b}
+  .constraint p{margin:8px 0 0;font-size:13.5px;color:#7a4a4a;max-width:78ch}
+  .dirs{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .dir{background:var(--card);border:2px solid var(--ink);border-radius:14px;padding:16px;box-shadow:3px 3px 0 rgba(47,42,31,.13)}
+  .dir .top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .dir h4{font-family:"Balsamiq Sans",cursive;font-size:17px;margin:6px 0 0;line-height:1.1}
+  .dir .id{font-family:"Balsamiq Sans",cursive;font-size:11px;color:var(--soft)}
+  .risk{font-size:10.5px;font-family:"Balsamiq Sans",cursive;border-radius:8px;padding:2px 8px;border:1.5px solid;white-space:nowrap}
+  .risk.mid{color:#7a5b15;border-color:var(--risk-mid);background:#f7eed3}
+  .risk.low{color:#2c6a16;border-color:var(--risk-low);background:#e7f5dd}
+  .risk.zero{color:#176b66;border-color:var(--risk-zero);background:#dcf1ef}
+  .dir .gives{font-size:13px;color:var(--ink);margin:11px 0;padding:9px 11px;background:#f4efe0;border-radius:9px}
+  .dir ul{list-style:none;margin:8px 0 0;padding:0}
+  .dir li{font-size:12.5px;color:var(--soft);padding:2px 0 2px 16px;position:relative}
+  .dir li.pl::before{content:"+";position:absolute;left:0;color:var(--vpn);font-weight:700}
+  .dir li.mn::before{content:"−";position:absolute;left:0;color:#b06a6a;font-weight:700}
+  .funnel{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:18px;background:var(--card);border:2px solid var(--ink);border-radius:14px;padding:16px 20px;box-shadow:3px 3px 0 rgba(47,42,31,.13)}
+  .fb{font-family:"Balsamiq Sans",cursive;text-align:center}.fb .v{font-size:24px}.fb .l{font-size:11px;color:var(--soft)}
+  .farr{font-size:22px;color:var(--soft)}
+  .ftar{margin-left:auto;font-size:13px;color:var(--soft);max-width:30ch}.ftar b{color:var(--ink)}
+
+  /* flow map */
+  .legend{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 14px}
+  .lg{display:inline-flex;align-items:center;gap:7px;font-family:"Balsamiq Sans",cursive;font-size:12.5px;background:#fffdf6;border:1.5px solid var(--ink);border-radius:10px;padding:4px 10px}
+  .sw{width:13px;height:13px;border-radius:4px;border:1.5px solid rgba(0,0,0,.35)}
+  .scroll{overflow-x:auto;padding:6px 0 20px}
+  .map{position:relative;width:900px;height:760px;margin:0 auto}
+  #wires{position:absolute;inset:0;z-index:1;overflow:visible}
+  .node{position:absolute;z-index:2;cursor:pointer;border:2px solid;border-radius:12px;font-family:"Balsamiq Sans",cursive;
+    padding:10px 13px;line-height:1.2;box-shadow:3px 3px 0 rgba(47,42,31,.14);transition:transform .12s,box-shadow .12s,filter .2s,opacity .2s;user-select:none}
+  .node:hover{transform:translateY(-1px);box-shadow:4px 5px 0 rgba(47,42,31,.18)}
+  .node:active{transform:translateY(1px)}
+  .node .t{font-weight:700;font-size:14px}
+  .node .m{font-family:"Archivo";font-weight:500;font-size:10.5px;opacity:.72;margin-top:3px}
+  .node .ck{position:absolute;top:-9px;right:-9px;width:21px;height:21px;border-radius:50%;background:#fffdf6;border:2px solid var(--later-b);display:grid;place-items:center;font-size:12px;color:transparent}
+  .node.done{opacity:.5;filter:saturate(.5)}.node.done .ck{background:var(--done);border-color:var(--goal-b);color:#10260a}
+  .node.done .t{text-decoration:line-through;text-decoration-thickness:1.5px}
+  .node.start{background:#fffdf6;border-color:var(--ink);transform:rotate(-1deg)}
+  .node.now{background:var(--now);border-color:var(--now-b);color:var(--now-t)}
+  .node.scale{background:var(--scale);border-color:var(--scale-b);color:var(--scale-t)}
+  .node.later{background:var(--later);border-color:var(--later-b);color:var(--later-t)}
+  .node.goal{background:var(--goal);border-color:var(--goal-b);color:var(--goal-t)}
+  .node.head .t{font-size:15.5px} .node.head .ph{font-size:10.5px;opacity:.7;font-family:"Archivo";font-weight:600;letter-spacing:.04em}
+  #n-t1a{transform:rotate(.8deg)}#n-t1b{transform:rotate(-.6deg)}#n-t1c{transform:rotate(-1deg)}
+  #n-t2a{transform:rotate(.7deg)}#n-t2b{transform:rotate(-.7deg)}#n-t3a{transform:rotate(-.7deg)}#n-t3b{transform:rotate(.8deg)}
+  #n-t4a{transform:rotate(.6deg)}#n-t4b{transform:rotate(-.8deg)}#n-t4c{transform:rotate(.7deg)}
+
+  footer{margin-top:34px;font-family:"Balsamiq Sans",cursive;font-size:12px;color:var(--soft);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;border-top:2px solid var(--ink);padding-top:16px}
+  @media (max-width:860px){.results,.plats{grid-template-columns:repeat(2,1fr)}.grid3,.dirs{grid-template-columns:1fr}}
+</style></head>
+<body>
+
+  <!-- NAV -->
+  <div class="nav"><div class="nav-in">
+    <span class="b">🐸 MadFrog · план</span>
+    <span class="links">
+      <a href="#have">Что есть</a>
+      <a href="#strategy">Стратегия</a>
+      <a href="#path">Путь</a>
+    </span>
+  </div></div>
+
+  <div class="wrap">
+
+  <!-- ============ 1. WHAT WE HAVE ============ -->
+  <section class="sec" id="have">
+    <h2 class="s"><span class="n">1</span>Что у нас есть</h2>
+    <p class="lead">Где мы присутствуем, что умеем и что каждое нам даёт. Всё работает на одном бэкенде — поэтому новый канал и фича стоят дёшево.</p>
+
+    <h3 class="c"><span class="bar" style="background:var(--goal-b)"></span>Результаты</h3>
+    <div class="results">
+      <div class="rt"><div class="big">2 + 2</div><div class="lab">выхода (NL · 🇫🇷 Франция) + 2 RU-релея</div></div>
+      <div class="rt"><div class="big">iOS · macOS</div><div class="lab">оба live в App Store</div></div>
+      <div class="rt"><div class="big">Apple + СБП</div><div class="lab">платежи на западе и в РФ</div></div>
+      <div class="rt"><div class="big">Чат + Push</div><div class="lab">поддержка и удержание end-to-end</div></div>
+      <div class="rt"><div class="big">SEC 01–04</div><div class="lab">аудит безопасности пройден</div></div>
+      <div class="rt"><div class="big">4 подписки</div><div class="lab">одобрены Apple</div></div>
+      <div class="rt"><div class="big">300 / 12</div><div class="lab">burner-тест за 2 суток</div></div>
+      <div class="rt"><div class="big">1 ядро</div><div class="lab">единый backend на всё</div></div>
+    </div>
+
+    <h3 class="c"><span class="bar" style="background:var(--ink)"></span>Платформы</h3>
+    <div class="plats">
+      <div class="plat"><div class="nm">iOS <span class="st live">live</span></div><div class="gives"><b>Основной канал</b> привлечения.</div></div>
+      <div class="plat"><div class="nm">macOS <span class="st live">live</span></div><div class="gives"><b>Отдельный листинг</b> — десктоп.</div></div>
+      <div class="plat"><div class="nm">iOS-виджет <span class="st live">live</span></div><div class="gives"><b>Удержание на экране</b>.</div></div>
+      <div class="plat"><div class="nm">Telegram-бот <span class="st live">live</span></div><div class="gives"><b>Прямая продажа</b> без сторов.</div></div>
+      <div class="plat"><div class="nm">Web / лендинг <span class="st live">live</span></div><div class="gives"><b>Витрина и оплата</b>.</div></div>
+      <div class="plat"><div class="nm">Админ-панель <span class="st live">live</span></div><div class="gives"><b>Управление без билда</b>.</div></div>
+      <div class="plat"><div class="nm">Backend <span class="st live">live</span></div><div class="gives"><b>Ядро</b>: Go+PG+Redis (NL).</div></div>
+      <div class="plat"><div class="nm">Android <span class="st soon">скоро</span></div><div class="gives"><b>Канал масштаба</b> (RuStore).</div></div>
+    </div>
+
+    <h3 class="c"><span class="bar" style="background:var(--vpn)"></span>VPN-ядро</h3>
+    <div class="grid3">
+      <div class="cap c-vpn"><div class="ct">VLESS Reality · sing-box / Xray</div><div class="gv"><span class="arr">→</span>обход DPI и блокировок РКН</div></div>
+      <div class="cap c-vpn"><div class="ct">2 выхода: NL + Франция</div><div class="gv"><span class="arr">→</span>выбор страны + резерв</div></div>
+      <div class="cap c-vpn"><div class="ct">RU-релеи: MSK + SPB</div><div class="gv"><span class="arr">→</span>обход whitelist и throttling в РФ</div></div>
+    </div>
+
+    <h3 class="c"><span class="bar" style="background:var(--acc)"></span>Аккаунты · Платежи</h3>
+    <div class="grid3">
+      <div class="cap c-acc"><div class="ct">Apple · Google · email · анон-триал</div><div class="gv"><span class="arr">→</span>низкий порог + восстановление по Apple ID</div></div>
+      <div class="cap c-pay"><div class="ct">Apple IAP + FreeKassa / СБП</div><div class="gv"><span class="arr">→</span>деньги и на западе, и в РФ без Apple</div></div>
+      <div class="cap c-pay"><div class="ct">Возврат → отзыв доступа</div><div class="gv"><span class="arr">→</span>защита от абуза рефандами</div></div>
+    </div>
+
+    <h3 class="c"><span class="bar" style="background:var(--keep)"></span>Поддержка · удержание · аналитика</h3>
+    <div class="grid3">
+      <div class="cap c-keep"><div class="ct">In-app чат (SSE, вложения, лог)</div><div class="gv"><span class="arr">→</span>прямая помощь, меньше отказов</div></div>
+      <div class="cap c-keep"><div class="ct">Push-рассылка + in-app анонсы (таргетинг)</div><div class="gv"><span class="arr">→</span>промо и апселл сегменту — без билда</div></div>
+      <div class="cap c-ana"><div class="ct">Дашборд + серверы в админке</div><div class="gv"><span class="arr">→</span>видимость воронки + новый сервер без билда</div></div>
+    </div>
+
+    <div class="lever">
+      <div class="t">Главный рычаг</div>
+      <p><b>Один backend питает всё.</b> Протокол, аккаунты, подписки, поддержка, аналитика — общие. Поэтому новая платформа (Android), канал (RuStore, Telegram) или фича (анонсы, push) переиспользуют готовое ядро и стоят дёшево. Это основа плана роста ниже.</p>
+    </div>
+  </section>
+
+  <!-- ============ 2. STRATEGY ============ -->
+  <section class="sec" id="strategy">
+    <h2 class="s"><span class="n">2</span>Стратегия — рынок России</h2>
+    <p class="lead">Привлекать больше клиентов из РФ, не подвергая риску основной бизнес.</p>
+
+    <div class="constraint">
+      <div class="t">Главное ограничение — один Apple-аккаунт</div>
+      <p>Пачка похожих VPN-приложений в Apple = правило 4.3 (спам) = бан всего аккаунта вместе с основным приложением. Поэтому «штамповать» приложения на iOS нельзя — масштаб только вне Apple (Android / RuStore) или вне сторов (Telegram).</p>
+    </div>
+
+    <div class="dirs">
+      <div class="dir">
+        <div class="top"><div class="id">Направление I</div><span class="risk mid">риск средний</span></div>
+        <h4>App Store · iOS</h4>
+        <div class="gives">Что даёт: вторая витрина в самом ёмком магазине, быстрый запуск.</div>
+        <ul>
+          <li class="pl">~95% кода готово, 1–2 дня</li>
+          <li class="pl">знакомая среда</li>
+          <li class="mn">живёт ~2 суток</li>
+          <li class="mn">максимум 1 на аккаунте, не клонировать</li>
+        </ul>
+      </div>
+      <div class="dir">
+        <div class="top"><div class="id">Направление II</div><span class="risk low">риск низкий</span></div>
+        <h4>Android · RuStore</h4>
+        <div class="gives">Что даёт: устойчивый масштаб — поток публикаций без угрозы Apple.</div>
+        <ul>
+          <li class="pl">RuStore терпит VPN, отдельный аккаунт</li>
+          <li class="pl">backend готов, бонус — Google Play</li>
+          <li class="mn">новая платформа</li>
+          <li class="mn">2–4 недели</li>
+        </ul>
+      </div>
+      <div class="dir">
+        <div class="top"><div class="id">Направление III</div><span class="risk zero">риск ноль</span></div>
+        <h4>Telegram · сайт</h4>
+        <div class="gives">Что даёт: нулевой риск снятия, самый быстрый запуск.</div>
+        <ul>
+          <li class="pl">нечего блокировать</li>
+          <li class="pl">бот @MadFrogRobot уже есть</li>
+          <li class="mn">выше порог входа у клиента</li>
+          <li class="mn">ниже охват «холодной» аудитории</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="funnel">
+      <div class="fb"><div class="v">300</div><div class="l">скачали</div></div>
+      <div class="farr">→</div>
+      <div class="fb"><div class="v">12</div><div class="l">оплатили · 4%</div></div>
+      <div class="farr">→</div>
+      <div class="fb"><div class="v" style="color:var(--goal-b)">6–8%</div><div class="l">цель</div></div>
+      <div class="ftar"><b>Как:</b> вход в 1 экран · СБП без трения · таймер-оффер.</div>
+    </div>
+  </section>
+
+  <!-- ============ 3. PATH / ROADMAP ============ -->
+  <section class="sec" id="path">
+    <h2 class="s"><span class="n">3</span>Путь — что за чем</h2>
+    <p class="lead">Сверху вниз — порядок во времени. Ветки — параллельные задачи. Кликни узел, чтобы отметить «сделано» (сохраняется в браузере).</p>
+    <div class="legend">
+      <span class="lg"><i class="sw" style="background:var(--now)"></i>Сейчас</span>
+      <span class="lg"><i class="sw" style="background:var(--scale)"></i>Следующее</span>
+      <span class="lg"><i class="sw" style="background:var(--later)"></i>Потом</span>
+      <span class="lg"><i class="sw" style="background:var(--goal)"></i>Цель</span>
+      <span class="lg"><i class="sw" style="background:var(--done);border-radius:50%"></i>✓ Сделано</span>
+    </div>
+
+    <div class="scroll">
+    <div class="map" id="map">
+      <svg id="wires"></svg>
+      <div class="node start" id="n-start" style="left:375px;top:8px;width:150px"><div class="t">Старт</div></div>
+      <div class="node now head" id="n-p1" style="left:320px;top:98px;width:260px"><div class="ph">ШАГ 1 · НЕД. 1</div><div class="t">Быстрый старт</div></div>
+      <div class="node now" id="n-t1a" style="left:662px;top:82px;width:200px"><span class="ck">✓</span><div class="t">Доп. iOS-витрина</div><div class="m">опора A · риск средний</div></div>
+      <div class="node now" id="n-t1b" style="left:662px;top:142px;width:210px"><span class="ck">✓</span><div class="t">Бот — прямая продажа</div><div class="m">опора A · риск ноль</div></div>
+      <div class="node now" id="n-t1c" style="left:30px;top:110px;width:200px"><span class="ck">✓</span><div class="t">Воронка v1</div><div class="m">опора B · 1 экран + СБП</div></div>
+      <div class="node scale head" id="n-p2" style="left:320px;top:240px;width:260px"><div class="ph">ШАГ 2 · НЕД. 2–4</div><div class="t">Android для масштаба</div></div>
+      <div class="node scale" id="n-t2a" style="left:30px;top:222px;width:200px"><span class="ck">✓</span><div class="t">Android-клиент</div><div class="m">опора A · сначала</div></div>
+      <div class="node scale" id="n-t2b" style="left:30px;top:284px;width:210px"><span class="ck">✓</span><div class="t">Публикация в RuStore</div><div class="m">опора A · затем</div></div>
+      <div class="node scale head" id="n-p3" style="left:320px;top:382px;width:260px"><div class="ph">ШАГ 3 · МЕС. 2</div><div class="t">Оптимизация воронки</div></div>
+      <div class="node scale" id="n-t3a" style="left:662px;top:364px;width:210px"><span class="ck">✓</span><div class="t">Конверсия 6% → 7%</div><div class="m">опора B</div></div>
+      <div class="node scale" id="n-t3b" style="left:662px;top:424px;width:200px"><span class="ck">✓</span><div class="t">Офферы и удержание</div><div class="m">опора B</div></div>
+      <div class="node later head" id="n-p4" style="left:330px;top:524px;width:240px"><div class="ph">ШАГ 4 · МЕС. 3+</div><div class="t">Масштабирование</div></div>
+      <div class="node later" id="n-t4a" style="left:30px;top:506px;width:200px"><span class="ck">✓</span><div class="t">Конвейер Android</div><div class="m">опора A</div></div>
+      <div class="node later" id="n-t4b" style="left:30px;top:568px;width:200px"><span class="ck">✓</span><div class="t">Google Play — мир</div><div class="m">опора A</div></div>
+      <div class="node later" id="n-t4c" style="left:662px;top:538px;width:200px"><span class="ck">✓</span><div class="t">Рефералы · A/B</div><div class="m">опора B</div></div>
+      <div class="node goal" id="n-goal" style="left:325px;top:652px;width:250px"><div class="t">★ Рост выручки из РФ — ×3</div></div>
+    </div>
+    </div>
+  </section>
+
+  <footer><span>MadFrog · единый план (что есть · стратегия · путь)</span><span>docs/plans/madfrog-plan.html</span></footer>
+  </div>
+
+<script>
+(function(){
+  "use strict";
+  const COL={spine:"#5b5446",now:"#c89a13",scale:"#9466c4",later:"#b6ae95"};
+  const CONN=[
+    ["start","p1","spine"],["p1","p2","spine"],["p2","p3","spine"],["p3","p4","spine"],["p4","goal","spine"],
+    ["p1","t1a","now"],["p1","t1b","now"],["p1","t1c","now"],
+    ["p2","t2a","scale"],["t2a","t2b","scale"],
+    ["p3","t3a","scale"],["p3","t3b","scale"],
+    ["p4","t4a","later"],["p4","t4b","later"],["p4","t4c","later"]
+  ];
+  const map=document.getElementById("map"),svg=document.getElementById("wires");
+  function center(id){const el=document.getElementById("n-"+id);const r=el.getBoundingClientRect();const m=map.getBoundingClientRect();
+    return [r.left-m.left+r.width/2,r.top-m.top+r.height/2];}
+  function draw(){
+    while(svg.firstChild) svg.removeChild(svg.firstChild);
+    if(!window.rough) return;
+    const rc=rough.svg(svg);
+    CONN.forEach(([a,b,kind])=>{
+      const [x1,y1]=center(a),[x2,y2]=center(b);
+      const dx=x2-x1,dy=y2-y1;
+      const d=`M ${x1} ${y1} C ${x1+dx*0.18} ${y1+dy*0.55} ${x2-dx*0.18} ${y2-dy*0.55} ${x2} ${y2}`;
+      svg.appendChild(rc.path(d,{roughness:1.7,bowing:1.6,stroke:COL[kind]||"#8a8472",strokeWidth:kind==="spine"?2.6:1.9}));
+    });
+  }
+  let DONE;try{DONE=new Set(JSON.parse(localStorage.getItem("madfrog_rm_done")||"[]"));}catch(e){DONE=new Set();}
+  document.querySelectorAll(".node[id^='n-']").forEach(n=>{
+    const id=n.id.slice(2);
+    if(id==="start"||id==="goal")return;
+    if(DONE.has(id))n.classList.add("done");
+    n.addEventListener("click",()=>{
+      if(DONE.has(id)){DONE.delete(id);n.classList.remove("done");}else{DONE.add(id);n.classList.add("done");}
+      try{localStorage.setItem("madfrog_rm_done",JSON.stringify([...DONE]));}catch(e){}
+    });
+  });
+  function boot(){draw();}
+  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(boot);
+  window.addEventListener("load",boot);
+  window.addEventListener("resize",draw);
+  setTimeout(boot,300);
+})();
+</script>
+</body></html>
