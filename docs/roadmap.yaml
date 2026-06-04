@@ -79,7 +79,19 @@ next:
       title: In-app announcements — banner/card shown on app open (important notices + promos)
       priority: P1
       requested: 2026-06-04
+      status: backend_admin_shipped_ios_pending   # 2026-06-04: backend+admin DEPLOYED+e2e-verified on NL; iOS render = build 110
       needs_build: true   # client fetch+render code → rides the next App Store release (with push audience)
+      progress: |
+        DONE 2026-06-04 (deployed to NL + full authed CRUD e2e on prod):
+        - migration 024 announcements + db/announcements.go (Create/Update/Delete/List +
+          ActiveAnnouncements active-AND-in-window) + integration tests (window/CRUD/CTA).
+        - admin CRUD /admin/announcements (read adminMW, write adminOnly) + mobile
+          GET /api/v1/mobile/announcements/active (requireAuth).
+        - admin SPA "Анонсы" page (list + create/edit dialog + toggle + delete).
+        REMAINING (iOS, build 110): AnnouncementService fetches active set on
+        scenePhase .active, shows the first not-yet-dismissed one as a dismissible
+        card/sheet, remembers dismissed ids in UserDefaults, optional CTA opens the
+        url. UI presentation to be mocked + approved before building.
       design: |
         Distinct from BROADCAST-PUSH (done): push wakes the device but only reaches
         users who granted notification permission + have the push build (~1 today);

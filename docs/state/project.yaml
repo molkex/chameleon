@@ -84,6 +84,11 @@ open_decisions:                  # waiting on the user
 
 # ── Shipped (detail: roadmap.yaml#done + incidents/*) ──
 recent:
+  - INAPP-ANNOUNCEMENTS (2026-06-04, backend+admin SHIPPED — iOS pending build 110) — admin-authored
+    messages shown in-app on open (reaches ALL active users, no push permission). Backend (mig 024
+    announcements + ActiveAnnouncements active-AND-in-window + admin CRUD + mobile /announcements/active)
+    + admin "Анонсы" page DEPLOYED to NL and verified with a full authed CRUD e2e on prod (login→create
+    promo+CTA→list→DB→delete). iOS render (dismissible card on open) = build 110, UI to be mocked+approved.
   - BROADCAST-PUSH (2026-06-04, SHIPPED — admin live on NL, no app build) — admin "Рассылка" page
     (/admin/app/push) sends an APNs push to ALL registered device tokens: compose title+body, live
     preview, recipient count, confirm dialog, 24-worker fan-out + 410-prune + audit log
