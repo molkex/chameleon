@@ -647,7 +647,7 @@ class AppState {
             do {
                 try await apiClient.sendSupportAttachment(
                     text: snapshot, fileData: logData,
-                    filename: "singbox.log", mime: "text/plain",
+                    filename: Self.diagnosticLogFilename(), mime: "text/plain",
                     accessToken: token)
                 return .sent
             } catch {
@@ -662,6 +662,19 @@ class AppState {
             AppLogger.app.error("sendSupportDiagnostic failed: \(error.localizedDescription)")
             return .failed
         }
+    }
+
+    /// A branded, unique filename for the attached diagnostic log. Avoids
+    /// leaking the underlying engine name ("singbox.log") into the support
+    /// thread and lets an operator tell multiple uploads apart by timestamp,
+    /// e.g. "madfrog-log-20260604-143412.log". The on-disk file stays singbox.log;
+    /// this only names the upload.
+    static func diagnosticLogFilename(date: Date = Date()) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone.current
+        f.dateFormat = "yyyyMMdd-HHmmss"
+        return "madfrog-log-\(f.string(from: date)).log"
     }
 
     /// Read the tail of the tunnel's singbox.log from the shared App Group

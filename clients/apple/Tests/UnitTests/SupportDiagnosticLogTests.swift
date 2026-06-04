@@ -49,4 +49,13 @@ final class SupportDiagnosticLogTests: XCTestCase {
     func testEmptyUntruncatedIsEmpty() {
         XCTAssertEqual(AppState.tailLogText(Data(), truncated: false), "")
     }
+
+    func testDiagnosticLogFilenameIsBrandedUniqueAndHidesEngine() {
+        var c = DateComponents()
+        c.year = 2026; c.month = 6; c.day = 4; c.hour = 14; c.minute = 34; c.second = 12
+        let d = Calendar.current.date(from: c)!
+        let name = AppState.diagnosticLogFilename(date: d)
+        XCTAssertEqual(name, "madfrog-log-20260604-143412.log", "branded + timestamped name")
+        XCTAssertFalse(name.lowercased().contains("singbox"), "must not leak the engine name")
+    }
 }
