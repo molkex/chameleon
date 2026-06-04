@@ -30,7 +30,7 @@ product:
   app_store:                   # canonical: state/app-store.yaml
     live:        {version: "1.0.29", build: 101, state: READY_FOR_SALE}   # APPROVED 2026-06-02 (account-demote P0 + crash-on-connect + Auto card + UI-FLAG-HOME)
     in_review:   {version: "1.0.30", build: 102, state: WAITING_FOR_REVIEW}  # iOS, submitted 2026-06-04 (KEYCHAIN-MACOS fix; AFTER_APPROVAL auto-release)
-    testflight:  {version: "1.0.31", build: 110, state: IN_BETA_TESTING}  # iOS, Internal Testers 2026-06-04 — b110: in-app announcements card (INAPP-ANNOUNCEMENTS). b109 chat polish + branded log filename, b108 superseded, b107 diag log fix, b106 APNs push (P4).
+    testflight:  {version: "1.0.31", build: 111, state: IN_BETA_TESTING}  # iOS, Internal Testers 2026-06-04 — b111: sends X-Store-Country (STORE-COUNTRY). b110 in-app announcements, b109 chat polish + log filename, b107 diag log fix, b106 APNs push (P4).
     next_step: redeploy admin SPA (composer-visibility fix) + cut next iOS build (diag "Отправить лог" now sends real singbox.log w/ fresh token); verify chat+push on build 106; await Apple review of 1.0.30 (102); then submit 1.0.31 to App Store after privacy policy + ASC data label (5.1.1)
   iap: 4 non-renewing subs, all APPROVED 2026-05-31 (RU/CIS → WebPaywall/FreeKassa)
 
@@ -84,6 +84,11 @@ open_decisions:                  # waiting on the user
 
 # ── Shipped (detail: roadmap.yaml#done + incidents/*) ──
 recent:
+  - STORE-COUNTRY (2026-06-04, SHIPPED — IAP backfill + admin display live on NL, client-send in b111) —
+    App Store download region (storefront) now captured + shown in admin Users (🛍). store_country
+    (mig 006) existed but was never filled. (1) no-build: payer backfill from the verified Apple JWS
+    Storefront (db.SetStoreCountry). (2) build 111: iOS caches Storefront.current + sends X-Store-Country,
+    touchDevice persists it. Country/version announcement targeting still deferred.
   - INAPP-ANNOUNCEMENTS (2026-06-04, SHIPPED — backend+admin live on NL, iOS card on TestFlight b110) —
     admin-authored messages shown in-app on open (reaches ALL active users, no push permission). Backend
     (mig 024 announcements + ActiveAnnouncements active-AND-in-window + admin CRUD + mobile

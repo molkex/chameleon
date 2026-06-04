@@ -538,6 +538,30 @@ deferred:
 # ============================================================
 done:
   "2026-06-04":
+    - id: STORE-COUNTRY
+      title: Capture + show the App Store download region (storefront) in admin
+      status: backend_admin_shipped_ios_b111   # IAP backfill + admin display live on NL; client-send rides build 111
+      files:
+        - backend/internal/payments/apple/verify.go        # Transaction.Storefront from the JWS
+        - backend/internal/api/mobile/subscription.go      # VerifySubscription → SetStoreCountry (payer backfill)
+        - backend/internal/api/mobile/config.go            # touchDevice reads X-Store-Country
+        - backend/internal/db/users.go                     # DeviceInfo.StoreCountry + TouchUserDevice + SetStoreCountry
+        - clients/apple/MadFrogVPN/Models/{SubscriptionManager,AppState,APIClient}.swift  # cache + send X-Store-Country
+        - clients/apple/Shared/Constants.swift             # storeCountryKey
+        - clients/admin/src/pages/users.tsx                # 🛍 region in the Users location cell
+      notes: |
+        store_country (mig 006) existed end-to-end but was NEVER populated — the
+        client never sent the storefront. Now filled two ways + shown in admin:
+        (1) NO-BUILD backfill (payers): the verified Apple JWS carries Storefront;
+            VerifySubscription writes it (db.SetStoreCountry, best-effort detached).
+            DEPLOYED to NL.
+        (2) BUILD 111 (full coverage): SubscriptionManager.cacheStorefrontCountry()
+            caches Storefront.current.countryCode at launch; APIClient.applyTelemetry
+            sends X-Store-Country on every request; touchDevice persists it
+            (empty-guarded). Reach = real users on the next App Store release.
+        Admin Users location cell shows 🛍 <region> (verified live: asset 200 with
+        the string). store_country was already in the admin API DTO. Country/
+        app-version announcement targeting still deferred.
     - id: BROADCAST-PUSH
       title: Admin push broadcast — send a notification to all registered devices
       status: shipped   # DEPLOYED to NL + verified live; no app build needed

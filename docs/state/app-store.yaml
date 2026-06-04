@@ -55,11 +55,12 @@ versions:
   # review is untouched; 1.0.30 App Store submission is a separate later step.
   testflight:
     version: "1.0.31"
-    build: 110                        # iOS; assigned to Internal Testers (108 superseded untested)
-    processingState: PROCESSING       # uploaded 2026-06-04 ~18:27Z, VALID poll in flight
-    build_uploaded: 2026-06-04T~18:27Z (iOS)
+    build: 111                        # iOS; assigned to Internal Testers (108 superseded untested)
+    processingState: PROCESSING       # uploaded 2026-06-04 ~19:10Z, VALID poll in flight
+    build_uploaded: 2026-06-04T~19:10Z (iOS)
     ships:
-      - INAPP-ANNOUNCEMENTS (in-app announcement card on app open — centered, dismissible, CTA)
+      - STORE-COUNTRY (sends X-Store-Country — App Store download region capture)
+      - INAPP-ANNOUNCEMENTS (b110: in-app announcement card on app open — centered, dismissible, CTA)
       - SUPPORT-CHAT-POLISH (b109: diag confirm → alert; widget welcome/day-sep/file-bubble; branded log filename)
       - SUPPORT-CHAT-LOGFIX (b107: diag "Отправить лог" — fresh token + real singbox.log attach)
       - (cumulative 1.0.31 train) support chat P2-P4, attachments, APNs push, widget-timer, FR-SELECT
