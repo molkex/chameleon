@@ -1,158 +1,170 @@
 <!DOCTYPE html>
 <html lang="ru"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MadFrog · План экспансии RU</title>
+<title>MadFrog · План: больше клиентов из России</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
-  :root{--accent:#7cff6b;--pink:#ff4d9d;--cyan:#5cc8ff;--amber:#ffc24d}
-  body{background:radial-gradient(120% 80% at 50% -10%,#0b2018,#05140d 55%);color:#eafff0;
-    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif}
-  .card{background:linear-gradient(180deg,#12241b,#0f1b15);border:1px solid rgba(124,255,107,.14)}
-  .glow{text-shadow:0 0 18px rgba(124,255,107,.45)}
-  .chip{font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px}
-  .step{position:relative;padding-left:20px}
-  .step::before{content:"";position:absolute;left:2px;top:8px;width:7px;height:7px;border-radius:50%;background:var(--accent)}
-  h2{letter-spacing:.3px}
+  body{background:radial-gradient(130% 90% at 50% -10%,#0d2a1d,#04120c 55%);color:#eafff0;
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+  .card{background:linear-gradient(180deg,#13271c,#0e1b14);border:1px solid rgba(124,255,107,.14);border-radius:24px}
+  .glow{text-shadow:0 0 22px rgba(124,255,107,.5)}
+  .num{font-variant-numeric:tabular-nums}
+  .em{font-size:44px;line-height:1}
+  .light{width:14px;height:14px;border-radius:50%;display:inline-block}
+  .g{background:#7cff6b;box-shadow:0 0 12px #7cff6b}
+  .y{background:#ffc24d;box-shadow:0 0 12px #ffc24d}
+  .r{background:#ff4d9d;box-shadow:0 0 12px #ff4d9d}
+  .b{font-size:13px;font-weight:800;padding:4px 12px;border-radius:999px}
+  .badge-pos{position:absolute;top:-16px;left:24px;width:40px;height:40px;border-radius:50%;
+    display:grid;place-items:center;font-weight:900;font-size:18px;color:#05140d;background:linear-gradient(135deg,#7cff6b,#46d36a)}
 </style></head>
-<body class="px-5 py-8 md:px-10">
-<div class="max-w-5xl mx-auto">
+<body class="px-5 py-10 md:px-10">
+<div class="max-w-3xl mx-auto">
 
-  <!-- HEADER -->
-  <div class="flex items-center gap-3 mb-1">
-    <span class="text-3xl">🐸</span>
-    <h1 class="text-3xl font-extrabold glow">MadFrog · План экспансии RU</h1>
+  <!-- HERO -->
+  <div class="text-center mb-3">
+    <div class="text-6xl mb-2">🐸</div>
+    <h1 class="text-3xl md:text-4xl font-extrabold glow">Как получить больше клиентов из России</h1>
+    <p class="text-[#8aa595] mt-2 text-lg">Простой план — понятно с первого взгляда</p>
   </div>
-  <p class="text-sm text-[#8aa595] mb-6">Цель: больше RU-клиентов · Ограничение: один Apple-аккаунт · Принцип: основной MadFrog (live) держим вне риска · ред. 2026-06-04</p>
+  <div class="text-center text-xs text-[#5a6f63] mb-10">MadFrog · план роста · 4 июня 2026</div>
 
-  <!-- CONSTRAINT BANNER -->
-  <div class="rounded-2xl p-4 mb-8" style="background:rgba(255,77,157,.10);border:1px solid rgba(255,77,157,.35)">
-    <div class="flex items-start gap-3">
-      <span class="text-xl">⛔</span>
+  <!-- ГДЕ МЫ -->
+  <h2 class="text-2xl font-extrabold mb-4 flex items-center gap-2">🧭 Где мы сейчас</h2>
+  <div class="grid md:grid-cols-2 gap-4 mb-6">
+    <div class="card p-5">
+      <div class="em mb-2">💚</div>
+      <div class="font-bold text-lg mb-1">Что у нас есть</div>
+      <p class="text-[#cfe9d8] leading-relaxed">Приложение <b>MadFrog</b> — помогает россиянам обходить блокировки в интернете. Оно <b>работает и приносит деньги</b>.</p>
+    </div>
+    <div class="card p-5">
+      <div class="em mb-2">⏳</div>
+      <div class="font-bold text-lg mb-1">В чём сложность</div>
+      <p class="text-[#cfe9d8] leading-relaxed">В России власти просят Apple <b>удалять VPN</b>. Наше приложение убирают примерно <b>через 2 дня</b>. Но за эти 2 дня его успевают скачать сотни людей.</p>
+    </div>
+  </div>
+
+  <!-- ХОРОШАЯ НОВОСТЬ -->
+  <div class="card p-5 mb-10" style="border-color:rgba(124,255,107,.35)">
+    <div class="flex items-center gap-5 flex-wrap justify-center text-center">
+      <div><div class="text-4xl font-extrabold glow num">300+</div><div class="text-xs text-[#8aa595]">скачали за 2 дня</div></div>
+      <div class="text-2xl text-[#5a6f63]">→</div>
+      <div><div class="text-4xl font-extrabold glow num">12</div><div class="text-xs text-[#8aa595]">купили подписку</div></div>
+      <div class="text-2xl text-[#5a6f63]">=</div>
+      <div><div class="text-2xl font-extrabold text-[#7cff6b]">💰 уже неплохо!</div><div class="text-xs text-[#8aa595]">и это с одного приложения</div></div>
+    </div>
+    <p class="text-center text-[#cfe9d8] mt-3">Хотим повторять это <b>чаще</b> и привести <b>больше</b> людей.</p>
+  </div>
+
+  <!-- ГЛАВНОЕ ПРАВИЛО -->
+  <h2 class="text-2xl font-extrabold mb-4 flex items-center gap-2">🚦 Одно важное правило</h2>
+  <div class="rounded-3xl p-6 mb-3" style="background:rgba(255,77,157,.10);border:1px solid rgba(255,77,157,.4)">
+    <div class="flex items-start gap-4">
+      <div class="em">⛔</div>
       <div>
-        <div class="font-bold text-[#ff8ac0]">Жёсткое правило №1 — не churn'им iOS на общем аккаунте</div>
-        <p class="text-sm text-[#d8b5c6] mt-1 leading-relaxed">РКН-снятие аккаунт не банит. Но пачка похожих VPN-приложений = <b>Guideline 4.3 (spam)</b> → Apple терминирует <b>весь аккаунт</b>, включая live-MadFrog с выручкой. Матожидание плохое: +пара сотен скачиваний vs −весь бизнес. Поэтому конвейер burner'ов — только вне Apple-аккаунта (Android/RuStore) или вне сторов (Telegram).</p>
+        <div class="font-extrabold text-xl text-[#ff8ac0]">Нельзя делать МНОГО приложений в Apple</div>
+        <p class="text-[#e7c3d4] mt-2 leading-relaxed">У нас <b>один аккаунт Apple</b> (как один пропуск). Если наделать кучу почти одинаковых приложений — Apple решит, что это <b>спам</b>, и <b>закроет весь аккаунт</b>. Тогда мы потеряем <b>даже наше главное приложение</b>, которое уже приносит деньги.</p>
+        <div class="mt-3 inline-block rounded-xl px-4 py-2 text-sm" style="background:rgba(255,77,157,.12)">
+          🎒 <b>Как с пропуском в школу:</b> если им злоупотреблять — отберут совсем.
+        </div>
       </div>
     </div>
   </div>
+  <p class="text-center text-[#8aa595] mb-10 text-sm">Поэтому «штамповать» приложения будем там, где это <b class="text-[#eafff0]">безопасно</b> — не в Apple. Вот 3 пути 👇</p>
 
-  <!-- 3 TRACKS -->
-  <h2 class="text-xl font-bold mb-3">Три трека</h2>
-  <div class="grid md:grid-cols-3 gap-4 mb-10">
+  <!-- 3 ПУТИ -->
+  <h2 class="text-2xl font-extrabold mb-6 flex items-center gap-2">🛣️ Три пути роста</h2>
 
-    <!-- TRACK A -->
-    <div class="card rounded-2xl p-5">
-      <div class="flex items-center justify-between mb-2">
-        <span class="chip" style="background:rgba(124,255,107,.16);color:var(--accent)">A · iOS</span>
-        <span class="chip" style="background:rgba(255,194,77,.16);color:var(--amber)">риск: средний</span>
-      </div>
-      <div class="text-lg font-bold mb-1">+1 RU-витрина в App Store</div>
-      <p class="text-xs text-[#8aa595] mb-3">Безопасно · быстро · ~1–2 дня</p>
-      <div class="space-y-1.5 text-sm text-[#cfe9d8]">
-        <div class="step">Новый bundle + <b>другая витрина</b>: имя (без «VPN»), иконка, скрины, описание</div>
-        <div class="step">XcodeGen вариант-таргет: параметры бренда → та же кодовая база</div>
-        <div class="step">RU-онбординг в 1 экран → <b>FreeKassa/СБП</b> + таймер-оффер</div>
-        <div class="step">Бренд MadFrog — внутри, после установки</div>
-        <div class="step">После снятия — <b>не клонировать сразу</b> (это 4.3-триггер)</div>
-      </div>
-      <div class="mt-3 pt-3 border-t border-[#1e3a2a] text-xs text-[#8aa595]">переиспользуем <b class="text-[#eafff0]">~95% кода</b> + весь backend · <b class="text-[#ff8ac0]">максимум 1</b> доп. iOS-app на аккаунте</div>
+  <!-- ПУТЬ 1 -->
+  <div class="card p-6 pt-8 mb-5 relative">
+    <div class="badge-pos">1</div>
+    <div class="flex items-center justify-between mb-3">
+      <div class="flex items-center gap-3"><span class="em">🍏</span><div class="font-extrabold text-xl">Ещё одно приложение в Apple</div></div>
+      <div class="b" style="background:rgba(255,194,77,.16);color:#ffc24d"><span class="light y"></span> аккуратно</div>
     </div>
-
-    <!-- TRACK B -->
-    <div class="card rounded-2xl p-5" style="border-color:rgba(92,200,255,.22)">
-      <div class="flex items-center justify-between mb-2">
-        <span class="chip" style="background:rgba(92,200,255,.16);color:var(--cyan)">B · Android</span>
-        <span class="chip" style="background:rgba(124,255,107,.16);color:var(--accent)">риск: низкий</span>
-      </div>
-      <div class="text-lg font-bold mb-1">Android + RuStore = масштаб</div>
-      <p class="text-xs text-[#8aa595] mb-3">Настоящий churn-канал · ~2–4 недели</p>
-      <div class="space-y-1.5 text-sm text-[#cfe9d8]">
-        <div class="step">RuStore <b>терпит VPN</b> (не снимает) · аккаунт <b>бесплатный</b>, на ИП — отдельно от Apple</div>
-        <div class="step">Android-клиент: форк sing-box/Hiddify под наш backend, либо Kotlin + libbox</div>
-        <div class="step">Auth (наш JWT API), подписка (FreeKassa веб), конфиг (/mobile/config), relays</div>
-        <div class="step">Гнать пачками / обновлять без РКН-снятий</div>
-        <div class="step">Бонус: Google Play — международный охват</div>
-      </div>
-      <div class="mt-3 pt-3 border-t border-[#173042] text-xs text-[#8aa595]">backend <b class="text-[#eafff0]">100%</b> + VPN-протокол <b class="text-[#eafff0]">100%</b> · UI — заново · <b class="text-[#5cc8ff]">новая платформа</b></div>
+    <p class="text-[#cfe9d8] mb-3 leading-relaxed"><b>Что это:</b> делаем <b>одно</b> новое приложение в Apple — с <b>другим именем и картинкой</b>, чтобы оно не выглядело как копия. Внутри — наш же MadFrog.</p>
+    <div class="grid sm:grid-cols-2 gap-3 text-sm">
+      <div class="rounded-xl p-3" style="background:rgba(124,255,107,.06)">✅ <b>Почему можно:</b> одно отдельное приложение — это нормально, не спам.</div>
+      <div class="rounded-xl p-3" style="background:rgba(124,255,107,.06)">⚡ <b>Скорость:</b> ~1–2 дня. Код почти весь уже готов — меняем только «обёртку».</div>
     </div>
-
-    <!-- TRACK C -->
-    <div class="card rounded-2xl p-5">
-      <div class="flex items-center justify-between mb-2">
-        <span class="chip" style="background:rgba(124,255,107,.16);color:var(--accent)">C · Direct</span>
-        <span class="chip" style="background:rgba(124,255,107,.16);color:var(--accent)">риск: ноль</span>
-      </div>
-      <div class="text-lg font-bold mb-1">Telegram / сайт напрямую</div>
-      <p class="text-xs text-[#8aa595] mb-3">Быстрый прирост · ~2–3 дня</p>
-      <div class="space-y-1.5 text-sm text-[#cfe9d8]">
-        <div class="step"><b>@MadFrogRobot</b> уже есть: продажа подписки + выдача конфига в боте</div>
-        <div class="step">Лендинг: оплата + инструкция установки (профиль/ссылка)</div>
-        <div class="step">Промо в RU-каналах / посевы</div>
-        <div class="step">Ловит самых мотивированных — нулевой риск для аккаунтов</div>
-      </div>
-      <div class="mt-3 pt-3 border-t border-[#1e3a2a] text-xs text-[#8aa595]">backend <b class="text-[#eafff0]">100%</b> · бот <b class="text-[#eafff0]">есть</b> · усилить дёшево</div>
-    </div>
+    <p class="text-[#8aa595] text-sm mt-3">⚠️ Только <b>одно</b>, и когда его удалят — не делать сразу копию (вот это и есть спам).</p>
   </div>
 
-  <!-- TIMELINE -->
-  <h2 class="text-xl font-bold mb-3">План по фазам</h2>
+  <!-- ПУТЬ 2 -->
+  <div class="card p-6 pt-8 mb-5 relative" style="border-color:rgba(92,200,255,.25)">
+    <div class="badge-pos" style="background:linear-gradient(135deg,#5cc8ff,#3aa0e6)">2</div>
+    <div class="flex items-center justify-between mb-3">
+      <div class="flex items-center gap-3"><span class="em">🤖</span><div class="font-extrabold text-xl">Android + RuStore</div></div>
+      <div class="b" style="background:rgba(124,255,107,.16);color:#7cff6b"><span class="light g"></span> безопасно</div>
+    </div>
+    <p class="text-[#cfe9d8] mb-3 leading-relaxed"><b>Что это:</b> делаем версию для <b>Android-телефонов</b> и кладём её в <b>RuStore</b> — это российский магазин приложений. Там VPN <b>не удаляют</b>, а аккаунт <b>бесплатный и отдельный</b> от Apple.</p>
+    <div class="grid sm:grid-cols-2 gap-3 text-sm">
+      <div class="rounded-xl p-3" style="background:rgba(92,200,255,.07)">🚀 <b>Главный рост:</b> тут можно делать <b>много</b> приложений — Apple не пострадает.</div>
+      <div class="rounded-xl p-3" style="background:rgba(92,200,255,.07)">🛠️ <b>Цена:</b> ~2–4 недели — это новая платформа. Но «начинка» (серверы, оплата) уже есть.</div>
+    </div>
+    <p class="text-[#8aa595] text-sm mt-3">🏙️ <b>Как другой город</b>, где правила к VPN добрее. Бонус: тот же Android можно выложить и в Google Play на весь мир.</p>
+  </div>
+
+  <!-- ПУТЬ 3 -->
+  <div class="card p-6 pt-8 mb-10 relative">
+    <div class="badge-pos">3</div>
+    <div class="flex items-center justify-between mb-3">
+      <div class="flex items-center gap-3"><span class="em">💬</span><div class="font-extrabold text-xl">Telegram и сайт напрямую</div></div>
+      <div class="b" style="background:rgba(124,255,107,.16);color:#7cff6b"><span class="light g"></span> без риска</div>
+    </div>
+    <p class="text-[#cfe9d8] mb-3 leading-relaxed"><b>Что это:</b> продаём подписку <b>прямо в нашем боте</b> @MadFrogRobot и на сайте — без магазинов вообще.</p>
+    <div class="grid sm:grid-cols-2 gap-3 text-sm">
+      <div class="rounded-xl p-3" style="background:rgba(124,255,107,.06)">🛡️ <b>Никто не удалит:</b> нет магазина — нечего закрывать.</div>
+      <div class="rounded-xl p-3" style="background:rgba(124,255,107,.06)">⚡ <b>Быстро:</b> ~2–3 дня, бот у нас <b>уже есть</b>.</div>
+    </div>
+    <p class="text-[#8aa595] text-sm mt-3">🚪 <b>Как продавать со своего порога</b> — ловим самых заинтересованных.</p>
+  </div>
+
+  <!-- ПОРЯДОК -->
+  <h2 class="text-2xl font-extrabold mb-5 flex items-center gap-2">📅 С чего начинаем — по шагам</h2>
   <div class="space-y-3 mb-10">
-    <div class="card rounded-xl p-4 flex gap-4 items-start">
-      <span class="chip mt-0.5" style="background:rgba(124,255,107,.16);color:var(--accent)">Фаза 1 · неделя 1</span>
-      <div class="text-sm text-[#cfe9d8]"><b>Быстрые безопасные победы.</b> Трек A (+1 iOS-витрина) + Трек C (усилить Telegram/сайт). Параллельно. Минимум риска, максимум скорости — данные о конверсии собираем сразу.</div>
+    <div class="card p-4 flex items-center gap-4">
+      <div class="w-10 h-10 shrink-0 rounded-full grid place-items-center font-extrabold text-[#05140d]" style="background:linear-gradient(135deg,#7cff6b,#46d36a)">1</div>
+      <div class="text-[#cfe9d8]"><b>Сейчас (быстро и безопасно):</b> путь 1 (ещё одно iOS-приложение) + путь 3 (Telegram). Делаем параллельно.</div>
     </div>
-    <div class="card rounded-xl p-4 flex gap-4 items-start" style="border-color:rgba(92,200,255,.22)">
-      <span class="chip mt-0.5" style="background:rgba(92,200,255,.16);color:var(--cyan)">Фаза 2 · недели 2–4</span>
-      <div class="text-sm text-[#cfe9d8]"><b>Масштаб без риска для Apple.</b> Трек B — Android-клиент + RuStore-аккаунт на ИП. Это даёт настоящий «burner»-конвейер, которого нельзя на iOS. Backend/протокол уже готовы — работа в Android-шелле.</div>
+    <div class="card p-4 flex items-center gap-4">
+      <div class="w-10 h-10 shrink-0 rounded-full grid place-items-center font-extrabold text-[#04121c]" style="background:linear-gradient(135deg,#5cc8ff,#3aa0e6)">2</div>
+      <div class="text-[#cfe9d8]"><b>Потом (большой рост):</b> путь 2 — Android + RuStore. Тут масштаб без угрозы для Apple.</div>
     </div>
-    <div class="card rounded-xl p-4 flex gap-4 items-start">
-      <span class="chip mt-0.5" style="background:rgba(255,194,77,.16);color:var(--amber)">Фаза 3 · далее</span>
-      <div class="text-sm text-[#cfe9d8]"><b>Оптимизация воронки + повтор.</b> A/B онбординга, таймер-офферы, ретеншн. Android-пачки на RuStore по накатанному. iOS-витрину переподавать только с изменениями.</div>
+    <div class="card p-4 flex items-center gap-4">
+      <div class="w-10 h-10 shrink-0 rounded-full grid place-items-center font-extrabold text-[#05140d]" style="background:linear-gradient(135deg,#ffc24d,#e8a020)">3</div>
+      <div class="text-[#cfe9d8]"><b>Дальше (больше денег):</b> улучшаем, чтобы из тех, кто скачал, <b>платило больше людей</b>.</div>
     </div>
   </div>
 
-  <!-- FUNNEL ECONOMICS -->
-  <div class="grid md:grid-cols-2 gap-4 mb-10">
-    <div class="card rounded-2xl p-5">
-      <div class="font-bold mb-2">📊 Текущий бенчмарк (твои данные)</div>
-      <div class="flex items-end gap-6">
-        <div><div class="text-3xl font-extrabold glow">300+</div><div class="text-xs text-[#8aa595]">скачиваний / 2 дня</div></div>
-        <div><div class="text-3xl font-extrabold glow">12</div><div class="text-xs text-[#8aa595]">оплат</div></div>
-        <div><div class="text-3xl font-extrabold" style="color:var(--cyan)">~4%</div><div class="text-xs text-[#8aa595]">конверсия</div></div>
+  <!-- ДЕНЬГИ -->
+  <h2 class="text-2xl font-extrabold mb-4 flex items-center gap-2">🎯 Куда целимся</h2>
+  <div class="card p-6 mb-10">
+    <div class="flex items-center justify-around flex-wrap gap-4 text-center">
+      <div>
+        <div class="text-xs text-[#8aa595] mb-1">сейчас платит</div>
+        <div class="text-4xl font-extrabold num text-[#5cc8ff]">4<span class="text-2xl">%</span></div>
+        <div class="text-xs text-[#8aa595]">из 100 скачавших</div>
       </div>
-      <p class="text-xs text-[#8aa595] mt-3">Окно жизни ~2 суток → воронку надо выжимать сразу.</p>
-    </div>
-    <div class="card rounded-2xl p-5">
-      <div class="font-bold mb-2">🎯 Что поднимаем конверсию</div>
-      <div class="space-y-1.5 text-sm text-[#cfe9d8]">
-        <div class="step">RU-онбординг в 1 экран (без лишних шагов)</div>
-        <div class="step">FreeKassa/СБП сразу, без Apple-IAP трения</div>
-        <div class="step">Таймер-оффер «−50% сегодня»</div>
-        <div class="step">Цель: <b>4% → 6–8%</b></div>
+      <div class="text-3xl">🚀</div>
+      <div>
+        <div class="text-xs text-[#8aa595] mb-1">цель</div>
+        <div class="text-4xl font-extrabold num glow">6–8<span class="text-2xl">%</span></div>
+        <div class="text-xs text-[#8aa595]">из 100 скачавших</div>
       </div>
     </div>
-  </div>
-
-  <!-- ACCOUNT SAFETY -->
-  <div class="rounded-2xl p-5 mb-10" style="background:rgba(255,77,157,.07);border:1px solid rgba(255,77,157,.28)">
-    <div class="font-bold text-[#ff8ac0] mb-2">🛡 Правила безопасности аккаунта</div>
-    <div class="grid md:grid-cols-2 gap-x-8 gap-y-1.5 text-sm text-[#d8b5c6]">
-      <div class="step" style="--accent:var(--pink)">Основной MadFrog (international) — не трогаем, держим «чистым»</div>
-      <div class="step" style="--accent:var(--pink)">Максимум +1 iOS-app на этом аккаунте, не клонировать</div>
-      <div class="step" style="--accent:var(--pink)">Churn — только Android/RuStore (свой аккаунт) или Telegram</div>
-      <div class="step" style="--accent:var(--pink)">Слово «VPN» — не в названии iOS-листинга (РКН/Apple-скан)</div>
+    <div class="mt-5 pt-4 border-t border-[#1e3a2a] text-sm text-[#cfe9d8]">
+      <b>Как:</b> короткий вход (1 экран) → сразу оплата картой/СБП → акция «−50% сегодня». Меньше шагов = больше оплат.
     </div>
   </div>
 
-  <!-- RECOMMENDATION -->
-  <div class="card rounded-2xl p-5" style="border-color:rgba(124,255,107,.3)">
-    <div class="font-bold text-[var(--accent)] mb-2">✅ Рекомендация — порядок захода</div>
-    <ol class="space-y-2 text-sm text-[#cfe9d8] list-decimal list-inside">
-      <li><b>Сейчас:</b> Трек A (вариант-таргет iOS, ~часы) + Трек C (Telegram) — быстро и безопасно.</li>
-      <li><b>Масштаб:</b> Трек B (Android + RuStore) — настоящий churn-канал без угрозы Apple.</li>
-      <li><b>Дальше:</b> оптимизация воронки и повтор по накатанному.</li>
-    </ol>
+  <!-- ИТОГ -->
+  <div class="card p-6 text-center" style="border-color:rgba(124,255,107,.3)">
+    <div class="em mb-2">✅</div>
+    <div class="font-extrabold text-xl mb-2">Коротко</div>
+    <p class="text-[#cfe9d8] leading-relaxed">Главное приложение в Apple <b>бережём</b>. Растём <b>безопасно</b>: 1 — ещё одно iOS, 3 — Telegram (сразу), 2 — Android+RuStore (для масштаба). И делаем так, чтобы <b>больше людей платило</b>.</p>
   </div>
 
-  <p class="text-center text-xs text-[#5a6f63] mt-8">MadFrog · стратегия RU · этот файл живёт в docs/plans/ru-expansion.html</p>
+  <p class="text-center text-xs text-[#5a6f63] mt-8">docs/plans/ru-expansion.html</p>
 </div>
 </body></html>
