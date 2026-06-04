@@ -122,7 +122,7 @@ backend:
     tier: integration
     status: tested
     coverage_pct: n/a
-    covers: "users, payments, servers, charges round-trips (testcontainers PG); active=app-OR-VPN counts + BumpVPNSeen (users_active_test.go, ACTIVE-METRIC 2026-06-03); support chat (support_test.go) — one-open-thread, append/since, ownership, close→fresh-thread, ReopenThread success/already-open/conflict (2026-06-04), purge, wipe-on-delete, admin inbox list"
+    covers: "users, payments, servers, charges round-trips (testcontainers PG); active=app-OR-VPN counts + BumpVPNSeen (users_active_test.go, ACTIVE-METRIC 2026-06-03); support chat (support_test.go) — one-open-thread, append/since, ownership, close→fresh-thread, ReopenThread success/already-open/conflict (2026-06-04), purge, wipe-on-delete, admin inbox list; push tokens (push_test.go) — upsert/list/delete/cascade + AllPushTokens/PushTokenStats + broadcast audit-log round-trip (BROADCAST-PUSH 2026-06-04)"
     gaps: "0% when Docker absent → unverified in CI-without-Docker. See TEST-IOS-CI sibling concern for infra."
   payments:
     src_files: 1

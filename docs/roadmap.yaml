@@ -74,7 +74,26 @@ next:
       title: User detail page in admin SPA
       notes: Click a user → full history (payments timeline, traffic graph 7d/30d, device info, audit log, action buttons)
 
-  support:
+  engagement:
+    - id: INAPP-ANNOUNCEMENTS
+      title: In-app announcements — banner/card shown on app open (important notices + promos)
+      priority: P1
+      requested: 2026-06-04
+      needs_build: true   # client fetch+render code → rides the next App Store release (with push audience)
+      design: |
+        Distinct from BROADCAST-PUSH (done): push wakes the device but only reaches
+        users who granted notification permission + have the push build (~1 today);
+        an in-app announcement shows when the app is OPENED, reaches ALL active users
+        (no permission needed), has a richer UI, and is fully backend-controlled after
+        the client ships once. Strong for promos.
+        Plan (proposed, not built):
+        - DB: announcements (id, title, body, kind info|promo|warning, active bool,
+          starts_at/ends_at nullable, created_at, created_by). Admin CRUD page "Анонсы".
+        - mobile: GET /api/v1/mobile/announcements/active → current active+in-window
+          announcement(s) (+ optional CTA url). Client fetches on scenePhase .active,
+          shows a dismissible banner/card/sheet, remembers dismissed ids in UserDefaults.
+        - reach: needs a client build to ship the fetch/render; then 100% backend-driven.
+        Could share the admin "Рассылка" area. ~backend+admin ~1 day, iOS ~0.5 day.
     - id: SUPPORT-CHAT
       title: Customer support chat — self-hosted, real-time, multi-platform
       priority: high
@@ -496,6 +515,31 @@ deferred:
 # ============================================================
 done:
   "2026-06-04":
+    - id: BROADCAST-PUSH
+      title: Admin push broadcast — send a notification to all registered devices
+      status: shipped   # DEPLOYED to NL + verified live; no app build needed
+      files:
+        - backend/migrations/023_push_broadcasts.sql            # audit log table
+        - backend/internal/db/push.go                           # AllPushTokens, PushTokenStats, Insert/ListBroadcasts
+        - backend/internal/db/push_test.go                      # +2 integration tests
+        - backend/internal/api/admin/push.go                    # PushStats/PushBroadcast/PushBroadcasts (worker pool, 410 prune)
+        - backend/internal/api/admin/routes.go                  # /admin/push/* (broadcast = adminOnly)
+        - clients/admin/src/pages/push.tsx                      # "Рассылка" page (compose + preview + confirm + history)
+        - clients/admin/src/App.tsx + components/layout/app-sidebar.tsx  # route + nav
+      notes: |
+        Reuses the SUPPORT-CHAT P4 APNs sender (push.Client) + device_push_tokens.
+        Admin /admin/app/push composes title+body, shows recipient count + a live
+        notification preview, and after a confirm dialog blasts to every token via
+        a bounded 24-worker fan-out on a detached 90s ctx (so an Echo request
+        timeout can't cancel mid-blast); prunes 410 BadDeviceToken; logs the tally
+        to push_broadcasts; returns {total,sent,failed}. NO iOS build — the client
+        already displays any push and a non-support_reply tap opens the app
+        (payload type:"announcement"). Verified live: stats/broadcasts 401, broadcast
+        403 (adminOnly), table created, push page asset 200.
+        REACH CAVEAT: only ~1 device (the test phone) until a push-enabled build
+        (1.0.31) ships to the App Store — live build 101 has no push code. Synchronous
+        send is fine at this scale; move to a background job + status polling if the
+        token base grows past tens of thousands.
     - id: SUPPORT-CHAT-POLISH
       title: Chat polish — diag confirm alert, widget welcome/day-separators/file-bubble, branded log filename, admin close-reopen + filter + canned replies
       status: shipped   # admin DEPLOYED+verified live on NL; iOS/widget on TestFlight build 109 (108 superseded untested)
