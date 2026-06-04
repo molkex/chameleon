@@ -28,6 +28,7 @@ import (
 	"github.com/chameleonvpn/chameleon/internal/payments"
 	"github.com/chameleonvpn/chameleon/internal/payments/apple"
 	"github.com/chameleonvpn/chameleon/internal/payments/freekassa"
+	"github.com/chameleonvpn/chameleon/internal/push"
 	"github.com/chameleonvpn/chameleon/internal/storage"
 	"github.com/chameleonvpn/chameleon/internal/vpn"
 )
@@ -54,7 +55,11 @@ type Server struct {
 	// Built in main.go from B2_* env so the same client is shared with the
 	// retention sweep (which runs before NewServer).
 	Storage *storage.Client
-	Logger  *zap.Logger
+	// Push sends APNs alerts on an agent reply (SUPPORT-CHAT P4). nil ⇒ push
+	// disabled. Built in main.go from APNS_* env; wired only into the admin
+	// handler (the reply path), not mobile.
+	Push   *push.Client
+	Logger *zap.Logger
 }
 
 // NewServer creates a fully configured Echo instance with all routes
@@ -280,6 +285,7 @@ func (s *Server) setupRoutes(e *echo.Echo) {
 		ASC:           ascClient,
 		ASCAppID:      os.Getenv("ASC_APP_ID"),
 		Storage:       s.Storage,
+		Push:          s.Push,
 		// MON-04: local Prometheus for the dashboard health strip. Env
 		// override for non-default binds; empty falls back to the
 		// docker-compose bind (127.0.0.1:9091) inside infra.go.

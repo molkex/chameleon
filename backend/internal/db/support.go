@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -156,6 +157,25 @@ func (db *DB) ThreadOwnedBy(ctx context.Context, threadID, userID int64) (bool, 
 		`SELECT EXISTS(SELECT 1 FROM support_chat_threads WHERE id = $1 AND user_id = $2)`,
 		threadID, userID).Scan(&ok)
 	return ok, err
+}
+
+// ThreadUserID returns the owning user's id for a thread — used by the agent
+// reply path to resolve which user's push tokens to notify. ErrNotFound when
+// the thread doesn't exist.
+func (db *DB) ThreadUserID(ctx context.Context, threadID int64) (int64, error) {
+	ctx, cancel := defaultTimeout(ctx)
+	defer cancel()
+
+	var userID int64
+	err := db.Pool.QueryRow(ctx,
+		`SELECT user_id FROM support_chat_threads WHERE id = $1`, threadID).Scan(&userID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, ErrNotFound
+		}
+		return 0, err
+	}
+	return userID, nil
 }
 
 // CloseThread marks an open thread closed and starts the 90-day purge clock.

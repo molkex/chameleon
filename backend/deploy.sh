@@ -148,6 +148,10 @@ ssh "${NODE_SSH}" bash -s -- \
     "${B2_BUCKET:-}" \
     "${B2_ENDPOINT:-}" \
     "${B2_REGION:-}" \
+    "${APNS_KEY_ID:-}" \
+    "${APNS_TEAM_ID:-}" \
+    "${APNS_BUNDLE_ID:-}" \
+    "${APNS_KEY_P8_B64:-}" \
     <<'REMOTE'
 set -euo pipefail
 
@@ -181,6 +185,10 @@ B2_APPLICATION_KEY="${27}"
 B2_BUCKET="${28}"
 B2_ENDPOINT="${29}"
 B2_REGION="${30}"
+APNS_KEY_ID="${31}"
+APNS_TEAM_ID="${32}"
+APNS_BUNDLE_ID="${33}"
+APNS_KEY_P8_B64="${34}"
 
 cd "${REMOTE_DIR}/backend"
 
@@ -264,6 +272,10 @@ B2_APPLICATION_KEY=${B2_APPLICATION_KEY}
 B2_BUCKET=${B2_BUCKET}
 B2_ENDPOINT=${B2_ENDPOINT}
 B2_REGION=${B2_REGION}
+APNS_KEY_ID=${APNS_KEY_ID}
+APNS_TEAM_ID=${APNS_TEAM_ID}
+APNS_BUNDLE_ID=${APNS_BUNDLE_ID}
+APNS_KEY_P8_B64=${APNS_KEY_P8_B64}
 EOF
 chmod 600 .env
 

@@ -14,6 +14,7 @@ import (
 	"github.com/chameleonvpn/chameleon/internal/config"
 	"github.com/chameleonvpn/chameleon/internal/db"
 	"github.com/chameleonvpn/chameleon/internal/payments"
+	"github.com/chameleonvpn/chameleon/internal/push"
 	"github.com/chameleonvpn/chameleon/internal/storage"
 	"github.com/chameleonvpn/chameleon/internal/vpn"
 )
@@ -46,6 +47,11 @@ type Handler struct {
 	// Storage backs SUPPORT-CHAT attachments (B2 presigned URLs). nil ⇒
 	// attachments disabled (presign returns 503, served messages omit them).
 	Storage *storage.Client
+
+	// Push sends APNs alerts to a client when an agent replies (SUPPORT-CHAT
+	// P4). nil ⇒ push gracefully disabled (no env / creds) — SupportReply skips
+	// the send. Built once in main.go via push.NewFromEnv().
+	Push *push.Client
 }
 
 // RegisterRoutes adds admin API routes to the echo group.

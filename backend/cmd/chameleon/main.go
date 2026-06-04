@@ -41,6 +41,7 @@ import (
 	"github.com/chameleonvpn/chameleon/internal/db"
 	"github.com/chameleonvpn/chameleon/internal/email"
 	"github.com/chameleonvpn/chameleon/internal/metrics"
+	"github.com/chameleonvpn/chameleon/internal/push"
 	"github.com/chameleonvpn/chameleon/internal/secrets"
 	"github.com/chameleonvpn/chameleon/internal/storage"
 	"github.com/chameleonvpn/chameleon/internal/vpn"
@@ -347,6 +348,19 @@ func run() error {
 		logger.Info("support attachments enabled (B2)")
 	}
 
+	// SUPPORT-CHAT push (ADR 0011, P4): APNs client built from APNS_* env. nil
+	// when env is unset — push degrades to disabled (an agent reply just skips
+	// the send). A configured-but-malformed .p8 key IS fatal: that's a loud
+	// operator misconfiguration, not a silent "push is off".
+	pushClient, err := push.NewFromEnv()
+	if err != nil {
+		return fmt.Errorf("apns push client init failed: %w", err)
+	} else if pushClient == nil {
+		logger.Info("support push disabled — APNS env not configured")
+	} else {
+		logger.Info("support push enabled (APNs)")
+	}
+
 	// SUPPORT-CHAT retention (ADR 0011): hard-delete support threads closed
 	// >90 days ago (messages cascade). Daily sweep; also best-effort deletes the
 	// attachment bytes from B2 before the rows cascade away.
@@ -387,6 +401,7 @@ func run() error {
 		Syncer:  syncer,
 		Metrics: metricsRegistry,
 		Storage: supportStorage,
+		Push:    pushClient,
 		Logger:  logger,
 	}
 

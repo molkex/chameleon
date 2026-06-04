@@ -82,6 +82,10 @@ class AppState {
     /// toggling the tunnel. Set by `requestConnect()` on first connect
     /// attempt; UI clears it via `proceedAfterPrimer()` or by dismissing.
     var showPermissionPrimer: Bool = false
+    /// SUPPORT-CHAT P4: flipped true when the user taps a "support reply" push.
+    /// The app root observes this and presents `SupportChatView` from anywhere;
+    /// the sheet's dismiss resets it back to false.
+    var pendingSupportChatOpen: Bool = false
     var routingMode: RoutingMode = {
         let raw = UserDefaults(suiteName: AppConstants.appGroupID)?
             .string(forKey: AppConstants.routingModeKey) ?? ""
@@ -319,6 +323,13 @@ class AppState {
         // health check (no UI). A `.revoked` flags re-auth proactively; never
         // wipes creds. Runs detached so it never delays first paint.
         Task { await self.verifyAppleCredentialState() }
+
+        // SUPPORT-CHAT P4: once the user has a session, register for APNs so the
+        // backend can push support replies. Fire-and-forget — never blocks
+        // startup; the system prompt (if not yet answered) appears post-launch.
+        if configStore.accessToken != nil {
+            registerForPushNotifications()
+        }
     }
 
     /// Forwarded from the SwiftUI scene's `.onChange(of: scenePhase)`.
@@ -557,6 +568,59 @@ class AppState {
     func accessTokenForSupportChat() async -> String {
         _ = await tryRefreshToken()
         return configStore.accessToken ?? ""
+    }
+
+    // MARK: - Push Notifications (SUPPORT-CHAT P4)
+
+    /// Ask the OS for remote-notification authorisation and, on grant, register
+    /// for an APNs device token. Safe to call repeatedly — `requestAuthorization`
+    /// returns the cached decision after the first prompt, and
+    /// `registerForRemoteNotifications()` is idempotent. The token itself lands
+    /// asynchronously in the app delegate's `didRegisterForRemoteNotifications`
+    /// callback, which forwards it to `handlePushToken(_:)`. Best-effort: a denied
+    /// prompt or a registration error just means no support-reply pushes.
+    /// iOS/macOS bits are `#if os(iOS)`-scoped; on macOS this is a no-op for now.
+    func registerForPushNotifications() {
+        #if os(iOS)
+        Task {
+            let granted = (try? await UNUserNotificationCenter.current()
+                .requestAuthorization(options: [.alert, .sound, .badge])) ?? false
+            AppLogger.app.info("registerForPushNotifications: authorization granted=\(granted, privacy: .public)")
+            guard granted else { return }
+            await MainActor.run {
+                UIApplication.shared.registerForRemoteNotifications()
+            }
+        }
+        #endif
+    }
+
+    /// Forwarded from the app delegate's
+    /// `didRegisterForRemoteNotificationsWithDeviceToken`. Hex-encodes the raw
+    /// token and POSTs it to the backend (Bearer) so it can target this device
+    /// with support-reply pushes. Best-effort — no token / network failure just
+    /// skips registration, the user can still poll the chat manually.
+    func handlePushToken(_ deviceToken: Data) async {
+        let hex = deviceToken.map { String(format: "%02x", $0) }.joined()
+        AppLogger.app.info("handlePushToken: APNs token received len=\(hex.count, privacy: .public)")
+        guard let token = configStore.accessToken else {
+            AppLogger.app.info("handlePushToken: no access token yet — skipping push registration")
+            return
+        }
+        do {
+            try await apiClient.registerPushToken(hex, accessToken: token)
+            AppLogger.app.info("handlePushToken: registered with backend")
+        } catch {
+            AppLogger.app.error("handlePushToken: backend registration failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// Forwarded from the app delegate when the user taps a "support reply"
+    /// push. Flips the observable flag the app root watches to present the
+    /// support chat from anywhere.
+    @MainActor
+    func handleSupportPushTap() {
+        AppLogger.app.info("handleSupportPushTap: opening support chat")
+        pendingSupportChatOpen = true
     }
 
     /// One-tap diagnostic snapshot for the support chat ("отправить лог" button).

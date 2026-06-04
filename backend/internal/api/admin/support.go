@@ -10,6 +10,7 @@ package admin
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -19,6 +20,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/chameleonvpn/chameleon/internal/db"
+	"github.com/chameleonvpn/chameleon/internal/push"
 	"github.com/chameleonvpn/chameleon/internal/storage"
 )
 
@@ -31,6 +33,10 @@ const (
 const (
 	maxAgentMessageLen = 4000
 	chatChannelPrefix  = "support:thread:" // MUST match mobile.chatChannel
+
+	// pushTitle / pushPreviewLen shape the APNs alert for an agent reply.
+	pushTitle      = "Поддержка MadFrog"
+	pushPreviewLen = 120
 )
 
 // agentThreadDTO is one row in the inbox list.
@@ -222,7 +228,71 @@ func (h *Handler) SupportReply(c echo.Context) error {
 		}
 	}
 
+	// APNs push to the thread owner's devices (SUPPORT-CHAT P4). Fire-and-forget
+	// in a goroutine with a FRESH context: the request ctx is cancelled the
+	// moment we return the JSON below, so reusing it would race the send to
+	// completion. nil Push ⇒ push disabled, skip entirely.
+	if h.Push != nil {
+		h.sendReplyPush(id, body, hasAttachment)
+	}
+
 	return c.JSON(http.StatusOK, dto)
+}
+
+// pushPreview is the alert body for an agent reply: the message trimmed to
+// pushPreviewLen runes, or "Вложение" when the reply is attachment-only. Pure
+// (unit-testable). Truncation is rune-safe so a multibyte char is never split.
+func pushPreview(body string, hasAttachment bool) string {
+	body = strings.TrimSpace(body)
+	if body == "" {
+		if hasAttachment {
+			return "Вложение"
+		}
+		return ""
+	}
+	runes := []rune(body)
+	if len(runes) > pushPreviewLen {
+		return string(runes[:pushPreviewLen]) + "…"
+	}
+	return body
+}
+
+// sendReplyPush resolves the thread owner's device tokens and pushes the reply
+// preview to each, in the background. Errors are logged (never surfaced to the
+// agent); a token APNs permanently rejects is pruned. Caller must have checked
+// h.Push != nil.
+func (h *Handler) sendReplyPush(threadID int64, body string, hasAttachment bool) {
+	preview := pushPreview(body, hasAttachment)
+	go func() {
+		// Detached from the request: a fresh, bounded context so the send
+		// outlives the HTTP response.
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		userID, err := h.DB.ThreadUserID(ctx, threadID)
+		if err != nil {
+			h.Logger.Warn("admin support: push resolve user", zap.Int64("thread", threadID), zap.Error(err))
+			return
+		}
+		tokens, err := h.DB.PushTokensForUser(ctx, userID)
+		if err != nil {
+			h.Logger.Warn("admin support: push list tokens", zap.Int64("user_id", userID), zap.Error(err))
+			return
+		}
+		custom := map[string]any{"type": "support_reply", "thread_id": threadID}
+		for _, tok := range tokens {
+			err := h.Push.Send(ctx, tok, pushTitle, preview, custom)
+			switch {
+			case err == nil:
+			case errors.Is(err, push.ErrBadToken):
+				if delErr := h.DB.DeletePushToken(ctx, tok); delErr != nil {
+					h.Logger.Warn("admin support: prune bad push token", zap.Error(delErr))
+				}
+			default:
+				h.Logger.Warn("admin support: push send", zap.Int64("thread", threadID), zap.Error(err))
+			}
+		}
+	}()
 }
 
 // SupportAdminPresignUpload handles POST /admin/support/threads/:id/attachments/presign

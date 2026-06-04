@@ -1,12 +1,22 @@
 import SwiftUI
 import Libbox
 import UserNotifications
+#if os(iOS)
+import UIKit
+#endif
 
 @main
 struct MadFrogVPNApp: App {
     @State private var appState = AppState()
     @State private var themeManager = ThemeManager()
     @Environment(\.scenePhase) private var scenePhase
+    #if os(iOS)
+    // SUPPORT-CHAT P4 — owns the UIApplicationDelegate callbacks for APNs
+    // device-token delivery and support-reply taps. The delegate is the same
+    // process-lifetime singleton used for LAUNCH-08 (UNUserNotificationCenter
+    // delegate), so the adaptor just hands SwiftUI the shared instance.
+    @UIApplicationDelegateAdaptor(AppNotificationDelegate.self) private var appDelegate
+    #endif
 
     init() {
         // LAUNCH-03: bring up Sentry FIRST so a crash in any of the
@@ -52,6 +62,18 @@ struct MadFrogVPNApp: App {
                     Color.black.ignoresSafeArea()
                 } else if appState.isAuthenticated {
                     MainView()
+                        // SUPPORT-CHAT P4: a tapped "support reply" push flips
+                        // `pendingSupportChatOpen`; present the chat from the app
+                        // root so it opens regardless of which screen is on top.
+                        // Reset the flag on dismiss. SwiftUI propagates the
+                        // .environment objects below into the sheet, but inject
+                        // them explicitly so SupportChatView always has app +
+                        // themeManager even when presented from the root.
+                        .sheet(isPresented: Bindable(appState).pendingSupportChatOpen) {
+                            SupportChatView()
+                                .environment(appState)
+                                .environment(themeManager)
+                        }
                 } else {
                     OnboardingView()
                 }
@@ -59,6 +81,17 @@ struct MadFrogVPNApp: App {
             .environment(appState)
             .environment(themeManager)
             .task { await appState.initialize() }
+            .task {
+                // SUPPORT-CHAT P4: wire the live AppState into the notification
+                // delegate so APNs token delivery + support-reply taps can reach
+                // it. The delegate is a process-lifetime singleton; the link is
+                // weak so it never outlives AppState's natural scope.
+                #if os(iOS)
+                appDelegate.appState = appState
+                #else
+                AppNotificationDelegate.shared.appState = appState
+                #endif
+            }
             .task {
                 // LAUNCH-08: register the notification category once so the
                 // disconnect alert lands with a "Reconnect" action button.
@@ -176,11 +209,26 @@ extension Notification.Name {
 /// SwiftUI scene (which owns `AppState`) can drive the actual reconnect on
 /// the MainActor — the delegate itself runs on a background queue by default,
 /// and we don't want to capture the AppState reference here.
+///
+/// SUPPORT-CHAT P4 — this same delegate also serves as the
+/// `UIApplicationDelegate` (registered via `@UIApplicationDelegateAdaptor` on
+/// the App struct) so it can receive the APNs device token and route a tapped
+/// "support reply" push into the app. The App struct injects a weak `AppState`
+/// reference (`appState`) once the scene is up; the delegate forwards the token
+/// to `AppState.handlePushToken` and a support-reply tap to
+/// `AppState.handleSupportPushTap`.
 final class AppNotificationDelegate: NSObject, UNUserNotificationCenterDelegate, @unchecked Sendable {
     /// Singleton — `UNUserNotificationCenter.delegate` is `weak`, so storing
     /// it as a per-app `@State` would let ARC reap it before iOS routes a
     /// tap. The shared instance lives for the process lifetime.
     static let shared = AppNotificationDelegate()
+
+    /// SUPPORT-CHAT P4 — weak link to the live AppState, injected by the App
+    /// struct once the scene appears (on iOS into the `@UIApplicationDelegateAdaptor`
+    /// instance, on macOS into `.shared`). Weak so the delegate (process-lifetime
+    /// singleton) never keeps AppState alive past its natural scope. Used to
+    /// forward the APNs device token and a tapped support-reply push.
+    weak var appState: AppState?
 
     override init() {
         super.init()
@@ -202,7 +250,9 @@ final class AppNotificationDelegate: NSObject, UNUserNotificationCenterDelegate,
         if id == AppConstants.disconnectNotificationID {
             completionHandler([])
         } else {
-            completionHandler([.banner, .sound])
+            // SUPPORT-CHAT P4: a support-reply push that arrives in the
+            // foreground still shows a banner so the user notices the reply.
+            completionHandler([.banner, .sound, .badge])
         }
     }
 
@@ -216,6 +266,17 @@ final class AppNotificationDelegate: NSObject, UNUserNotificationCenterDelegate,
         withCompletionHandler completionHandler: @escaping @Sendable () -> Void
     ) {
         defer { completionHandler() }
+
+        // SUPPORT-CHAT P4: a tapped "support reply" push opens the in-app chat.
+        // The custom payload carries `{"type":"support_reply", ...}` alongside
+        // the standard aps alert. Route to AppState on the MainActor.
+        let userInfo = response.notification.request.content.userInfo
+        if userInfo["type"] as? String == "support_reply" {
+            let state = appState
+            Task { @MainActor in state?.handleSupportPushTap() }
+            return
+        }
+
         let id = response.notification.request.identifier
         guard id == AppConstants.disconnectNotificationID else { return }
 
@@ -230,6 +291,41 @@ final class AppNotificationDelegate: NSObject, UNUserNotificationCenterDelegate,
         NotificationCenter.default.post(name: .vpnReconnectRequested, object: nil)
     }
 }
+
+// SUPPORT-CHAT P4 — iOS-only `UIApplicationDelegate` conformance. Registered on
+// the App struct via `@UIApplicationDelegateAdaptor`, this gives us the APNs
+// device-token + remote-notification-registration callbacks. macOS keeps the
+// minimal UNUserNotificationCenter delegate above (no remote-push wiring yet),
+// though the aps-environment entitlement is present on both platforms.
+#if os(iOS)
+extension AppNotificationDelegate: UIApplicationDelegate {
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        // Claim the notification-center delegate slot as early as possible so a
+        // tap that cold-started the app (launched from a push) still routes here.
+        UNUserNotificationCenter.current().delegate = self
+        return true
+    }
+
+    func application(
+        _ application: UIApplication,
+        didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+    ) {
+        TunnelFileLogger.log("APNs: didRegister token len=\(deviceToken.count)", category: "push")
+        let state = appState
+        Task { await state?.handlePushToken(deviceToken) }
+    }
+
+    func application(
+        _ application: UIApplication,
+        didFailToRegisterForRemoteNotificationsWithError error: Error
+    ) {
+        TunnelFileLogger.log("APNs: didFailToRegister: \(error.localizedDescription)", category: "push")
+    }
+}
+#endif
 
 private extension View {
     /// On macOS (both native target and iOS-on-Mac runtime) enforce an

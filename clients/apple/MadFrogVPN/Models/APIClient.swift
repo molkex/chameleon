@@ -748,6 +748,34 @@ class APIClient {
         }
     }
 
+    // MARK: - Push Notifications
+
+    /// Register the APNs device token with the backend (SUPPORT-CHAT P4) so it
+    /// can push "support reply" notifications. Mirrors `sendSupportMessage`:
+    /// single request to the non-CF api host — NO direct-IP fallback race (a
+    /// POST must not double-send), Bearer-authenticated, 15s timeout, 2xx = OK.
+    /// `token` is the hex-encoded APNs device token.
+    func registerPushToken(_ token: String, accessToken: String) async throws {
+        guard let url = URL(string: AppConstants.baseURL + "/api/v1/mobile/push/register") else {
+            throw APIError.networkError("Invalid push URL")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["token": token, "platform": "ios"])
+        request.timeoutInterval = 15
+
+        let (_, response) = try await URLSession.shared.data(for: applyTelemetry(to: request))
+        guard let http = response as? HTTPURLResponse else {
+            throw APIError.networkError("No response")
+        }
+        if http.statusCode == 401 { throw APIError.unauthorized }
+        guard (200...299).contains(http.statusCode) else {
+            throw APIError.serverError(http.statusCode)
+        }
+    }
+
     // MARK: - Subscription Verification
 
     /// Result of POST /api/mobile/subscription/verify.

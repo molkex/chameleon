@@ -28,5 +28,7 @@
 	<array>
 		<string>applinks:madfrog.online</string>
 	</array>
+	<key>aps-environment</key>
+	<string>production</string>
 </dict>
 </plist>

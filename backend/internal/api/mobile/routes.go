@@ -103,6 +103,12 @@ func RegisterRoutes(g *echo.Group, h *Handler) {
 	// already exempt from mw.Idempotency.
 	g.GET("/support/stream", h.SupportStream)
 
+	// APNs device-token registration (SUPPORT-CHAT P4). JWT-required; the user
+	// id comes from the token. Sits outside /support — it's device-level, not
+	// thread-scoped — and only writes the DB (the agent-reply send lives in the
+	// admin handler, which holds the APNs client).
+	g.POST("/push/register", h.PushRegister, requireAuth)
+
 	// Apple App Store Server Notifications V2 — public endpoint (trust comes
 	// from JWS verification, not HTTP auth). Registered at the group root so
 	// Apple sees /api/mobile/subscription/notification AND
