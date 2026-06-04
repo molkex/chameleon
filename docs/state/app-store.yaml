@@ -55,12 +55,12 @@ versions:
   # review is untouched; 1.0.30 App Store submission is a separate later step.
   testflight:
     version: "1.0.31"
-    build: 107                        # iOS; VALID; assigned to Internal Testers
-    processingState: VALID            # verified live ASC API 2026-06-04
-    build_uploaded: 2026-06-04T~14:21Z (iOS)
-    ios_build_id: ad394528-feb8-420b-be3b-044a033e56c1     # app 6761008632
+    build: 108                        # iOS; assigned to Internal Testers
+    processingState: PROCESSING       # uploaded 2026-06-04 ~14:58Z, VALID poll in flight
+    build_uploaded: 2026-06-04T~14:58Z (iOS)
     ships:
-      - SUPPORT-CHAT-LOGFIX (diag "Отправить лог" — fresh token + real singbox.log attach + feedback)
+      - SUPPORT-CHAT-POLISH (diag confirm → alert; widget welcome/day-separators/file-bubble)
+      - SUPPORT-CHAT-LOGFIX (b107: diag "Отправить лог" — fresh token + real singbox.log attach)
       - (cumulative 1.0.31 train) support chat P2-P4, attachments, APNs push, widget-timer, FR-SELECT
     groups:
       ios:   {id: 19b338f9-82fa-4371-ae21-bea225d94076, hasAccessToAllBuilds: false, assigned: explicit}

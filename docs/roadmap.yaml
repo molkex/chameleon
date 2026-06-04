@@ -496,6 +496,36 @@ deferred:
 # ============================================================
 done:
   "2026-06-04":
+    - id: SUPPORT-CHAT-POLISH
+      title: Chat polish — diag confirm alert, widget welcome/day-separators/file-bubble, admin close-reopen + filter + canned replies
+      status: shipped   # admin DEPLOYED+verified live on NL; iOS/widget on TestFlight build 108
+      files:
+        - clients/apple/MadFrogVPN/Views/SupportChatView.swift   # confirmationDialog → alert
+        - clients/widget/index.html                              # welcome-on-empty, day separators, file-bubble (caption-above + meta column)
+        - backend/internal/db/{db.go,support.go,support_test.go}  # ErrConflict, ReopenThread (+ TestReopenThread integration)
+        - backend/internal/api/admin/{support.go,routes.go}      # POST /admin/support/threads/:id/status
+        - clients/admin/src/pages/inbox.tsx                      # close/reopen button + open/closed/all filter + canned-replies dropdown
+      notes: |
+        Follow-ups to on-device review of build 107.
+        iOS/widget (ride build 108):
+        - the diag confirm rendered as a cramped tail-popover with no visible Cancel
+          on iOS 26 (SwiftUI confirmationDialog from a toolbar item) → switched to a
+          standard centered .alert (Отправить / Отмена).
+        - widget greets on first open (welcome shown only when history is empty —
+          new users used to see a blank void) + day separators (Сегодня/Вчера/date).
+        - widget file bubble: "singbox.log256 KB" smush fixed (meta → flex column);
+          for FILE attachments the caption now renders ABOVE the chip so "diagnostic
+          text + singbox.log" reads as ONE message (confirmed one DB row: body +
+          attachment — the "two messages" was purely visual).
+        Admin inbox (deployed to NL + verified live — endpoint 403 unauth like /reply,
+        asset serves "Закрыть"/"Быстрые ответы"):
+        - close (resolve) / reopen a thread: POST /admin/support/threads/:id/status,
+          db.ReopenThread guards the one-open-thread invariant (db.ErrConflict on a
+          unique violation → 409). Integration-tested (TestReopenThread).
+        - open/closed/all filter (with open count) + canned-replies dropdown in the
+          composer.
+        VERIFY: backend build+vet+TestReopenThread green; admin tsc+vite green +
+        deployed+verified live; iOS archive→EXPORT SUCCEEDED (build 108, VALID pending).
     - id: SUPPORT-CHAT-LOGFIX
       title: '"Отправить лог" actually sends (fresh token) + ships the real singbox.log; admin composer no longer clipped'
       status: shipped   # admin DEPLOYED+verified live on NL; iOS on TestFlight build 107 (VALID, Internal Testers)
