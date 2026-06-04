@@ -156,6 +156,77 @@ func (db *DB) CloseThread(ctx context.Context, threadID int64) error {
 	return nil
 }
 
+// AdminThreadSummary is one row in the agent inbox list (P3 admin inbox).
+type AdminThreadSummary struct {
+	ThreadID       int64
+	UserID         int64
+	Status         string
+	LastMessageAt  time.Time
+	LastSender     string
+	LastBody       string
+	UnreadFromUser int
+	VPNUsername    *string
+	AuthProvider   *string
+	DeviceID       *string
+}
+
+// ListAdminThreads returns threads for the agent inbox — open first, newest
+// activity first — with the last message, the unread (user→agent) count, and
+// the client's identity for display.
+func (db *DB) ListAdminThreads(ctx context.Context, limit int) ([]AdminThreadSummary, error) {
+	ctx, cancel := defaultTimeout(ctx)
+	defer cancel()
+
+	if limit <= 0 || limit > 200 {
+		limit = 100
+	}
+	rows, err := db.Pool.Query(ctx, `
+		SELECT t.id, t.user_id, t.status, t.last_message_at,
+		       COALESCE(lm.sender, ''), COALESCE(lm.body, ''),
+		       COALESCE(uc.cnt, 0),
+		       u.vpn_username, u.auth_provider, u.device_id
+		FROM support_chat_threads t
+		LEFT JOIN users u ON u.id = t.user_id
+		LEFT JOIN LATERAL (
+			SELECT sender, body FROM support_chat_messages m
+			WHERE m.thread_id = t.id ORDER BY m.id DESC LIMIT 1
+		) lm ON TRUE
+		LEFT JOIN LATERAL (
+			SELECT COUNT(*) AS cnt FROM support_chat_messages m
+			WHERE m.thread_id = t.id AND m.sender = 'user' AND m.read_at IS NULL
+		) uc ON TRUE
+		ORDER BY (t.status = 'open') DESC, t.last_message_at DESC
+		LIMIT $1`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []AdminThreadSummary
+	for rows.Next() {
+		var s AdminThreadSummary
+		if err := rows.Scan(&s.ThreadID, &s.UserID, &s.Status, &s.LastMessageAt,
+			&s.LastSender, &s.LastBody, &s.UnreadFromUser,
+			&s.VPNUsername, &s.AuthProvider, &s.DeviceID); err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
+// MarkThreadReadByAgent clears read_at on the user's messages once an agent has
+// opened the thread (drives the inbox unread badge back to zero).
+func (db *DB) MarkThreadReadByAgent(ctx context.Context, threadID int64) error {
+	ctx, cancel := defaultTimeout(ctx)
+	defer cancel()
+
+	_, err := db.Pool.Exec(ctx,
+		`UPDATE support_chat_messages SET read_at = NOW()
+		 WHERE thread_id = $1 AND sender = 'user' AND read_at IS NULL`, threadID)
+	return err
+}
+
 // PurgeClosedThreadsOlderThan hard-deletes threads closed more than `age` ago
 // (messages cascade). Returns the number of threads removed. Called daily by
 // runSupportRetention with age = 90 days.

@@ -88,6 +88,14 @@ func RegisterRoutes(g *echo.Group, h *Handler, jwtManager *auth.JWTManager) {
 	adminMW := CookieOrBearerAuth(jwtManager, h.DB)
 	adminOnly := RequireAdmin()
 
+	// Support inbox (SUPPORT-CHAT P3). Read + reply require an authenticated
+	// admin (operator can answer clients); a reply fans out to the client's
+	// live SSE via Redis. See admin/support.go.
+	support := g.Group("/support", adminMW)
+	support.GET("/threads", h.SupportThreads)
+	support.GET("/threads/:id/messages", h.SupportThreadMessages)
+	support.POST("/threads/:id/reply", h.SupportReply)
+
 	// Users. List/get are read; delete/extend are destructive → admin only.
 	users := g.Group("/users", adminMW)
 	users.GET("", h.ListUsers)

@@ -197,3 +197,80 @@ func TestWipeUserOnDeleteRemovesChat(t *testing.T) {
 		t.Errorf("account-delete left chat behind: threads=%d msgs=%d", threads, msgs)
 	}
 }
+
+// TestAdminInboxList covers the agent-inbox query (ListAdminThreads) + the
+// mark-read transition (P3 admin inbox).
+func TestAdminInboxList(t *testing.T) {
+	database := startTestDB(t)
+	ctx := context.Background()
+
+	uid := createChatUser(t, database, ctx, "chat_inbox", "aaaaaaaa-0000-4000-8000-0000000000b1")
+	th, err := database.OpenOrGetThread(ctx, uid)
+	if err != nil {
+		t.Fatalf("OpenOrGetThread: %v", err)
+	}
+	// Two user messages (both unread by the agent) + nothing from the agent yet.
+	if _, err := database.AppendMessage(ctx, th.ID, "user", "первое"); err != nil {
+		t.Fatalf("append user1: %v", err)
+	}
+	if _, err := database.AppendMessage(ctx, th.ID, "user", "второе и последнее"); err != nil {
+		t.Fatalf("append user2: %v", err)
+	}
+
+	rows, err := database.ListAdminThreads(ctx, 50)
+	if err != nil {
+		t.Fatalf("ListAdminThreads: %v", err)
+	}
+	var got *AdminThreadSummary
+	for i := range rows {
+		if rows[i].ThreadID == th.ID {
+			got = &rows[i]
+			break
+		}
+	}
+	if got == nil {
+		t.Fatalf("thread %d not in inbox list", th.ID)
+	}
+	if got.Status != "open" {
+		t.Errorf("status = %q, want open", got.Status)
+	}
+	if got.UnreadFromUser != 2 {
+		t.Errorf("unread = %d, want 2", got.UnreadFromUser)
+	}
+	if got.LastSender != "user" || got.LastBody != "второе и последнее" {
+		t.Errorf("last message = %q/%q, want user/'второе и последнее'", got.LastSender, got.LastBody)
+	}
+	if got.VPNUsername == nil || *got.VPNUsername != "chat_inbox" {
+		t.Errorf("vpn_username = %v, want chat_inbox", got.VPNUsername)
+	}
+
+	// Agent opens the thread → user messages marked read → unread = 0.
+	if err := database.MarkThreadReadByAgent(ctx, th.ID); err != nil {
+		t.Fatalf("MarkThreadReadByAgent: %v", err)
+	}
+	rows, err = database.ListAdminThreads(ctx, 50)
+	if err != nil {
+		t.Fatalf("ListAdminThreads after read: %v", err)
+	}
+	for i := range rows {
+		if rows[i].ThreadID == th.ID && rows[i].UnreadFromUser != 0 {
+			t.Errorf("unread after mark-read = %d, want 0", rows[i].UnreadFromUser)
+		}
+	}
+
+	// An agent reply becomes the last message (and isn't counted as unread).
+	if _, err := database.AppendMessage(ctx, th.ID, "agent", "ответ агента"); err != nil {
+		t.Fatalf("append agent: %v", err)
+	}
+	rows, _ = database.ListAdminThreads(ctx, 50)
+	for i := range rows {
+		if rows[i].ThreadID == th.ID {
+			if rows[i].LastSender != "agent" || rows[i].LastBody != "ответ агента" {
+				t.Errorf("last = %q/%q, want agent/'ответ агента'", rows[i].LastSender, rows[i].LastBody)
+			}
+			if rows[i].UnreadFromUser != 0 {
+				t.Errorf("unread after agent reply = %d, want 0", rows[i].UnreadFromUser)
+			}
+		}
+	}
+}
