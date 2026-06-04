@@ -70,7 +70,7 @@ now:
     (/admin/app/inbox) — list threads, read, reply → pushes to client via Redis SSE (P3 MVP
     deployed 2026-06-04). MSK nginx SSE done. REMAINING before App Store submit — privacy policy
     + ASC data label (5.1.1 — chat stores messages, policy says "no usage metadata"). Later (full
-    P3): admin-SSE live vs poll, canned replies, notes, assignment, Telegram bridge. Open — widget
+    P3) — admin-SSE live vs poll, canned replies, notes, assignment, Telegram bridge. Open — widget
     BUNDLED vs hosted chat.madfrog.online.
   - AWAIT-REVIEW 1.0.30 (build 102, KEYCHAIN-MACOS) WAITING_FOR_REVIEW (submitted 2026-06-04,
     AFTER_APPROVAL auto-release). 1.0.29 (101) shipped 2026-06-02. After 1.0.30 ships → submit
