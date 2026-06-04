@@ -106,6 +106,7 @@ func RegisterRoutes(g *echo.Group, h *Handler, jwtManager *auth.JWTManager) {
 	support.GET("/threads", h.SupportThreads)
 	support.GET("/threads/:id/messages", h.SupportThreadMessages)
 	support.POST("/threads/:id/reply", h.SupportReply)
+	support.POST("/threads/:id/status", h.SupportSetThreadStatus)
 	support.POST("/threads/:id/attachments/presign", h.SupportAdminPresignUpload)
 
 	// Users. List/get are read; delete/extend are destructive → admin only.

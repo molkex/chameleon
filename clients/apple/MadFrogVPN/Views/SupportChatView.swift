@@ -63,15 +63,11 @@ struct SupportChatView: View {
                     .accessibilityLabel(Text("Отправить диагностику"))
                 }
             }
-            .confirmationDialog(
-                "Отправить в поддержку диагностику и журнал подключения?",
-                isPresented: $showDiagConfirm,
-                titleVisibility: .visible
-            ) {
+            .alert("Отправить журнал в поддержку?", isPresented: $showDiagConfirm) {
                 Button("Отправить") { sendDiagnostic() }
                 Button("Отмена", role: .cancel) {}
             } message: {
-                Text("Журнал может содержать адреса серверов и технические данные подключения.")
+                Text("Уйдёт снимок состояния приложения и журнал подключения — он может содержать адреса серверов и технические данные.")
             }
             .alert("Не удалось отправить", isPresented: $showDiagError) {
                 Button("OK", role: .cancel) {}

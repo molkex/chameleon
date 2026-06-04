@@ -14,6 +14,10 @@ import (
 // ErrNotFound is returned when an update or delete targets a row that does not exist.
 var ErrNotFound = errors.New("db: record not found")
 
+// ErrConflict is returned when a write violates a uniqueness constraint
+// (e.g. reopening a support thread while the user already has an open one).
+var ErrConflict = errors.New("db: conflict")
+
 // DB wraps pgxpool.Pool with helper methods for database access.
 // Cipher (optional, may be nil) wraps sensitive fields stored as TEXT
 // (provider passwords, etc.) with AES-256-GCM. nil = encryption disabled.

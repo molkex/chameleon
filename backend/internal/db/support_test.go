@@ -219,6 +219,45 @@ func TestCloseThenNewThread(t *testing.T) {
 	}
 }
 
+func TestReopenThread(t *testing.T) {
+	database := startTestDB(t)
+	ctx := context.Background()
+	uid := createChatUser(t, database, ctx, "chat_reopen", "aaaaaaaa-0000-4000-8000-0000000000e1")
+
+	t1, _ := database.OpenOrGetThread(ctx, uid)
+	if err := database.CloseThread(ctx, t1.ID); err != nil {
+		t.Fatalf("CloseThread: %v", err)
+	}
+	// Reopen the only (closed) thread → success, back to open.
+	if err := database.ReopenThread(ctx, t1.ID); err != nil {
+		t.Fatalf("ReopenThread: %v", err)
+	}
+	got, _ := database.OpenOrGetThread(ctx, uid)
+	if got.ID != t1.ID {
+		t.Errorf("after reopen, OpenOrGetThread returned %d, want the reopened %d", got.ID, t1.ID)
+	}
+	if got.Status != "open" {
+		t.Errorf("reopened status = %q, want open", got.Status)
+	}
+	// Reopening an already-open thread is ErrNotFound (it's not a closed one).
+	if err := database.ReopenThread(ctx, t1.ID); err != ErrNotFound {
+		t.Errorf("reopen of open thread = %v, want ErrNotFound", err)
+	}
+
+	// Conflict: close t1, open a fresh thread, then reopening t1 must fail —
+	// the user already holds an open thread (partial-unique violation).
+	if err := database.CloseThread(ctx, t1.ID); err != nil {
+		t.Fatalf("CloseThread again: %v", err)
+	}
+	t2, _ := database.OpenOrGetThread(ctx, uid)
+	if t2.ID == t1.ID {
+		t.Fatalf("expected a fresh thread, reused %d", t1.ID)
+	}
+	if err := database.ReopenThread(ctx, t1.ID); err != ErrConflict {
+		t.Errorf("reopen with another open thread = %v, want ErrConflict", err)
+	}
+}
+
 func TestPurgeClosedThreadsOlderThan(t *testing.T) {
 	database := startTestDB(t)
 	ctx := context.Background()

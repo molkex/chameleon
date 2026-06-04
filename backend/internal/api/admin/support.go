@@ -134,6 +134,42 @@ func (h *Handler) SupportThreads(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]any{"threads": out})
 }
 
+// SupportSetThreadStatus handles POST /admin/support/threads/:id/status — the
+// agent closes (resolves) or reopens a conversation. Body {"status":"open"|"closed"}.
+func (h *Handler) SupportSetThreadStatus(c echo.Context) error {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "bad thread id"})
+	}
+	var req struct {
+		Status string `json:"status"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "bad request"})
+	}
+	ctx := c.Request().Context()
+
+	switch req.Status {
+	case "closed":
+		err = h.DB.CloseThread(ctx, id)
+	case "open":
+		err = h.DB.ReopenThread(ctx, id)
+	default:
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "status must be open or closed"})
+	}
+	switch {
+	case err == nil:
+		return c.JSON(http.StatusOK, map[string]string{"status": req.Status})
+	case errors.Is(err, db.ErrNotFound):
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "thread not in the expected state"})
+	case errors.Is(err, db.ErrConflict):
+		return c.JSON(http.StatusConflict, map[string]string{"error": "user already has an open thread"})
+	default:
+		h.Logger.Error("support: set thread status", zap.Int64("thread_id", id), zap.Error(err))
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal error"})
+	}
+}
+
 // SupportThreadMessages handles GET /admin/support/threads/:id/messages.
 // Opening a thread marks the user's messages read (clears the unread badge).
 func (h *Handler) SupportThreadMessages(c echo.Context) error {

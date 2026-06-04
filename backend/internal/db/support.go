@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // SupportThread is one support conversation. closed_at != nil ⇒ status "closed"
@@ -189,6 +190,30 @@ func (db *DB) CloseThread(ctx context.Context, threadID int64) error {
 		`UPDATE support_chat_threads SET status = 'closed', closed_at = NOW()
 		 WHERE id = $1 AND status = 'open'`, threadID)
 	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// ReopenThread flips a closed thread back to open (agent un-resolves it).
+// Returns ErrNotFound if the thread isn't a closed one, or ErrConflict if the
+// user already has another open thread (the partial-unique index on user_id
+// WHERE status='open' allows only one).
+func (db *DB) ReopenThread(ctx context.Context, threadID int64) error {
+	ctx, cancel := defaultTimeout(ctx)
+	defer cancel()
+
+	tag, err := db.Pool.Exec(ctx,
+		`UPDATE support_chat_threads SET status = 'open', closed_at = NULL
+		 WHERE id = $1 AND status = 'closed'`, threadID)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return ErrConflict
+		}
 		return err
 	}
 	if tag.RowsAffected() == 0 {

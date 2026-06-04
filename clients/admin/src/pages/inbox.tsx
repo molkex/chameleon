@@ -7,7 +7,24 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { Send, Paperclip, FileText } from "lucide-react";
+import { Send, Paperclip, FileText, X, RotateCcw, MessageSquarePlus } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
+
+// Canned replies — operator quick-answers; picking one drops the text into the
+// composer (the agent can edit before sending).
+const CANNED_REPLIES = [
+  "Здравствуйте! Подскажите, пожалуйста, подробнее — что именно происходит?",
+  "Спасибо за обращение, уже разбираюсь.",
+  "Попробуйте, пожалуйста, переподключиться и выбрать сервер «Авто».",
+  "Обновите приложение до последней версии и переустановите профиль VPN.",
+  "Передал инженерам — вернусь с ответом, как только будет решение.",
+  "Если вопрос решён — можем закрыть обращение. Хорошего дня! 🐸",
+];
 
 // SUPPORT inbox — /admin/app/inbox. Two-pane operator view over the
 // /admin/support/* endpoints. Left = threads (open first, newest first,
@@ -111,6 +128,7 @@ export default function InboxPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [draft, setDraft] = useState("");
   const [composerError, setComposerError] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"all" | "open" | "closed">("all");
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
@@ -125,6 +143,9 @@ export default function InboxPage() {
     refetchInterval: 5000,
   });
   const threads = threadsData?.threads ?? [];
+  const openCount = threads.filter((t) => t.status === "open").length;
+  const visibleThreads =
+    statusFilter === "all" ? threads : threads.filter((t) => t.status === statusFilter);
 
   const {
     data: messagesData,
@@ -151,6 +172,17 @@ export default function InboxPage() {
       composerRef.current?.focus();
     },
     onError: (e) => toast.error(`Не отправлено: ${e.message}`),
+  });
+
+  // Close (resolve) / reopen a thread.
+  const statusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: number; status: "open" | "closed" }) =>
+      api.post(`/admin/support/threads/${id}/status`, { status }),
+    onSuccess: (_d, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["support-threads"] });
+      toast.success(vars.status === "closed" ? "Обращение закрыто" : "Обращение открыто");
+    },
+    onError: (e) => toast.error(`Не удалось: ${e.message}`),
   });
 
   // Attachment send: presign → PUT raw bytes to B2 (outside the api client —
@@ -233,7 +265,25 @@ export default function InboxPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Поддержка</h1>
-        <span className="text-xs text-zinc-400">auto-refresh 5s</span>
+        <div className="flex items-center gap-3">
+          <div className="flex rounded-md border border-zinc-800 p-0.5 text-xs">
+            {(["all", "open", "closed"] as const).map((f) => (
+              <button
+                key={f}
+                type="button"
+                onClick={() => setStatusFilter(f)}
+                className={`rounded px-2.5 py-1 transition-colors ${
+                  statusFilter === f
+                    ? "bg-zinc-700 text-white"
+                    : "text-zinc-400 hover:text-zinc-200"
+                }`}
+              >
+                {f === "all" ? "Все" : f === "open" ? `Открытые${openCount ? ` (${openCount})` : ""}` : "Закрытые"}
+              </button>
+            ))}
+          </div>
+          <span className="text-xs text-zinc-400">auto-refresh 5s</span>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-[20rem_1fr]">
@@ -251,11 +301,13 @@ export default function InboxPage() {
                 <div className="p-6 text-center text-sm text-red-400">
                   Не удалось загрузить обращения
                 </div>
-              ) : threads.length === 0 ? (
-                <div className="p-6 text-center text-sm text-zinc-500">Нет обращений</div>
+              ) : visibleThreads.length === 0 ? (
+                <div className="p-6 text-center text-sm text-zinc-500">
+                  {threads.length === 0 ? "Нет обращений" : "Нет обращений в этом фильтре"}
+                </div>
               ) : (
                 <ul className="divide-y divide-zinc-800">
-                  {threads.map((t) => {
+                  {visibleThreads.map((t) => {
                     const isActive = t.thread_id === selectedId;
                     return (
                       <li key={t.thread_id}>
@@ -321,15 +373,44 @@ export default function InboxPage() {
                     {selectedThread.auth_provider ? ` · ${selectedThread.auth_provider}` : ""}
                   </span>
                 </div>
-                <Badge
-                  className={
-                    selectedThread.status === "open"
-                      ? "bg-emerald-900 text-emerald-300"
-                      : "bg-zinc-800 text-zinc-400"
-                  }
-                >
-                  {selectedThread.status === "open" ? "открыто" : "закрыто"}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  {selectedThread.status === "open" ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={statusMutation.isPending}
+                      onClick={() =>
+                        statusMutation.mutate({ id: selectedThread.thread_id, status: "closed" })
+                      }
+                    >
+                      <X className="mr-1 h-3.5 w-3.5" />
+                      Закрыть
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={statusMutation.isPending}
+                      onClick={() =>
+                        statusMutation.mutate({ id: selectedThread.thread_id, status: "open" })
+                      }
+                    >
+                      <RotateCcw className="mr-1 h-3.5 w-3.5" />
+                      Открыть
+                    </Button>
+                  )}
+                  <Badge
+                    className={
+                      selectedThread.status === "open"
+                        ? "bg-emerald-900 text-emerald-300"
+                        : "bg-zinc-800 text-zinc-400"
+                    }
+                  >
+                    {selectedThread.status === "open" ? "открыто" : "закрыто"}
+                  </Badge>
+                </div>
               </div>
 
               {/* Messages — min-h-0 lets flex-1 actually shrink the ScrollArea
@@ -458,6 +539,34 @@ export default function InboxPage() {
                   >
                     <Paperclip className="h-4 w-4" />
                   </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        disabled={busy}
+                        title="Быстрые ответы"
+                        className="shrink-0"
+                      >
+                        <MessageSquarePlus className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="max-w-xs">
+                      {CANNED_REPLIES.map((tpl, i) => (
+                        <DropdownMenuItem
+                          key={i}
+                          className="whitespace-normal text-sm"
+                          onSelect={() => {
+                            setDraft(tpl);
+                            composerRef.current?.focus();
+                          }}
+                        >
+                          {tpl}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                   <Textarea
                     ref={composerRef}
                     rows={2}

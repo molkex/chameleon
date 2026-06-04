@@ -78,10 +78,11 @@
     background:var(--bg-card-2); border:1px solid var(--line); border-radius:12px; padding:9px 12px; max-width:240px}
   .msg.user .att-file{background:rgba(5,20,13,.18); border-color:rgba(5,20,13,.18)}
   .att-file .ic{font-size:22px; flex:none}
-  .att-file .meta{min-width:0}
+  .att-file .meta{display:flex; flex-direction:column; min-width:0}
   .att-file .nm{font-size:13.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
   .att-file .sz{font-size:11px; opacity:.7; margin-top:1px; font-variant-numeric:tabular-nums}
   .att-cap{margin-top:6px}
+  .att-cap.above{margin-top:0; margin-bottom:8px}
   .msg.uploading{opacity:.55}
   .msg.uploading .att-img,.msg.uploading .att-file{filter:saturate(.7)}
   .msg.failed{opacity:.7}
@@ -148,11 +149,11 @@
   const STR = {
     ru:{title:"Поддержка MadFrog",online:"на связи",offline:"нет связи",connecting:"подключение…",
         placeholder:"Опишите проблему…",welcome:"Здравствуйте! Опишите, что случилось — ответим как можно скорее.",
-        sendErr:"Не отправилось. Проверьте связь и попробуйте ещё раз.",today:"Сегодня",
+        sendErr:"Не отправилось. Проверьте связь и попробуйте ещё раз.",today:"Сегодня",yesterday:"Вчера",
         fileTooBig:"Файл слишком большой (макс. 10 МБ).",fileBadType:"Такой тип файла не поддерживается."},
     en:{title:"MadFrog Support",online:"online",offline:"offline",connecting:"connecting…",
         placeholder:"Describe your issue…",welcome:"Hi! Tell us what happened — we'll reply as soon as we can.",
-        sendErr:"Couldn't send. Check your connection and try again.",today:"Today",
+        sendErr:"Couldn't send. Check your connection and try again.",today:"Today",yesterday:"Yesterday",
         fileTooBig:"File is too large (max 10 MB).",fileBadType:"This file type isn't supported."},
   };
 
@@ -186,12 +187,33 @@
   function fmtTime(d){ return d.toLocaleTimeString(cfg.lang==="ru"?"ru-RU":"en-US",{hour:"2-digit",minute:"2-digit"}); }
   function humanSize(b){ if(!b) return "0 KB"; return b<1048576 ? (b/1024).toFixed(b<10240?1:0)+" KB" : (b/1048576).toFixed(b<10485760?1:0)+" MB"; }
 
+  // ── day separators ── (insert a "Сегодня / Вчера / 4 июня" divider when the
+  // day rolls over between consecutive messages; lastDayKey survives reconnects
+  // because deduped messages return before this runs)
+  let lastDayKey = null;
+  function dayKey(d){ return d.getFullYear()+"-"+d.getMonth()+"-"+d.getDate(); }
+  function dayLabel(d){
+    const now=new Date(), y=new Date(); y.setDate(now.getDate()-1);
+    if(dayKey(d)===dayKey(now)) return L.today;
+    if(dayKey(d)===dayKey(y)) return L.yesterday;
+    return d.toLocaleDateString(cfg.lang==="ru"?"ru-RU":"en-US",{day:"numeric",month:"long"});
+  }
+  function maybeDaySeparator(d){
+    const k=dayKey(d);
+    if(k===lastDayKey) return;
+    lastDayKey=k;
+    const sep=document.createElement("div"); sep.className="daysep"; sep.textContent=dayLabel(d);
+    msgsEl.appendChild(sep);
+  }
+
   function addMessage(m, animate=true){
     if (m.id){
       if (seenIds.has(m.id)) return null;          // already rendered (SSE echo / history overlap / reconnect replay)
       seenIds.add(m.id);
       lastId = Math.max(lastId, m.id);
     }
+    const when = m.created_at ? new Date(m.created_at) : new Date();
+    if (m.sender!=="system") maybeDaySeparator(when);
     const el = document.createElement("div");
     el.className = "msg " + (m.sender==="user"||m.sender==="local"?"user":m.sender==="system"?"system":"agent");
     if(!animate) el.style.animation="none";
@@ -202,7 +224,7 @@
     }
     if (m.sender!=="system"){
       const t=document.createElement("span"); t.className="time";
-      t.textContent=fmtTime(m.created_at?new Date(m.created_at):new Date());
+      t.textContent=fmtTime(when);
       el.appendChild(t);
     }
     msgsEl.appendChild(el);
@@ -214,7 +236,17 @@
   // local object-URL preview before upload completes); falls back to att.url.
   function renderAttachment(el, att, body, src){
     const url = src || att.url;
-    if ((att.mime||"").startsWith("image/")){
+    const isImg = (att.mime||"").startsWith("image/");
+    let cap = null;
+    if (body && body.trim()){
+      cap = document.createElement("div");
+      cap.className = "att-cap" + (isImg ? "" : " above");
+      cap.textContent = body;
+    }
+    // Files: caption ABOVE the chip so "text + attached file" reads as ONE
+    // message (e.g. the diagnostic snapshot + singbox.log), not two bubbles.
+    if (cap && !isImg) el.appendChild(cap);
+    if (isImg){
       const img=document.createElement("img"); img.className="att-img";
       img.loading="lazy"; if(url) img.src=url;
       if(att.url && !src) img.addEventListener("click", ()=>window.open(att.url,"_blank","noopener"));
@@ -229,10 +261,8 @@
       meta.appendChild(nm); meta.appendChild(sz); a.appendChild(meta);
       el.appendChild(a);
     }
-    if (body && body.trim()){
-      const cap=document.createElement("div"); cap.className="att-cap"; cap.textContent=body;
-      el.appendChild(cap);
-    }
+    // Images: caption BELOW the image (conventional).
+    if (cap && isImg) el.appendChild(cap);
   }
 
   function banner(text){ const b=$("banner"); if(!text){b.hidden=true;return;} b.textContent=text; b.hidden=false; }
@@ -248,7 +278,9 @@
 
   async function loadHistory(){
     const data = await api("/api/v1/mobile/support/messages?since="+lastId);
-    (data.messages||[]).forEach(m=>addMessage(m,false));
+    const msgs = data.messages||[];
+    msgs.forEach(m=>addMessage(m,false));
+    return msgs.length;
   }
 
   async function openStream(){
@@ -378,7 +410,11 @@
     applyTheme(); applyLang();
     PREVIEW = false;
     setConn("connecting");
-    loadHistory().then(openStream).catch(()=>setConn("offline"));
+    loadHistory().then(n=>{
+      // first open (no history): greet instead of showing a blank void
+      if(n===0) addMessage({sender:"system",body:L.welcome,created_at:new Date()},false);
+      return openStream();
+    }).catch(()=>setConn("offline"));
   };
 
   // ── PREVIEW mode (opened standalone, no initChat) ──
@@ -391,7 +427,6 @@
   }
   function startPreview(){
     applyTheme(); applyLang(); setConn("online");
-    addMessage({sender:"system",body:L.today,created_at:new Date()},false);
     addMessage({sender:"agent",body:L.welcome,created_at:new Date(Date.now()-3600e3)},false);
     addMessage({sender:"user",body:"После обновления на маке слетел аккаунт на триал 😩",created_at:new Date(Date.now()-3500e3)},false);
     addMessage({sender:"agent",body:"Это известный момент с keychain — фикс уже в TestFlight (1.0.30). Обнови сборку и зайди через «Войти с Apple» — подписка вернётся, она привязана к Apple ID.",created_at:new Date(Date.now()-3400e3)},false);
