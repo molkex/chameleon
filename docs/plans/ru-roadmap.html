@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="ru"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MadFrog — Роадмап расширения RU</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,360;9..144,460;9..144,560&family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0d0b;--panel:#11150f;--panel2:#141a12;
+    --ink:#ece8dc;--ink-soft:#c8c8bd;--mut:#878d80;--faint:#5c6258;
+    --line:rgba(236,232,220,.10);--line-2:rgba(236,232,220,.20);
+    --green:#b6d98a;--gold:#d6b269;--cool:#8fbcd0;--rose:#cf8a8a;
+    --low:#9fc27a;--mid:#d2b15e;--high:#cf8a8a;
+    --serif:"Fraunces",Georgia,serif;--sans:"Archivo",system-ui,sans-serif;--mono:"IBM Plex Mono",monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.55;-webkit-font-smoothing:antialiased;
+    background-image:radial-gradient(55% 38% at 90% -4%,rgba(182,217,138,.045),transparent 60%),radial-gradient(45% 32% at 2% 8%,rgba(214,178,105,.035),transparent 60%)}
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.02;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+  .wrap{position:relative;z-index:1;max-width:1080px;margin:0 auto;padding:0 28px 120px}
+  .kicker{font-family:var(--mono);font-size:11px;letter-spacing:.32em;text-transform:uppercase;color:var(--green)}
+  .mlabel{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--mut)}
+  section{padding:46px 0;border-bottom:1px solid var(--line)}
+  .sec-head{display:flex;align-items:baseline;gap:16px;margin:0 0 22px}
+  .sec-no{font-family:var(--mono);font-size:13px;color:var(--green);letter-spacing:.1em}
+  .sec-title{font-family:var(--serif);font-weight:460;font-size:clamp(21px,2.8vw,28px);letter-spacing:-.01em;margin:0}
+  .sub{font-size:14.5px;color:var(--mut);max-width:70ch;margin:-10px 0 18px}
+  strong{color:var(--ink);font-weight:600}
+  .panel{background:var(--panel);border:1px solid var(--line)}
+
+  /* masthead */
+  header.mast{padding:72px 0 30px;border-bottom:1px solid var(--line-2)}
+  .mast h1{font-family:var(--serif);font-weight:460;font-size:clamp(36px,6vw,64px);line-height:1.03;letter-spacing:-.015em;margin:16px 0 0;max-width:16ch}
+  .mast h1 em{font-style:italic;color:var(--gold)}
+  .mast .meta{font-family:var(--mono);font-size:11px;color:var(--faint);letter-spacing:.05em;margin-top:22px;display:flex;gap:18px;flex-wrap:wrap}
+  .frameworks{font-family:var(--mono);font-size:10.5px;color:var(--mut);letter-spacing:.04em;margin-top:14px;border-top:1px solid var(--line);padding-top:14px}
+  .frameworks b{color:var(--green);font-weight:500}
+
+  /* status legend */
+  .legend{display:flex;gap:18px;flex-wrap:wrap;font-family:var(--mono);font-size:11px;color:var(--mut);margin-top:18px}
+  .st{display:inline-flex;align-items:center;gap:7px}
+  .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+  .d-plan{background:#4c5247} .d-prog{background:var(--gold)} .d-done{background:var(--green)} .d-block{background:var(--rose)}
+
+  /* vision */
+  .vision{display:grid;grid-template-columns:1.4fr 1fr;gap:0;border:1px solid var(--line-2)}
+  .vision>div{padding:28px 30px}
+  .vision .v1{border-right:1px solid var(--line);background:linear-gradient(120deg,rgba(182,217,138,.06),transparent 70%)}
+  .vision .lab{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--green)}
+  .vision .stmt{font-family:var(--serif);font-weight:360;font-size:clamp(19px,2.4vw,25px);line-height:1.42;margin-top:14px}
+  .vision .ns{font-family:var(--serif);font-weight:500;font-size:34px;letter-spacing:-.01em;margin-top:10px}
+  .vision .nslab{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);margin-top:8px}
+
+  /* pillars */
+  .pillars{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .pil{border:1px solid var(--line);background:var(--panel);padding:20px;border-top:2px solid var(--green)}
+  .pil:nth-child(2){border-top-color:var(--gold)} .pil:nth-child(3){border-top-color:var(--cool)}
+  .pil .t{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--mut)}
+  .pil h3{font-family:var(--serif);font-weight:500;font-size:19px;margin:8px 0 8px;letter-spacing:-.01em;line-height:1.12}
+  .pil p{font-size:13.5px;color:var(--ink-soft);margin:0}
+
+  /* OKR */
+  .okr{border:1px solid var(--line-2);padding:24px 26px;background:linear-gradient(110deg,rgba(214,178,105,.05),transparent 70%)}
+  .okr .obj{font-family:var(--serif);font-weight:460;font-size:clamp(19px,2.4vw,24px);line-height:1.3;max-width:60ch}
+  .krgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:20px}
+  .krc{border:1px solid var(--line);background:var(--panel);padding:16px}
+  .krc .k{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--mut);text-transform:uppercase}
+  .krc .v{font-family:var(--serif);font-weight:500;font-size:26px;margin-top:8px;font-variant-numeric:tabular-nums}
+  .krc .v.g{color:var(--gold)} .krc .v.c{color:var(--cool)} .krc .v.gr{color:var(--green)}
+  .krc .bar{height:4px;background:rgba(236,232,220,.1);margin-top:12px}.krc .bar i{display:block;height:100%;background:var(--green)}
+
+  /* now-next-later */
+  .nnl{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .nnl-col{border:1px solid var(--line);background:linear-gradient(180deg,var(--panel),#0d110e)}
+  .nnl-col .h{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+  .nnl-col .h .n{font-family:var(--serif);font-size:19px;font-weight:500}
+  .nnl-col .h .w{font-family:var(--mono);font-size:10px;color:var(--mut);letter-spacing:.08em;text-transform:uppercase}
+  .nnl-col.now .h{border-bottom-color:var(--green)} .nnl-col.now .h .n{color:var(--green)}
+  .nnl-col.next .h{border-bottom-color:var(--gold)} .nnl-col.next .h .n{color:var(--gold)}
+  .nnl-col.later .h .n{color:var(--cool)}
+  .nnl-col ul{list-style:none;margin:0;padding:12px 14px;display:flex;flex-direction:column;gap:9px}
+  .card{border:1px solid var(--line);background:#0f130d;padding:11px 12px;border-left:2px solid var(--mut)}
+  .card.t1{border-left-color:var(--green)} .card.t2{border-left-color:var(--gold)} .card.t3{border-left-color:var(--cool)}
+  .card .ct{font-size:14px;font-weight:500;color:var(--ink)}
+  .card .cm{font-family:var(--mono);font-size:10px;color:var(--mut);margin-top:5px;letter-spacing:.04em}
+
+  /* table */
+  .tbl{width:100%;border-collapse:collapse;font-size:13.5px}
+  .tbl thead th{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);
+    text-align:left;padding:0 12px 10px;border-bottom:1px solid var(--line-2);font-weight:500;white-space:nowrap}
+  .tbl tbody td{padding:13px 12px;border-bottom:1px solid var(--line);color:var(--ink-soft);vertical-align:top}
+  .tbl tbody tr:hover td{background:rgba(236,232,220,.02)}
+  .tbl .id{font-family:var(--mono);font-size:11px;color:var(--faint)}
+  .tbl .nm{color:var(--ink);font-weight:500}
+  .pill{font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:999px;white-space:nowrap;display:inline-flex;gap:5px;align-items:center}
+  .p-plan{background:rgba(76,82,71,.3);color:#a9afa0} .p-prog{background:rgba(214,178,105,.15);color:var(--gold)} .p-done{background:rgba(182,217,138,.15);color:var(--green)}
+  .eff i{width:7px;height:7px;border-radius:50%;background:rgba(236,232,220,.15);display:inline-block;margin-right:3px}
+  .eff i.on{background:var(--ink-soft)}
+  .rk{font-family:var(--mono);font-size:11px}.rk.l{color:var(--low)}.rk.m{color:var(--mid)}.rk.h{color:var(--high)}.rk.n{color:var(--green)}
+  .rice{font-family:var(--mono);font-size:12px;color:var(--ink);font-variant-numeric:tabular-nums}
+
+  /* milestones */
+  .ms{display:flex;gap:0;border:1px solid var(--line);background:var(--panel);overflow-x:auto}
+  .msi{flex:1;min-width:150px;padding:18px;border-right:1px solid var(--line);position:relative}
+  .msi:last-child{border-right:none}
+  .msi .dia{width:11px;height:11px;background:var(--green);transform:rotate(45deg);margin-bottom:12px}
+  .msi.future .dia{background:#3a4232}
+  .msi .when{font-family:var(--mono);font-size:10px;color:var(--mut);letter-spacing:.08em;text-transform:uppercase}
+  .msi .lab{font-size:13.5px;color:var(--ink);margin-top:6px;font-weight:500;line-height:1.3}
+
+  /* KPI tiles */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .kpi{border:1px solid var(--line);background:var(--panel);padding:18px}
+  .kpi .v{font-family:var(--serif);font-weight:500;font-size:28px;letter-spacing:-.01em}
+  .kpi .l{font-family:var(--mono);font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em;margin-top:8px;line-height:1.4}
+  .kpi .tg{font-family:var(--mono);font-size:10.5px;color:var(--green);margin-top:6px}
+
+  /* risk matrix */
+  .rmwrap{display:grid;grid-template-columns:1fr 1.3fr;gap:16px}
+  .matrix{border:1px solid var(--line);background:var(--panel);padding:6px}
+  .matrix svg{display:block;width:100%;height:auto}
+
+  @media (prefers-reduced-motion:no-preference){
+    .reveal{opacity:0;transform:translateY(13px);animation:rise .8s cubic-bezier(.2,.7,.2,1) forwards}@keyframes rise{to{opacity:1;transform:none}}
+  }
+  footer{padding-top:36px;font-family:var(--mono);font-size:11px;color:var(--faint);letter-spacing:.05em;display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px}
+  @media (max-width:880px){
+    .pillars,.krgrid,.nnl,.kpis{grid-template-columns:1fr} .vision,.rmwrap{grid-template-columns:1fr}
+    .vision .v1{border-right:none;border-bottom:1px solid var(--line)}
+    .tblscroll{overflow-x:auto} .tbl{min-width:840px}
+  }
+</style></head>
+<body>
+<div class="wrap">
+
+  <!-- MASTHEAD -->
+  <header class="mast reveal">
+    <div class="kicker">MadFrog — стратегический роадмап</div>
+    <h1>Расширение присутствия на рынке <em>России</em></h1>
+    <div class="meta"><span>v3.0 — эталон</span><span>4 июня 2026</span><span>Владелец: Максим Ткачук</span><span>Горизонт: Q3 2026</span></div>
+    <div class="frameworks">Методология: <b>Now-Next-Later</b> · <b>OKR</b> · <b>3 горизонта (McKinsey)</b> · <b>RICE</b>-приоритизация · тематические треки · <b>матрица рисков</b> · KPI</div>
+    <div class="legend">
+      <span class="st"><i class="dot d-done"></i> сделано</span>
+      <span class="st"><i class="dot d-prog"></i> в работе</span>
+      <span class="st"><i class="dot d-plan"></i> запланировано</span>
+      <span class="st"><i class="dot d-block"></i> заблокировано</span>
+    </div>
+  </header>
+
+  <!-- 01 VISION + NORTH STAR -->
+  <section class="reveal" style="animation-delay:.05s">
+    <div class="sec-head"><span class="sec-no">01</span><h2 class="sec-title">Видение и North-Star</h2></div>
+    <div class="vision">
+      <div class="v1">
+        <div class="lab">Видение</div>
+        <div class="stmt">Устойчивый доступ к свободному интернету для пользователей из России — с дистрибуцией, <strong>не зависящей от одного магазина приложений</strong>.</div>
+      </div>
+      <div>
+        <div class="lab" style="color:var(--gold)">North-Star метрика</div>
+        <div class="ns">Платящие / мес из РФ</div>
+        <div class="nslab">единый показатель здоровья всей стратегии</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 02 STRATEGIC PILLARS -->
+  <section class="reveal" style="animation-delay:.1s">
+    <div class="sec-head"><span class="sec-no">02</span><h2 class="sec-title">Стратегические опоры</h2></div>
+    <p class="sub">Три темы, в которые группируются все инициативы. Каждая инициатива ниже привязана к опоре (цветной маркер слева).</p>
+    <div class="pillars">
+      <div class="pil"><div class="t">Опора A</div><h3>Диверсификация каналов</h3><p>Не зависеть от одного магазина: iOS-витрина, Android/RuStore, прямая продажа.</p></div>
+      <div class="pil"><div class="t">Опора B</div><h3>Рост конверсии</h3><p>Выжать короткое окно жизни: онбординг, оплата без трения, офферы.</p></div>
+      <div class="pil"><div class="t">Опора C</div><h3>Защита основного бизнеса</h3><p>Изоляция основного аккаунта Apple от рискованных экспериментов.</p></div>
+    </div>
+  </section>
+
+  <!-- 03 OKR -->
+  <section class="reveal" style="animation-delay:.15s">
+    <div class="sec-head"><span class="sec-no">03</span><h2 class="sec-title">Цели и ключевые результаты — Q3</h2></div>
+    <div class="okr">
+      <div class="obj"><span style="font-family:var(--mono);font-size:12px;color:var(--gold);letter-spacing:.1em">ЦЕЛЬ · </span>Кратно вырастить привлечение из РФ — без единого инцидента с основным аккаунтом Apple.</div>
+      <div class="krgrid">
+        <div class="krc"><div class="k">KR1 — каналы</div><div class="v gr">3</div><div class="bar"><i style="width:33%"></i></div></div>
+        <div class="krc"><div class="k">KR2 — конверсия</div><div class="v g">7%</div><div class="bar"><i style="width:50%;background:var(--gold)"></i></div></div>
+        <div class="krc"><div class="k">KR3 — инциденты</div><div class="v c">0</div><div class="bar"><i style="width:100%;background:var(--cool)"></i></div></div>
+        <div class="krc"><div class="k">KR4 — платящих/мес</div><div class="v">×3</div><div class="bar"><i style="width:20%"></i></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 NOW / NEXT / LATER -->
+  <section class="reveal" style="animation-delay:.2s">
+    <div class="sec-head"><span class="sec-no">04</span><h2 class="sec-title">Now · Next · Later</h2></div>
+    <p class="sub">Приоритет по горизонтам, а не по жёстким датам (формат ProdPad). Цвет карточки = стратегическая опора.</p>
+    <div class="nnl">
+      <div class="nnl-col now">
+        <div class="h"><span class="n">Now</span><span class="w">сейчас · нед. 1</span></div>
+        <ul>
+          <li class="card t1"><div class="ct">Доп. iOS-витрина</div><div class="cm">опора A · риск средний · S</div></li>
+          <li class="card t1"><div class="ct">Прямая продажа в боте (ссылка-конфиг)</div><div class="cm">опора A · риск ноль · S</div></li>
+          <li class="card t2"><div class="ct">Воронка v1 — 1 экран + СБП + оффер</div><div class="cm">опора B · риск низкий · M</div></li>
+        </ul>
+      </div>
+      <div class="nnl-col next">
+        <div class="h"><span class="n">Next</span><span class="w">1–2 мес</span></div>
+        <ul>
+          <li class="card t1"><div class="ct">Android-клиент</div><div class="cm">опора A · риск низкий · L</div></li>
+          <li class="card t3"><div class="ct">Аккаунт RuStore + публикация</div><div class="cm">опора A/C · риск низкий · M</div></li>
+          <li class="card t2"><div class="ct">Механика офферов / удержания</div><div class="cm">опора B · риск низкий · M</div></li>
+        </ul>
+      </div>
+      <div class="nnl-col later">
+        <div class="h"><span class="n">Later</span><span class="w">3+ мес</span></div>
+        <ul>
+          <li class="card t1"><div class="ct">Конвейер публикаций Android</div><div class="cm">опора A · риск низкий · M</div></li>
+          <li class="card t1"><div class="ct">Google Play — мировой охват</div><div class="cm">опора A · риск низкий · M</div></li>
+          <li class="card t2"><div class="ct">Реферальная программа · A/B воронки</div><div class="cm">опора B · риск низкий · M</div></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 INITIATIVES TABLE -->
+  <section class="reveal" style="animation-delay:.25s">
+    <div class="sec-head"><span class="sec-no">05</span><h2 class="sec-title">Реестр инициатив</h2></div>
+    <p class="sub">RICE — приоритет (охват × влияние × уверенность ÷ трудозатраты). Трудозатраты: ●○○ = S, ●●○ = M, ●●● = L.</p>
+    <div class="tblscroll">
+    <table class="tbl">
+      <thead><tr>
+        <th>ID</th><th>Инициатива</th><th>Опора</th><th>Горизонт</th><th>Трудозатр.</th><th>Риск</th><th>RICE</th><th>Статус</th><th>Метрика успеха</th>
+      </tr></thead>
+      <tbody>
+        <tr><td class="id">I-01</td><td class="nm">Вариант-таргет iOS (доп. витрина)</td><td>A</td><td>Now</td><td class="eff"><i class="on"></i><i></i><i></i></td><td class="rk m">сред.</td><td class="rice">8.0</td><td><span class="pill p-plan"><i class="dot d-plan"></i>план</span></td><td>публикация live · установки/2дня</td></tr>
+        <tr><td class="id">I-02</td><td class="nm">Прямая продажа в боте + выдача конфига</td><td>A</td><td>Now</td><td class="eff"><i class="on"></i><i></i><i></i></td><td class="rk n">ноль</td><td class="rice">9.2</td><td><span class="pill p-plan"><i class="dot d-plan"></i>план</span></td><td>оплат через бот / нед.</td></tr>
+        <tr><td class="id">I-03</td><td class="nm">Воронка v1 — онбординг 1 экран, СБП, таймер-оффер</td><td>B</td><td>Now</td><td class="eff"><i class="on"></i><i class="on"></i><i></i></td><td class="rk l">низк.</td><td class="rice">7.5</td><td><span class="pill p-plan"><i class="dot d-plan"></i>план</span></td><td>конверсия 4%→6%</td></tr>
+        <tr><td class="id">I-04</td><td class="nm">Android-клиент (форк sing-box/Hiddify)</td><td>A</td><td>Next</td><td class="eff"><i class="on"></i><i class="on"></i><i class="on"></i></td><td class="rk l">низк.</td><td class="rice">6.4</td><td><span class="pill p-plan"><i class="dot d-plan"></i>план</span></td><td>рабочий APK на нашем backend</td></tr>
+        <tr><td class="id">I-05</td><td class="nm">Аккаунт RuStore + первая публикация</td><td>A·C</td><td>Next</td><td class="eff"><i class="on"></i><i class="on"></i><i></i></td><td class="rk l">низк.</td><td class="rice">7.0</td><td><span class="pill p-plan"><i class="dot d-plan"></i>план</span></td><td>app live в RuStore · зависит I-04</td></tr>
+        <tr><td class="id">I-06</td><td class="nm">Механика офферов / удержания</td><td>B</td><td>Next</td><td class="eff"><i class="on"></i><i class="on"></i><i></i></td><td class="rk l">низк.</td><td class="rice">5.8</td><td><span class="pill p-plan"><i class="dot d-plan"></i>план</span></td><td>конверсия 6%→7%+</td></tr>
+        <tr><td class="id">I-07</td><td class="nm">Конвейер публикаций Android (шаблон)</td><td>A</td><td>Later</td><td class="eff"><i class="on"></i><i class="on"></i><i></i></td><td class="rk l">низк.</td><td class="rice">5.0</td><td><span class="pill p-plan"><i class="dot d-plan"></i>план</span></td><td>новая публикация &lt; N часов</td></tr>
+        <tr><td class="id">I-08</td><td class="nm">Google Play — мировой охват</td><td>A</td><td>Later</td><td class="eff"><i class="on"></i><i class="on"></i><i></i></td><td class="rk l">низк.</td><td class="rice">4.5</td><td><span class="pill p-plan"><i class="dot d-plan"></i>план</span></td><td>установки вне РФ</td></tr>
+        <tr><td class="id">I-09</td><td class="nm">Реферальная программа + A/B воронки</td><td>B</td><td>Later</td><td class="eff"><i class="on"></i><i class="on"></i><i></i></td><td class="rk l">низк.</td><td class="rice">4.2</td><td><span class="pill p-plan"><i class="dot d-plan"></i>план</span></td><td>доля привлечения по рефералам</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <!-- 06 TIMELINE (milestones) -->
+  <section class="reveal" style="animation-delay:.3s">
+    <div class="sec-head"><span class="sec-no">06</span><h2 class="sec-title">Майлстоуны</h2></div>
+    <div class="ms">
+      <div class="msi"><div class="dia"></div><div class="when">нед. 1</div><div class="lab">M1 — доп. iOS-витрина live</div></div>
+      <div class="msi"><div class="dia"></div><div class="when">нед. 1</div><div class="lab">M2 — первая оплата через прямой канал</div></div>
+      <div class="msi future"><div class="dia"></div><div class="when">нед. 2–4</div><div class="lab">M3 — Android в RuStore live</div></div>
+      <div class="msi future"><div class="dia"></div><div class="when">мес. 2</div><div class="lab">M4 — конверсия ≥ 6%</div></div>
+      <div class="msi future"><div class="dia"></div><div class="when">мес. 3</div><div class="lab">M5 — конвейер Android отлажен</div></div>
+    </div>
+  </section>
+
+  <!-- 07 KPI -->
+  <section class="reveal" style="animation-delay:.35s">
+    <div class="sec-head"><span class="sec-no">07</span><h2 class="sec-title">KPI и метрики</h2></div>
+    <div class="kpis">
+      <div class="kpi"><div class="v">×3</div><div class="l">платящих / мес из РФ (North-Star)</div><div class="tg">цель квартала</div></div>
+      <div class="kpi"><div class="v" style="color:var(--gold)">7%</div><div class="l">конверсия установка → оплата</div><div class="tg">с текущих ~4%</div></div>
+      <div class="kpi"><div class="v" style="color:var(--cool)">3</div><div class="l">активных каналов дистрибуции</div><div class="tg">из 1</div></div>
+      <div class="kpi"><div class="v" style="color:var(--green)">0</div><div class="l">инцидентов с основным аккаунтом</div><div class="tg">обязательно</div></div>
+    </div>
+    <p class="sub" style="margin-top:16px">Вторичные метрики: срок жизни публикации (дни) · стоимость привлечения · ARPU по каналу · доля повторных оплат.</p>
+  </section>
+
+  <!-- 08 RISKS -->
+  <section class="reveal" style="animation-delay:.4s">
+    <div class="sec-head"><span class="sec-no">08</span><h2 class="sec-title">Риски и митигация</h2></div>
+    <div class="rmwrap">
+      <div class="matrix">
+        <svg viewBox="0 0 420 320" role="img" aria-label="Матрица вероятность-влияние">
+          <line x1="60" y1="20" x2="60" y2="280" stroke="#33392e" stroke-width="1.2"/>
+          <line x1="60" y1="280" x2="400" y2="280" stroke="#33392e" stroke-width="1.2"/>
+          <line x1="230" y1="20" x2="230" y2="280" stroke="#23291f" stroke-dasharray="2 5"/>
+          <line x1="60" y1="150" x2="400" y2="150" stroke="#23291f" stroke-dasharray="2 5"/>
+          <text x="230" y="305" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="#878d80" letter-spacing="1">ВЕРОЯТНОСТЬ →</text>
+          <text x="34" y="150" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="#878d80" letter-spacing="1" transform="rotate(-90 34 150)">ВЛИЯНИЕ →</text>
+          <!-- R1 critical impact, low likelihood -->
+          <circle cx="120" cy="55" r="11" fill="#cf8a8a"/><text x="138" y="59" font-family="IBM Plex Mono" font-size="11" fill="#ece8dc">R1</text>
+          <!-- R3 high impact med likelihood -->
+          <circle cx="250" cy="95" r="10" fill="#d2b15e"/><text x="268" y="99" font-family="IBM Plex Mono" font-size="11" fill="#ece8dc">R3</text>
+          <!-- R4 med impact med likelihood -->
+          <circle cx="255" cy="175" r="9" fill="#d2b15e"/><text x="273" y="179" font-family="IBM Plex Mono" font-size="11" fill="#ece8dc">R4</text>
+          <!-- R2 med impact low likelihood -->
+          <circle cx="125" cy="185" r="8" fill="#9fc27a"/><text x="142" y="189" font-family="IBM Plex Mono" font-size="11" fill="#ece8dc">R2</text>
+          <!-- R5 med impact med likelihood low -->
+          <circle cx="160" cy="215" r="8" fill="#9fc27a"/><text x="177" y="219" font-family="IBM Plex Mono" font-size="11" fill="#ece8dc">R5</text>
+        </svg>
+      </div>
+      <table class="tbl" style="font-size:13px">
+        <thead><tr><th>#</th><th>Риск</th><th>Митигация</th></tr></thead>
+        <tbody>
+          <tr><td class="id">R1</td><td class="nm">4.3-бан основного аккаунта Apple</td><td>Максимум 1 доп. iOS-витрина · churn только вне Apple · не клонировать</td></tr>
+          <tr><td class="id">R2</td><td class="nm">RuStore ужесточит политику</td><td>Параллельно прямой канал + Google Play</td></tr>
+          <tr><td class="id">R3</td><td class="nm">Блокировка платёжного провайдера</td><td>Резервный провайдер + СБП-альтернатива</td></tr>
+          <tr><td class="id">R4</td><td class="nm">Android-разработка затянется</td><td>Форк готового клиента вместо написания с нуля</td></tr>
+          <tr><td class="id">R5</td><td class="nm">Низкая конверсия в новых каналах</td><td>Итерации воронки, A/B, офферы</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 09 ASSUMPTIONS / DEPENDENCIES -->
+  <section class="reveal" style="animation-delay:.45s;border-bottom:none">
+    <div class="sec-head"><span class="sec-no">09</span><h2 class="sec-title">Допущения и зависимости</h2></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div class="panel" style="padding:20px 22px">
+        <div class="mlabel" style="color:var(--gold)">Допущения</div>
+        <ul style="margin:12px 0 0;padding-left:18px;font-size:14px;color:var(--ink-soft);line-height:1.7">
+          <li>Окно жизни iOS-публикации ~2 суток сохранится</li>
+          <li>RuStore продолжит терпеть VPN-приложения</li>
+          <li>Бэкенд и протокол переиспользуются на Android</li>
+          <li>Есть ИП для регистрации RuStore-аккаунта</li>
+        </ul>
+      </div>
+      <div class="panel" style="padding:20px 22px">
+        <div class="mlabel" style="color:var(--cool)">Зависимости</div>
+        <ul style="margin:12px 0 0;padding-left:18px;font-size:14px;color:var(--ink-soft);line-height:1.7">
+          <li>I-05 (RuStore) ← I-04 (Android-клиент)</li>
+          <li>I-07 (конвейер) ← I-05 (первая публикация)</li>
+          <li>I-08 (Google Play) ← I-04 (Android-клиент)</li>
+          <li>Воронка v1 (I-03) питает данные для I-06</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <footer><span>MadFrog · Роадмап RU · v3 (эталон)</span><span>docs/plans/ru-roadmap.html</span></footer>
+</div>
+</body></html>
