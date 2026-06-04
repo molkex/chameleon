@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ru"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MadFrog — Что у нас есть: платформы, возможности, результаты</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Balsamiq+Sans:wght@400;700&family=Archivo:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#f6f1e3;--ink:#2f2a1f;--soft:#6b6452;--card:#fffdf6;
+    --vpn:#67ab47;--acc:#4f93c4;--pay:#d9a531;--keep:#9466c4;--ana:#3fa6a0;--infra:#9a9277;--goal:#67ab47;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:"Archivo",system-ui,sans-serif;
+    background-image:radial-gradient(circle at 1px 1px,rgba(47,42,31,.05) 1px,transparent 0);background-size:22px 22px;line-height:1.5}
+  .wrap{max-width:1080px;margin:0 auto;padding:34px 24px 90px}
+  .bal{font-family:"Balsamiq Sans",cursive}
+  /* header */
+  .brand{display:flex;align-items:center;gap:12px}
+  .brand .frog{font-size:30px}
+  h1{font-family:"Balsamiq Sans",cursive;font-size:30px;margin:0;letter-spacing:-.01em}
+  .v{font-family:"Balsamiq Sans",cursive;font-size:12px;color:var(--soft);border:1.5px solid var(--ink);border-radius:8px;padding:2px 8px;transform:rotate(-2deg)}
+  .sub{color:var(--soft);font-size:14.5px;margin:8px 0 26px;max-width:64ch}
+  /* section */
+  h2{font-family:"Balsamiq Sans",cursive;font-size:22px;margin:34px 0 4px;display:flex;align-items:center;gap:10px}
+  h2 .bar{width:26px;height:6px;border-radius:3px}
+  .note{color:var(--soft);font-size:13px;margin:0 0 16px}
+  /* results */
+  .results{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .rt{background:var(--card);border:2px solid var(--ink);border-radius:14px;padding:16px 16px 14px;box-shadow:3px 3px 0 rgba(47,42,31,.14)}
+  .rt .big{font-family:"Balsamiq Sans",cursive;font-size:26px;line-height:1.05}
+  .rt .lab{font-size:12.5px;color:var(--soft);margin-top:6px}
+  /* platform row */
+  .plats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .plat{background:var(--card);border:2px solid var(--ink);border-radius:13px;padding:14px;box-shadow:3px 3px 0 rgba(47,42,31,.12)}
+  .plat .nm{font-family:"Balsamiq Sans",cursive;font-weight:700;font-size:16px;display:flex;align-items:center;gap:8px}
+  .plat .st{font-size:11px;font-family:"Balsamiq Sans",cursive;border-radius:8px;padding:1px 7px;border:1.5px solid}
+  .st.live{color:#2c6a16;border-color:#69a84a;background:#e7f5dd}
+  .st.soon{color:#7a5b15;border-color:#cda644;background:#f7eed3}
+  .st.off{color:#7a4444;border-color:#c08585;background:#f3e3e3}
+  .plat .gives{font-size:12.5px;color:var(--soft);margin-top:9px}
+  .plat .gives b{color:var(--ink);font-weight:600}
+  /* capability category */
+  .cat{margin-top:10px}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .cap{background:var(--card);border:2px solid;border-radius:12px;padding:13px 14px;box-shadow:3px 3px 0 rgba(47,42,31,.1)}
+  .cap .ct{font-family:"Balsamiq Sans",cursive;font-weight:700;font-size:14.5px;line-height:1.15}
+  .cap .gv{font-size:12.5px;color:var(--soft);margin-top:8px;padding-top:8px;border-top:1px dashed rgba(47,42,31,.18)}
+  .cap .gv .arr{font-weight:700;margin-right:5px}
+  .c-vpn{border-color:var(--vpn)} .c-vpn .arr{color:var(--vpn)}
+  .c-acc{border-color:var(--acc)} .c-acc .arr{color:var(--acc)}
+  .c-pay{border-color:var(--pay)} .c-pay .arr{color:var(--pay)}
+  .c-keep{border-color:var(--keep)} .c-keep .arr{color:var(--keep)}
+  .c-ana{border-color:var(--ana)} .c-ana .arr{color:var(--ana)}
+  .c-infra{border-color:var(--infra)} .c-infra .arr{color:var(--infra)}
+  /* leverage banner */
+  .lever{margin-top:34px;background:#fffdf6;border:2px solid var(--goal);border-radius:16px;padding:22px 26px;box-shadow:4px 4px 0 rgba(47,42,31,.16)}
+  .lever .t{font-family:"Balsamiq Sans",cursive;font-size:20px}
+  .lever p{margin:8px 0 0;font-size:14.5px;color:var(--soft);max-width:74ch}
+  .lever p b{color:var(--ink)}
+  footer{margin-top:30px;font-family:"Balsamiq Sans",cursive;font-size:12px;color:var(--soft);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+  @media (max-width:860px){.results,.plats{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}}
+</style></head>
+<body>
+<div class="wrap">
+
+  <div class="brand"><span class="frog">🐸</span><h1>Что у нас есть</h1><span class="v">платформы · возможности · результаты</span></div>
+  <p class="sub">Полная карта актива MadFrog: где мы присутствуем, что умеем и что каждое нам даёт. Всё работает на одном бэкенде — поэтому новый канал и фича стоят дёшево.</p>
+
+  <!-- RESULTS -->
+  <h2><span class="bar" style="background:var(--goal)"></span>Результаты — что уже есть</h2>
+  <div class="results">
+    <div class="rt"><div class="big">2 + 2</div><div class="lab">страны-выхода (NL · 🇫🇷 Франция) + 2 RU-релея</div></div>
+    <div class="rt"><div class="big">iOS · macOS</div><div class="lab">оба live в App Store (1.0.30; 1.0.31 на ревью)</div></div>
+    <div class="rt"><div class="big">Apple + СБП</div><div class="lab">платежи и на западе, и в РФ — без зависимости от Apple</div></div>
+    <div class="rt"><div class="big">SEC 01–04</div><div class="lab">аудит безопасности пройден и закрыт</div></div>
+    <div class="rt"><div class="big">Чат + Push</div><div class="lab">поддержка и удержание работают end-to-end</div></div>
+    <div class="rt"><div class="big">4 подписки</div><div class="lab">одобрены Apple (non-renewing)</div></div>
+    <div class="rt"><div class="big">300 / 12</div><div class="lab">burner-тест: скачиваний / оплат за 2 суток</div></div>
+    <div class="rt"><div class="big">1 ядро</div><div class="lab">единый backend питает все платформы</div></div>
+  </div>
+
+  <!-- PLATFORMS -->
+  <h2><span class="bar" style="background:var(--ink)"></span>Платформы — где мы есть</h2>
+  <p class="note">Каждая платформа = отдельный канал к пользователю, но один общий backend и подписка.</p>
+  <div class="plats">
+    <div class="plat"><div class="nm">iOS <span class="st live">live</span></div><div class="gives"><b>Основной канал</b> привлечения. Native SwiftUI + NetworkExtension.</div></div>
+    <div class="plat"><div class="nm">macOS <span class="st live">live</span></div><div class="gives"><b>Отдельный листинг</b> в App Store — десктоп-аудитория.</div></div>
+    <div class="plat"><div class="nm">iOS-виджет <span class="st live">live</span></div><div class="gives"><b>Удержание на экране</b>: таймер «Защищено», быстрый статус.</div></div>
+    <div class="plat"><div class="nm">Telegram-бот <span class="st live">live</span></div><div class="gives"><b>Прямая продажа</b> @MadFrogRobot — канал без сторов.</div></div>
+    <div class="plat"><div class="nm">Web / лендинг <span class="st live">live</span></div><div class="gives"><b>Витрина и оплата</b>: madfrog.online + страницы для App Store.</div></div>
+    <div class="plat"><div class="nm">Админ-панель <span class="st live">live</span></div><div class="gives"><b>Управление без билда</b>: юзеры, серверы, поддержка, рассылки.</div></div>
+    <div class="plat"><div class="nm">Backend <span class="st live">live</span></div><div class="gives"><b>Ядро системы</b>: Go + Postgres + Redis на ноде NL.</div></div>
+    <div class="plat"><div class="nm">Android <span class="st soon">скоро</span></div><div class="gives"><b>Канал масштаба</b> (RuStore) — в роадмапе, backend готов.</div></div>
+  </div>
+
+  <!-- CAPABILITIES -->
+  <h2><span class="bar" style="background:var(--vpn)"></span>VPN-ядро</h2>
+  <div class="grid cat">
+    <div class="cap c-vpn"><div class="ct">VLESS Reality TCP · sing-box / Xray</div><div class="gv"><span class="arr">→</span>обход DPI и блокировок РКН, маскировка под обычный TLS</div></div>
+    <div class="cap c-vpn"><div class="ct">2 страны-выхода: NL + Франция</div><div class="gv"><span class="arr">→</span>выбор страны + резерв, если один выход упадёт</div></div>
+    <div class="cap c-vpn"><div class="ct">RU-релеи: MSK (цепочки) + SPB (bypass)</div><div class="gv"><span class="arr">→</span>обход whitelist-фильтров и throttling у операторов РФ</div></div>
+    <div class="cap c-vpn"><div class="ct">Hysteria2 / TUIC — готовы, выключены</div><div class="gv"><span class="arr">→</span>запас протоколов, если Reality начнут давить</div></div>
+  </div>
+
+  <h2><span class="bar" style="background:var(--acc)"></span>Аккаунты и вход</h2>
+  <div class="grid cat">
+    <div class="cap c-acc"><div class="ct">Apple · Google · e-mail · анон-триал</div><div class="gv"><span class="arr">→</span>низкий порог входа (триал сразу) + восстановление по Apple ID</div></div>
+    <div class="cap c-acc"><div class="ct">Keychain-identity, без анон-демоутов</div><div class="gv"><span class="arr">→</span>платящий не «слетает» на триал — меньше потерь и жалоб</div></div>
+    <div class="cap c-acc"><div class="ct">Триал один раз (SEC-01)</div><div class="gv"><span class="arr">→</span>защита от бесконечных бесплатных триалов</div></div>
+  </div>
+
+  <h2><span class="bar" style="background:var(--pay)"></span>Платежи</h2>
+  <div class="grid cat">
+    <div class="cap c-pay"><div class="ct">Apple IAP — 4 подписки (StoreKit 2)</div><div class="gv"><span class="arr">→</span>монетизация западной аудитории через App Store</div></div>
+    <div class="cap c-pay"><div class="ct">FreeKassa / СБП / карты</div><div class="gv"><span class="arr">→</span>оплата в РФ без Apple — независимый денежный поток</div></div>
+    <div class="cap c-pay"><div class="ct">Возврат → отзыв доступа (SEC-04)</div><div class="gv"><span class="arr">→</span>защита от абуза рефандами, честный учёт срока</div></div>
+  </div>
+
+  <h2><span class="bar" style="background:var(--keep)"></span>Поддержка и удержание</h2>
+  <div class="grid cat">
+    <div class="cap c-keep"><div class="ct">In-app чат (SSE live, вложения, диагностика+лог)</div><div class="gv"><span class="arr">→</span>прямая связь и быстрая помощь — меньше отказов и возвратов</div></div>
+    <div class="cap c-keep"><div class="ct">Админ-инбокс (ответы, close/reopen, шаблоны)</div><div class="gv"><span class="arr">→</span>агент-сторона: оператор отвечает из одной панели</div></div>
+    <div class="cap c-keep"><div class="ct">APNs push — ответ поддержки</div><div class="gv"><span class="arr">→</span>возвращает пользователя в приложение</div></div>
+    <div class="cap c-keep"><div class="ct">Push-рассылка всем</div><div class="gv"><span class="arr">→</span>анонсы и промо на всю базу — без обновления приложения</div></div>
+    <div class="cap c-keep"><div class="ct">In-app анонсы + таргетинг (триал/платные/платформа)</div><div class="gv"><span class="arr">→</span>апселл и ретеншн нужному сегменту — без билда</div></div>
+  </div>
+
+  <h2><span class="bar" style="background:var(--ana)"></span>Аналитика и управление</h2>
+  <div class="grid cat">
+    <div class="cap c-ana"><div class="ct">Дашборд: Online / Active / DAU / воронка / события</div><div class="gv"><span class="arr">→</span>видимость — где теряем пользователей и сколько платят</div></div>
+    <div class="cap c-ana"><div class="ct">Учёт трафика по всем выходам</div><div class="gv"><span class="arr">→</span>точные метрики использования по каждому юзеру</div></div>
+    <div class="cap c-ana"><div class="ct">Регион App Store (storefront)</div><div class="gv"><span class="arr">→</span>видно, из какой страны скачали — для гео-решений</div></div>
+    <div class="cap c-ana"><div class="ct">Серверы / протоколы / Shield в админке</div><div class="gv"><span class="arr">→</span>добавить страну/сервер без выпуска новой версии</div></div>
+  </div>
+
+  <h2><span class="bar" style="background:var(--infra)"></span>Инфраструктура</h2>
+  <div class="grid cat">
+    <div class="cap c-infra"><div class="ct">Go + Postgres + Redis + Docker/Nginx (NL)</div><div class="gv"><span class="arr">→</span>единое ядро для всех платформ и каналов</div></div>
+    <div class="cap c-infra"><div class="ct">Federated user-sync на выходы</div><div class="gv"><span class="arr">→</span>пользователь работает на любой ноде без задержки</div></div>
+    <div class="cap c-infra"><div class="ct">Бэкапы в Backblaze B2 (offsite)</div><div class="gv"><span class="arr">→</span>сохранность данных при сбое ноды</div></div>
+  </div>
+
+  <!-- LEVERAGE -->
+  <div class="lever">
+    <div class="t">Главный рычаг</div>
+    <p><b>Один backend питает всё.</b> VPN-протокол, аккаунты, подписки, поддержка, аналитика — общие. Поэтому новая платформа (Android), новый канал (RuStore, Telegram) или новая фича (анонсы, push) переиспользуют <b>готовое ядро</b> и стоят дёшево. Это и есть основа плана роста.</p>
+  </div>
+
+  <footer><span>MadFrog · Карта актива</span><span>docs/plans/what-we-have.html</span></footer>
+</div>
+</body></html>
