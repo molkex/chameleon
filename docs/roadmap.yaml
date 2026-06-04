@@ -496,6 +496,19 @@ deferred:
 # ============================================================
 done:
   "2026-06-04":
+    - id: SUPPORT-CHAT-DIAG
+      title: One-tap diagnostic snapshot button in the chat (#3a "отправить лог")
+      commit: 124b462
+      files:
+        - clients/apple/MadFrogVPN/Views/SupportChatView.swift  # stethoscope toolbar button
+        - clients/apple/MadFrogVPN/Models/AppState.swift        # sendSupportDiagnostic + snapshot
+        - clients/apple/MadFrogVPN/Models/APIClient.swift       # sendSupportMessage (native POST)
+        - clients/apple/Shared/PlatformDevice.swift             # hardwareModel (utsname)
+      notes: |
+        Native button gathers app/build, device model + iOS, current server, VPN
+        status, account type, last error → posts as a user message (support sees
+        client state at a glance). xcodebuild BUILD SUCCEEDED. Rides the next app
+        build (105). Raw singbox.log file upload = #3b, blocked on attachments (#2).
     - id: SUPPORT-CHAT-P3-INBOX
       title: Admin inbox — the agent side (was entirely missing; clients sent into a void)
       deployed: NL 2026-06-04 (commits e74c314 backend + a0bf0c5 SPA)
