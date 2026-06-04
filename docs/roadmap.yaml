@@ -498,7 +498,7 @@ done:
   "2026-06-04":
     - id: SUPPORT-CHAT-LOGFIX
       title: '"Отправить лог" actually sends (fresh token) + ships the real singbox.log; admin composer no longer clipped'
-      status: built_pending_build_and_deploy   # iOS rides next TestFlight build; admin needs SPA redeploy
+      status: shipped   # admin DEPLOYED+verified live on NL; iOS on TestFlight build 107 (VALID, Internal Testers)
       files:
         - clients/apple/MadFrogVPN/Views/SupportChatView.swift   # confirm dialog + success/failure feedback + ProgressView
         - clients/apple/MadFrogVPN/Models/AppState.swift         # sendSupportDiagnostic (fresh token + log attach + result), readSingboxLogTail, tailLogText
@@ -530,8 +530,11 @@ done:
             overflow-hidden edge → composer invisible. Fix: min-h-0 on the messages
             ScrollArea → it shrinks + scrolls internally, composer pinned. One class.
         VERIFY: iOS build-for-testing + macOS build both SUCCEEDED; admin tsc+vite
-        build clean. iOS on-device pending next TestFlight build; admin pending SPA
-        redeploy to NL.
+        build clean. SHIPPED: admin redeployed to NL (commit 4eaa282) + verified on
+        the wire (min-h-0 present in the live inbox-*.js prod asset). iOS build 107
+        (commit 5891498) archived → EXPORT SUCCEEDED → VALID → assigned to Internal
+        Testers (verified include=betaGroups). On-device confirm of the log send
+        pending a real device on build 107.
     - id: SUPPORT-CHAT-P4-PUSH
       title: APNs push — client gets notified when a support agent replies
       deployed: NL backend 2026-06-04 (commit d72d4e3, push enabled verified); iOS rides build 106
