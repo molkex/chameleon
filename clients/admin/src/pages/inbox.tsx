@@ -1,4 +1,4 @@
-import { useState, useRef, type KeyboardEvent } from "react";
+import { useState, useRef, type KeyboardEvent, type ChangeEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { Send } from "lucide-react";
+import { Send, Paperclip, FileText } from "lucide-react";
 
 // SUPPORT inbox — /admin/app/inbox. Two-pane operator view over the
 // /admin/support/* endpoints. Left = threads (open first, newest first,
@@ -30,11 +30,47 @@ interface Thread {
   device_id?: string;
 }
 
+interface Attachment {
+  url: string;
+  mime: string;
+  name: string;
+  size: number;
+}
+
 interface Message {
   id: number;
   sender: Exclude<Sender, "">;
   body: string;
   created_at: string;
+  attachment?: Attachment;
+}
+
+// Client-side allowlist — mirror of the backend's accepted types. Reply
+// presign will 400 on anything else; we reject early with a friendly note.
+const ALLOWED_MIME = [
+  "image/jpeg",
+  "image/png",
+  "image/heic",
+  "image/webp",
+  "image/gif",
+  "application/pdf",
+  "text/plain",
+];
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024; // 10 MiB
+
+interface PresignResponse {
+  upload_url: string;
+  key: string;
+}
+
+// Human-readable byte size for the file chip.
+function humanSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return "—";
+  if (bytes < 1024) return `${bytes} B`;
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${kb.toFixed(kb < 10 ? 1 : 0)} KB`;
+  const mb = kb / 1024;
+  return `${mb.toFixed(mb < 10 ? 1 : 0)} MB`;
 }
 
 // Display identity for a thread row / header. Prefer the most
@@ -74,7 +110,9 @@ function messageTime(iso: string): string {
 export default function InboxPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [draft, setDraft] = useState("");
+  const [composerError, setComposerError] = useState<string | null>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
 
   const {
@@ -115,10 +153,72 @@ export default function InboxPage() {
     onError: (e) => toast.error(`Не отправлено: ${e.message}`),
   });
 
+  // Attachment send: presign → PUT raw bytes to B2 (outside the api client —
+  // cross-origin, no cookie auth, signature lives in the URL) → reply with
+  // the attachment_* fields. text may be empty when a file is attached.
+  const attachMutation = useMutation({
+    mutationFn: async (file: File) => {
+      if (selectedId == null) throw new Error("Тред не выбран");
+      const { upload_url, key } = await api.post<PresignResponse>(
+        `/admin/support/threads/${selectedId}/attachments/presign`,
+        { filename: file.name, mime: file.type, size: file.size },
+      );
+      const put = await fetch(upload_url, {
+        method: "PUT",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+      if (!put.ok) throw new Error(`Загрузка не удалась (${put.status})`);
+      return api.post<Message>(`/admin/support/threads/${selectedId}/reply`, {
+        text: draft.trim(),
+        attachment_key: key,
+        attachment_mime: file.type,
+        attachment_name: file.name,
+        attachment_size: file.size,
+      });
+    },
+    onSuccess: () => {
+      setDraft("");
+      setComposerError(null);
+      queryClient.invalidateQueries({ queryKey: ["support-messages", selectedId] });
+      queryClient.invalidateQueries({ queryKey: ["support-threads"] });
+      composerRef.current?.focus();
+    },
+    onError: (e) => setComposerError(`Не отправлено: ${e.message}`),
+  });
+
+  const busy = replyMutation.isPending || attachMutation.isPending;
+
   const sendReply = () => {
     const text = draft.trim();
-    if (!text || selectedId == null || replyMutation.isPending) return;
+    if (!text || selectedId == null || busy) return;
+    setComposerError(null);
     replyMutation.mutate(text);
+  };
+
+  const handlePickFile = () => {
+    if (busy) return;
+    setComposerError(null);
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelected = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    // Reset the input so picking the same file twice re-fires onChange.
+    e.target.value = "";
+    if (!file || selectedId == null || busy) return;
+    if (!ALLOWED_MIME.includes(file.type)) {
+      setComposerError(
+        "Недопустимый тип файла. Разрешены: изображения, PDF, текст.",
+      );
+      return;
+    }
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      setComposerError(`Файл слишком большой (${humanSize(file.size)}). Максимум 10 МБ.`);
+      return;
+    }
+    setComposerError(null);
+    attachMutation.mutate(file);
   };
 
   // Enter sends, Shift+Enter inserts a newline.
@@ -264,6 +364,8 @@ export default function InboxPage() {
                         );
                       }
                       const isAgent = m.sender === "agent";
+                      const att = m.attachment;
+                      const isImage = att?.mime.startsWith("image/") ?? false;
                       return (
                         <div
                           key={m.id}
@@ -271,15 +373,55 @@ export default function InboxPage() {
                             isAgent ? "self-end items-end" : "self-start items-start"
                           }`}
                         >
-                          <div
-                            className={`whitespace-pre-wrap break-words rounded-lg px-3 py-2 text-sm ${
-                              isAgent
-                                ? "bg-cyan-600 text-white"
-                                : "bg-zinc-800 text-zinc-100"
-                            }`}
-                          >
-                            {m.body}
-                          </div>
+                          {att && isImage && (
+                            <a
+                              href={att.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block"
+                            >
+                              <img
+                                src={att.url}
+                                alt={att.name}
+                                className="max-h-60 rounded-lg object-contain"
+                              />
+                            </a>
+                          )}
+                          {att && !isImage && (
+                            <a
+                              href={att.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-opacity hover:opacity-80 ${
+                                isAgent
+                                  ? "bg-cyan-700 text-white"
+                                  : "bg-zinc-800 text-zinc-100"
+                              }`}
+                            >
+                              <FileText className="h-4 w-4 shrink-0" />
+                              <span className="flex flex-col leading-tight">
+                                <span className="truncate font-medium">{att.name}</span>
+                                <span
+                                  className={
+                                    isAgent ? "text-[10px] text-cyan-200" : "text-[10px] text-zinc-400"
+                                  }
+                                >
+                                  {humanSize(att.size)}
+                                </span>
+                              </span>
+                            </a>
+                          )}
+                          {m.body && (
+                            <div
+                              className={`whitespace-pre-wrap break-words rounded-lg px-3 py-2 text-sm ${
+                                isAgent
+                                  ? "bg-cyan-600 text-white"
+                                  : "bg-zinc-800 text-zinc-100"
+                              }`}
+                            >
+                              {m.body}
+                            </div>
+                          )}
                           <span className="text-[10px] text-zinc-500">
                             {messageTime(m.created_at)}
                           </span>
@@ -292,7 +434,28 @@ export default function InboxPage() {
 
               {/* Composer */}
               <div className="border-t border-zinc-800 p-3">
+                {composerError && (
+                  <div className="mb-2 text-xs text-red-400">{composerError}</div>
+                )}
                 <div className="flex items-end gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*,application/pdf,text/plain"
+                    onChange={handleFileSelected}
+                    className="hidden"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={handlePickFile}
+                    disabled={busy}
+                    title="Прикрепить файл"
+                    className="shrink-0"
+                  >
+                    <Paperclip className="h-4 w-4" />
+                  </Button>
                   <Textarea
                     ref={composerRef}
                     rows={2}
@@ -300,17 +463,21 @@ export default function InboxPage() {
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
                     onKeyDown={handleComposerKey}
-                    disabled={replyMutation.isPending}
+                    disabled={busy}
                     className="max-h-40 min-h-[2.5rem] resize-none"
                   />
                   <Button
                     type="button"
                     onClick={sendReply}
-                    disabled={replyMutation.isPending || draft.trim().length === 0}
+                    disabled={busy || draft.trim().length === 0}
                     className="shrink-0"
                   >
                     <Send className="mr-1 h-4 w-4" />
-                    {replyMutation.isPending ? "…" : "Отправить"}
+                    {attachMutation.isPending
+                      ? "Отправка…"
+                      : replyMutation.isPending
+                        ? "…"
+                        : "Отправить"}
                   </Button>
                 </div>
               </div>

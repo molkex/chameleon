@@ -71,11 +71,36 @@
   .time{display:block; font-size:10.5px; opacity:.6; margin-top:4px; font-variant-numeric:tabular-nums}
   .msg.user .time{text-align:right}
   .daysep{align-self:center;color:var(--txt-dim);font-size:11px;letter-spacing:.5px;text-transform:uppercase;margin:6px 0}
+  /* ── attachments ── */
+  .att-img{display:block; max-width:220px; max-height:280px; width:auto; border-radius:12px;
+    cursor:pointer; object-fit:cover}
+  .att-file{display:flex; align-items:center; gap:10px; text-decoration:none; color:inherit;
+    background:var(--bg-card-2); border:1px solid var(--line); border-radius:12px; padding:9px 12px; max-width:240px}
+  .msg.user .att-file{background:rgba(5,20,13,.18); border-color:rgba(5,20,13,.18)}
+  .att-file .ic{font-size:22px; flex:none}
+  .att-file .meta{min-width:0}
+  .att-file .nm{font-size:13.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .att-file .sz{font-size:11px; opacity:.7; margin-top:1px; font-variant-numeric:tabular-nums}
+  .att-cap{margin-top:6px}
+  .msg.uploading{opacity:.55}
+  .msg.uploading .att-img,.msg.uploading .att-file{filter:saturate(.7)}
+  .msg.failed{opacity:.7}
+  .upspin{display:inline-block; width:13px; height:13px; margin-left:6px; vertical-align:-2px;
+    border:2px solid currentColor; border-top-color:transparent; border-radius:50%;
+    animation:spin .7s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  /* ── attach button ── */
+  .attach{flex:none; width:36px; height:36px; border-radius:50%; border:none; cursor:pointer;
+    background:none; color:var(--txt-dim); font-size:19px; display:grid; place-items:center;
+    margin-bottom:2px; transition:transform .12s, color .12s}
+  .attach:hover{color:var(--accent)}
+  .attach:active{transform:scale(.9)}
+  .attach:disabled{opacity:.4; cursor:default}
   /* ── composer ── */
   footer{padding:10px 12px; padding-bottom:max(10px,env(safe-area-inset-bottom));
     border-top:1px solid var(--line); background:rgba(5,20,13,.6); backdrop-filter:blur(12px)}
-  .composer{display:flex; align-items:flex-end; gap:10px; background:var(--bg-card);
-    border:1px solid var(--line); border-radius:24px; padding:6px 6px 6px 16px}
+  .composer{display:flex; align-items:flex-end; gap:8px; background:var(--bg-card);
+    border:1px solid var(--line); border-radius:24px; padding:6px}
   textarea{flex:1; background:none; border:none; color:var(--txt); font:inherit; font-size:15px;
     resize:none; outline:none; max-height:120px; padding:8px 0; line-height:1.35}
   textarea::placeholder{color:var(--txt-dim)}
@@ -108,6 +133,8 @@
 
   <footer>
     <form class="composer" id="composer">
+      <button class="attach" id="attach" type="button" aria-label="Прикрепить файл">📎</button>
+      <input type="file" id="file" accept="image/*,application/pdf,text/plain" hidden>
       <textarea id="input" rows="1" placeholder="Опишите проблему…" maxlength="4000" autocomplete="off"></textarea>
       <button class="send" id="send" type="submit" aria-label="Отправить">↑</button>
     </form>
@@ -121,11 +148,17 @@
   const STR = {
     ru:{title:"Поддержка MadFrog",online:"на связи",offline:"нет связи",connecting:"подключение…",
         placeholder:"Опишите проблему…",welcome:"Здравствуйте! Опишите, что случилось — ответим как можно скорее.",
-        sendErr:"Не отправилось. Проверьте связь и попробуйте ещё раз.",today:"Сегодня"},
+        sendErr:"Не отправилось. Проверьте связь и попробуйте ещё раз.",today:"Сегодня",
+        fileTooBig:"Файл слишком большой (макс. 10 МБ).",fileBadType:"Такой тип файла не поддерживается."},
     en:{title:"MadFrog Support",online:"online",offline:"offline",connecting:"connecting…",
         placeholder:"Describe your issue…",welcome:"Hi! Tell us what happened — we'll reply as soon as we can.",
-        sendErr:"Couldn't send. Check your connection and try again.",today:"Today"},
+        sendErr:"Couldn't send. Check your connection and try again.",today:"Today",
+        fileTooBig:"File is too large (max 10 MB).",fileBadType:"This file type isn't supported."},
   };
+
+  // Mirror of the backend allowlist (validate client-side for a friendly error).
+  const ALLOWED_MIME = new Set(["image/jpeg","image/png","image/heic","image/webp","image/gif","application/pdf","text/plain"]);
+  const MAX_SIZE = 10485760;   // 10 MiB
 
   const cfg = { apiBase:"", accessToken:null, theme:"neon", lang:"ru", chatToken:null };
   let lastId = 0, sse = null, L = STR.ru, sending = false;
@@ -151,6 +184,7 @@
   }
 
   function fmtTime(d){ return d.toLocaleTimeString(cfg.lang==="ru"?"ru-RU":"en-US",{hour:"2-digit",minute:"2-digit"}); }
+  function humanSize(b){ if(!b) return "0 KB"; return b<1048576 ? (b/1024).toFixed(b<10240?1:0)+" KB" : (b/1048576).toFixed(b<10485760?1:0)+" MB"; }
 
   function addMessage(m, animate=true){
     if (m.id){
@@ -161,7 +195,11 @@
     const el = document.createElement("div");
     el.className = "msg " + (m.sender==="user"||m.sender==="local"?"user":m.sender==="system"?"system":"agent");
     if(!animate) el.style.animation="none";
-    el.textContent = m.body;
+    if (m.attachment){
+      renderAttachment(el, m.attachment, m.body);   // image + caption, or file chip
+    } else {
+      el.textContent = m.body;
+    }
     if (m.sender!=="system"){
       const t=document.createElement("span"); t.className="time";
       t.textContent=fmtTime(m.created_at?new Date(m.created_at):new Date());
@@ -170,6 +208,31 @@
     msgsEl.appendChild(el);
     msgsEl.scrollTop = msgsEl.scrollHeight;
     return el;
+  }
+
+  // Build attachment markup inside a bubble. `src` overrides the link (used for the
+  // local object-URL preview before upload completes); falls back to att.url.
+  function renderAttachment(el, att, body, src){
+    const url = src || att.url;
+    if ((att.mime||"").startsWith("image/")){
+      const img=document.createElement("img"); img.className="att-img";
+      img.loading="lazy"; if(url) img.src=url;
+      if(att.url && !src) img.addEventListener("click", ()=>window.open(att.url,"_blank","noopener"));
+      el.appendChild(img);
+    } else {
+      const a=document.createElement(att.url?"a":"div"); a.className="att-file";
+      if(att.url){ a.href=att.url; a.target="_blank"; a.rel="noopener"; }
+      const ic=document.createElement("span"); ic.className="ic"; ic.textContent="📄"; a.appendChild(ic);
+      const meta=document.createElement("span"); meta.className="meta";
+      const nm=document.createElement("span"); nm.className="nm"; nm.textContent=att.name||"file";
+      const sz=document.createElement("span"); sz.className="sz"; sz.textContent=humanSize(att.size);
+      meta.appendChild(nm); meta.appendChild(sz); a.appendChild(meta);
+      el.appendChild(a);
+    }
+    if (body && body.trim()){
+      const cap=document.createElement("div"); cap.className="att-cap"; cap.textContent=body;
+      el.appendChild(cap);
+    }
   }
 
   function banner(text){ const b=$("banner"); if(!text){b.hidden=true;return;} b.textContent=text; b.hidden=false; }
@@ -228,6 +291,77 @@
     finally{ sending=false; $("send").disabled=false; }
   }
 
+  async function sendAttachment(file){
+    if(sending || !file) return;
+    if(file.size > MAX_SIZE){ banner(L.fileTooBig); return; }
+    if(!ALLOWED_MIME.has(file.type)){ banner(L.fileBadType); return; }
+    sending = true; $("send").disabled = true; $("attach").disabled = true;
+    banner("");
+    const att = { mime:file.type, name:file.name, size:file.size };
+    const objUrl = att.mime.startsWith("image/") ? URL.createObjectURL(file) : null;
+
+    // optimistic bubble (no id yet) — local preview + uploading state
+    const optimistic = document.createElement("div");
+    optimistic.className = "msg user uploading";
+    renderAttachment(optimistic, att, "", objUrl);
+    const t=document.createElement("span"); t.className="time";
+    t.innerHTML = fmtTime(new Date()) + '<span class="upspin"></span>';
+    optimistic.appendChild(t);
+    msgsEl.appendChild(optimistic);
+    msgsEl.scrollTop = msgsEl.scrollHeight;
+
+    try{
+      if(PREVIEW){
+        // standalone preview: just settle the bubble, no real upload
+        optimistic.classList.remove("uploading");
+        const spin=optimistic.querySelector(".upspin"); if(spin) spin.remove();
+        previewReply(file.name);
+        return;
+      }
+      const pre = await api("/api/v1/mobile/support/attachments/presign",
+        {method:"POST",body:JSON.stringify({filename:file.name, mime:file.type, size:file.size})});
+      const put = await fetch(pre.upload_url, {method:"PUT", headers:{"Content-Type":file.type}, body:file});
+      if(!put.ok) throw new Error("PUT "+put.status);
+      const saved = await api("/api/v1/mobile/support/messages",
+        {method:"POST",body:JSON.stringify({text:"", attachment_key:pre.key, attachment_mime:file.type, attachment_name:file.name, attachment_size:file.size})});
+      // Reconcile with the SSE echo, mirroring send()'s logic.
+      if (saved && saved.id){
+        if (seenIds.has(saved.id)){
+          optimistic.remove();                                // echo already rendered it → drop the optimistic bubble
+        } else {
+          seenIds.add(saved.id);                              // claim the id → addMessage dedupes the echo
+          lastId = Math.max(lastId, saved.id);
+          // upgrade the optimistic bubble to the real one (real GET url, drop uploading state)
+          optimistic.classList.remove("uploading");
+          if (saved.attachment){
+            const img = optimistic.querySelector(".att-img");
+            const chip = optimistic.querySelector(".att-file");
+            if (img && saved.attachment.url){
+              img.src = saved.attachment.url;
+              img.addEventListener("click", ()=>window.open(saved.attachment.url,"_blank","noopener"));
+            } else if (chip && saved.attachment.url){
+              // swap the placeholder chip for the real one (now a clickable link)
+              const holder = document.createElement("div");
+              renderAttachment(holder, saved.attachment, "");
+              chip.replaceWith(holder.firstChild);
+            }
+          }
+          const ts = optimistic.querySelector(".time");
+          if (ts) ts.textContent = fmtTime(saved.created_at?new Date(saved.created_at):new Date());
+        }
+      }
+      banner("");
+    }catch(e){
+      banner(L.sendErr);
+      optimistic.classList.remove("uploading"); optimistic.classList.add("failed");
+      const spin=optimistic.querySelector(".upspin"); if(spin) spin.remove();
+    }
+    finally{
+      sending=false; $("send").disabled=false; $("attach").disabled=false;
+      if(objUrl) URL.revokeObjectURL(objUrl);
+    }
+  }
+
   // ── composer UX ──
   const input = $("input");
   function autoGrow(){ input.style.height="auto"; input.style.height=Math.min(input.scrollHeight,120)+"px"; }
@@ -235,6 +369,8 @@
   input.addEventListener("keydown", e=>{ if(e.key==="Enter" && !e.shiftKey){ e.preventDefault(); $("composer").requestSubmit(); }});
   $("composer").addEventListener("submit", e=>{ e.preventDefault(); const v=input.value; input.value=""; autoGrow(); send(v); });
   $("theme-toggle").addEventListener("click", ()=>{ cfg.theme=cfg.theme==="neon"?"calm":"neon"; applyTheme(); });
+  $("attach").addEventListener("click", ()=>{ $("file").click(); });
+  $("file").addEventListener("change", e=>{ const f=e.target.files&&e.target.files[0]; e.target.value=""; if(f) sendAttachment(f); });
 
   // ── public bridge for the native app ──
   window.initChat = function(opts){
