@@ -18,6 +18,18 @@ asc_api:
   issuer_id: bcb0c156-fec7-4fcd-994e-fd7cc81b5242
   key_path: ~/private_keys/AuthKey_6HX3DA4P2Y.p8
   # JWT generation snippet: see playbooks/asc-api-checks.md
+  # second ASC API key (also valid): TJ9MRF55JA (~/private_keys/AuthKey_TJ9MRF55JA.p8)
+
+# APNs Auth Key for push notifications (SUPPORT-CHAT P4). Created 2026-06-04 in
+# the Apple Developer portal (Keys → APNs). DIFFERENT from the ASC API key above.
+apns:
+  key_id: 67FDF5G68V
+  team_id: 99W3C374T2
+  topic: com.madfrog.vpn          # APNs topic = the iOS app bundle id
+  key_path: ~/private_keys/AuthKey_67FDF5G68V.p8   # also in ~/.secrets.env as APNS_*
+  environment: "Sandbox & Production"   # Team Scoped (All Topics); choice is irreversible
+  # Used by the (to-build) Go APNs HTTP/2 sender — signs JWT with iss=team_id, kid=key_id.
+  # NOT yet wired into the backend/iOS — that's the rest of P4 (device tokens, entitlement, sender).
 
 # Live App Store version. `READY_FOR_SALE` = users can install via App Store.
 versions:
