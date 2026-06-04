@@ -10,6 +10,7 @@ package db
 
 import (
 	"context"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -94,6 +95,86 @@ func TestAppendAndListSince(t *testing.T) {
 	reopened, _ := database.OpenOrGetThread(ctx, uid)
 	if !reopened.LastMessageAt.After(th.CreatedAt.Add(-time.Second)) {
 		t.Errorf("last_message_at not bumped: %v vs created %v", reopened.LastMessageAt, th.CreatedAt)
+	}
+}
+
+// TestAppendMessageWithAttachment round-trips an attachment message: the four
+// attachment columns must survive AppendMessageWithAttachment → ListMessages,
+// and a plain AppendMessage in the same thread must leave them nil.
+func TestAppendMessageWithAttachment(t *testing.T) {
+	database := startTestDB(t)
+	ctx := context.Background()
+	uid := createChatUser(t, database, ctx, "chat_attach", "aaaaaaaa-0000-4000-8000-0000000000a9")
+	th, _ := database.OpenOrGetThread(ctx, uid)
+
+	key := "support/" + strconv.FormatInt(th.ID, 10) + "/11111111-1111-4111-8111-111111111111/shot.png"
+	mime := "image/png"
+	name := "shot.png"
+	var size int64 = 4096
+
+	stored, err := database.AppendMessageWithAttachment(ctx, th.ID, "user", "see screenshot",
+		ptr(key), ptr(mime), ptr(name), ptr(size))
+	if err != nil {
+		t.Fatalf("AppendMessageWithAttachment: %v", err)
+	}
+	if stored.AttachmentKey == nil || *stored.AttachmentKey != key {
+		t.Errorf("returned AttachmentKey = %v, want %q", stored.AttachmentKey, key)
+	}
+	if stored.AttachmentSize == nil || *stored.AttachmentSize != size {
+		t.Errorf("returned AttachmentSize = %v, want %d", stored.AttachmentSize, size)
+	}
+
+	// A plain text message in the same thread must have nil attachment columns.
+	if _, err := database.AppendMessage(ctx, th.ID, "agent", "thanks"); err != nil {
+		t.Fatalf("AppendMessage (plain): %v", err)
+	}
+
+	msgs, err := database.ListMessages(ctx, th.ID, 0, 100)
+	if err != nil {
+		t.Fatalf("ListMessages: %v", err)
+	}
+	if len(msgs) != 2 {
+		t.Fatalf("ListMessages = %d, want 2", len(msgs))
+	}
+	first, second := msgs[0], msgs[1]
+	if first.AttachmentKey == nil || *first.AttachmentKey != key {
+		t.Errorf("listed[0].AttachmentKey = %v, want %q", first.AttachmentKey, key)
+	}
+	if first.AttachmentMIME == nil || *first.AttachmentMIME != mime {
+		t.Errorf("listed[0].AttachmentMIME = %v, want %q", first.AttachmentMIME, mime)
+	}
+	if first.AttachmentName == nil || *first.AttachmentName != name {
+		t.Errorf("listed[0].AttachmentName = %v, want %q", first.AttachmentName, name)
+	}
+	if first.AttachmentSize == nil || *first.AttachmentSize != size {
+		t.Errorf("listed[0].AttachmentSize = %v, want %d", first.AttachmentSize, size)
+	}
+	if second.AttachmentKey != nil || second.AttachmentMIME != nil ||
+		second.AttachmentName != nil || second.AttachmentSize != nil {
+		t.Errorf("plain message carried attachment columns: %+v", second)
+	}
+
+	// CollectPurgeableAttachmentKeys: returns the key once the thread is closed
+	// and aged past the retention window; nothing while still open.
+	if keys, err := database.CollectPurgeableAttachmentKeys(ctx, 90*24*time.Hour); err != nil {
+		t.Fatalf("CollectPurgeableAttachmentKeys (open): %v", err)
+	} else if len(keys) != 0 {
+		t.Errorf("open thread yielded %d purgeable keys, want 0", len(keys))
+	}
+
+	if err := database.CloseThread(ctx, th.ID); err != nil {
+		t.Fatalf("CloseThread: %v", err)
+	}
+	if _, err := database.Pool.Exec(ctx,
+		`UPDATE support_chat_threads SET closed_at = NOW() - INTERVAL '101 days' WHERE id = $1`, th.ID); err != nil {
+		t.Fatalf("backdate: %v", err)
+	}
+	keys, err := database.CollectPurgeableAttachmentKeys(ctx, 90*24*time.Hour)
+	if err != nil {
+		t.Fatalf("CollectPurgeableAttachmentKeys (closed): %v", err)
+	}
+	if len(keys) != 1 || keys[0] != key {
+		t.Errorf("purgeable keys = %v, want [%q]", keys, key)
 	}
 }
 

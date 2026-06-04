@@ -14,6 +14,7 @@ import (
 	"github.com/chameleonvpn/chameleon/internal/config"
 	"github.com/chameleonvpn/chameleon/internal/db"
 	"github.com/chameleonvpn/chameleon/internal/payments"
+	"github.com/chameleonvpn/chameleon/internal/storage"
 	"github.com/chameleonvpn/chameleon/internal/vpn"
 )
 
@@ -41,6 +42,10 @@ type Handler struct {
 	// rather than 500.
 	ASC          *asc.Client
 	ASCAppID     string // ASC_APP_ID — the App Store id for queries
+
+	// Storage backs SUPPORT-CHAT attachments (B2 presigned URLs). nil ⇒
+	// attachments disabled (presign returns 503, served messages omit them).
+	Storage *storage.Client
 }
 
 // RegisterRoutes adds admin API routes to the echo group.
@@ -95,6 +100,7 @@ func RegisterRoutes(g *echo.Group, h *Handler, jwtManager *auth.JWTManager) {
 	support.GET("/threads", h.SupportThreads)
 	support.GET("/threads/:id/messages", h.SupportThreadMessages)
 	support.POST("/threads/:id/reply", h.SupportReply)
+	support.POST("/threads/:id/attachments/presign", h.SupportAdminPresignUpload)
 
 	// Users. List/get are read; delete/extend are destructive → admin only.
 	users := g.Group("/users", adminMW)

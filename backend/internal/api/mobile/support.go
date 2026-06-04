@@ -23,6 +23,16 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/chameleonvpn/chameleon/internal/auth"
+	"github.com/chameleonvpn/chameleon/internal/db"
+	"github.com/chameleonvpn/chameleon/internal/storage"
+)
+
+// presignTTL bounds how long a presigned upload URL stays valid; getTTL bounds a
+// served (download) URL. Short PUT window limits abuse of a leaked URL; the GET
+// window is long enough to render an open conversation without re-fetching.
+const (
+	presignTTL = 10 * time.Minute
+	getTTL     = time.Hour
 )
 
 const (
@@ -60,13 +70,75 @@ func normalizeChatBody(raw string) (string, bool) {
 
 type chatSendRequest struct {
 	Text string `json:"text"`
+	// Optional attachment — the client first uploads to the presigned URL, then
+	// references the resulting key here. All four are sent together or omitted.
+	AttachmentKey  string `json:"attachment_key"`
+	AttachmentMIME string `json:"attachment_mime"`
+	AttachmentName string `json:"attachment_name"`
+	AttachmentSize int64  `json:"attachment_size"`
+}
+
+// attachmentDTO is the served (read-side) shape: a presigned GET URL plus
+// display metadata. URL is short-lived (getTTL); clients re-fetch the thread to
+// refresh it.
+type attachmentDTO struct {
+	URL  string `json:"url"`
+	MIME string `json:"mime"`
+	Name string `json:"name"`
+	Size int64  `json:"size"`
 }
 
 type chatMessageDTO struct {
-	ID        int64     `json:"id"`
-	Sender    string    `json:"sender"`
-	Body      string    `json:"body"`
-	CreatedAt time.Time `json:"created_at"`
+	ID         int64          `json:"id"`
+	Sender     string         `json:"sender"`
+	Body       string         `json:"body"`
+	CreatedAt  time.Time      `json:"created_at"`
+	Attachment *attachmentDTO `json:"attachment,omitempty"`
+}
+
+// presignRequest is the body for POST /support/attachments/presign (and the
+// admin twin). filename is the original name (for display + key sanitization);
+// mime + size are validated before any URL is issued.
+type presignRequest struct {
+	Filename string `json:"filename"`
+	MIME     string `json:"mime"`
+	Size     int64  `json:"size"`
+}
+
+// toMessageDTO maps a stored message to its wire shape, presigning a GET URL for
+// any attachment. Presign failures (or a nil Storage) degrade gracefully: the
+// message is returned without an Attachment rather than failing.
+func (h *Handler) toMessageDTO(ctx context.Context, m db.SupportMessage) chatMessageDTO {
+	dto := chatMessageDTO{ID: m.ID, Sender: m.Sender, Body: m.Body, CreatedAt: m.CreatedAt}
+	if m.AttachmentKey == nil || h.Storage == nil {
+		return dto
+	}
+	url, err := h.Storage.PresignGet(ctx, *m.AttachmentKey, getTTL)
+	if err != nil {
+		h.Logger.Warn("support: presign get failed (omitting attachment)", zap.Int64("msg_id", m.ID), zap.Error(err))
+		return dto
+	}
+	dto.Attachment = &attachmentDTO{
+		URL:  url,
+		MIME: derefStr(m.AttachmentMIME),
+		Name: derefStr(m.AttachmentName),
+		Size: derefInt64(m.AttachmentSize),
+	}
+	return dto
+}
+
+func derefStr(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
+}
+
+func derefInt64(p *int64) int64 {
+	if p == nil {
+		return 0
+	}
+	return *p
 }
 
 type chatThreadDTO struct {
@@ -92,9 +164,19 @@ func (h *Handler) SupportSend(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid request"})
 	}
-	body, ok := normalizeChatBody(req.Text)
-	if !ok {
-		return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "message empty or too long"})
+	hasAttachment := req.AttachmentKey != ""
+	// Body may be empty IFF an attachment is present. With text, it must still
+	// be a valid (non-empty, bounded) body.
+	body := strings.TrimSpace(req.Text)
+	if hasAttachment {
+		if len(body) > maxChatBodyLen {
+			return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "message too long"})
+		}
+	} else {
+		var ok bool
+		if body, ok = normalizeChatBody(req.Text); !ok {
+			return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "message empty or too long"})
+		}
 	}
 
 	// Determine the rate-limit tier from auth_provider. Fail-open: a transient
@@ -115,15 +197,77 @@ func (h *Handler) SupportSend(c echo.Context) error {
 		h.Logger.Error("support: open thread", zap.Int64("user_id", claims.UserID), zap.Error(err))
 		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
 	}
-	msg, err := h.DB.AppendMessage(ctx, thread.ID, "user", body)
+
+	// Resolve attachment columns. Authz: the client-supplied key must live under
+	// THIS thread's prefix — otherwise a user could reference another thread's
+	// upload. MIME/size are re-validated as a belt (the presign step already
+	// gated them, but the client controls the send body independently).
+	var aKey, aMIME, aName *string
+	var aSize *int64
+	if hasAttachment {
+		if !storage.KeyBelongsToThread(req.AttachmentKey, thread.ID) {
+			return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "attachment does not belong to this thread"})
+		}
+		if !storage.MIMEAllowed(req.AttachmentMIME) || !storage.SizeAllowed(req.AttachmentSize) {
+			return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "attachment type or size not allowed"})
+		}
+		aKey = &req.AttachmentKey
+		aMIME = &req.AttachmentMIME
+		name := storage.SanitizeFilename(req.AttachmentName)
+		aName = &name
+		size := req.AttachmentSize
+		aSize = &size
+	}
+
+	msg, err := h.DB.AppendMessageWithAttachment(ctx, thread.ID, "user", body, aKey, aMIME, aName, aSize)
 	if err != nil {
 		h.Logger.Error("support: append message", zap.Int64("thread_id", thread.ID), zap.Error(err))
 		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
 	}
 
-	dto := chatMessageDTO{ID: msg.ID, Sender: msg.Sender, Body: msg.Body, CreatedAt: msg.CreatedAt}
+	dto := h.toMessageDTO(ctx, *msg)
 	h.publishChatMessage(ctx, thread.ID, dto) // SSE fan-out (best-effort)
 	return c.JSON(http.StatusOK, dto)
+}
+
+// SupportPresignUpload handles POST /support/attachments/presign — issues a
+// short-lived presigned PUT URL the client uploads its file to directly. The
+// key is scoped to the user's open thread, so a later send referencing it
+// passes the ownership check in SupportSend.
+func (h *Handler) SupportPresignUpload(c echo.Context) error {
+	claims := auth.GetUserFromContext(c)
+	if claims == nil {
+		return c.JSON(http.StatusUnauthorized, ErrorResponse{Error: "unauthorized"})
+	}
+	if h.Storage == nil {
+		return c.JSON(http.StatusServiceUnavailable, ErrorResponse{Error: "attachments disabled"})
+	}
+	ctx := c.Request().Context()
+
+	var req presignRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid request"})
+	}
+	if !storage.MIMEAllowed(req.MIME) {
+		return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "file type not allowed"})
+	}
+	if !storage.SizeAllowed(req.Size) {
+		return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "file too large"})
+	}
+
+	thread, err := h.DB.OpenOrGetThread(ctx, claims.UserID)
+	if err != nil {
+		h.Logger.Error("support: presign open thread", zap.Int64("user_id", claims.UserID), zap.Error(err))
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
+	}
+
+	key := storage.BuildKey(thread.ID, req.Filename)
+	url, err := h.Storage.PresignPut(ctx, key, req.MIME, presignTTL)
+	if err != nil {
+		h.Logger.Error("support: presign put", zap.Int64("thread_id", thread.ID), zap.Error(err))
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
+	}
+	return c.JSON(http.StatusOK, map[string]any{"upload_url": url, "key": key})
 }
 
 // SupportListMessages handles GET /support/messages?since=<id>.
@@ -152,7 +296,7 @@ func (h *Handler) SupportListMessages(c echo.Context) error {
 
 	out := make([]chatMessageDTO, 0, len(msgs))
 	for _, m := range msgs {
-		out = append(out, chatMessageDTO{ID: m.ID, Sender: m.Sender, Body: m.Body, CreatedAt: m.CreatedAt})
+		out = append(out, h.toMessageDTO(ctx, m))
 	}
 	return c.JSON(http.StatusOK, chatListResponse{
 		Thread:   chatThreadDTO{ID: thread.ID, Status: thread.Status, LastMessageAt: thread.LastMessageAt},
@@ -272,7 +416,7 @@ func (h *Handler) SupportStream(c echo.Context) error {
 	// Catch-up replay: everything newer than the client's last id.
 	if backlog, err := h.DB.ListMessages(ctx, thread.ID, sseSinceID(c), 200); err == nil {
 		for _, m := range backlog {
-			writeChatSSE(resp, chatMessageDTO{ID: m.ID, Sender: m.Sender, Body: m.Body, CreatedAt: m.CreatedAt})
+			writeChatSSE(resp, h.toMessageDTO(ctx, m))
 		}
 		resp.Flush()
 	}

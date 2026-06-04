@@ -18,6 +18,7 @@ import (
 	"github.com/chameleonvpn/chameleon/internal/payments"
 	"github.com/chameleonvpn/chameleon/internal/payments/apple"
 	"github.com/chameleonvpn/chameleon/internal/payments/freekassa"
+	"github.com/chameleonvpn/chameleon/internal/storage"
 	"github.com/chameleonvpn/chameleon/internal/vpn"
 )
 
@@ -36,6 +37,7 @@ type Handler struct {
 	GeoIP         *geoip.Resolver
 	Email         email.Sender     // transactional email sender (Resend or noop)
 	Metrics       *metrics.Metrics // Prometheus counters; may be nil in tests
+	Storage       *storage.Client  // B2 attachments; nil ⇒ attachments disabled
 	Logger        *zap.Logger
 }
 
@@ -93,6 +95,7 @@ func RegisterRoutes(g *echo.Group, h *Handler) {
 	supportGroup.GET("/messages", h.SupportListMessages)
 	supportGroup.GET("/thread", h.SupportThread)
 	supportGroup.GET("/chat-token", h.SupportChatToken)
+	supportGroup.POST("/attachments/presign", h.SupportPresignUpload)
 
 	// SSE live stream — authenticated by the short-lived chat-token via
 	// ?token= (EventSource can't set headers), so it is NOT under requireAuth.

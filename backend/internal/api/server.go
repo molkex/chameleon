@@ -28,6 +28,7 @@ import (
 	"github.com/chameleonvpn/chameleon/internal/payments"
 	"github.com/chameleonvpn/chameleon/internal/payments/apple"
 	"github.com/chameleonvpn/chameleon/internal/payments/freekassa"
+	"github.com/chameleonvpn/chameleon/internal/storage"
 	"github.com/chameleonvpn/chameleon/internal/vpn"
 )
 
@@ -49,6 +50,10 @@ type Server struct {
 	VPN     vpn.Engine // VPN engine interface (may be nil)
 	Syncer  *cluster.Syncer
 	Metrics *metrics.Metrics // Prometheus collectors; may be nil in tests
+	// Storage backs SUPPORT-CHAT attachments (B2). nil ⇒ attachments disabled.
+	// Built in main.go from B2_* env so the same client is shared with the
+	// retention sweep (which runs before NewServer).
+	Storage *storage.Client
 	Logger  *zap.Logger
 }
 
@@ -222,6 +227,7 @@ func (s *Server) setupRoutes(e *echo.Echo) {
 		GeoIP:         geoip.New(),
 		Email:         s.Email,
 		Metrics:       s.Metrics,
+		Storage:       s.Storage,
 		Logger:        s.Logger,
 	}
 
@@ -273,6 +279,7 @@ func (s *Server) setupRoutes(e *echo.Echo) {
 		ClusterSecret: s.Config.Cluster.Secret,
 		ASC:           ascClient,
 		ASCAppID:      os.Getenv("ASC_APP_ID"),
+		Storage:       s.Storage,
 		// MON-04: local Prometheus for the dashboard health strip. Env
 		// override for non-default binds; empty falls back to the
 		// docker-compose bind (127.0.0.1:9091) inside infra.go.

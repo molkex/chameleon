@@ -42,6 +42,7 @@ import (
 	"github.com/chameleonvpn/chameleon/internal/email"
 	"github.com/chameleonvpn/chameleon/internal/metrics"
 	"github.com/chameleonvpn/chameleon/internal/secrets"
+	"github.com/chameleonvpn/chameleon/internal/storage"
 	"github.com/chameleonvpn/chameleon/internal/vpn"
 )
 
@@ -332,9 +333,24 @@ func run() error {
 	// Start background traffic collector (every 60 seconds).
 	go runTrafficCollector(ctx, logger, database, engine, remoteStats, 60*time.Second)
 
+	// SUPPORT-CHAT attachments: B2 (S3-compatible) client, built from B2_* env.
+	// nil when env is unset or the client fails to init — attachments degrade to
+	// disabled (presign returns 503; served messages omit the attachment). The
+	// same client is shared with the retention sweep and the HTTP handlers.
+	supportStorage, err := storage.NewFromEnv()
+	if err != nil {
+		logger.Warn("support attachments disabled — B2 client init failed", zap.Error(err))
+		supportStorage = nil
+	} else if supportStorage == nil {
+		logger.Info("support attachments disabled — B2 env not configured")
+	} else {
+		logger.Info("support attachments enabled (B2)")
+	}
+
 	// SUPPORT-CHAT retention (ADR 0011): hard-delete support threads closed
-	// >90 days ago (messages cascade). Daily sweep.
-	go runSupportRetention(ctx, logger, database, 24*time.Hour)
+	// >90 days ago (messages cascade). Daily sweep; also best-effort deletes the
+	// attachment bytes from B2 before the rows cascade away.
+	go runSupportRetention(ctx, logger, database, supportStorage, 24*time.Hour)
 
 	// MON-04: Prometheus collectors + background refreshers for live-VPN
 	// gauges (15s) and DAU gauge (60s). Both goroutines exit when ctx is
@@ -370,6 +386,7 @@ func run() error {
 		VPN:     engine,
 		Syncer:  syncer,
 		Metrics: metricsRegistry,
+		Storage: supportStorage,
 		Logger:  logger,
 	}
 
@@ -520,7 +537,7 @@ func runTrafficCollector(ctx context.Context, logger *zap.Logger, database *db.D
 // (messages cascade via the thread_id FK), satisfying the SUPPORT-CHAT retention
 // policy (ADR 0011). Daily sweep; the first runs ~1 min after start so it never
 // piles onto boot. Exits when ctx is cancelled.
-func runSupportRetention(ctx context.Context, logger *zap.Logger, database *db.DB, interval time.Duration) {
+func runSupportRetention(ctx context.Context, logger *zap.Logger, database *db.DB, store *storage.Client, interval time.Duration) {
 	logger = logger.Named("support-retention")
 	const retain = 90 * 24 * time.Hour
 
@@ -534,6 +551,20 @@ func runSupportRetention(ctx context.Context, logger *zap.Logger, database *db.D
 	}
 
 	sweep := func() {
+		// Collect attachment keys BEFORE the purge (the message rows cascade
+		// away with the threads, so we can't read them afterwards). Best-effort:
+		// a B2 delete failure must not block the DB purge.
+		if store != nil {
+			if keys, err := database.CollectPurgeableAttachmentKeys(ctx, retain); err != nil {
+				logger.Warn("collect purgeable attachment keys failed", zap.Error(err))
+			} else if len(keys) > 0 {
+				if err := store.Delete(ctx, keys); err != nil {
+					logger.Warn("delete purged attachments from B2 failed (some may remain)", zap.Error(err))
+				}
+				logger.Info("deleted purged support attachments from B2", zap.Int("count", len(keys)))
+			}
+		}
+
 		n, err := database.PurgeClosedThreadsOlderThan(ctx, retain)
 		if err != nil {
 			logger.Warn("purge closed support threads failed", zap.Error(err))
