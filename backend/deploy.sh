@@ -143,6 +143,11 @@ ssh "${NODE_SSH}" bash -s -- \
     "${ASC_ISSUER_ID:-}" \
     "${ASC_APP_ID:-}" \
     "${CHAMELEON_GRAFANA_PASSWORD:-}" \
+    "${B2_KEY_ID:-}" \
+    "${B2_APPLICATION_KEY:-}" \
+    "${B2_BUCKET:-}" \
+    "${B2_ENDPOINT:-}" \
+    "${B2_REGION:-}" \
     <<'REMOTE'
 set -euo pipefail
 
@@ -171,6 +176,11 @@ ASC_KEY_ID="${22}"
 ASC_ISSUER_ID="${23}"
 ASC_APP_ID="${24}"
 CHAMELEON_GRAFANA_PASSWORD="${25}"
+B2_KEY_ID="${26}"
+B2_APPLICATION_KEY="${27}"
+B2_BUCKET="${28}"
+B2_ENDPOINT="${29}"
+B2_REGION="${30}"
 
 cd "${REMOTE_DIR}/backend"
 
