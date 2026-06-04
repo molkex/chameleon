@@ -22,11 +22,15 @@ const (
 )
 
 var validAnnKinds = map[string]bool{"info": true, "promo": true, "update": true}
+var validAnnAudiences = map[string]bool{"all": true, "trial": true, "paid": true, "expired": true}
+var validAnnPlatforms = map[string]bool{"all": true, "ios": true, "macos": true}
 
 type announcementReq struct {
 	Title    string  `json:"title"`
 	Body     string  `json:"body"`
 	Kind     string  `json:"kind"`
+	Audience string  `json:"audience"`
+	Platform string  `json:"platform"`
 	Active   bool    `json:"active"`
 	StartsAt *string `json:"starts_at"` // RFC3339 or null/empty
 	EndsAt   *string `json:"ends_at"`
@@ -62,6 +66,20 @@ func (r announcementReq) toModel() (*db.Announcement, error) {
 	if !validAnnKinds[kind] {
 		return nil, errors.New("invalid kind")
 	}
+	audience := strings.TrimSpace(r.Audience)
+	if audience == "" {
+		audience = "all"
+	}
+	if !validAnnAudiences[audience] {
+		return nil, errors.New("invalid audience")
+	}
+	platform := strings.TrimSpace(r.Platform)
+	if platform == "" {
+		platform = "all"
+	}
+	if !validAnnPlatforms[platform] {
+		return nil, errors.New("invalid platform")
+	}
 	starts, err := parseAnnTime(r.StartsAt)
 	if err != nil {
 		return nil, errors.New("bad starts_at (use RFC3339)")
@@ -70,7 +88,7 @@ func (r announcementReq) toModel() (*db.Announcement, error) {
 	if err != nil {
 		return nil, errors.New("bad ends_at (use RFC3339)")
 	}
-	a := &db.Announcement{Title: title, Body: body, Kind: kind, Active: r.Active, StartsAt: starts, EndsAt: ends}
+	a := &db.Announcement{Title: title, Body: body, Kind: kind, Audience: audience, Platform: platform, Active: r.Active, StartsAt: starts, EndsAt: ends}
 	if s := strings.TrimSpace(r.CTALabel); s != "" {
 		a.CTALabel = &s
 	}
@@ -83,6 +101,7 @@ func (r announcementReq) toModel() (*db.Announcement, error) {
 func announcementDTO(a db.Announcement) map[string]any {
 	m := map[string]any{
 		"id": a.ID, "title": a.Title, "body": a.Body, "kind": a.Kind,
+		"audience": a.Audience, "platform": a.Platform,
 		"active": a.Active, "created_by": a.CreatedBy,
 		"created_at": a.CreatedAt, "updated_at": a.UpdatedAt,
 	}

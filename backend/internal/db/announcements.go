@@ -18,6 +18,8 @@ type Announcement struct {
 	Title     string
 	Body      string
 	Kind      string // info | promo | update
+	Audience  string // all | trial | paid | expired   (targeting, migration 025)
+	Platform  string // all | ios | macos
 	Active    bool
 	StartsAt  *time.Time
 	EndsAt    *time.Time
@@ -28,29 +30,45 @@ type Announcement struct {
 	UpdatedAt time.Time
 }
 
-const announcementCols = `id, title, body, kind, active, starts_at, ends_at, cta_label, cta_url, COALESCE(created_by,''), created_at, updated_at`
+const announcementCols = `id, title, body, kind, audience, platform, active, starts_at, ends_at, cta_label, cta_url, COALESCE(created_by,''), created_at, updated_at`
 
 func scanAnnouncement(s interface {
 	Scan(dest ...any) error
 }) (*Announcement, error) {
 	var a Announcement
-	if err := s.Scan(&a.ID, &a.Title, &a.Body, &a.Kind, &a.Active,
+	if err := s.Scan(&a.ID, &a.Title, &a.Body, &a.Kind, &a.Audience, &a.Platform, &a.Active,
 		&a.StartsAt, &a.EndsAt, &a.CTALabel, &a.CTAURL, &a.CreatedBy, &a.CreatedAt, &a.UpdatedAt); err != nil {
 		return nil, err
 	}
 	return &a, nil
 }
 
+// normalizeAnnouncementDefaults backfills the enum columns so a caller that
+// leaves them empty never trips the CHECK constraints (mirrors the admin
+// handler's defaults; keeps the db layer safe for tests + internal callers).
+func normalizeAnnouncementDefaults(a *Announcement) {
+	if a.Kind == "" {
+		a.Kind = "info"
+	}
+	if a.Audience == "" {
+		a.Audience = "all"
+	}
+	if a.Platform == "" {
+		a.Platform = "all"
+	}
+}
+
 // CreateAnnouncement inserts a new announcement and returns it (with id/timestamps).
 func (db *DB) CreateAnnouncement(ctx context.Context, a *Announcement) (*Announcement, error) {
 	ctx, cancel := defaultTimeout(ctx)
 	defer cancel()
+	normalizeAnnouncementDefaults(a)
 
 	row := db.Pool.QueryRow(ctx,
-		`INSERT INTO announcements (title, body, kind, active, starts_at, ends_at, cta_label, cta_url, created_by)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+		`INSERT INTO announcements (title, body, kind, audience, platform, active, starts_at, ends_at, cta_label, cta_url, created_by)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
 		 RETURNING `+announcementCols,
-		a.Title, a.Body, a.Kind, a.Active, a.StartsAt, a.EndsAt, a.CTALabel, a.CTAURL, a.CreatedBy)
+		a.Title, a.Body, a.Kind, a.Audience, a.Platform, a.Active, a.StartsAt, a.EndsAt, a.CTALabel, a.CTAURL, a.CreatedBy)
 	return scanAnnouncement(row)
 }
 
@@ -58,13 +76,14 @@ func (db *DB) CreateAnnouncement(ctx context.Context, a *Announcement) (*Announc
 func (db *DB) UpdateAnnouncement(ctx context.Context, a *Announcement) (*Announcement, error) {
 	ctx, cancel := defaultTimeout(ctx)
 	defer cancel()
+	normalizeAnnouncementDefaults(a)
 
 	row := db.Pool.QueryRow(ctx,
 		`UPDATE announcements
-		 SET title=$2, body=$3, kind=$4, active=$5, starts_at=$6, ends_at=$7, cta_label=$8, cta_url=$9, updated_at=NOW()
+		 SET title=$2, body=$3, kind=$4, audience=$5, platform=$6, active=$7, starts_at=$8, ends_at=$9, cta_label=$10, cta_url=$11, updated_at=NOW()
 		 WHERE id=$1
 		 RETURNING `+announcementCols,
-		a.ID, a.Title, a.Body, a.Kind, a.Active, a.StartsAt, a.EndsAt, a.CTALabel, a.CTAURL)
+		a.ID, a.Title, a.Body, a.Kind, a.Audience, a.Platform, a.Active, a.StartsAt, a.EndsAt, a.CTALabel, a.CTAURL)
 	out, err := scanAnnouncement(row)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -114,6 +133,18 @@ func (db *DB) ListAnnouncements(ctx context.Context, limit int) ([]Announcement,
 		out = append(out, *a)
 	}
 	return out, rows.Err()
+}
+
+// UserHasPaid reports whether the user has at least one non-refunded completed
+// payment — the "paid vs trial" signal for announcement audience targeting.
+func (db *DB) UserHasPaid(ctx context.Context, userID int64) (bool, error) {
+	ctx, cancel := defaultTimeout(ctx)
+	defer cancel()
+
+	var exists bool
+	err := db.Pool.QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM payments WHERE user_id=$1 AND status='completed')`, userID).Scan(&exists)
+	return exists, err
 }
 
 // ActiveAnnouncements returns announcements the client should currently show:

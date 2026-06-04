@@ -21,11 +21,16 @@ import { Plus, Pencil, Trash2 } from "lucide-react";
 
 type Kind = "info" | "promo" | "update";
 
+type Audience = "all" | "trial" | "paid" | "expired";
+type Platform = "all" | "ios" | "macos";
+
 interface Announcement {
   id: number;
   title: string;
   body: string;
   kind: Kind;
+  audience?: Audience;
+  platform?: Platform;
   active: boolean;
   starts_at?: string;
   ends_at?: string;
@@ -41,6 +46,8 @@ interface FormState {
   title: string;
   body: string;
   kind: Kind;
+  audience: Audience;
+  platform: Platform;
   active: boolean;
   cta_label: string;
   cta_url: string;
@@ -53,11 +60,25 @@ const EMPTY_FORM: FormState = {
   title: "",
   body: "",
   kind: "info",
+  audience: "all",
+  platform: "all",
   active: true,
   cta_label: "",
   cta_url: "",
   starts_at: "",
   ends_at: "",
+};
+
+const AUDIENCE_LABEL: Record<Audience, string> = {
+  all: "Все",
+  trial: "Триал",
+  paid: "Платные",
+  expired: "Истёкшие",
+};
+const PLATFORM_LABEL: Record<Platform, string> = {
+  all: "Все платформы",
+  ios: "iOS",
+  macos: "macOS",
 };
 
 const KIND_STYLE: Record<Kind, string> = {
@@ -101,6 +122,8 @@ export default function AnnouncementsPage() {
         title: f.title.trim(),
         body: f.body.trim(),
         kind: f.kind,
+        audience: f.audience,
+        platform: f.platform,
         active: f.active,
         cta_label: f.cta_label.trim(),
         cta_url: f.cta_url.trim(),
@@ -125,6 +148,8 @@ export default function AnnouncementsPage() {
         title: a.title,
         body: a.body,
         kind: a.kind,
+        audience: a.audience ?? "all",
+        platform: a.platform ?? "all",
         active: !a.active,
         cta_label: a.cta_label ?? "",
         cta_url: a.cta_url ?? "",
@@ -151,6 +176,8 @@ export default function AnnouncementsPage() {
       title: a.title,
       body: a.body,
       kind: a.kind,
+      audience: a.audience ?? "all",
+      platform: a.platform ?? "all",
       active: a.active,
       cta_label: a.cta_label ?? "",
       cta_url: a.cta_url ?? "",
@@ -202,6 +229,12 @@ export default function AnnouncementsPage() {
                       )}
                     </div>
                     <div className="mt-0.5 line-clamp-2 text-xs text-zinc-400">{a.body}</div>
+                    {((a.audience && a.audience !== "all") || (a.platform && a.platform !== "all")) && (
+                      <div className="mt-1 text-[11px] text-zinc-500">
+                        🎯 {AUDIENCE_LABEL[a.audience ?? "all"]}
+                        {a.platform && a.platform !== "all" ? ` · ${PLATFORM_LABEL[a.platform]}` : ""}
+                      </div>
+                    )}
                     {a.cta_label && (
                       <div className="mt-1 text-[11px] text-cyan-400">↳ {a.cta_label}</div>
                     )}
@@ -276,6 +309,28 @@ export default function AnnouncementsPage() {
                   />
                   Активен
                 </label>
+              </div>
+              <div className="flex items-center gap-3">
+                <label className="text-xs text-zinc-400">Кому</label>
+                <select
+                  value={form.audience}
+                  onChange={(e) => setForm({ ...form, audience: e.target.value as Audience })}
+                  className="rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm outline-none focus:border-cyan-600"
+                >
+                  <option value="all">Все</option>
+                  <option value="trial">Триал</option>
+                  <option value="paid">Платные</option>
+                  <option value="expired">Истёкшие</option>
+                </select>
+                <select
+                  value={form.platform}
+                  onChange={(e) => setForm({ ...form, platform: e.target.value as Platform })}
+                  className="rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm outline-none focus:border-cyan-600"
+                >
+                  <option value="all">Все платформы</option>
+                  <option value="ios">iOS</option>
+                  <option value="macos">macOS</option>
+                </select>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <input
