@@ -65,13 +65,13 @@ health:
 # ── Right now (canonical: roadmap.yaml) ─────────────────────────────────────
 now:
   # ── RESUME HERE next session (2026-06-04 end-of-session handoff) ──
-  - SUPPORT-CHAT — WORKS end-to-end on device (first test build 103 — send + history +
-    SSE online confirmed). build 104 (1.0.31) on TestFlight fixes the 2 bugs that test found —
-    duplicate own-messages (optimistic + SSE echo) and stale-token 401 on first open. MSK nginx
-    SSE done (live push). REMAINING before App Store submit — (1) privacy policy + ASC data label
-    (5.1.1 — chat stores messages, current policy says "no usage metadata"); (2) ADMIN INBOX (P3)
-    not built → agent side has no UI; agent replies injected manually (DB + Redis support:thread:<id>).
-    Open — keep widget BUNDLED or move to hosted chat.madfrog.online.
+  - SUPPORT-CHAT — WORKS end-to-end (client build 103 tested; build 104 fixes dup-messages +
+    stale-token 401; both on TestFlight). AGENT SIDE NOW LIVE — admin SPA Поддержка page
+    (/admin/app/inbox): list threads, read, reply → pushes to client via Redis SSE (P3 MVP
+    deployed 2026-06-04). MSK nginx SSE done. REMAINING before App Store submit — privacy policy
+    + ASC data label (5.1.1 — chat stores messages, policy says "no usage metadata"). Later (full
+    P3): admin-SSE live vs poll, canned replies, notes, assignment, Telegram bridge. Open — widget
+    BUNDLED vs hosted chat.madfrog.online.
   - AWAIT-REVIEW 1.0.30 (build 102, KEYCHAIN-MACOS) WAITING_FOR_REVIEW (submitted 2026-06-04,
     AFTER_APPROVAL auto-release). 1.0.29 (101) shipped 2026-06-02. After 1.0.30 ships → submit
     1.0.31/104 (needs the privacy work above first).

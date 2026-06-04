@@ -496,6 +496,30 @@ deferred:
 # ============================================================
 done:
   "2026-06-04":
+    - id: SUPPORT-CHAT-P3-INBOX
+      title: Admin inbox — the agent side (was entirely missing; clients sent into a void)
+      deployed: NL 2026-06-04 (commits e74c314 backend + a0bf0c5 SPA)
+      files:
+        - backend/internal/db/support.go                  # ListAdminThreads + MarkThreadReadByAgent
+        - backend/internal/api/admin/support.go           # GET threads / GET messages / POST reply
+        - backend/internal/api/admin/routes.go            # /admin/support/* group (adminMW)
+        - backend/internal/db/support_test.go             # TestAdminInboxList (integration)
+        - clients/admin/src/pages/inbox.tsx               # Поддержка page (subagent-built)
+        - clients/admin/src/App.tsx                       # /inbox route
+        - clients/admin/src/components/layout/app-sidebar.tsx  # nav link
+      notes: |
+        MVP agent inbox (recommended over Telegram-bridge / full-P3 — same stack,
+        one place, replies push live). Backend: ListAdminThreads (open-first,
+        last-message, unread user→agent count, client identity), reply appends
+        sender='agent' and publishes to support:thread:<id> with the SAME DTO the
+        mobile SSE consumes → lands in the client chat live; opening a thread
+        marks user messages read. Admin SPA: two-pane Поддержка page (thread list
+        + conversation + composer), TanStack Query polling (5s/3s), under the
+        existing admin auth guard. Verified: deploy healthy, endpoints 401 w/o
+        auth, ListAdminThreads SQL returns the live thread correctly on prod
+        (device_b6f01ebb, apple, unread=3). REMAINING (later, full P3): admin-SSE
+        live (vs poll), canned replies, internal notes, assignment, user-profile
+        link, Telegram bridge (P5). Pairs with SUPPORT-CHAT-FIXES (build 104).
     - id: SUPPORT-CHAT-FIXES
       title: Support chat first-real-use fixes — duplicate own-messages + stale-token 401; cut build 104
       commits: [1c010bd dup-fix, db13187 token-refresh + build 104]
