@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ru"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MadFrog — Роадмап RU (интерактивный путь)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Balsamiq+Sans:wght@400;700&family=Archivo:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/roughjs@4.6.6/bundled/rough.js"></script>
+<style>
+  :root{
+    --paper:#f6f1e3; --paper2:#efe8d4; --ink:#2f2a1f; --soft:#6b6452;
+    --now:#ffd64a; --now-b:#c89a13; --now-t:#3a2c00;
+    --scale:#cba6ea; --scale-b:#9466c4; --scale-t:#2c1842;
+    --later:#e3ddcb; --later-b:#b6ae95; --later-t:#46412f;
+    --goal:#a9e189; --goal-b:#67ab47; --goal-t:#173309;
+    --done:#7fb262;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:"Archivo",system-ui,sans-serif;
+    background-image:radial-gradient(circle at 1px 1px, rgba(47,42,31,.06) 1px, transparent 0);
+    background-size:22px 22px}
+  .top{max-width:1000px;margin:0 auto;padding:34px 24px 8px}
+  .brand{display:flex;align-items:center;gap:12px}
+  .brand .frog{font-size:30px}
+  .brand h1{font-family:"Balsamiq Sans",cursive;font-size:30px;margin:0;letter-spacing:-.01em}
+  .brand .v{font-family:"Balsamiq Sans",cursive;font-size:12px;color:var(--soft);border:1.5px solid var(--ink);
+    border-radius:8px;padding:2px 8px;transform:rotate(-2deg)}
+  .sub{color:var(--soft);font-size:14.5px;margin:8px 0 0;max-width:60ch}
+  /* legend */
+  .legend{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0 6px}
+  .lg{display:inline-flex;align-items:center;gap:7px;font-family:"Balsamiq Sans",cursive;font-size:12.5px;
+    background:#fffdf6;border:1.5px solid var(--ink);border-radius:10px;padding:5px 11px}
+  .sw{width:14px;height:14px;border-radius:4px;border:1.5px solid rgba(0,0,0,.35)}
+  .hint{font-family:"Balsamiq Sans",cursive;font-size:12.5px;color:var(--soft);margin-left:auto;align-self:center}
+
+  /* map */
+  .scroll{overflow-x:auto;padding:10px 24px 60px}
+  .map{position:relative;width:900px;height:760px;margin:0 auto}
+  #wires{position:absolute;inset:0;z-index:1;overflow:visible}
+  .node{position:absolute;z-index:2;cursor:pointer;border:2px solid;border-radius:12px;
+    font-family:"Balsamiq Sans",cursive;padding:10px 13px;line-height:1.2;
+    box-shadow:3px 3px 0 rgba(47,42,31,.14);transition:transform .12s, box-shadow .12s, filter .2s, opacity .2s;
+    user-select:none}
+  .node:hover{transform:translateY(-1px);box-shadow:4px 5px 0 rgba(47,42,31,.18)}
+  .node:active{transform:translateY(1px);box-shadow:2px 2px 0 rgba(47,42,31,.16)}
+  .node .t{font-weight:700;font-size:14.5px}
+  .node .m{font-family:"Archivo";font-weight:500;font-size:11px;opacity:.72;margin-top:3px}
+  .node .ck{position:absolute;top:-9px;right:-9px;width:21px;height:21px;border-radius:50%;
+    background:#fffdf6;border:2px solid var(--later-b);display:grid;place-items:center;font-size:12px;color:transparent}
+  .node.done{opacity:.5;filter:saturate(.5)}
+  .node.done .ck{background:var(--done);border-color:var(--goal-b);color:#10260a}
+  .node.done .t{text-decoration:line-through;text-decoration-thickness:1.5px}
+
+  .node.start{background:#fffdf6;border-color:var(--ink);transform:rotate(-1deg)}
+  .node.now{background:var(--now);border-color:var(--now-b);color:var(--now-t)}
+  .node.scale{background:var(--scale);border-color:var(--scale-b);color:var(--scale-t)}
+  .node.later{background:var(--later);border-color:var(--later-b);color:var(--later-t)}
+  .node.goal{background:var(--goal);border-color:var(--goal-b);color:var(--goal-t)}
+  .node.head{box-shadow:4px 4px 0 rgba(47,42,31,.2)}
+  .node.head .t{font-size:16px}
+  .node.head .ph{font-size:11px;opacity:.7;font-family:"Archivo";font-weight:600;letter-spacing:.04em}
+  .node.start .t,.node.goal .t{font-size:15px}
+
+  /* slight hand-drawn tilt per node */
+  #n-t1a{transform:rotate(.8deg)} #n-t1b{transform:rotate(-.6deg)} #n-t1c{transform:rotate(-1deg)}
+  #n-t2a{transform:rotate(.7deg)} #n-t2b{transform:rotate(-.7deg)}
+  #n-t3a{transform:rotate(-.7deg)} #n-t3b{transform:rotate(.8deg)}
+  #n-t4a{transform:rotate(.6deg)} #n-t4b{transform:rotate(-.8deg)} #n-t4c{transform:rotate(.7deg)}
+
+  footer{max-width:1000px;margin:0 auto;padding:0 24px 50px;font-family:"Balsamiq Sans",cursive;font-size:12px;color:var(--soft);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+  @media (max-width:560px){.hint{display:none}}
+</style></head>
+<body>
+
+  <div class="top">
+    <div class="brand">
+      <span class="frog">🐸</span>
+      <h1>Роадмап — рынок России</h1>
+      <span class="v">v4 · поток</span>
+    </div>
+    <p class="sub">Путь слева сверху вниз: что делаем сейчас, что потом, что в конце. Ветки — параллельные задачи. Кликни узел, чтобы отметить «сделано».</p>
+    <div class="legend">
+      <span class="lg"><i class="sw" style="background:var(--now)"></i>Сейчас</span>
+      <span class="lg"><i class="sw" style="background:var(--scale)"></i>Следующее</span>
+      <span class="lg"><i class="sw" style="background:var(--later)"></i>Потом</span>
+      <span class="lg"><i class="sw" style="background:var(--goal)"></i>Цель</span>
+      <span class="lg"><i class="sw" style="background:var(--done);border-radius:50%"></i>✓ Сделано</span>
+      <span class="hint">↳ прогресс сохраняется в браузере</span>
+    </div>
+  </div>
+
+  <div class="scroll">
+  <div class="map" id="map">
+    <svg id="wires"></svg>
+
+    <div class="node start" id="n-start" style="left:375px;top:18px;width:150px"><div class="t">Старт</div></div>
+
+    <!-- PHASE 1 -->
+    <div class="node now head" id="n-p1" style="left:320px;top:108px;width:260px"><div class="ph">ШАГ 1 · НЕД. 1</div><div class="t">Быстрый старт</div></div>
+    <div class="node now" id="n-t1a" style="left:662px;top:92px;width:200px"><span class="ck">✓</span><div class="t">Доп. iOS-витрина</div><div class="m">опора A · риск средний</div></div>
+    <div class="node now" id="n-t1b" style="left:662px;top:152px;width:210px"><span class="ck">✓</span><div class="t">Бот — прямая продажа</div><div class="m">опора A · риск ноль</div></div>
+    <div class="node now" id="n-t1c" style="left:30px;top:120px;width:200px"><span class="ck">✓</span><div class="t">Воронка v1</div><div class="m">опора B · 1 экран + СБП</div></div>
+
+    <!-- PHASE 2 -->
+    <div class="node scale head" id="n-p2" style="left:320px;top:250px;width:260px"><div class="ph">ШАГ 2 · НЕД. 2–4</div><div class="t">Android для масштаба</div></div>
+    <div class="node scale" id="n-t2a" style="left:30px;top:232px;width:200px"><span class="ck">✓</span><div class="t">Android-клиент</div><div class="m">опора A · сначала</div></div>
+    <div class="node scale" id="n-t2b" style="left:30px;top:294px;width:210px"><span class="ck">✓</span><div class="t">Публикация в RuStore</div><div class="m">опора A · затем</div></div>
+
+    <!-- PHASE 3 -->
+    <div class="node scale head" id="n-p3" style="left:320px;top:392px;width:260px"><div class="ph">ШАГ 3 · МЕС. 2</div><div class="t">Оптимизация воронки</div></div>
+    <div class="node scale" id="n-t3a" style="left:662px;top:374px;width:210px"><span class="ck">✓</span><div class="t">Конверсия 6% → 7%</div><div class="m">опора B</div></div>
+    <div class="node scale" id="n-t3b" style="left:662px;top:434px;width:200px"><span class="ck">✓</span><div class="t">Офферы и удержание</div><div class="m">опора B</div></div>
+
+    <!-- PHASE 4 -->
+    <div class="node later head" id="n-p4" style="left:330px;top:534px;width:240px"><div class="ph">ШАГ 4 · МЕС. 3+</div><div class="t">Масштабирование</div></div>
+    <div class="node later" id="n-t4a" style="left:30px;top:516px;width:200px"><span class="ck">✓</span><div class="t">Конвейер Android</div><div class="m">опора A</div></div>
+    <div class="node later" id="n-t4b" style="left:30px;top:578px;width:200px"><span class="ck">✓</span><div class="t">Google Play — мир</div><div class="m">опора A</div></div>
+    <div class="node later" id="n-t4c" style="left:662px;top:548px;width:200px"><span class="ck">✓</span><div class="t">Рефералы · A/B</div><div class="m">опора B</div></div>
+
+    <!-- GOAL -->
+    <div class="node goal" id="n-goal" style="left:325px;top:662px;width:250px"><div class="t">★ Рост выручки из РФ — ×3</div></div>
+  </div>
+  </div>
+
+  <footer><span>MadFrog · Роадмап RU · v4 (интерактивный поток)</span><span>docs/plans/ru-roadmap-flow.html</span></footer>
+
+<script>
+(function(){
+  "use strict";
+  const COL={spine:"#5b5446", now:"#c89a13", scale:"#9466c4", later:"#b6ae95"};
+  // [from, to, kind]
+  const CONN=[
+    ["start","p1","spine"],["p1","p2","spine"],["p2","p3","spine"],["p3","p4","spine"],["p4","goal","spine"],
+    ["p1","t1a","now"],["p1","t1b","now"],["p1","t1c","now"],
+    ["p2","t2a","scale"],["t2a","t2b","scale"],
+    ["p3","t3a","scale"],["p3","t3b","scale"],
+    ["p4","t4a","later"],["p4","t4b","later"],["p4","t4c","later"]
+  ];
+  const map=document.getElementById("map"), svg=document.getElementById("wires");
+  function center(id){const el=document.getElementById("n-"+id);const r=el.getBoundingClientRect();const m=map.getBoundingClientRect();
+    return [r.left-m.left+r.width/2, r.top-m.top+r.height/2];}
+  function draw(){
+    while(svg.firstChild) svg.removeChild(svg.firstChild);
+    if(!window.rough){return;}
+    const rc=rough.svg(svg);
+    CONN.forEach(([a,b,kind])=>{
+      const [x1,y1]=center(a),[x2,y2]=center(b);
+      const dx=x2-x1, dy=y2-y1;
+      const cx1=x1+dx*0.18, cy1=y1+dy*0.55, cx2=x2-dx*0.18, cy2=y2-dy*0.55;
+      const d=`M ${x1} ${y1} C ${cx1} ${cy1} ${cx2} ${cy2} ${x2} ${y2}`;
+      const g=rc.path(d,{roughness:1.7,bowing:1.6,stroke:COL[kind]||"#8a8472",
+        strokeWidth:kind==="spine"?2.6:1.9});
+      svg.appendChild(g);
+    });
+  }
+  // progress persistence
+  let DONE; try{DONE=new Set(JSON.parse(localStorage.getItem("madfrog_rm_done")||"[]"));}catch(e){DONE=new Set();}
+  document.querySelectorAll(".node[id^='n-']").forEach(n=>{
+    const id=n.id.slice(2);
+    if(id==="start"||id==="goal") return;
+    if(DONE.has(id)) n.classList.add("done");
+    n.addEventListener("click",()=>{
+      if(DONE.has(id)){DONE.delete(id);n.classList.remove("done");}
+      else{DONE.add(id);n.classList.add("done");}
+      try{localStorage.setItem("madfrog_rm_done",JSON.stringify([...DONE]));}catch(e){}
+    });
+  });
+  function boot(){ draw(); }
+  if(document.fonts&&document.fonts.ready){document.fonts.ready.then(boot);}
+  window.addEventListener("load",boot);
+  window.addEventListener("resize",draw);
+  setTimeout(boot,300);
+})();
+</script>
+</body></html>
