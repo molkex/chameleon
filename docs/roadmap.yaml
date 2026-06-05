@@ -261,6 +261,40 @@ next:
         serving cert fingerprint via /api/v1/server/info, client pins it. Found in the
         2026-06-01 audit.
 
+    - id: TRIAL-ABUSE-REINSTALL
+      priority: P3   # real hole, LOW current impact (3 deleted accounts of 347 as of 2026-06-05)
+      title: Delete-account / reinstall → fresh 3-day trial (SEC-01 trial-once is per-account)
+      found: 2026-06-05 (admin Users — same iPad7,6 / IP 178.214.245.179, Ufa)
+      evidence: |
+        Confirmed in prod: user id 159287 (anon device acct, 3.96 GB used on trial)
+        was DELETED (is_active=f, device_id+vpn_username wiped = delete signature),
+        then the SAME iPad re-registered as id 159296 (device_8d2e949c) and got a
+        FRESH trial (trial_granted_at + expiry reset, 0 traffic). Scale today: only
+        3 deleted accounts ever (2 used a trial). The "14 IPs with 2+ accounts" are
+        mostly OUR VPN-exit IPs (147.45.252.234 NL=74, GRA, MSK) + carrier-NAT, not
+        real shared devices — so this is currently rare, not an epidemic.
+      root_cause: |
+        SEC-01 (trial_granted_at) gates the trial PER-IDENTITY (per account row).
+        On delete/reinstall iOS rotates identifierForVendor → a NEW device_id → the
+        backend keys auth by device_id (auth.go register), so it creates a brand-new
+        anon user with NULL install_secret → grants a fresh trial. install_secret
+        (MED-012) exists + persists in Keychain across REINSTALL, but it is only an
+        anti-hijack PAIRING keyed to device_id — it is NOT consulted to gate the
+        trial across re-registrations, and account-delete wipes the Keychain anyway.
+      fix_plan: |
+        Layered, by abuse vector:
+        1. REINSTALL-only (delete app → reinstall; Keychain survives): on register,
+           look up prior accounts by the client-sent install_secret (not just
+           device_id); if a match already has trial_granted_at, do NOT grant a fresh
+           trial. Cheap — the secret already round-trips (needs MED-012-Phase-2 iOS
+           to send it on register). Catches the common reinstall case.
+        2. ACCOUNT-DELETE + reinstall (Keychain wiped on delete): needs a per-device
+           bit that survives everything → Apple DeviceCheck / App Attest (sanctioned,
+           privacy-safe, one bit/device) to mark "this device already consumed a
+           trial". Bigger build; only if abuse grows.
+        Don't gate on IP/device_model (false positives: carrier-NAT, our exit IPs).
+      decision: defer-until-it-grows   # monitor deleted-account count; act if it climbs
+
   # Test-coverage gaps surfaced by the 2026-06-01 audit. Canonical detail +
   # verify commands: state/test-map.yaml. Discipline: decisions/0009.
   testing:
