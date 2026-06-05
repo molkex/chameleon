@@ -4,11 +4,11 @@ import {
   SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton,
 } from "@/components/ui/sidebar";
 import {
-  LayoutDashboard, Users, Server, Globe, Shield, Zap, Settings, UserCog, ScrollText, Activity, TrendingUp, MousePointerClick, MessageCircle, Megaphone, Sparkles,
+  LayoutDashboard, Users, Server, Globe, Shield, Zap, Settings, UserCog, ScrollText, Activity, TrendingUp, MousePointerClick, MessageCircle, Megaphone, Sparkles, Ticket,
 } from "lucide-react";
 
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  LayoutDashboard, Users, Server, Globe, Shield, Zap, Settings, UserCog, ScrollText, Activity, TrendingUp, MousePointerClick, MessageCircle, Megaphone, Sparkles,
+  LayoutDashboard, Users, Server, Globe, Shield, Zap, Settings, UserCog, ScrollText, Activity, TrendingUp, MousePointerClick, MessageCircle, Megaphone, Sparkles, Ticket,
 };
 
 const NAV_ITEMS = [
@@ -20,6 +20,7 @@ const NAV_ITEMS = [
     { path: "/admin/app/inbox", label: "Поддержка", icon: "MessageCircle" },
     { path: "/admin/app/push", label: "Рассылка", icon: "Megaphone" },
     { path: "/admin/app/announcements", label: "Анонсы", icon: "Sparkles" },
+    { path: "/admin/app/promo", label: "Промокоды", icon: "Ticket" },
     { path: "/admin/app/users", label: "Users", icon: "Users" },
   ]},
   { group: "VPN", items: [

@@ -105,23 +105,34 @@ func (h *Handler) FreeKassaWebhook(c echo.Context) error {
 		return c.String(http.StatusBadRequest, "unknown plan")
 	}
 
-	// Amount sanity check — reject if the paid amount is less than what
-	// the plan should cost. We accept overpayment (unlikely but harmless)
-	// rather than rejecting borderline cases over rounding.
+	// PROMO-CODES: a discounted order persisted a payment_intent at initiate
+	// time carrying the expected (discounted) amount + the code to redeem.
+	// Full-price orders have no intent → fall back to the plan price.
+	wctx := c.Request().Context()
+	expectedRub := plan.PriceRub
+	intent, ierr := h.DB.GetPaymentIntent(wctx, payload.MerchantOrderID)
+	if ierr != nil {
+		h.Logger.Warn("freekassa webhook: load payment intent", zap.Error(ierr),
+			zap.String("order_id", payload.MerchantOrderID))
+	} else if intent != nil {
+		expectedRub = intent.AmountRub
+	}
+
+	// Amount sanity check — reject if the paid amount is less than EXPECTED
+	// (the discounted amount for a promo order, else the plan price). We accept
+	// overpayment (unlikely but harmless) rather than rejecting on rounding.
 	if paidAmount, ok := parseAmount(payload.Amount); ok {
-		if paidAmount+1 < plan.PriceRub {
+		if paidAmount+1 < expectedRub {
 			h.Logger.Warn("freekassa webhook: amount mismatch",
 				zap.Int("paid", paidAmount),
-				zap.Int("expected", plan.PriceRub),
+				zap.Int("expected", expectedRub),
 			)
 			return c.String(http.StatusBadRequest, "amount mismatch")
 		}
 	}
 
-	// amountMinor = rubles * 100 (kopecks). Use the plan price since the
-	// FK amount is a formatted decimal string — converting it here just
-	// to store kopecks isn't worth the rounding risk.
-	amountMinor := int64(plan.PriceRub) * 100
+	// amountMinor = rubles * 100 (kopecks) of what was actually charged.
+	amountMinor := int64(expectedRub) * 100
 
 	metadata, _ := json.Marshal(map[string]any{
 		"payment_id": payload.MerchantOrderID,
@@ -161,6 +172,16 @@ func (h *Handler) FreeKassaWebhook(c echo.Context) error {
 	}
 	if h.Metrics != nil && !alreadyApplied {
 		h.Metrics.CountPayment("freekassa", "completed")
+	}
+
+	// PROMO-CODES: record the redemption (+ bump used_count) once, on the first
+	// successful credit. Idempotent at the DB level, and best-effort here — a
+	// failure must not fail the webhook (the user already paid + got credited).
+	if intent != nil && intent.PromoCodeID != nil && !alreadyApplied {
+		if err := h.DB.RedeemPromo(wctx, *intent.PromoCodeID, parsed.UserID, payload.MerchantOrderID); err != nil {
+			h.Logger.Warn("promo: redeem", zap.Error(err),
+				zap.Int64("user_id", parsed.UserID), zap.Int64("promo_code_id", *intent.PromoCodeID))
+		}
 	}
 
 	h.Logger.Info("freekassa webhook: credited",

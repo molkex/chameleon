@@ -12,7 +12,9 @@ import (
 
 	"github.com/chameleonvpn/chameleon/internal/auth"
 	"github.com/chameleonvpn/chameleon/internal/config"
+	"github.com/chameleonvpn/chameleon/internal/db"
 	"github.com/chameleonvpn/chameleon/internal/payments/freekassa"
+	"github.com/chameleonvpn/chameleon/internal/promo"
 )
 
 // InitiatePaymentRequest is the body for POST /api/mobile/payment/initiate.
@@ -21,9 +23,10 @@ import (
 // "card", "sberpay". Email is the receipt address — required by 54-FZ and
 // persisted on the user row for future charges.
 type InitiatePaymentRequest struct {
-	Plan   string `json:"plan"`
-	Method string `json:"method"`
-	Email  string `json:"email"`
+	Plan      string `json:"plan"`
+	Method    string `json:"method"`
+	Email     string `json:"email"`
+	PromoCode string `json:"promo_code,omitempty"` // PROMO-CODES — optional
 }
 
 // InitiatePaymentResponse tells the iOS client where to send the user.
@@ -83,6 +86,24 @@ func (h *Handler) InitiatePayment(c echo.Context) error {
 
 	ctx := c.Request().Context()
 
+	// PROMO-CODES: resolve an optional code → discounted amount. A present but
+	// invalid code is rejected so the user sees why; an empty code is a no-op.
+	amount := plan.PriceRub
+	var promoCodeID *int64
+	if strings.TrimSpace(req.PromoCode) != "" {
+		pc, price, reason, err := h.resolvePromo(ctx, req.PromoCode, claims.UserID, plan)
+		if err != nil {
+			h.Logger.Error("payments: resolve promo", zap.Error(err), zap.Int64("user_id", claims.UserID))
+			return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
+		}
+		if reason != promo.OK {
+			return c.JSON(http.StatusBadRequest, ErrorResponse{Error: reason.Message()})
+		}
+		amount = price
+		id := pc.ID
+		promoCodeID = &id
+	}
+
 	if err := h.DB.SetUserEmail(ctx, claims.UserID, req.Email); err != nil {
 		h.Logger.Warn("payments: save email", zap.Error(err), zap.Int64("user_id", claims.UserID))
 		// Non-fatal — continue with the order.
@@ -98,12 +119,24 @@ func (h *Handler) InitiatePayment(c echo.Context) error {
 
 	paymentID := freekassa.AppPaymentID(plan.ID, claims.UserID, time.Now().UnixNano())
 
+	// PROMO-CODES: persist the discounted-order intent BEFORE the user pays so
+	// the webhook verifies against + credits the discounted amount and redeems
+	// the code. (No intent for full-price orders — webhook falls back to plan.)
+	if promoCodeID != nil {
+		if err := h.DB.CreatePaymentIntent(ctx, &db.PaymentIntent{
+			PaymentID: paymentID, UserID: claims.UserID, PlanID: plan.ID, AmountRub: amount, PromoCodeID: promoCodeID,
+		}); err != nil {
+			h.Logger.Error("payments: create intent", zap.Error(err), zap.Int64("user_id", claims.UserID))
+			return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
+		}
+	}
+
 	order, err := h.FreeKassa.CreateOrder(ctx, freekassa.CreateOrderInput{
 		PaymentID: paymentID,
 		Method:    method,
 		Email:     req.Email,
 		IP:        clientIP,
-		Amount:    plan.PriceRub,
+		Amount:    amount,
 	})
 	if err != nil {
 		h.Logger.Error("freekassa: create order",
@@ -125,7 +158,7 @@ func (h *Handler) InitiatePayment(c echo.Context) error {
 	return c.JSON(http.StatusOK, InitiatePaymentResponse{
 		PaymentID:  paymentID,
 		PaymentURL: order.Location,
-		Amount:     plan.PriceRub,
+		Amount:     amount,
 		Currency:   "RUB",
 		Days:       plan.Days,
 	})

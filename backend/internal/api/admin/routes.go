@@ -124,6 +124,13 @@ func RegisterRoutes(g *echo.Group, h *Handler, jwtManager *auth.JWTManager) {
 	annGroup.PUT("/:id", h.UpdateAnnouncement, adminOnly)
 	annGroup.DELETE("/:id", h.DeleteAnnouncement, adminOnly)
 
+	// Promo codes (PROMO-CODES). Read = adminMW; mutations = adminOnly.
+	promoGroup := g.Group("/promo", adminMW)
+	promoGroup.GET("", h.ListPromoCodes)
+	promoGroup.POST("", h.CreatePromoCode, adminOnly)
+	promoGroup.PUT("/:id", h.UpdatePromoCode, adminOnly)
+	promoGroup.DELETE("/:id", h.DeletePromoCode, adminOnly)
+
 	// Users. List/get are read; delete/extend are destructive → admin only.
 	users := g.Group("/users", adminMW)
 	users.GET("", h.ListUsers)

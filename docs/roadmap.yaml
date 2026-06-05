@@ -588,7 +588,36 @@ deferred:
 # DONE — append-only log. Most recent date first.
 # ============================================================
 done:
-  "2026-06-04":
+  "2026-06-05":
+    - id: PROMO-CODES
+      title: Promo codes for the FreeKassa paywall — backend + admin (iOS field rides a build)
+      status: backend_admin_built_ios_pending   # deployable; iOS code-entry field = next build
+      files:
+        - backend/internal/promo/{promo.go,promo_test.go}        # pure validate + discount math (unit-tested)
+        - backend/migrations/026_promo_codes.sql                 # promo_codes + payment_intents + promo_redemptions
+        - backend/internal/db/{promo.go,promo_test.go}           # CRUD + intents + idempotent redeem (integration-tested)
+        - backend/internal/api/mobile/{promo.go,payment.go,payment_webhook.go,routes.go}  # validate + discounted initiate + webhook reconcile/redeem
+        - backend/internal/api/admin/{promo.go,routes.go}        # CRUD /admin/promo
+        - clients/admin/src/pages/promo.tsx + App.tsx + app-sidebar.tsx  # Промокоды page
+      notes: |
+        WHY: funnel showed monetization is the gap; a discount engine + the
+        expired-trial re-engagement lever. FreeKassa paywall is backend-driven,
+        so this deploys WITHOUT an app build — except the native code-entry FIELD
+        in WebPaywallView, which rides the next iOS build (Phase B).
+        HOW: a code applies a % discount to a plan; since the payment flow is
+        stateless (payment_id encodes plan+user, webhook re-derives price), a
+        discounted order persists a payment_intent (payment_id → discounted
+        amount + code). InitiatePayment validates the code, charges the discounted
+        amount, writes the intent; the webhook reconciles against the intent
+        amount (not the plan price) and records the redemption once (idempotent,
+        used_count rises once on retry). per-user-once + max-uses + expiry +
+        active gates, all in the pure internal/promo.Validate.
+        TESTS: internal/promo (rules + discount rounding, unit) + db/promo_test
+        (CRUD/conflict, intent round-trip, idempotent redeem, integration) — all
+        green. GAP: handler-glue httptest deferred (TEST-PROMO-HANDLER, test-map).
+        NEXT (Phase B, build): promo-code field in WebPaywallView → POST
+        /mobile/payment/promo/validate → show discounted price → pass promo_code
+        to /payment/initiate. Then expired-trial announcement/push can carry a code.
     - id: SUBMIT-1.0.31
       title: Submit 1.0.31 (build 112) to App Store — privacy policy updated (5.1.1) + badge fix
       status: in_review   # WAITING_FOR_REVIEW, AFTER_APPROVAL auto-release

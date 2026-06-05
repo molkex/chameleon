@@ -80,6 +80,7 @@ func RegisterRoutes(g *echo.Group, h *Handler) {
 	payGroup := g.Group("/payment", requireAuth)
 	payGroup.POST("/initiate", h.InitiatePayment)
 	payGroup.GET("/status/:payment_id", h.PaymentStatus)
+	payGroup.POST("/promo/validate", h.ValidatePromo) // PROMO-CODES — preview a code
 
 	// User preferences.
 	userGroup := g.Group("/user", requireAuth)
