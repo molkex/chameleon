@@ -19,7 +19,7 @@
 # Test coverage + how-to-verify each layer: state/test-map.yaml (decision 0009).
 
 meta:
-  updated: 2026-06-04
+  updated: 2026-06-05
   branch: main
   direction: on_track          # see `assessment` at the bottom
 
@@ -33,8 +33,10 @@ product:
     testflight:  {version: "1.0.31", build: 112, state: IN_BETA_TESTING}  # iOS — b112 in-app privacy policy update; b111 X-Store-Country, b110 announcements, b109 chat polish, b107 diag log fix, b106 APNs push (P4)
     next_step: |
       (1) USER: update App Privacy nutrition label in ASC web (chat/push/diagnostics) — no public API.
-      (2) await Apple review of 1.0.31 (112). (3) badge-clear fix (committed da3fd11) rides the NEXT
-      train 1.0.32 — cut when bundling more fixes (1.0.31 train is closed while in review).
+      (2) await Apple review of 1.0.31 (112). (3) NEXT iOS build 1.0.32 bundles (committed, deploy-free):
+      badge-clear fix (da3fd11) + loadProducts auto-retry (IAP empty-paywall fix) + PROMO-CODES Phase B
+      (promo-code field in WebPaywallView → /payment/promo/validate → pass promo_code to /initiate).
+      Cut 1.0.32 once 1.0.31 ships (its train is closed while in review).
   iap: 4 non-renewing subs, all APPROVED 2026-05-31 (RU/CIS → WebPaywall/FreeKassa)
 
 # ── Infra (canonical: state/servers.yaml) ───────────────────────────────────
@@ -87,6 +89,23 @@ open_decisions:                  # waiting on the user
 
 # ── Shipped (detail: roadmap.yaml#done + incidents/*) ──
 recent:
+  - PROMO-CODES (2026-06-05, SHIPPED — backend+admin live+e2e-verified on NL; iOS field = build 1.0.32) —
+    % discount codes for the FreeKassa paywall. internal/promo (pure rules+math, unit-tested) + mig 026
+    (promo_codes/payment_intents/promo_redemptions) + db CRUD + idempotent redeem (integration-tested) +
+    mobile validate/discounted-initiate/webhook-reconcile + admin "Промокоды" page. Deploys without a build;
+    native code-entry field in WebPaywallView rides 1.0.32. Engine for the expired-trial re-engagement.
+  - FUNNEL-ANALYSIS (2026-06-05) — real funnel from prod+Apple: 372 downloads (Apple Trends 18-31 May) →
+    345 reg (93%) → 296 launch → 257 VPN-connect (87%, strong activation) → 13 paid (3.8%). Findings:
+    monetization is THE gap (paywall seen by only 9/257 — trials hide it); real money is RU/FreeKassa (12
+    pays, ~3489₽), Apple IAP 0 (3 void = dev/sandbox cleanups, NOT a bug). 78% of base from the 28-29 May
+    burner. docs/plans/{madfrog-plan,funnel,ru-roadmap-flow,what-we-have}.html — visual plan/funnel hub.
+  - IAP-LOADPRODUCTS-RETRY (2026-06-05, committed — rides 1.0.32) — StoreKit Product.products(for:) can
+    return [] without throwing → empty paywall (prod: paywall.view products:0). Extracted
+    SubscriptionManager.loadWithRetry (pure, injected fetch+sleep) — retries while empty/throwing; 6 unit tests.
+  - TRIAL-ABUSE-REINSTALL (2026-06-05, NOTED in roadmap — P3, defer) — delete-account/reinstall → fresh
+    trial (SEC-01 trial-once is per-account; install_secret is anti-hijack keyed to device_id, not a
+    cross-account gate). Scale tiny (3 deleted of 347; "2+ per IP" are our VPN-exit IPs + carrier-NAT).
+    Layered fix planned (install_secret gate / DeviceCheck) — act if it grows.
   - STORE-COUNTRY (2026-06-04, SHIPPED — IAP backfill + admin display live on NL, client-send in b111) —
     App Store download region (storefront) now captured + shown in admin Users (🛍). store_country
     (mig 006) existed but was never filled. (1) no-build: payer backfill from the verified Apple JWS
