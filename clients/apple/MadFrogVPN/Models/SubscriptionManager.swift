@@ -92,25 +92,60 @@ final class SubscriptionManager {
         UserDefaults.standard.set(code, forKey: AppConstants.storeCountryKey)
     }
 
+    /// Fetch-with-retry for product loading. StoreKit's `Product.products(for:)`
+    /// can return an EMPTY array WITHOUT throwing — transient, frequently right
+    /// after launch or while the store isn't ready — which leaves the paywall
+    /// blank (observed: paywall.view with products:0). Retry a few times while
+    /// the result is empty (or the call throws) before giving up. Pure +
+    /// injectable (sleep/fetch) so it's unit-tested without StoreKit.
+    static func loadWithRetry<T>(
+        maxAttempts: Int = 3,
+        delay: Duration = .milliseconds(700),
+        sleep: (Duration) async -> Void = { try? await Task.sleep(for: $0) },
+        fetch: () async throws -> [T]
+    ) async -> (items: [T], attempts: Int, lastError: Error?) {
+        let attempts = max(1, maxAttempts)
+        var lastError: Error?
+        for attempt in 1...attempts {
+            do {
+                let items = try await fetch()
+                if !items.isEmpty { return (items, attempt, nil) }
+                lastError = nil   // empty-but-no-error: keep retrying, not a real error
+            } catch {
+                lastError = error
+            }
+            if attempt < attempts { await sleep(delay) }
+        }
+        return ([], attempts, lastError)
+    }
+
     func loadProducts() async {
         isLoading = true
         purchaseError = nil
         defer { isLoading = false }
 
-        do {
-            let fetched = try await Product.products(for: Self.allProductIDs)
+        let result = await Self.loadWithRetry {
+            try await Product.products(for: Self.allProductIDs)
+        }
+
+        if !result.items.isEmpty {
             let order = Self.allProductIDs
-            products = fetched.sorted { lhs, rhs in
+            products = result.items.sorted { lhs, rhs in
                 (order.firstIndex(of: lhs.id) ?? .max) < (order.firstIndex(of: rhs.id) ?? .max)
             }
-            AppLogger.app.info("SubscriptionManager: loaded \(fetched.count)/\(Self.allProductIDs.count) products")
-            if fetched.count < Self.allProductIDs.count {
-                let missing = Set(Self.allProductIDs).subtracting(fetched.map(\.id))
+            AppLogger.app.info("SubscriptionManager: loaded \(result.items.count)/\(Self.allProductIDs.count) products in \(result.attempts) attempt(s)")
+            if result.items.count < Self.allProductIDs.count {
+                let missing = Set(Self.allProductIDs).subtracting(result.items.map(\.id))
                 AppLogger.app.warning("SubscriptionManager: missing products \(missing.joined(separator: ", "))")
             }
-        } catch {
+        } else if let error = result.lastError {
             purchaseError = String(format: "subscription.error.load_failed".localized, error.localizedDescription)
-            AppLogger.app.error("SubscriptionManager loadProducts: \(error)")
+            AppLogger.app.error("SubscriptionManager loadProducts failed after \(result.attempts) attempts: \(error)")
+        } else {
+            // Empty after all retries with no error — store genuinely returned
+            // nothing (e.g. products unavailable in this storefront). Leave the
+            // paywall's manual retry as the last resort.
+            AppLogger.app.warning("SubscriptionManager: 0 products after \(result.attempts) attempts (store empty / unavailable)")
         }
     }
 

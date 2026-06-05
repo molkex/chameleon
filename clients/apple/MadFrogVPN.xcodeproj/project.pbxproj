@@ -194,6 +194,7 @@
 		BACEC61FEE678594868C78AF /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B28AD4A0F0B61B1CCA267A /* ThemeManager.swift */; };
 		BB8F14437A39B06E1F451FE4 /* LeafRankingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9191826F2A49E0C47AF914EF /* LeafRankingStore.swift */; };
 		BC0EB19FC3432F56C64386DD /* ThemePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE8C33AF6B8E237DD5BC9D5B /* ThemePickerView.swift */; };
+		BD4294D23F810E0F6B601192 /* SubscriptionLoadRetryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F95FF6BA9C6B38FB047908E6 /* SubscriptionLoadRetryTests.swift */; };
 		BD5A1A6A3C7FAEE743626F62 /* MainViewCalm.swift in Sources */ = {isa = PBXBuildFile; fileRef = E95E9718D8CE81EE4E41BE02 /* MainViewCalm.swift */; };
 		BDF2B0388311B0C69188B3E4 /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4EBA8BF2FC663C0650E1255 /* AccountView.swift */; };
 		BF1C1608765ED7428801196B /* MenuBarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8EF3541F56531E6A2C1EA76 /* MenuBarContent.swift */; };
@@ -458,6 +459,7 @@
 		F48680996CDA6DA1906F2747 /* L10n.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = L10n.swift; sourceTree = "<group>"; };
 		F4EBA8BF2FC663C0650E1255 /* AccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountView.swift; sourceTree = "<group>"; };
 		F64AFDF15C8A5F646A1C431B /* MainViewNeon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewNeon.swift; sourceTree = "<group>"; };
+		F95FF6BA9C6B38FB047908E6 /* SubscriptionLoadRetryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionLoadRetryTests.swift; sourceTree = "<group>"; };
 		FA66DA58C2FEC081307F44D9 /* ServerTagShapeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerTagShapeTests.swift; sourceTree = "<group>"; };
 		FBE7C9320BF719748D0BBC0A /* MadFrogVPN.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = MadFrogVPN.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FCCF7452218980C7681CEDA6 /* Haptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
@@ -586,6 +588,7 @@
 				4B0F8A49025B0790BD2D4EC7 /* SingBoxConfigPatcherTests.swift */,
 				9B07C7F761E8467D5C74E4CD /* StringUtilsTests.swift */,
 				A238DFA5F1520E5CBB83FCD8 /* SubscriptionEntitlementTests.swift */,
+				F95FF6BA9C6B38FB047908E6 /* SubscriptionLoadRetryTests.swift */,
 				B86A56C3AD664DF36D6422DB /* SupportDiagnosticLogTests.swift */,
 				850D3937870EEB29F3CD7BD9 /* TrafficHealthMonitorTests.swift */,
 				D8BA0442D38049EA8D16B48E /* VPNControlIntentsBehaviorTests.swift */,
@@ -1247,6 +1250,7 @@
 				771D7D152382CD54123F1A34 /* SingBoxConfigPatcherTests.swift in Sources */,
 				88554DBB410CBE11723FF7F3 /* StringUtilsTests.swift in Sources */,
 				787BD10C48028CFD57C227D3 /* SubscriptionEntitlementTests.swift in Sources */,
+				BD4294D23F810E0F6B601192 /* SubscriptionLoadRetryTests.swift in Sources */,
 				A741E7E95068B7C7EBE70977 /* SupportDiagnosticLogTests.swift in Sources */,
 				B12BD63053EC36D717193BCE /* TrafficHealthMonitorTests.swift in Sources */,
 				3DC5082569D21467B3C6D82B /* VPNControlIntentsBehaviorTests.swift in Sources */,
