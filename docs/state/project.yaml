@@ -89,6 +89,20 @@ open_decisions:                  # waiting on the user
 
 # ── Shipped (detail: roadmap.yaml#done + incidents/*) ──
 recent:
+  - VPN-DROPS-TRIAGE (2026-06-06) — user "отваливается чаще / вылетает / перезайти в акк".
+    ROOT CAUSE of drops = NE memory pressure: sing-box oom-killer "resetting network" at
+    40 MiB (iOS ~50 MB extension cap), fed by an UNBOUNDED singbox.log (writeDebugMessage
+    wrote libbox's DEBUG firehose raw, no cap → 565 MB). FIXES: (1) UDP-FALLBACK-CERT-SAN
+    (below). (2) LOG-01 size-cap on singbox.log — 4 MB, memory-safe seek-tail truncate +
+    pure helper + test; iOS build-for-testing GREEN; rides 1.0.32. "перезайти в акк" = old
+    Mac build 101 (no KEYCHAIN-MACOS fix from 1.0.30) losing identity → ReauthView (which
+    DOES offer Apple + email; Apple-reclaim is safe, no data loss). Rec: update Mac to 1.0.30.
+  - ADMIN-NODES-PROTOCOLS (2026-06-06, SHIPPED — deployed NL, admin-only) — admin showed
+    incomplete data. ListProtocols was hardcoded VLESS-only (Hysteria2/TUIC hidden) → now
+    derived from config (pure vpnProtocols+test). Nodes list only had relay-* servers → GRA
+    exit + MSK relay missing → buildRemoteNodes (all active non-local servers, grouped by
+    host, exit/relay classified, TCP-probed). Servers page was already complete. Deploy note:
+    NL `docker restart` resets SSH conntrack — nginx had to be re-upped after the deploy.
   - UDP-FALLBACK-CERT-SAN (2026-06-06, SHIPPED — NL+GRA, no app build) — user "VPN
     отваливается чаще" → client log showed ALL Hysteria2/TUIC legs dead each urltest
     ("certificate is not valid for any names, but wanted ads.adfox.ru"). SEC-03 regression:

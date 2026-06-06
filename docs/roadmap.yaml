@@ -375,13 +375,22 @@ next:
     - id: LOG-01
       title: Cap / rotate tunnel singbox.log (unbounded growth)
       priority: P2
-      status: partial   # TRACE/DEBUG dropped at the sink in build 99; size cap remains
+      status: fix_committed_rides_1.0.32   # size cap added 2026-06-06; ships in the next build
       notes: |
-        Group-container singbox.log hit 4.3 GB (found + truncated 2026-05-30 on
-        a Mac install). PARTIAL FIX (build 99): ExtensionPlatformInterface now drops
-        TRACE/DEBUG from the file sink — kills the bulk of the volume (an 18 MB
-        capture) and the NE OOM it caused. REMAINING: a hard size cap + rotation on
-        the log file itself (defensive against INFO+ growth over long sessions).
+        Group-container singbox.log hit 4.3 GB (2026-05-30) / 565 MB (2026-06-06,
+        a live Mac on build 101). PARTIAL FIX (build 99): writeLogs/writeMessage drop
+        TRACE/DEBUG from the file sink. BUT writeDebugMessage was MISSED — it wrote
+        EVERY libbox debug line to singbox.log via a raw, UNCAPPED FileHandle (the
+        actual 565 MB firehose; that file is also AppState.readSingboxLogTail's
+        diagnostic source, so it can't just be dropped). FIX (2026-06-06, committed,
+        rides 1.0.32): writeDebugMessage now caps singbox.log at 4 MB, truncate-to-
+        half reading ONLY the kept tail via FileHandle.seek (never loads the huge
+        file into the ~50 MB NE budget). Pure offset helper TunnelFileLogger.
+        truncationKeepOffset + unit test (TunnelFileLoggerCapTests). This also
+        relieves the memory pressure behind 1.2 (oom-killer "resetting network" =
+        the felt tunnel drops). tunnel-debug.log was already capped (2 MB).
+        STILL OPEN (minor): stderr.log (LibboxRedirectStderr, written C-side) has
+        no Swift-side cap — bound it periodically if it grows.
     # CFG-01b (P0, macOS keychain-access-groups missing) → DONE 2026-06-03 (KEYCHAIN-MACOS). See done log.
     - id: UX-VPN
       title: Surface "another VPN holds the tunnel" instead of silent Disconnected
@@ -589,6 +598,29 @@ deferred:
 # ============================================================
 done:
   "2026-06-06":
+    - id: ADMIN-NODES-PROTOCOLS
+      title: Admin showed incomplete protocols + nodes (user-reported "не все")
+      status: shipped   # deployed to NL + verified live; admin-only, no app build
+      files:
+        - backend/internal/api/admin/nodes.go        # vpnProtocols() + buildRemoteNodes()
+        - backend/internal/api/admin/nodes_test.go    # TestVPNProtocols
+      notes: |
+        Two admin gaps reported alongside the VPN-drops issue:
+        (1) протоколы не все — ListProtocols was HARDCODED to only "VLESS Reality
+            TCP", hiding the live Hysteria2 fallback (+TUIC). Now derived from the
+            node's VPN config (pure vpnProtocols(): VLESS always on; H2/TUIC on
+            when port>0 AND a UDP cert is set, mirroring clientconfig's gate).
+        (2) ноды не все — the nodes list only surfaced "relay-"-prefixed servers,
+            so the GRA exit (gra1) and MSK relay (key "msk") never appeared.
+            buildRelayNodes → buildRemoteNodes: every active non-local server,
+            grouped by host (SPB's relay-fr+relay-nl still collapse), classified
+            exit/relay (Role/key), TCP-probed (port=0 → :443 fallback).
+        (3) серверы — already complete (ListServers→ListAllServers shows all 7
+            incl inactive de/relay-de with badges); was a misperception.
+        DEPLOYED to NL (chameleon recreated; nginx had to be re-upped after the
+        deploy SSH dropped mid-recreate — NL container restarts reset SSH
+        conntrack). build/vet/test/lint green. NB: ops gotcha — `docker restart`
+        on NL kills the deploy SSH session; verify nginx is up after every deploy.
     - id: UDP-FALLBACK-CERT-SAN
       title: Revive the dead Hysteria2/TUIC UDP fallback (SEC-03 cert had no SAN)
       status: shipped   # NL+GRA cert regenerated + verified live; no app build needed
