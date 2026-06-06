@@ -382,15 +382,22 @@ extension ExtensionPlatformInterface: LibboxCommandServerHandlerProtocol {
 
     func writeDebugMessage(_ message: String?) {
         guard let message else { return }
-        // Forward sing-box debug messages to our file logger too. libbox calls
-        // this from arbitrary background threads — funnel writes through a
-        // serial queue so concurrent emissions don't interleave (which used
-        // to corrupt singbox.log because FileHandle has no internal locking).
-        TunnelFileLogger.log(message, category: "singbox")
         // Build-44: most singbox dial-event lines arrive here (stderr-formatted
-        // INFO/DEBUG/ERROR strings), so feed the detector here too. Detector's
-        // fast-path filter ignores anything that's not a dial pattern.
+        // INFO/DEBUG/ERROR strings), so feed the detector FIRST — it must see
+        // dial events even at DEBUG level. Its fast-path filter ignores anything
+        // that's not a dial pattern.
         realStallDetector?.ingest(level: 2, message: message)
+        // LOG-01 / NE-memory: drop TRACE/DEBUG from the file sinks (keep INFO+),
+        // consistent with the build-99 filter on writeLogs/writeMessage which
+        // MISSED this callback. libbox floods it with DEBUG regardless of config
+        // log.level; writing ~37% of lines is a top allocator under the ~50 MB NE
+        // cap and feeds the oom-killer "resetting network" drops.
+        guard !TunnelFileLogger.isVerboseSingboxLine(message) else { return }
+        // Forward sing-box messages to our file logger too. libbox calls this
+        // from arbitrary background threads — funnel writes through a serial
+        // queue so concurrent emissions don't interleave (which used to corrupt
+        // singbox.log because FileHandle has no internal locking).
+        TunnelFileLogger.log(message, category: "singbox")
         Self.singboxLogQueue.async {
             let logURL = AppConstants.sharedContainerURL.appendingPathComponent("singbox.log")
             let line = "\(message)\n"

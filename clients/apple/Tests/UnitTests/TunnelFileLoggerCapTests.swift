@@ -29,4 +29,31 @@ final class TunnelFileLoggerCapTests: XCTestCase {
         XCTAssertNil(TunnelFileLogger.truncationKeepOffset(fileSize: 1000, maxSize: 0))
         XCTAssertNil(TunnelFileLogger.truncationKeepOffset(fileSize: 1000, maxSize: -5))
     }
+
+    // MARK: - isVerboseSingboxLine (drop TRACE/DEBUG from the file sinks)
+
+    /// Real ANSI-colored lines as libbox emits them to writeDebugMessage.
+    private static let esc = "\u{1b}"
+
+    func testVerboseLevelsDropped() {
+        // \u{1b}[37mDEBUG\u{1b}[0m[4731] … and the TRACE variant.
+        XCTAssertTrue(TunnelFileLogger.isVerboseSingboxLine(
+            "\(Self.esc)[37mDEBUG\(Self.esc)[0m[4731] dns: exchange strm.yandex.ru. IN A"))
+        XCTAssertTrue(TunnelFileLogger.isVerboseSingboxLine(
+            "\(Self.esc)[37mTRACE\(Self.esc)[0m[0001] service: start"))
+        // Plain (no ANSI) DEBUG also dropped.
+        XCTAssertTrue(TunnelFileLogger.isVerboseSingboxLine("DEBUG[4731] router: match"))
+    }
+
+    func testInfoAndAboveKept() {
+        XCTAssertFalse(TunnelFileLogger.isVerboseSingboxLine(
+            "\(Self.esc)[36mINFO\(Self.esc)[0m[4731] outbound/vless[nl-direct-nl2]: outbound connection"))
+        XCTAssertFalse(TunnelFileLogger.isVerboseSingboxLine(
+            "\(Self.esc)[31mERROR\(Self.esc)[0m[4731] service/oom-killer: resetting network"))
+        XCTAssertFalse(TunnelFileLogger.isVerboseSingboxLine("WARN something"))
+        XCTAssertFalse(TunnelFileLogger.isVerboseSingboxLine(""))
+        // A domain containing "debug" must NOT be misread as a DEBUG line.
+        XCTAssertFalse(TunnelFileLogger.isVerboseSingboxLine(
+            "\(Self.esc)[36mINFO\(Self.esc)[0m[1] dns: exchange debug.example.com. IN A"))
+    }
 }

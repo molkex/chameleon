@@ -45,6 +45,25 @@ enum TunnelFileLogger {
         return UInt64(max(0, fileSize - keep))
     }
 
+    /// True when a raw sing-box log line is at TRACE/DEBUG level. libbox feeds
+    /// these to ExtensionPlatformInterface.writeDebugMessage *regardless* of the
+    /// config log.level, ANSI-colored as e.g. "\u{1b}[37mDEBUG\u{1b}[0m[4731] …".
+    /// Dropping them from the file sinks (keeping INFO+, exactly like build-99 did
+    /// for writeLogs/writeMessage) removes ~37% of log volume — the top allocator
+    /// under the ~50 MB NetworkExtension cap that drives the sing-box oom-killer's
+    /// "resetting network" tunnel drops (LOG-01 / the user-felt disconnects).
+    /// Pure + unit-tested. The caller still feeds EVERY line to the stall detector
+    /// first; only the file write is skipped.
+    static func isVerboseSingboxLine(_ message: String) -> Bool {
+        // Skip a leading ANSI SGR escape ("\u{1b}[…m") so we read the level token.
+        var s = Substring(message)
+        while s.first == "\u{1b}" {
+            guard let m = s.firstIndex(of: "m") else { break }
+            s = s[s.index(after: m)...]
+        }
+        return s.hasPrefix("TRACE") || s.hasPrefix("DEBUG")
+    }
+
     /// Primary write path: App Group container root. Confirmed writable
     /// across iOS versions including 26.x (extension reports debugLogSize
     /// > 0 there). Reverting here after a Library/Caches detour caused
