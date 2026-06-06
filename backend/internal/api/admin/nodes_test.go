@@ -3,7 +3,30 @@
 // hardcoded to VLESS-only, hiding the live Hysteria2 fallback.
 package admin
 
-import "testing"
+import (
+	"testing"
+	"time"
+
+	"github.com/chameleonvpn/chameleon/internal/db"
+)
+
+// TestToRecentTransactionDTOFormatsMSK guards the 2026-06-06 fix: payment times
+// on the dashboard were formatted from the UTC DB timestamp (3 h behind MSK).
+// They must render in Moscow time (the business TZ).
+func TestToRecentTransactionDTOFormatsMSK(t *testing.T) {
+	utc := time.Date(2026, 6, 6, 10, 30, 0, 0, time.UTC) // 13:30 MSK
+	dto := toRecentTransactionDTO(db.RecentPayment{CreatedAt: utc})
+	if dto.CreatedAtFmt != "2026-06-06 13:30" {
+		t.Errorf("CreatedAtFmt = %q, want %q (MSK = UTC+3)", dto.CreatedAtFmt, "2026-06-06 13:30")
+	}
+}
+
+func TestFmtMSKIsUTCPlus3(t *testing.T) {
+	utc := time.Date(2026, 1, 1, 23, 0, 0, 0, time.UTC) // crosses midnight → 02:00 next day MSK
+	if got := fmtMSK(utc, "2006-01-02 15:04"); got != "2026-01-02 02:00" {
+		t.Errorf("fmtMSK = %q, want 2026-01-02 02:00", got)
+	}
+}
 
 func TestVPNProtocols(t *testing.T) {
 	find := func(ps []protocolInfo, name string) protocolInfo {

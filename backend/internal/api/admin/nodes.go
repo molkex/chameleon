@@ -351,7 +351,7 @@ func toRecentTransactionDTO(r db.RecentPayment) recentTransactionDTO {
 		Source:       r.Source,
 		Days:         r.Days,
 		Status:       r.Status,
-		CreatedAtFmt: r.CreatedAt.Format("2006-01-02 15:04"),
+		CreatedAtFmt: fmtMSK(r.CreatedAt, "2006-01-02 15:04"),
 	}
 }
 
