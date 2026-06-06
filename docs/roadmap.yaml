@@ -610,6 +610,28 @@ deferred:
 # ============================================================
 done:
   "2026-06-06":
+    - id: SPB-FR-RELAY-FLAP
+      title: "'Россия (обход) → Франция' (ru-spb-fr) flapped — SPB→GRA upstream connect timeouts"
+      status: mitigated   # SPB nginx tuned live; root cause is RU→FR transit throttle (not ours)
+      where: SPB relay 185.218.0.43 /etc/nginx/chameleon-stream.conf (NOT in repo — edited on box; backup .bak-20260606-144346)
+      notes: |
+        User report: "белый список Франция не грузит" (Auto/direct France fine).
+        iPhone log: ru-spb-fr connections to 185.218.0.43:2099 hung 50s then
+        "use of closed network connection", 0 bytes. SPB nginx error.log:
+        "upstream timed out while connecting to upstream 54.38.243.162:443,
+        bytes from/to upstream:0/0" — nginx couldn't reach GRA:443 in those
+        windows, while :2098→NL carried data fine and a manual SPB→GRA TCP
+        connect was 10/10 OK. Config was CORRECT (2099→chameleon_fr_tcp→GRA:443,
+        ufw open), GRA healthy (restarts=0, 9GB free). Root cause = INTERMITTENT
+        throttling of the RU(SPB)→France(OVH) transit (RKN/transit drops SYNs);
+        not our deploys, not the app.
+        MITIGATION (live, graceful reload): max_fails=0 on both stream upstreams
+        (don't eject GRA/NL for fail_timeout after one transient connect fail →
+        was amplifying flaps) + proxy_connect_timeout 5s→15s (lets the throttled
+        SYN retransmit through). Verified 5/5 OK post-reload, no new timeouts.
+        Does NOT remove the underlying RU→FR throttle. WORKAROUND for users:
+        France works via Auto / direct 🇫🇷 / fr-via-msk — the ru-spb-* "обход"
+        routes are only for networks that block direct connections.
     - id: ADMIN-PAYMENT-TIME-MSK
       title: Admin payment/transaction times showed UTC, not MSK
       status: shipped   # deployed to NL; admin-only, no app build
