@@ -101,6 +101,10 @@ recent:
     "перезайти в акк" = old
     Mac build 101 (no KEYCHAIN-MACOS fix from 1.0.30) losing identity → ReauthView (which
     DOES offer Apple + email; Apple-reclaim is safe, no data loss). Rec: update Mac to 1.0.30.
+  - ADMIN-PAYMENT-TIME-MSK (2026-06-06, SHIPPED — deployed NL, admin-only) — payment times on
+    the dashboard showed UTC (−3h), not MSK. recentTransactionDTO.CreatedAtFmt was formatted
+    from the UTC DB timestamp; added fmtMSK (FixedZone UTC+3, no tzdata dep) + applied + tested.
+    Frontend toLocaleString times use viewer-browser TZ (fine if MSK) — only the backend string was hard-UTC.
   - ADMIN-NODES-PROTOCOLS (2026-06-06, SHIPPED — deployed NL, admin-only) — admin showed
     incomplete data. ListProtocols was hardcoded VLESS-only (Hysteria2/TUIC hidden) → now
     derived from config (pure vpnProtocols+test). Nodes list only had relay-* servers → GRA

@@ -610,6 +610,23 @@ deferred:
 # ============================================================
 done:
   "2026-06-06":
+    - id: ADMIN-PAYMENT-TIME-MSK
+      title: Admin payment/transaction times showed UTC, not MSK
+      status: shipped   # deployed to NL; admin-only, no app build
+      files:
+        - backend/internal/api/admin/timezone.go     # fmtMSK (FixedZone UTC+3, no tzdata dep)
+        - backend/internal/api/admin/nodes.go         # recentTransactionDTO.CreatedAtFmt → fmtMSK
+        - backend/internal/api/admin/nodes_test.go    # DTO + helper TZ tests
+      notes: |
+        User-reported: payment times not in Moscow time. Dashboard recent-
+        transactions CreatedAtFmt was formatted straight from the UTC DB
+        timestamp (pgx scans timestamptz as UTC) → 3 h behind MSK. Added fmtMSK
+        (time.FixedZone — NOT LoadLocation, so it works without tzdata in the
+        container) + applied to the transaction DTO. Unit-tested. Deployed to NL.
+        NOTE: frontend-rendered times (users.tsx toLocaleString) use the VIEWER's
+        browser TZ — correct if the operator's browser is MSK; only the backend-
+        formatted transaction string was hard-UTC. Reuse fmtMSK for any future
+        admin time string.
     - id: ADMIN-NODES-PROTOCOLS
       title: Admin showed incomplete protocols + nodes (user-reported "не все")
       status: shipped   # deployed to NL + verified live; admin-only, no app build

@@ -106,7 +106,7 @@ backend:
     tier: unit
     status: partial
     coverage_pct: 8
-    covers: "selected handlers (created-at TZ, payments block); vpnProtocols protocol-list derivation (nodes_test.go, ADMIN-NODES-PROTOCOLS 2026-06-06 — VLESS always on, H2/TUIC gated on port+UDP cert)"
+    covers: "selected handlers (created-at TZ, payments block); vpnProtocols protocol-list derivation (nodes_test.go, ADMIN-NODES-PROTOCOLS 2026-06-06 — VLESS always on, H2/TUIC gated on port+UDP cert); fmtMSK + recentTransactionDTO time in MSK not UTC (nodes_test.go, ADMIN-PAYMENT-TIME-MSK 2026-06-06)"
     gaps: "most of 13 handler files uncovered; buildRemoteNodes (node assembly: GRA exit + MSK relay now included) does live TCP probes + DB — integration-level, untested"
   api/mobile:
     src_files: 16
