@@ -389,8 +389,20 @@ next:
         truncationKeepOffset + unit test (TunnelFileLoggerCapTests). This also
         relieves the memory pressure behind 1.2 (oom-killer "resetting network" =
         the felt tunnel drops). tunnel-debug.log was already capped (2 MB).
-        STILL OPEN (minor): stderr.log (LibboxRedirectStderr, written C-side) has
-        no Swift-side cap — bound it periodically if it grows.
+        PART 2 (2026-06-06, commit 415555f): an iPhone log confirmed the drops are
+        the oom-killer firing "memory pressure: critical, usage: 40 MiB, resetting
+        network" ~every 5-6 min, and DEBUG was 37% of the volume because
+        writeDebugMessage (unlike writeLogs/writeMessage after build-99) wrote
+        EVERY libbox debug line to BOTH file sinks. Now it feeds the stall detector
+        first, then drops TRACE/DEBUG (TunnelFileLogger.isVerboseSingboxLine,
+        unit-tested) — keeping INFO+. Cuts the logging-driven churn behind the
+        resets. Rides 1.0.32.
+        STILL OPEN: (a) stderr.log (LibboxRedirectStderr, written C-side) has no
+        Swift-side cap. (b) The 40 MiB ceiling is the iOS NE 50 MB hard cap — if
+        resets persist after 1.0.32 + users update, the next lever is runtime
+        memory (DNS cache size / concurrent-conn limits in clientconfig.go, or
+        dropping DEBUG before the stall detector realizes the string). Tuning with
+        on-device tests — not done blind.
     # CFG-01b (P0, macOS keychain-access-groups missing) → DONE 2026-06-03 (KEYCHAIN-MACOS). See done log.
     - id: UX-VPN
       title: Surface "another VPN holds the tunnel" instead of silent Disconnected

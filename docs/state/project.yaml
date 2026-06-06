@@ -93,8 +93,12 @@ recent:
     ROOT CAUSE of drops = NE memory pressure: sing-box oom-killer "resetting network" at
     40 MiB (iOS ~50 MB extension cap), fed by an UNBOUNDED singbox.log (writeDebugMessage
     wrote libbox's DEBUG firehose raw, no cap → 565 MB). FIXES: (1) UDP-FALLBACK-CERT-SAN
-    (below). (2) LOG-01 size-cap on singbox.log — 4 MB, memory-safe seek-tail truncate +
-    pure helper + test; iOS build-for-testing GREEN; rides 1.0.32. "перезайти в акк" = old
+    (below). (2) LOG-01 — singbox.log 4 MB cap (memory-safe seek-tail) + writeDebugMessage
+    now drops TRACE/DEBUG from the file sinks (build-99 missed it; DEBUG was 37% of an iPhone
+    log that confirmed the oom-killer fires ~every 5-6 min). Pure helpers + tests; iOS
+    build-for-testing GREEN; rides 1.0.32. Residual: 40 MiB = iOS NE 50 MB hard cap — if
+    resets persist post-update, next lever is runtime mem (DNS cache/conn limits), not blind.
+    "перезайти в акк" = old
     Mac build 101 (no KEYCHAIN-MACOS fix from 1.0.30) losing identity → ReauthView (which
     DOES offer Apple + email; Apple-reclaim is safe, no data loss). Rec: update Mac to 1.0.30.
   - ADMIN-NODES-PROTOCOLS (2026-06-06, SHIPPED — deployed NL, admin-only) — admin showed

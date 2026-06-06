@@ -194,7 +194,7 @@ apple:
     - StringUtils (RU pluralisation), KeychainHelper (XCTSkip in sim; now also covers legacy→data-protection-keychain migration — KEYCHAIN-MACOS fix 2026-06-03)
     - VPNControlIntents, CountryFlag, CrashReporter (sanitize), DisconnectNotifier
     - TrafficHealthMonitor, ServerTagShape
-    - TunnelFileLogger.truncationKeepOffset (TunnelFileLoggerCapTests, LOG-01 2026-06-06 — singbox.log size-cap offset math; the file truncation in ExtensionPlatformInterface.writeDebugMessage seeks to it, memory-safe tail-only rewrite)
+    - TunnelFileLogger.truncationKeepOffset + isVerboseSingboxLine (TunnelFileLoggerCapTests, LOG-01 2026-06-06 — singbox.log size-cap offset math + ANSI-aware TRACE/DEBUG detection so writeDebugMessage drops the 37%-of-volume verbose firehose from the file sinks; both feed the NE-memory fix behind the oom-killer "resetting network" drops)
   untested_surfaces:
     - PacketTunnel/* (ExtensionProvider, ExtensionPlatformInterface, RealTrafficStallDetector, TunnelStallProbe) — extension, on-device only
     - Views/* (20 files) — no UI tests
