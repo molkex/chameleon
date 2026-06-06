@@ -59,7 +59,7 @@ backend:
     tier: unit + e2e
     status: partial
     coverage_pct: 34
-    covers: "GenerateClientConfig (91%), uTLS fingerprint rotation, reality keypair, sing-box config validate (e2e), UserAPIClient full HTTP contract (add/remove/replace/health, bearer auth, path-escape, error propagation, empty=[] clear) — 2026-06-01; MergeUserTraffic multi-exit per-user delta summation (single-source passthrough, overlapping/nil/empty/3-way) — 2026-06-04 TRAFFIC-MULTIEXIT"
+    covers: "GenerateClientConfig (91%), uTLS fingerprint rotation, reality keypair, sing-box config validate (e2e), UserAPIClient full HTTP contract (add/remove/replace/health, bearer auth, path-escape, error propagation, empty=[] clear) — 2026-06-01; MergeUserTraffic multi-exit per-user delta summation (single-source passthrough, overlapping/nil/empty/3-way) — 2026-06-04 TRAFFIC-MULTIEXIT; UDP-leg server_name==SNI (TestUDPLegsServerNameMatchesSNI, UDP-FALLBACK-CERT-SAN 2026-06-06 — the pinned cert's SAN must match this name or the H2/TUIC fallback dies)"
     gaps: "engine.go AddUser/RemoveUser orchestration (mutex + writeConfigLocked→sing-box check + SIGHUP fallback) is integration-level — exercised by the e2e sing-box check, low unit ROI; stats_v2ray gRPC untested. TEST-VPN-ENGINE core (userapi) closed."
   auth:
     src_files: 5
@@ -102,12 +102,12 @@ backend:
     gaps: "security.go + ratelimit untested"
   api/admin:
     src_files: 13
-    tests: [4 files]
+    tests: [5 files]
     tier: unit
     status: partial
     coverage_pct: 8
-    covers: "selected handlers (created-at TZ, payments block)"
-    gaps: "most of 13 handler files uncovered"
+    covers: "selected handlers (created-at TZ, payments block); vpnProtocols protocol-list derivation (nodes_test.go, ADMIN-NODES-PROTOCOLS 2026-06-06 — VLESS always on, H2/TUIC gated on port+UDP cert)"
+    gaps: "most of 13 handler files uncovered; buildRemoteNodes (node assembly: GRA exit + MSK relay now included) does live TCP probes + DB — integration-level, untested"
   api/mobile:
     src_files: 16
     tests: [7 files incl. trial_grant_test.go]
@@ -194,11 +194,12 @@ apple:
     - StringUtils (RU pluralisation), KeychainHelper (XCTSkip in sim; now also covers legacy→data-protection-keychain migration — KEYCHAIN-MACOS fix 2026-06-03)
     - VPNControlIntents, CountryFlag, CrashReporter (sanitize), DisconnectNotifier
     - TrafficHealthMonitor, ServerTagShape
+    - TunnelFileLogger.truncationKeepOffset (TunnelFileLoggerCapTests, LOG-01 2026-06-06 — singbox.log size-cap offset math; the file truncation in ExtensionPlatformInterface.writeDebugMessage seeks to it, memory-safe tail-only rewrite)
   untested_surfaces:
     - PacketTunnel/* (ExtensionProvider, ExtensionPlatformInterface, RealTrafficStallDetector, TunnelStallProbe) — extension, on-device only
     - Views/* (20 files) — no UI tests
     - CommandClient, Theme/ThemeManager/Haptics, LegRaceProbe, NetworkFingerprint
-  test_files_count: 25
+  test_files_count: 26
   build_for_testing: "VERIFIED 2026-06-01 — `xcodebuild build-for-testing -scheme MadFrogVPNTests -destination generic/platform=iOS Simulator CODE_SIGNING_ALLOWED=NO` exits 0. Fixed a pre-existing breakage that blocked it: EventTrackerTests had `await` inside XCTAssertEqual autoclosures (illegal under Xcode 26.5 / Swift 6) — hoisted into lets."
   ci_status: "WIRED 2026-06-01 (TEST-IOS-CI done) — scripts/fetch-libbox.sh pulls Libbox.xcframework.zip (146M) from the libbox-v1.13.5 GitHub Release (ditto-extract preserves macOS symlinks); ios.yml builds iOS+macOS and build-for-testing the test bundle. Run step is compile-only (the test HOST crashes on launch in an unsigned sim — see apple_note)."
 
