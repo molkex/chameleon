@@ -19,7 +19,7 @@
 # Test coverage + how-to-verify each layer: state/test-map.yaml (decision 0009).
 
 meta:
-  updated: 2026-06-05
+  updated: 2026-06-06
   branch: main
   direction: on_track          # see `assessment` at the bottom
 
@@ -89,6 +89,16 @@ open_decisions:                  # waiting on the user
 
 # ── Shipped (detail: roadmap.yaml#done + incidents/*) ──
 recent:
+  - UDP-FALLBACK-CERT-SAN (2026-06-06, SHIPPED — NL+GRA, no app build) — user "VPN
+    отваливается чаще" → client log showed ALL Hysteria2/TUIC legs dead each urltest
+    ("certificate is not valid for any names, but wanted ads.adfox.ru"). SEC-03 regression:
+    client now PINS the UDP cert + verifies server_name=ads.adfox.ru, but the server
+    self-signed cert was still CN=madfrog.online with NO SAN. Regenerated cert
+    (CN+SAN=ads.adfox.ru) on NL + copied the SAME cert to GRA (client pins ONE cert,
+    NL's UDPCertPEM, for ALL UDP legs incl fr-h2-gra1), restart chameleon+singbox.
+    Verified live (real RU H2 traffic). Guardrails: regression test + deploy.sh SAN guard.
+    incidents/2026-06-06-udp-fallback-cert-san.md. NB: server RKN probing high but FLAT
+    (~8-10k/day) — not the cause; admin-no-VPN = use https://api.madfrog.online/admin/app/ (CF-bypass).
   - PROMO-CODES (2026-06-05, SHIPPED — backend+admin live+e2e-verified on NL; iOS field = build 1.0.32) —
     % discount codes for the FreeKassa paywall. internal/promo (pure rules+math, unit-tested) + mig 026
     (promo_codes/payment_intents/promo_redemptions) + db CRUD + idempotent redeem (integration-tested) +

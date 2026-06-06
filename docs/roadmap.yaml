@@ -588,6 +588,31 @@ deferred:
 # DONE — append-only log. Most recent date first.
 # ============================================================
 done:
+  "2026-06-06":
+    - id: UDP-FALLBACK-CERT-SAN
+      title: Revive the dead Hysteria2/TUIC UDP fallback (SEC-03 cert had no SAN)
+      status: shipped   # NL+GRA cert regenerated + verified live; no app build needed
+      files:
+        - backend/deploy.sh                                # fixed stale comment + SAN guard
+        - backend/internal/vpn/clientconfig_test.go        # TestUDPLegsServerNameMatchesSNI
+        - docs/incidents/2026-06-06-udp-fallback-cert-san.md
+      notes: |
+        User report "VPN отваливается чаще" → client singbox.log showed every UDP
+        leg dead each urltest: "certificate is not valid for any names, but wanted
+        to match ads.adfox.ru". Root cause: SEC-03 (2026-06-01) stopped using
+        insecure:true and started PINNING the UDP cert + verifying
+        server_name=ads.adfox.ru, but the server self-signed cert was never
+        regenerated — it was CN=madfrog.online with NO SAN → name verification
+        fails → whole H2/TUIC fallback silently dead. Non-obvious constraint:
+        clientconfig pins ONE cert (NL's UDPCertPEM) for ALL UDP legs incl
+        fr-h2-gra1, so every UDP exit node must serve the IDENTICAL SAN cert.
+        FIX: regenerated cert (CN+SAN=ads.adfox.ru) on NL, restart chameleon
+        (re-embed pin) + singbox; copied the SAME cert to GRA + restart singbox.
+        Verified: real RU clients now carry traffic over Hysteria2 (server log);
+        cert/key modulus match both nodes; sing-box check OK. Guardrails: regression
+        test (server_name==SNI) + deploy.sh SAN guard. Server-side only, deploys
+        without an app build. NOTE: server-side RKN invalid-conn probing is high but
+        FLAT (~8-10k/day, not rising) — not the cause; this was the resilience hole.
   "2026-06-05":
     - id: PROMO-CODES
       title: Promo codes for the FreeKassa paywall — backend + admin (iOS field rides a build)

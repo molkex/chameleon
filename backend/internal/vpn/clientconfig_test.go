@@ -50,6 +50,51 @@ func TestSEC03UDPLegsPinCertNeverInsecure(t *testing.T) {
 	}
 }
 
+// TestUDPLegsServerNameMatchesSNI is the regression guard for the 2026-06-06
+// dead-UDP-fallback incident (incidents/2026-06-06-udp-fallback-cert-san.md).
+// The Hysteria2/TUIC legs pin the UDP cert AND set tls.server_name to the
+// Reality SNI, so the server's self-signed UDP cert MUST carry that exact name
+// in its SAN — otherwise every UDP leg fails name verification ("certificate is
+// not valid for any names, but wanted to match ads.adfox.ru") and the whole UDP
+// fallback is silently dead. This test locks the client-side half of the
+// contract: server_name == SNI on every UDP leg. The operational half (cert SAN
+// == SNI, and the SAME cert on every UDP exit node because all legs pin one
+// cert, engineCfg.UDPCertPEM) is enforced in deploy.sh + the incident playbook.
+func TestUDPLegsServerNameMatchesSNI(t *testing.T) {
+	engine, user, servers, chains := fixture()
+	raw, err := generateClientConfig(engine, user, servers, chains)
+	if err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	var cfg struct {
+		Outbounds []map[string]any `json:"outbounds"`
+	}
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	wantSNI := engine.Reality.SNI
+	seen := 0
+	for _, ob := range cfg.Outbounds {
+		typ, _ := ob["type"].(string)
+		if typ != "hysteria2" && typ != "tuic" {
+			continue
+		}
+		tag, _ := ob["tag"].(string)
+		tls, ok := ob["tls"].(map[string]any)
+		if !ok {
+			t.Errorf("%s leg %q: missing tls block", typ, tag)
+			continue
+		}
+		if sn, _ := tls["server_name"].(string); sn != wantSNI {
+			t.Errorf("%s leg %q: server_name=%q, want %q (the pinned UDP cert SAN must match this name)", typ, tag, sn, wantSNI)
+		}
+		seen++
+	}
+	if seen == 0 {
+		t.Fatal("no hysteria2/tuic legs found — fixture should emit them")
+	}
+}
+
 // fixture assembles a minimal but realistic EngineConfig + user + server set
 // for exercising generateClientConfig. Mirrors the 2026-04-25 production shape
 // (DE as standard exit with h2/tuic, NL as same, SPB relays as whitelist_bypass,

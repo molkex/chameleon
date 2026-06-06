@@ -223,8 +223,12 @@ case "$NODE_ID" in
     nl2-1)
         # Hysteria2 fallback leg for the sole prod node. TUIC intentionally
         # left off — one UDP fallback is enough and keeps the surface small.
-        # Reuses the self-signed cert already in the singbox-config volume
-        # (client side is tls.insecure=true, so CN/expiry don't matter).
+        # Reuses the self-signed cert already in the singbox-config volume.
+        # SEC-03 (post-2026-06-01): the client PINS this cert AND verifies
+        # tls.server_name=<SNI>, so the cert MUST carry SAN=<SNI> — a SAN-less
+        # cert makes every UDP leg fail name verification ("not valid for any
+        # names") and silently kills the whole H2/TUIC fallback. See the SAN
+        # guard below + incidents/2026-06-06-udp-fallback-cert-san.md.
         # UDP/443 is already open in ufw. Hysteria2 reaches NL's IP directly
         # (the SPB/MSK relays are TCP-only and don't carry UDP).
         #
@@ -247,6 +251,28 @@ case "$NODE_ID" in
         echo ">>> UDP protocols disabled on this node"
         ;;
 esac
+
+# ── UDP cert SAN guard (incident 2026-06-06) ────────────────────────────────
+# The Hysteria2/TUIC client legs pin this cert AND verify tls.server_name=<SNI>,
+# so the cert MUST carry SAN=<SNI> or every UDP leg fails name verification and
+# the fallback is silently dead. ALL UDP exit nodes must serve the IDENTICAL
+# cert (the client pins ONE cert, engineCfg.UDPCertPEM, for every UDP leg) — so
+# we do NOT auto-regenerate here (that would diverge per-node certs and break
+# the shared pin). We warn loudly instead; fix via the incident playbook.
+if grep -q 'udp_cert_path: "/etc/singbox/server.crt"' config.yaml; then
+    UDP_CERT_VOL=/var/lib/docker/volumes/chameleon-singbox-config/_data/server.crt
+    if [ -f "$UDP_CERT_VOL" ]; then
+        if openssl x509 -in "$UDP_CERT_VOL" -noout -ext subjectAltName 2>/dev/null | grep -q "$NODE_SNI"; then
+            echo ">>> UDP cert SAN OK (contains $NODE_SNI)"
+        else
+            echo "!!! WARNING: UDP cert $UDP_CERT_VOL has NO SAN=$NODE_SNI — H2/TUIC fallback is DEAD."
+            echo "!!!   Fix: regenerate with -addext subjectAltName=DNS:$NODE_SNI and copy the SAME"
+            echo "!!!   cert+key to every UDP exit node. See docs/incidents/2026-06-06-udp-fallback-cert-san.md"
+        fi
+    else
+        echo "!!! WARNING: UDP enabled but $UDP_CERT_VOL is missing — H2/TUIC legs will be skipped."
+    fi
+fi
 
 # .env — Reality keys are in DB now, not here
 cat > .env <<EOF
