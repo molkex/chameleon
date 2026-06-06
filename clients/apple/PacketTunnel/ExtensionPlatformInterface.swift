@@ -395,6 +395,23 @@ extension ExtensionPlatformInterface: LibboxCommandServerHandlerProtocol {
             let logURL = AppConstants.sharedContainerURL.appendingPathComponent("singbox.log")
             let line = "\(message)\n"
             guard let data = line.data(using: .utf8) else { return }
+
+            // LOG-01: bound singbox.log. libbox's DEBUG/TRACE firehose lands here
+            // (config log.level is ignored by libbox), and an uncapped file grew
+            // to 565 MB in the field. Truncate-to-half once over the cap, reading
+            // ONLY the kept tail via seek — never load the (possibly huge) whole
+            // file into the NE's ~50 MB budget.
+            if let attrs = try? FileManager.default.attributesOfItem(atPath: logURL.path),
+               let size = attrs[.size] as? Int,
+               let offset = TunnelFileLogger.truncationKeepOffset(fileSize: size, maxSize: TunnelFileLogger.singboxLogMaxSize) {
+                if let rh = try? FileHandle(forReadingFrom: logURL) {
+                    defer { try? rh.close() }
+                    _ = try? rh.seek(toOffset: offset)
+                    let tail = (try? rh.readToEnd()) ?? Data()
+                    try? (Data("--- log truncated ---\n".utf8) + tail).write(to: logURL)
+                }
+            }
+
             if let handle = try? FileHandle(forWritingTo: logURL) {
                 defer { try? handle.close() }
                 _ = try? handle.seekToEnd()

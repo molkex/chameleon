@@ -23,6 +23,28 @@ enum TunnelFileLogger {
     // diagnose stall-detection behaviour from a field-test log.
     static let maxFileSize = 2 * 1024 * 1024 // 2 MB — auto-truncate
 
+    // LOG-01: singbox.log is the raw sing-box stream written by
+    // ExtensionPlatformInterface.writeDebugMessage (the diagnostic-snapshot
+    // source, AppState.readSingboxLogTail). libbox emits DEBUG/TRACE regardless
+    // of config log.level, so without a cap this file grew to 565 MB in the
+    // field — wasted disk and, when naively truncated by loading the whole file,
+    // a memory spike inside the ~50 MB NE jetsam cap that feeds the oom-killer's
+    // "resetting network" tunnel drops. Cap it; the diagnostic tail only needs
+    // the last 256 KiB.
+    static let singboxLogMaxSize = 4 * 1024 * 1024 // 4 MB
+
+    /// Byte offset to seek to when capping an append-only log: keep the last
+    /// `maxSize/2` bytes once the file exceeds `maxSize`; returns nil while the
+    /// file is still under the cap. Pure + unit-tested so the singbox.log cap
+    /// (LOG-01) can't regress into unbounded growth. Callers seek to this offset
+    /// and rewrite only the tail, so a multi-hundred-MB file is never loaded
+    /// into memory to truncate it.
+    static func truncationKeepOffset(fileSize: Int, maxSize: Int) -> UInt64? {
+        guard maxSize > 0, fileSize > maxSize else { return nil }
+        let keep = maxSize / 2
+        return UInt64(max(0, fileSize - keep))
+    }
+
     /// Primary write path: App Group container root. Confirmed writable
     /// across iOS versions including 26.x (extension reports debugLogSize
     /// > 0 there). Reverting here after a Library/Caches detour caused
