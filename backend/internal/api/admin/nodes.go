@@ -380,8 +380,8 @@ func (h *Handler) ListNodes(c echo.Context) error {
 			peerIPs[n.IP] = true
 		}
 	}
-	relayNodes := h.buildRelayNodes(ctx)
-	for _, rn := range relayNodes {
+	remoteNodes := h.buildRemoteNodes(ctx, local.IP)
+	for _, rn := range remoteNodes {
 		if !peerIPs[rn.IP] {
 			nodes = append(nodes, rn)
 		}
@@ -554,56 +554,86 @@ func (h *Handler) queryPeerNodes(ctx context.Context) []nodeResponse {
 	return results
 }
 
-// buildRelayNodes finds relay servers in the DB and checks TCP connectivity.
-// Relays are grouped by unique IP (e.g., SPB relay has relay-de and relay-nl on same IP).
-func (h *Handler) buildRelayNodes(ctx context.Context) []nodeResponse {
+// buildRemoteNodes lists every active VPN server that isn't the local node,
+// grouped by host (a box hosting several legs — e.g. the SPB relay's relay-fr +
+// relay-nl — collapses to one node), each with a TCP reachability probe. It
+// replaces the old buildRelayNodes, which surfaced ONLY "relay-"-prefixed
+// servers — so the GRA exit (gra1) and the MSK relay (key "msk") were invisible
+// on the nodes page (user-reported "ноды не все", 2026-06-06).
+func (h *Handler) buildRemoteNodes(ctx context.Context, localIP string) []nodeResponse {
 	servers, err := h.DB.ListActiveServers(ctx)
 	if err != nil {
 		return nil
 	}
 
-	// Collect unique relay IPs with their ports.
-	type relayInfo struct {
-		ip    string
-		ports []int
+	// Group active servers by host, skipping the local node.
+	type hostInfo struct {
+		host    string
+		name    string
+		flag    string
+		ports   []int
+		isRelay bool
 	}
-	seen := map[string]*relayInfo{}
+	var order []string
+	seen := map[string]*hostInfo{}
 	for _, s := range servers {
-		if !strings.HasPrefix(s.Key, "relay-") {
+		if s.Host == "" || s.Host == localIP {
 			continue
 		}
-		if ri, ok := seen[s.Host]; ok {
-			ri.ports = append(ri.ports, s.Port)
-		} else {
-			seen[s.Host] = &relayInfo{ip: s.Host, ports: []int{s.Port}}
+		relay := s.Role == "relay" || strings.HasPrefix(s.Key, "relay-") || s.Key == "msk"
+		hi, ok := seen[s.Host]
+		if !ok {
+			hi = &hostInfo{host: s.Host, name: s.Name, flag: s.Flag}
+			seen[s.Host] = hi
+			order = append(order, s.Host)
+		}
+		hi.isRelay = hi.isRelay || relay
+		if s.Port > 0 {
+			hi.ports = append(hi.ports, s.Port)
 		}
 	}
 
 	var nodes []nodeResponse
-	for _, ri := range seen {
-		// TCP health check on first port with 2s timeout.
+	for _, host := range order {
+		hi := seen[host]
+		// Probe the first real port; fall back to 443 (relays like MSK carry a
+		// port=0 row but still listen on 443/nginx).
+		probePort := 443
+		if len(hi.ports) > 0 {
+			probePort = hi.ports[0]
+		}
 		active := false
 		var latency *int
 		start := time.Now()
-		conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", ri.ip, ri.ports[0]), 2*time.Second)
-		if err == nil {
+		if conn, derr := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", hi.host, probePort), 2*time.Second); derr == nil {
 			_ = conn.Close()
 			active = true
 			ms := int(time.Since(start).Milliseconds())
 			latency = &ms
 		}
 
-		version := "nginx relay"
+		version := "sing-box exit"
+		protoName := "VLESS Reality"
+		key := hi.host
+		if hi.isRelay {
+			version = "nginx relay"
+			protoName = "TCP Relay"
+			key = "relay-" + hi.host
+		}
+		name := hi.name
+		if name == "" {
+			name = hi.host
+		}
 		nodes = append(nodes, nodeResponse{
-			Key:       fmt.Sprintf("relay-%s", ri.ip),
-			Name:      "SPB Relay",
-			Flag:      "🇷🇺",
-			IP:        ri.ip,
+			Key:       key,
+			Name:      name,
+			Flag:      hi.flag,
+			IP:        hi.host,
 			IsActive:  active,
 			LatencyMS: latency,
 			Version:   &version,
 			Protocols: []protocolStatus{
-				{Name: "TCP Relay", Enabled: active, Port: ri.ports[0]},
+				{Name: protoName, Enabled: active, Port: probePort},
 			},
 		})
 	}
@@ -640,19 +670,28 @@ func fetchPeerStatus(ctx context.Context, peerURL string, clusterSecret string) 
 	return node, nil
 }
 
+// vpnProtocols derives the protocol list from this node's VPN config (pure, so
+// it's unit-testable). VLESS Reality is always on; Hysteria2/TUIC are enabled
+// only when their port is set AND a UDP cert is configured to pin (mirrors the
+// gate in clientconfig.go — no cert ⇒ the leg is never emitted). Previously this
+// was hardcoded to VLESS-only, so the live Hysteria2 fallback was invisible in
+// admin (user-reported "протоколы не все", 2026-06-06).
+func vpnProtocols(listenPort, hysteria2Port, tuicPort int, udpCertPath string) []protocolInfo {
+	udpReady := udpCertPath != ""
+	return []protocolInfo{
+		{Name: "vless-reality-tcp", DisplayName: "VLESS Reality TCP", Enabled: true},
+		{Name: "hysteria2", DisplayName: "Hysteria2 (Salamander)", Enabled: hysteria2Port > 0 && udpReady},
+		{Name: "tuic", DisplayName: "TUIC v5", Enabled: tuicPort > 0 && udpReady},
+	}
+}
+
 // ListProtocols handles GET /api/admin/protocols
 //
 // Returns the list of VPN protocols configured on this node.
 func (h *Handler) ListProtocols(c echo.Context) error {
-	protocols := []protocolInfo{
-		{
-			Name:        "vless-reality-tcp",
-			DisplayName: "VLESS Reality TCP",
-			Enabled:     true,
-		},
-	}
+	v := h.Config.VPN
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"protocols": protocols,
+		"protocols": vpnProtocols(v.ListenPort, v.Hysteria2Port, v.TUICPort, v.UDPCertPath),
 	})
 }
 
