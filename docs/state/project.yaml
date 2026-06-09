@@ -29,14 +29,16 @@ product:
   what: Native iOS+macOS VPN with own Go backend; VLESS Reality + sing-box.
   app_store:                   # canonical: state/app-store.yaml
     live:        {version: "1.0.30", build: 102, state: READY_FOR_SALE}   # APPROVED 2026-06-04 (KEYCHAIN-MACOS)
-    in_review:   {version: "1.0.31", build: 112, state: WAITING_FOR_REVIEW}  # iOS, submitted 2026-06-04 — support chat + push + announcements + store-country + updated privacy (5.1.1); AFTER_APPROVAL auto-release
-    testflight:  {version: "1.0.31", build: 112, state: IN_BETA_TESTING}  # iOS — b112 in-app privacy policy update; b111 X-Store-Country, b110 announcements, b109 chat polish, b107 diag log fix, b106 APNs push (P4)
+    approved:    {version: "1.0.31", build: 112, state: PENDING_DEVELOPER_RELEASE_AUTO}  # APPROVED by ~2026-06-09, auto-release ON → goes live on its own. support chat + push + announcements + store-country
+    in_review:   {version: "1.0.32", build: 113, state: WAITING_FOR_REVIEW}  # SUBMITTED 2026-06-09 — AUTH-RKN-DIRECT-IP login fix (sign-in races cert-validated direct IPs NL/SPB); AFTER_APPROVAL auto-release. reviewSubmission a17265e3
+    testflight:  {version: "1.0.32", build: 113, state: IN_BETA_TESTING}  # b113 assigned to Internal Testers — VERIFY the direct-IP sign-in on device while 1.0.32 is in review
     next_step: |
-      (1) USER: update App Privacy nutrition label in ASC web (chat/push/diagnostics) — no public API.
-      (2) await Apple review of 1.0.31 (112). (3) NEXT iOS build 1.0.32 bundles (committed, deploy-free):
-      badge-clear fix (da3fd11) + loadProducts auto-retry (IAP empty-paywall fix) + PROMO-CODES Phase B
-      (promo-code field in WebPaywallView → /payment/promo/validate → pass promo_code to /initiate).
-      Cut 1.0.32 once 1.0.31 ships (its train is closed while in review).
+      (1) DONE 2026-06-09: App Privacy nutrition label updated in ASC web — added User Content / Customer
+      Support (App Functionality, linked-to-identity, NOT tracking) for the support chat.
+      (2) VERIFY 1.0.32/113 sign-in on TestFlight (the direct-IP auth race is untested on-device) while it's
+      in review; cancel the reviewSubmission if a regression shows. (3) 1.0.31 auto-releases on its own.
+      DEFERRED to 1.0.33 (committed, did NOT make b113): badge-clear (da3fd11) + loadProducts retry +
+      PROMO-CODES Phase B (promo field in WebPaywallView).
   iap: 4 non-renewing subs, all APPROVED 2026-05-31 (RU/CIS → WebPaywall/FreeKassa)
 
 # ── Infra (canonical: state/servers.yaml) ───────────────────────────────────

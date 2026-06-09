@@ -610,6 +610,24 @@ deferred:
 # ============================================================
 done:
   "2026-06-09":
+    - id: SHIP-1.0.32
+      title: "Cut + submit 1.0.32 (build 113) — ships the AUTH-RKN-DIRECT-IP login fix"
+      status: submitted_waiting_for_review   # AFTER_APPROVAL auto-release; b113 on TestFlight Internal Testers
+      notes: |
+        Full CLI release: bumped 1.0.31→1.0.32 / build 112→113, xcodegen, archive
+        (ARCHIVE SUCCEEDED), export+upload (Upload succeeded), build 113 → VALID,
+        assigned to Internal Testers (betaGroup 19b338f9, 204). Created appStoreVersion
+        1.0.32 (a8ffb2b9) + attached build + RU/en-US whatsNew + AFTER_APPROVAL, then
+        reviewSubmission a17265e3 → submitted → WAITING_FOR_REVIEW.
+        ALSO DONE (ASC web via browser automation): App Privacy nutrition label — added
+        User Content / Customer Support (App Functionality, linked-to-identity, NOT
+        tracking) for the support chat. The other 7 declared types already covered
+        push(Device ID)/diagnostics/events.
+        DISCOVERED: 1.0.31 (b112) is APPROVED + auto-release ON (was thought to be
+        WAITING_FOR_REVIEW) → the build pipeline was never actually blocked; the privacy
+        label had passed review. 1.0.31 ships on its own.
+        VERIFY: on-device TestFlight check of the direct-IP sign-in (b113) — the auth
+        change couldn't be tested on-device pre-submit; cancel the submission if it regresses.
     - id: AUTH-RKN-DIRECT-IP
       title: "Sign-in races the cert-validated direct-IP legs (fixes 'не получилось войти')"
       status: committed_rides_1.0.32   # client-only; ships with next build
