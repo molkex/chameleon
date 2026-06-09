@@ -609,6 +609,41 @@ deferred:
 # DONE — append-only log. Most recent date first.
 # ============================================================
 done:
+  "2026-06-09":
+    - id: AUTH-RKN-APEX-HEDGE   # TD-CERT-PIN Phase A
+      title: "Login survives RKN blocking api.madfrog.online — hedge a 2nd valid-TLS leg (CF apex)"
+      status: committed_rides_1.0.32   # client-only; ships with next build
+      priority: P0   # this is the refund-causing 'не получилось войти'
+      files:
+        - clients/apple/Shared/Constants.swift                          # apexBaseURL (https://madfrog.online)
+        - clients/apple/MadFrogVPN/Models/APIClient.swift               # apexFallbackURL + apex race leg
+        - clients/apple/Tests/UnitTests/APIClientSensitiveFlagTests.swift  # +3 pure tests
+      notes: |
+        ROOT CAUSE (user-reported + proven from a Mac diag log this session):
+        sign-in (apple/google/register) is sensitive:true → raceLegPlan zeroes
+        BOTH fallback legs (direct-IP TLS + HTTP:80) because they use trust-any-
+        cert / cleartext and can't carry a Bearer (audit H-001/H-002). So auth had
+        a SINGLE path: api.madfrog.online → MSK's one IP (217.198.5.52). RKN blocks
+        that IP per-network → login times out (`networkError "Превышен лимит
+        времени"`) with NO fallback. The tell: login worked only after connecting
+        to ANOTHER VPN (routes the request around the block). This is the engine
+        behind the "не работает / верните деньги" support tickets.
+        FIX (safe, no infra): hedge a 2nd VALID-TLS leg on the Cloudflare apex
+        (https://madfrog.online — verified it serves /api/v1/mobile/* with a valid
+        cert, anycast 188.114.x, a different path from MSK) via the same validated
+        URLSession. Safe for sensitive auth (valid cert, no InsecureDelegate);
+        security posture == the existing primary (both TLS-terminate at an edge,
+        forward to NL:80). Runs for every request, staggered 200ms, Idempotency-Key
+        collapses the POST. apexFallbackURL() pure + unit-tested (only rewrites our
+        own host). Commit df5a5ff.
+        PHASE B (follow-up, bigger): TD-CERT-PIN proper — backend publishes its
+        serving-cert fingerprint, client pins it on the direct-IP legs (replacing
+        InsecureDelegate), then sensitive auth can ALSO fall back to NL/SPB direct.
+        REACH: rides 1.0.32, which is BLOCKED until 1.0.31 clears review — which is
+        blocked on the USER updating the ASC App Privacy nutrition label.
+        INTERIM workaround for affected users (no build): enable any other VPN →
+        sign in to MadFrog once → disable it; the session+config then cache.
+
   "2026-06-06":
     - id: SPB-FR-RELAY-FLAP
       title: "'Россия (обход) → Франция' (ru-spb-fr) flapped — SPB→GRA upstream connect timeouts"
