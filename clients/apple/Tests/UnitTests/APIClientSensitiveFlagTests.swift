@@ -175,4 +175,35 @@ final class APIClientSensitiveFlagTests: XCTestCase {
             }
         }
     }
+
+    // MARK: - TD-CERT-PIN — apex (Cloudflare) hedge for sensitive auth
+    //
+    // 2026-06-09: sensitive sign-in skips ALL direct/HTTP:80 legs (above), so
+    // when RKN blocks api.madfrog.online per-network the user could only log in
+    // through another VPN. The fix hedges a SECOND *valid-TLS* leg on the
+    // Cloudflare apex via the same validated session. `apexFallbackURL` is the
+    // pure URL rewrite that drives it.
+
+    func testApexFallbackRewritesPrimaryHostPreservingPathAndQuery() {
+        let url = URL(string: "\(AppConfig.baseURL)/api/mobile/auth/apple?x=1")!
+        let apex = APIClient.apexFallbackURL(for: url)
+        XCTAssertNotNil(apex, "a baseURL-hosted URL must get an apex twin")
+        XCTAssertEqual(apex?.host, AppConfig.apexBaseURLHost, "host swapped to the apex")
+        XCTAssertEqual(apex?.path, "/api/mobile/auth/apple", "path preserved")
+        XCTAssertEqual(apex?.query, "x=1", "query preserved")
+        XCTAssertEqual(apex?.scheme, "https", "stays https (valid-TLS leg)")
+    }
+
+    func testApexFallbackReturnsNilForForeignHost() {
+        let url = URL(string: "https://evil.example.com/api/mobile/auth/apple")!
+        XCTAssertNil(APIClient.apexFallbackURL(for: url),
+                     "never rewrite a non-primary host onto our apex")
+    }
+
+    func testApexFallbackHostDiffersFromPrimary() {
+        // The hedge only adds value if the two hosts resolve via different
+        // paths; guard against a future config collapsing them to one host.
+        XCTAssertNotEqual(AppConfig.baseURLHost, AppConfig.apexBaseURLHost,
+                          "apex must be a distinct host from the primary API host")
+    }
 }

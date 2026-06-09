@@ -16,6 +16,18 @@ enum AppConfig {
     /// Russian relay (SPB) — highest priority fallback for users in Russia
     static let russianRelayURL = "http://185.218.0.43"
 
+    /// Censorship-diverse SECOND valid-TLS entry point for the API: the
+    /// Cloudflare-fronted apex. `baseURL` (api.madfrog.online) resolves to the
+    /// MSK relay's single IP, which RKN blocks per-network — and when it's
+    /// blocked, sign-in had NO fallback at all (auth is `sensitive`, so the
+    /// direct-IP / HTTP:80 legs are skipped — a Bearer can't ride a trust-any
+    /// cert). The apex is served over a *valid* TLS cert via Cloudflare's
+    /// anycast range — a completely different path — so the sensitive auth race
+    /// can hedge across both with zero MITM risk. Symptom this fixes: "не
+    /// получилось войти" / login only works through another VPN (TD-CERT-PIN,
+    /// 2026-06-09).
+    static let apexBaseURL = "https://madfrog.online"
+
     /// Hardcoded backend IPs for TLS-with-custom-SNI direct dial.
     /// When Cloudflare stalls (RU SNI filtering), we race these as
     /// parallel NWConnection attempts carrying SNI = baseURL host, so
@@ -32,6 +44,11 @@ enum AppConfig {
     /// Host portion of baseURL, used as SNI for direct-IP dial.
     static var baseURLHost: String {
         URL(string: baseURL)?.host ?? "madfrog.online"
+    }
+
+    /// Host portion of the Cloudflare apex fallback (`apexBaseURL`).
+    static var apexBaseURLHost: String {
+        URL(string: apexBaseURL)?.host ?? "madfrog.online"
     }
 
     /// App Group ID (must match your provisioning profile)

@@ -162,6 +162,18 @@ class APIClient {
         return RaceLegPlan(primary: true, directIPs: directIPs, httpEightyIPs: httpEightyIPs)
     }
 
+    /// TD-CERT-PIN (2026-06-09): rewrites a `baseURL`-hosted request URL onto the
+    /// censorship-diverse Cloudflare apex (`apexBaseURL`) for the hedged second
+    /// valid-TLS leg. Returns nil for any URL that isn't on our primary API host
+    /// (never rewrite arbitrary URLs). Pure → unit-tested.
+    static func apexFallbackURL(for url: URL) -> URL? {
+        guard url.host == AppConfig.baseURLHost,
+              AppConfig.apexBaseURLHost != AppConfig.baseURLHost,
+              var comps = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return nil }
+        comps.host = AppConfig.apexBaseURLHost
+        return comps.url
+    }
+
     init() {
         let config = URLSessionConfiguration.default
         // RU operators frequently SNI-filter Cloudflare ranges; in that case
@@ -277,6 +289,40 @@ class APIClient {
                     let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
                     AppLogger.network.error("race.primary.done error=\(error.localizedDescription, privacy: .public) elapsed=\(ms, privacy: .public)ms")
                     return nil
+                }
+            }
+
+            // TD-CERT-PIN (2026-06-09): hedge a SECOND valid-TLS leg on the
+            // Cloudflare apex via the SAME validated `session`. baseURL
+            // (api.madfrog.online → MSK single IP) is RKN-blockable per-network;
+            // when it's blocked, `sensitive` sign-in had ZERO fallback (the
+            // direct-IP / HTTP:80 legs can't carry a Bearer over a trust-any
+            // cert). The apex is a *valid*-cert anycast path, so it carries auth
+            // with no MITM risk. Runs for every request (a second valid path
+            // never hurts); staggered 200ms so a fast primary still wins. The
+            // shared Idempotency-Key collapses the POST on the backend.
+            if let apexURL = Self.apexFallbackURL(for: url) {
+                group.addTask { [session] in
+                    try? await Task.sleep(for: .milliseconds(200))
+                    if Task.isCancelled { return nil }
+                    var apexReq = augmentedRequest
+                    apexReq.url = apexURL
+                    AppLogger.network.info("race.apex.start elapsed=\(Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000, privacy: .public)ms")
+                    do {
+                        let (data, response) = try await session.data(for: apexReq)
+                        let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
+                        if let http = response as? HTTPURLResponse, http.statusCode >= 500 {
+                            AppLogger.network.info("race.apex.done rejected status=\(http.statusCode, privacy: .public) elapsed=\(ms, privacy: .public)ms")
+                            return nil
+                        }
+                        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+                        AppLogger.network.info("race.apex.done ok status=\(status, privacy: .public) elapsed=\(ms, privacy: .public)ms")
+                        return (data, response, "apex")
+                    } catch {
+                        let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
+                        AppLogger.network.error("race.apex.done error=\(error.localizedDescription, privacy: .public) elapsed=\(ms, privacy: .public)ms")
+                        return nil
+                    }
                 }
             }
 
