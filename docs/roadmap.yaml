@@ -610,39 +610,40 @@ deferred:
 # ============================================================
 done:
   "2026-06-09":
-    - id: AUTH-RKN-APEX-HEDGE   # TD-CERT-PIN Phase A
-      title: "Login survives RKN blocking api.madfrog.online — hedge a 2nd valid-TLS leg (CF apex)"
+    - id: AUTH-RKN-DIRECT-IP
+      title: "Sign-in races the cert-validated direct-IP legs (fixes 'не получилось войти')"
       status: committed_rides_1.0.32   # client-only; ships with next build
-      priority: P0   # this is the refund-causing 'не получилось войти'
+      priority: P0   # the refund-causing login failure
       files:
-        - clients/apple/Shared/Constants.swift                          # apexBaseURL (https://madfrog.online)
-        - clients/apple/MadFrogVPN/Models/APIClient.swift               # apexFallbackURL + apex race leg
-        - clients/apple/Tests/UnitTests/APIClientSensitiveFlagTests.swift  # +3 pure tests
+        - clients/apple/MadFrogVPN/Models/APIClient.swift               # raceLegPlan(sensitive:) allows direct-IP TLS
+        - clients/apple/Tests/UnitTests/APIClientSensitiveFlagTests.swift  # post-H-002b invariant
+      commits: [3c44fc0]   # supersedes df5a5ff (CF-apex hedge, reverted)
       notes: |
-        ROOT CAUSE (user-reported + proven from a Mac diag log this session):
-        sign-in (apple/google/register) is sensitive:true → raceLegPlan zeroes
-        BOTH fallback legs (direct-IP TLS + HTTP:80) because they use trust-any-
-        cert / cleartext and can't carry a Bearer (audit H-001/H-002). So auth had
-        a SINGLE path: api.madfrog.online → MSK's one IP (217.198.5.52). RKN blocks
-        that IP per-network → login times out (`networkError "Превышен лимит
-        времени"`) with NO fallback. The tell: login worked only after connecting
-        to ANOTHER VPN (routes the request around the block). This is the engine
-        behind the "не работает / верните деньги" support tickets.
-        FIX (safe, no infra): hedge a 2nd VALID-TLS leg on the Cloudflare apex
-        (https://madfrog.online — verified it serves /api/v1/mobile/* with a valid
-        cert, anycast 188.114.x, a different path from MSK) via the same validated
-        URLSession. Safe for sensitive auth (valid cert, no InsecureDelegate);
-        security posture == the existing primary (both TLS-terminate at an edge,
-        forward to NL:80). Runs for every request, staggered 200ms, Idempotency-Key
-        collapses the POST. apexFallbackURL() pure + unit-tested (only rewrites our
-        own host). Commit df5a5ff.
-        PHASE B (follow-up, bigger): TD-CERT-PIN proper — backend publishes its
-        serving-cert fingerprint, client pins it on the direct-IP legs (replacing
-        InsecureDelegate), then sensitive auth can ALSO fall back to NL/SPB direct.
-        REACH: rides 1.0.32, which is BLOCKED until 1.0.31 clears review — which is
-        blocked on the USER updating the ASC App Privacy nutrition label.
-        INTERIM workaround for affected users (no build): enable any other VPN →
-        sign in to MadFrog once → disable it; the session+config then cache.
+        NOT an RKN IP block (user corrected this) — it's the DOCUMENTED
+        Cloudflare-SNI-filter / single-path-stall class (feedback_cloudflare_ru,
+        project_ios_network_race): a single path's TLS handshake stalls in RU and
+        the request hangs ~minute = "infinite loading" / login timeout
+        (`networkError "Превышен лимит времени"`, seen in a Mac diag log;
+        login only completed after the user enabled ANOTHER VPN). The documented
+        fix is "race direct IPs, never trust a single path" — which non-sensitive
+        requests already do, but SIGN-IN did NOT.
+        ROOT CAUSE: raceLegPlan(sensitive:) zeroed ALL fallback legs (build 87,
+        H-001/H-002). But H-002 was CLOSED by H-002b (build 89): DirectConnection
+        now fully validates the cert chain vs the SNI (SecPolicyCreateSSL +
+        SecTrustEvaluateWithError). The sensitive direct-IP skip was never
+        un-done → stale. Verified live: NL:443 AND SPB:443 serve the auth API with
+        a VALID Let's Encrypt cert for api.madfrog.online (ssl_verify=0, ~0.5s).
+        FIX: sensitive now keeps skipping HTTP:80 cleartext (H-001 holds — no
+        Bearer over plaintext) but RACES the cert-validated direct-IP TLS legs.
+        api.madfrog.online stalls → login completes via NL/SPB in ~0.5s. No
+        Cloudflare added (an earlier apex-hedge attempt, df5a5ff, was the wrong
+        direction — CF is the stalling path — and was reverted). MITM-safe.
+        WHY IT REGRESSED RU users: same single-path fragility that bit guest
+        sign-in historically (the 2026-04 CF-race work).
+        REACH: rides 1.0.32, BLOCKED until 1.0.31 clears review — blocked on the
+        USER updating the ASC App Privacy nutrition label.
+        INTERIM workaround (no build): enable any other VPN → sign in once →
+        disable it; session+config then cache.
 
   "2026-06-06":
     - id: SPB-FR-RELAY-FLAP
