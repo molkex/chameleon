@@ -10,10 +10,14 @@ import XCTest
 ///   * H-001: sensitive=true MUST skip the HTTP:80 fallback legs — refresh
 ///     tokens, magic tokens and signed JWS bodies must never traverse
 ///     cleartext.
-///   * H-002: sensitive=true MUST skip the direct-IP TLS legs too —
-///     `DirectConnection` does not currently validate the server cert
-///     chain, so a sensitive payload on a hijacked direct path could be
-///     intercepted.
+///   * H-002 (CLOSED by H-002b, build 89): sensitive=true MAY now use the
+///     direct-IP TLS legs. `DirectConnection` validates the server cert chain
+///     against the SNI (SecPolicyCreateSSL + SecTrustEvaluateWithError), and
+///     NL:443 / SPB:443 present a valid Let's Encrypt cert for
+///     api.madfrog.online, so the direct-IP path is MITM-safe. Auth racing
+///     these IPs is the documented "never trust a single path" resilience
+///     (AUTH-RKN-DIRECT-IP, 2026-06-09) — it fixes "не получилось войти" when
+///     the primary host stalls (the Cloudflare-SNI-filter class).
 ///   * RU-region quirk: for RU clients, the OVH Frankfurt IP
 ///     (`162.19.242.30`) is dropped from BOTH direct and HTTP:80 lists
 ///     because RU mobile carriers ASN-block it and the 6s timeout would
@@ -23,9 +27,9 @@ final class APIClientSensitiveFlagTests: XCTestCase {
 
     private let allIPs = ["1.1.1.1", "162.19.242.30", "147.45.252.234"]
 
-    // MARK: - H-001 / H-002 — sensitive wins over everything
+    // MARK: - H-001 (cleartext) holds; H-002 closed by H-002b (cert-validated direct-IP)
 
-    func testSensitiveUnauthenticatedRURegionStripsAllFallbacks() {
+    func testSensitiveUnauthenticatedRURegionKeepsDirectButNoHTTP80() {
         let plan = APIClient.raceLegPlan(
             sensitive: true,
             isAuthenticated: false,
@@ -33,20 +37,22 @@ final class APIClientSensitiveFlagTests: XCTestCase {
             availableIPs: allIPs
         )
         XCTAssertTrue(plan.primary, "primary HTTPS leg always fires")
-        XCTAssertEqual(plan.directIPs, [], "H-002: no direct-IP legs for sensitive")
-        XCTAssertEqual(plan.httpEightyIPs, [], "H-001: no HTTP:80 legs for sensitive")
+        XCTAssertEqual(plan.directIPs, ["1.1.1.1", "147.45.252.234"],
+                       "H-002b: cert-validated direct-IP TLS legs ARE used for sensitive (RU drops OVH)")
+        XCTAssertEqual(plan.httpEightyIPs, [], "H-001: never HTTP:80 cleartext for sensitive")
     }
 
-    func testSensitiveAuthenticatedStripsAllFallbacks() {
+    func testSensitiveAuthenticatedKeepsDirectButNoHTTP80() {
         let plan = APIClient.raceLegPlan(
             sensitive: true,
             isAuthenticated: true,
             region: "US",
             availableIPs: allIPs
         )
-        // Even with a Bearer attached, sensitive=true is the dominant gate.
-        XCTAssertEqual(plan.directIPs, [])
-        XCTAssertEqual(plan.httpEightyIPs, [])
+        // sensitive uses the cert-validated direct-IP legs (H-002b) but the
+        // HTTP:80 cleartext legs stay off (H-001) regardless of the Bearer.
+        XCTAssertEqual(plan.directIPs, allIPs, "non-RU sensitive keeps all direct-IP TLS legs")
+        XCTAssertEqual(plan.httpEightyIPs, [], "H-001: still no HTTP:80 for sensitive")
     }
 
     // MARK: - Authenticated callers skip HTTP:80 (no Bearer in cleartext)
@@ -151,11 +157,12 @@ final class APIClientSensitiveFlagTests: XCTestCase {
         "/api/mobile/subscription/verify",
     ]
 
-    func testSensitiveEndpointPathsAllResolveToEmptyFallback() {
+    func testSensitiveEndpointPathsKeepDirectTLSButNeverHTTP80() {
         // Every sensitive endpoint feeds the same `raceLegPlan` with
         // `sensitive: true`. The combinations below cover the matrix of
-        // (RU vs non-RU, authenticated vs not) so a regression in the
-        // helper for any single endpoint would also surface here.
+        // (RU vs non-RU, authenticated vs not). Post-H-002b the invariant is:
+        // direct-IP TLS legs ARE raced (cert-validated, MITM-safe), but the
+        // HTTP:80 cleartext legs are NEVER used for a credential payload.
         for path in Self.sensitiveEndpointPaths {
             for region in ["RU", "US"] as [String?] {
                 for auth in [true, false] {
@@ -165,45 +172,14 @@ final class APIClientSensitiveFlagTests: XCTestCase {
                         region: region,
                         availableIPs: allIPs
                     )
-                    XCTAssertEqual(plan.directIPs, [],
-                        "sensitive endpoint \(path) must not race direct-IP (auth=\(auth) region=\(region ?? "nil"))")
+                    XCTAssertFalse(plan.directIPs.isEmpty,
+                        "sensitive endpoint \(path) SHOULD race cert-validated direct-IP (auth=\(auth) region=\(region ?? "nil"))")
                     XCTAssertEqual(plan.httpEightyIPs, [],
-                        "sensitive endpoint \(path) must not race HTTP:80 (auth=\(auth) region=\(region ?? "nil"))")
+                        "H-001: sensitive endpoint \(path) must NEVER race HTTP:80 (auth=\(auth) region=\(region ?? "nil"))")
                     XCTAssertTrue(plan.primary,
                         "sensitive endpoint \(path) still uses the primary HTTPS leg")
                 }
             }
         }
-    }
-
-    // MARK: - TD-CERT-PIN — apex (Cloudflare) hedge for sensitive auth
-    //
-    // 2026-06-09: sensitive sign-in skips ALL direct/HTTP:80 legs (above), so
-    // when RKN blocks api.madfrog.online per-network the user could only log in
-    // through another VPN. The fix hedges a SECOND *valid-TLS* leg on the
-    // Cloudflare apex via the same validated session. `apexFallbackURL` is the
-    // pure URL rewrite that drives it.
-
-    func testApexFallbackRewritesPrimaryHostPreservingPathAndQuery() {
-        let url = URL(string: "\(AppConfig.baseURL)/api/mobile/auth/apple?x=1")!
-        let apex = APIClient.apexFallbackURL(for: url)
-        XCTAssertNotNil(apex, "a baseURL-hosted URL must get an apex twin")
-        XCTAssertEqual(apex?.host, AppConfig.apexBaseURLHost, "host swapped to the apex")
-        XCTAssertEqual(apex?.path, "/api/mobile/auth/apple", "path preserved")
-        XCTAssertEqual(apex?.query, "x=1", "query preserved")
-        XCTAssertEqual(apex?.scheme, "https", "stays https (valid-TLS leg)")
-    }
-
-    func testApexFallbackReturnsNilForForeignHost() {
-        let url = URL(string: "https://evil.example.com/api/mobile/auth/apple")!
-        XCTAssertNil(APIClient.apexFallbackURL(for: url),
-                     "never rewrite a non-primary host onto our apex")
-    }
-
-    func testApexFallbackHostDiffersFromPrimary() {
-        // The hedge only adds value if the two hosts resolve via different
-        // paths; guard against a future config collapsing them to one host.
-        XCTAssertNotEqual(AppConfig.baseURLHost, AppConfig.apexBaseURLHost,
-                          "apex must be a distinct host from the primary API host")
     }
 }

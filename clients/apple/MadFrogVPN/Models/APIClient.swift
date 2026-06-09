@@ -144,14 +144,30 @@ class APIClient {
                             isAuthenticated: Bool,
                             region: String?,
                             availableIPs: [String]) -> RaceLegPlan {
-        if sensitive {
-            return RaceLegPlan(primary: true, directIPs: [], httpEightyIPs: [])
-        }
+        // Region filter applies to all direct legs: RU mobile ASN-blocks the
+        // retired OVH Frankfurt IP, and its 6s timeout would serialise the race.
         let directIPs: [String]
         if region == "RU" {
             directIPs = availableIPs.filter { $0 != "162.19.242.30" }
         } else {
             directIPs = availableIPs
+        }
+        if sensitive {
+            // AUTH-RKN-DIRECT-IP (2026-06-09): sign-in (apple/google/register/
+            // refresh) is the ONE flow with no DNS-diverse fallback — it hit only
+            // api.madfrog.online, whose single IP can stall per-network (the
+            // documented Cloudflare-SNI-filter class, feedback_cloudflare_ru),
+            // giving "не получилось войти" / "works only through another VPN".
+            //   * H-001 still holds → NEVER the HTTP:80 cleartext legs (a Bearer
+            //     must not traverse plaintext).
+            //   * H-002 is RESOLVED by H-002b (build 89): DirectConnection now
+            //     fully validates the server cert chain against the SNI
+            //     (SecPolicyCreateSSL + SecTrustEvaluateWithError), and NL:443 /
+            //     SPB:443 present a VALID Let's Encrypt cert for api.madfrog.online
+            //     — so the direct-IP TLS legs are MITM-safe and auth CAN race them.
+            // This restores the documented "race direct IPs, never trust a single
+            // path" resilience for the auth flow, with no MITM exposure.
+            return RaceLegPlan(primary: true, directIPs: directIPs, httpEightyIPs: [])
         }
         let httpEightyIPs: [String]
         if isAuthenticated {
@@ -160,18 +176,6 @@ class APIClient {
             httpEightyIPs = directIPs
         }
         return RaceLegPlan(primary: true, directIPs: directIPs, httpEightyIPs: httpEightyIPs)
-    }
-
-    /// TD-CERT-PIN (2026-06-09): rewrites a `baseURL`-hosted request URL onto the
-    /// censorship-diverse Cloudflare apex (`apexBaseURL`) for the hedged second
-    /// valid-TLS leg. Returns nil for any URL that isn't on our primary API host
-    /// (never rewrite arbitrary URLs). Pure → unit-tested.
-    static func apexFallbackURL(for url: URL) -> URL? {
-        guard url.host == AppConfig.baseURLHost,
-              AppConfig.apexBaseURLHost != AppConfig.baseURLHost,
-              var comps = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return nil }
-        comps.host = AppConfig.apexBaseURLHost
-        return comps.url
     }
 
     init() {
@@ -292,45 +296,14 @@ class APIClient {
                 }
             }
 
-            // TD-CERT-PIN (2026-06-09): hedge a SECOND valid-TLS leg on the
-            // Cloudflare apex via the SAME validated `session`. baseURL
-            // (api.madfrog.online → MSK single IP) is RKN-blockable per-network;
-            // when it's blocked, `sensitive` sign-in had ZERO fallback (the
-            // direct-IP / HTTP:80 legs can't carry a Bearer over a trust-any
-            // cert). The apex is a *valid*-cert anycast path, so it carries auth
-            // with no MITM risk. Runs for every request (a second valid path
-            // never hurts); staggered 200ms so a fast primary still wins. The
-            // shared Idempotency-Key collapses the POST on the backend.
-            if let apexURL = Self.apexFallbackURL(for: url) {
-                group.addTask { [session] in
-                    try? await Task.sleep(for: .milliseconds(200))
-                    if Task.isCancelled { return nil }
-                    var apexReq = augmentedRequest
-                    apexReq.url = apexURL
-                    AppLogger.network.info("race.apex.start elapsed=\(Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000, privacy: .public)ms")
-                    do {
-                        let (data, response) = try await session.data(for: apexReq)
-                        let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
-                        if let http = response as? HTTPURLResponse, http.statusCode >= 500 {
-                            AppLogger.network.info("race.apex.done rejected status=\(http.statusCode, privacy: .public) elapsed=\(ms, privacy: .public)ms")
-                            return nil
-                        }
-                        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-                        AppLogger.network.info("race.apex.done ok status=\(status, privacy: .public) elapsed=\(ms, privacy: .public)ms")
-                        return (data, response, "apex")
-                    } catch {
-                        let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
-                        AppLogger.network.error("race.apex.done error=\(error.localizedDescription, privacy: .public) elapsed=\(ms, privacy: .public)ms")
-                        return nil
-                    }
-                }
-            }
-
             let sni = AppConfig.baseURLHost
             // build-88 testability extract: the leg-selection decision lives
             // in `Self.raceLegPlan` so it can be unit-tested. The behaviour
             // is unchanged from before the extract:
-            //   * sensitive=true → no direct/HTTP:80 legs (audit H-001/H-002).
+            //   * sensitive=true → NEVER the HTTP:80 cleartext legs (H-001), but
+            //     the cert-validated direct-IP TLS legs ARE allowed (H-002 closed
+            //     by H-002b: DirectConnection validates the chain vs the SNI) so
+            //     auth survives a stalled primary (AUTH-RKN-DIRECT-IP 2026-06-09).
             //   * RU region → drop the OVH Frankfurt IP (162.19.242.30)
             //     because RU mobile ASN-blocks it and the 6s timeout would
             //     otherwise delay the race.
@@ -345,7 +318,7 @@ class APIClient {
             )
             let raceIPs = plan.directIPs
             if sensitive {
-                AppLogger.network.info("race.sensitive=true direct_legs=skipped")
+                AppLogger.network.info("race.sensitive=true direct_tls_legs=\(raceIPs.count, privacy: .public) http80=skipped")
             } else if Locale.current.region?.identifier == "RU" {
                 AppLogger.network.info("race.region ru=true skipped=DE")
             }
