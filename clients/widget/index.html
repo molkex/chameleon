@@ -283,16 +283,40 @@
     return msgs.length;
   }
 
+  // SSE-CHATTOKEN-REMINT (2026-06-17): the chat-token in the stream URL has a
+  // 10-min TTL. EventSource's BUILT-IN auto-reconnect reuses the SAME URL, so
+  // once the token expires every retry 401s and the chat silently dies (you had
+  // to re-open the app). We drive reconnection ourselves — close the dead
+  // stream and re-enter openStream(), which mints a FRESH token — with
+  // exponential backoff so a real outage doesn't hammer the server.
+  let reconnectTimer = null;
+  let reconnectDelay = 1000;
+  function scheduleReconnect(){
+    if(PREVIEW || reconnectTimer) return;
+    reconnectTimer = setTimeout(()=>{
+      reconnectTimer = null;
+      reconnectDelay = Math.min(reconnectDelay * 2, 30000);
+      openStream();
+    }, reconnectDelay);
+  }
+
   async function openStream(){
+    if(reconnectTimer){ clearTimeout(reconnectTimer); reconnectTimer = null; }
     try{
       const tok = await api("/api/v1/mobile/support/chat-token");
       cfg.chatToken = tok.token;
-    }catch(e){ setConn("offline"); return; }
-    if(sse) sse.close();
+    }catch(e){ setConn("offline"); scheduleReconnect(); return; }
+    if(sse){ sse.close(); sse = null; }
     sse = new EventSource(cfg.apiBase + "/api/v1/mobile/support/stream?token="+encodeURIComponent(cfg.chatToken)+"&since="+lastId);
-    sse.onopen = ()=>setConn("online");
+    sse.onopen = ()=>{ setConn("online"); reconnectDelay = 1000; };  // healthy → reset backoff
     sse.onmessage = ev=>{ try{ addMessage(JSON.parse(ev.data)); }catch(_){} };
-    sse.onerror = ()=>{ setConn("connecting"); /* EventSource auto-reconnects; token refreshed on next open */ };
+    sse.onerror = ()=>{
+      // Don't trust EventSource's stale-token retry — own the reconnect so the
+      // token is re-minted on the next open.
+      setConn("connecting");
+      if(sse){ sse.close(); sse = null; }
+      scheduleReconnect();
+    };
   }
 
   async function send(text){
@@ -399,6 +423,14 @@
   function autoGrow(){ input.style.height="auto"; input.style.height=Math.min(input.scrollHeight,120)+"px"; }
   input.addEventListener("input", autoGrow);
   input.addEventListener("keydown", e=>{ if(e.key==="Enter" && !e.shiftKey){ e.preventDefault(); $("composer").requestSubmit(); }});
+  // SSE-CHATTOKEN-REMINT: returning to the chat (app foreground / tab visible)
+  // re-opens a dead/closed stream right away instead of waiting out the backoff.
+  document.addEventListener("visibilitychange", ()=>{
+    if(document.visibilityState==="visible" && !PREVIEW && (!sse || sse.readyState===2)){
+      reconnectDelay = 1000;
+      openStream();
+    }
+  });
   $("composer").addEventListener("submit", e=>{ e.preventDefault(); const v=input.value; input.value=""; autoGrow(); send(v); });
   $("theme-toggle").addEventListener("click", ()=>{ cfg.theme=cfg.theme==="neon"?"calm":"neon"; applyTheme(); });
   $("attach").addEventListener("click", ()=>{ $("file").click(); });
