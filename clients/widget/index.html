@@ -446,7 +446,20 @@
       // first open (no history): greet instead of showing a blank void
       if(n===0) addMessage({sender:"system",body:L.welcome,created_at:new Date()},false);
       return openStream();
-    }).catch(()=>setConn("offline"));
+    }).catch(()=>{
+      // Backend unreachable (e.g. an RU network block on api.madfrog.online) —
+      // DON'T leave a blank black void. Render the greeting + a clear offline
+      // notice, then still openStream() so its backoff retry (and the
+      // visibilitychange re-open) recovers the chat once the network clears.
+      setConn("offline");
+      if(!msgsEl.children.length){
+        addMessage({sender:"system",body:L.welcome,created_at:new Date()},false);
+        addMessage({sender:"system",body:(cfg.lang==='en'
+          ? "No connection to support right now. Your message will be sent as soon as the network is back."
+          : "Нет связи с поддержкой. Сообщение отправится, как только появится сеть."),created_at:new Date()},false);
+      }
+      openStream();
+    });
   };
 
   // ── PREVIEW mode (opened standalone, no initChat) ──
