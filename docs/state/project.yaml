@@ -31,7 +31,7 @@ product:
     live:        {version: "1.0.30", build: 102, state: READY_FOR_SALE}   # APPROVED 2026-06-04 (KEYCHAIN-MACOS)
     approved:    {version: "1.0.31", build: 112, state: PENDING_DEVELOPER_RELEASE_AUTO}  # APPROVED by ~2026-06-09, auto-release ON → goes live on its own. support chat + push + announcements + store-country
     in_review:   {version: "1.0.32", build: 113, state: WAITING_FOR_REVIEW}  # SUBMITTED 2026-06-09 — AUTH-RKN-DIRECT-IP login fix (sign-in races cert-validated direct IPs NL/SPB); AFTER_APPROVAL auto-release. reviewSubmission a17265e3
-    testflight:  {version: "1.0.33", build: 116, state: IN_BETA_TESTING}  # b116 VALID+assigned 2026-06-17 — audit batch + RU-NO-VPN-LOGIN (MSK relay in the sign-in race) + CONNECT-PREFLIGHT-FAST (~3s faster connect). b114/115 superseded.
+    testflight:  {version: "1.0.33", build: 119, state: IN_BETA_TESTING}  # b119 VALID+assigned 2026-06-17 — AUTH-RETRY (auto-retry sign-in on transient "all paths failed"). b118 confirmed on-device: chat/log/account/subscription all WORK; only first-tap login blip remained. b114-118 superseded.
     next_step: |
       (1) VERIFY 1.0.33/114 on TestFlight (iPhone) — the audit batch is on-device-unverified: инста loads
       on Auto, no forced re-login, RU sign-in works, expired→paywall on connect, France pick sticks, chat
