@@ -388,6 +388,31 @@ func run() error {
 	syncer.Start(ctx)
 	defer syncer.Stop()
 
+	// EXPIRED-EVICT-SWEEP (2026-06-17): periodically re-push the active-user
+	// roster so a TIME-BASED subscription expiry actually drops the user from
+	// sing-box's allow-set. Without this, an expired user lingered until the next
+	// deploy: ListActiveVPNUsers already excludes them (REFUND-NULL-EXPIRY-GATE),
+	// but nothing re-ran the reload — the cluster reconcileLoop is a no-op on
+	// single-NL (no peers), relaySyncer.Start only re-syncs REMOTE exits, and
+	// pubsub only fires on user MUTATIONS (not on the clock ticking past expiry).
+	// engine.ReloadUsers is zero-downtime (User-API ReplaceUsers), so a periodic
+	// reload is safe and won't churn live connections.
+	go func() {
+		const sweepInterval = 10 * time.Minute
+		ticker := time.NewTicker(sweepInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := cluster.ReloadVPNEngine(ctx, database, engine, relaySyncer, logger); err != nil {
+					logger.Warn("expiry-evict sweep: engine reload failed", zap.Error(err))
+				}
+			}
+		}
+	}()
+
 	srv := &api.Server{
 		Ctx:     ctx, // cancelled on shutdown — stops rate-limiter cleanup goroutine
 		Config:  cfg,
