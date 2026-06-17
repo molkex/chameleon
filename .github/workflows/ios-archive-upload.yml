@@ -50,6 +50,18 @@ jobs:
           fi
           echo "Tag commit $TAG_COMMIT verified on origin/main."
 
+      - name: Select Xcode 26 (Apple requires the iOS 26 SDK for uploads)
+        run: |
+          XC="$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)"
+          if [ -z "$XC" ]; then
+            echo "::error::No Xcode 26 found on the runner — App Store upload requires the iOS 26 SDK."
+            ls -d /Applications/Xcode_*.app || true
+            exit 1
+          fi
+          echo "Selecting $XC"
+          sudo xcode-select -s "$XC/Contents/Developer"
+          xcodebuild -version
+
       - name: Install xcodegen
         run: brew install xcodegen
 
