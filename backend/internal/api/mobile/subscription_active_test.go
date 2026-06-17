@@ -35,3 +35,16 @@ func TestHasActiveSubscription(t *testing.T) {
 		})
 	}
 }
+
+// SUBSCRIPTION-ON-AUTH (2026-06-17): the auth response carries the subscription
+// expiry as unix-seconds so the client applies it the instant sign-in succeeds.
+func TestSubExpiryUnix(t *testing.T) {
+	if subExpiryUnix(nil) != nil {
+		t.Error("nil expiry must map to nil (no coverage)")
+	}
+	ts := time.Unix(1_800_000_000, 0)
+	got := subExpiryUnix(&ts)
+	if got == nil || *got != 1_800_000_000 {
+		t.Errorf("subExpiryUnix(%v) = %v, want 1800000000", ts, got)
+	}
+}

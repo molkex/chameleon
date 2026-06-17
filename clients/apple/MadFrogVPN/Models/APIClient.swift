@@ -64,6 +64,11 @@ struct AuthResult: Codable {
     /// Used to tie StoreKit purchases to the account (appAccountToken) and for
     /// diagnostics — see ACCT-IDENTITY.
     let userID: Int64?
+    /// SUBSCRIPTION-ON-AUTH (2026-06-17): subscription expiry (unix seconds) so
+    /// the app applies the subscription the moment sign-in succeeds, without
+    /// depending on the separate /config fetch (whose X-Expire can be lost to an
+    /// RU network blip). nil = no active coverage.
+    let subscriptionExpiry: Int64?
 
     enum CodingKeys: String, CodingKey {
         case accessToken = "access_token"
@@ -71,6 +76,7 @@ struct AuthResult: Codable {
         case username
         case isNew = "is_new"
         case userID = "user_id"
+        case subscriptionExpiry = "subscription_expiry"
     }
 }
 
@@ -89,6 +95,10 @@ struct RefreshResult {
     /// Access-token expiry (unix → Date). Optional so an older backend that
     /// omits `expires_at` still decodes. Available for future proactive refresh.
     let expiresAt: Date?
+    /// SUBSCRIPTION-ON-AUTH: subscription expiry (unix seconds) so a silent
+    /// refresh re-applies the subscription without a /config round-trip. nil =
+    /// not present in this response.
+    let subscriptionExpiry: Int64?
 }
 
 /// Delegate that trusts all certificates **only for known fallback hosts**.
@@ -827,7 +837,8 @@ class APIClient {
         }
         let rotated = (json["refresh_token"] as? String) ?? sentRefreshToken
         let expiresAt = (json["expires_at"] as? Double).map { Date(timeIntervalSince1970: $0) }
-        return RefreshResult(accessToken: token, refreshToken: rotated, expiresAt: expiresAt)
+        let subExpiry = (json["subscription_expiry"] as? NSNumber)?.int64Value
+        return RefreshResult(accessToken: token, refreshToken: rotated, expiresAt: expiresAt, subscriptionExpiry: subExpiry)
     }
 
     // MARK: - Support chat

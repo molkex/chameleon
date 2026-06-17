@@ -29,8 +29,8 @@ import (
 // ~95%, Phase 2 flips to strict-require (reject when DB has a secret
 // stored but client sends none/wrong).
 type RegisterRequest struct {
-	DeviceID       string `json:"device_id"`
-	InstallSecret  string `json:"install_secret,omitempty"`
+	DeviceID      string `json:"device_id"`
+	InstallSecret string `json:"install_secret,omitempty"`
 }
 
 // AppleSignInRequest is the body for POST /api/mobile/auth/apple.
@@ -52,6 +52,21 @@ type AuthResponse struct {
 	Username      string `json:"username"`
 	IsNew         bool   `json:"is_new"`
 	InstallSecret string `json:"install_secret,omitempty"`
+	// SubscriptionExpiry (unix seconds) lets the client apply the subscription
+	// the instant sign-in succeeds, instead of waiting on a separate /config
+	// fetch (whose X-Expire header can be lost to an RU network blip). nil = no
+	// active coverage. SUBSCRIPTION-ON-AUTH (2026-06-17).
+	SubscriptionExpiry *int64 `json:"subscription_expiry,omitempty"`
+}
+
+// subExpiryUnix returns the user's subscription expiry as a *unix-seconds for the
+// auth response, or nil when there's no coverage.
+func subExpiryUnix(expiry *time.Time) *int64 {
+	if expiry == nil {
+		return nil
+	}
+	v := expiry.Unix()
+	return &v
 }
 
 // ErrorResponse is the standard JSON error body.
@@ -200,13 +215,14 @@ func (h *Handler) Register(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, AuthResponse{
-		AccessToken:   tokens.AccessToken,
-		RefreshToken:  tokens.RefreshToken,
-		ExpiresAt:     tokens.ExpiresAt,
-		UserID:        user.ID,
-		Username:      vpnUsername,
-		IsNew:         isNew,
-		InstallSecret: issuedSecret,
+		AccessToken:        tokens.AccessToken,
+		RefreshToken:       tokens.RefreshToken,
+		ExpiresAt:          tokens.ExpiresAt,
+		UserID:             user.ID,
+		Username:           vpnUsername,
+		IsNew:              isNew,
+		InstallSecret:      issuedSecret,
+		SubscriptionExpiry: subExpiryUnix(user.SubscriptionExpiry),
 	})
 }
 
@@ -468,12 +484,13 @@ func (h *Handler) AppleSignIn(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, AuthResponse{
-		AccessToken:  tokens.AccessToken,
-		RefreshToken: tokens.RefreshToken,
-		ExpiresAt:    tokens.ExpiresAt,
-		UserID:       user.ID,
-		Username:     vpnUsername,
-		IsNew:        isNew,
+		AccessToken:        tokens.AccessToken,
+		RefreshToken:       tokens.RefreshToken,
+		ExpiresAt:          tokens.ExpiresAt,
+		UserID:             user.ID,
+		Username:           vpnUsername,
+		IsNew:              isNew,
+		SubscriptionExpiry: subExpiryUnix(user.SubscriptionExpiry),
 	})
 }
 
@@ -526,12 +543,19 @@ func (h *Handler) RefreshToken(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
 	}
 
+	// SUBSCRIPTION-ON-AUTH: carry the current subscription expiry on refresh too,
+	// so a re-foregrounded app re-applies it without waiting on a /config fetch.
+	var subExpiry *int64
+	if u, lookupErr := h.DB.FindUserByID(ctx, claims.UserID); lookupErr == nil && u != nil {
+		subExpiry = subExpiryUnix(u.SubscriptionExpiry)
+	}
 	return c.JSON(http.StatusOK, AuthResponse{
-		AccessToken:  tokens.AccessToken,
-		RefreshToken: tokens.RefreshToken,
-		ExpiresAt:    tokens.ExpiresAt,
-		UserID:       claims.UserID,
-		Username:     claims.Username,
+		AccessToken:        tokens.AccessToken,
+		RefreshToken:       tokens.RefreshToken,
+		ExpiresAt:          tokens.ExpiresAt,
+		UserID:             claims.UserID,
+		Username:           claims.Username,
+		SubscriptionExpiry: subExpiry,
 	})
 }
 
@@ -561,7 +585,7 @@ func (h *Handler) createUser(ctx context.Context, deviceID, appleID, authProvide
 
 	user := &db.User{
 		DeviceID:           &deviceID,
-		VPNUsername:         &vpnUsername,
+		VPNUsername:        &vpnUsername,
 		VPNUUID:            &vpnUUID,
 		VPNShortID:         &vpnShortID,
 		IsActive:           true,

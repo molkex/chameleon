@@ -478,6 +478,7 @@ class AppState {
             configStore.refreshToken = result.refreshToken
             configStore.username = result.username
             configStore.authProvider = nil // explicit: anonymous device account
+            applyAuthSubscription(result.subscriptionExpiry)
             try await fetchAndSaveConfig()
             subscriptionExpire = configStore.subscriptionExpire
             UserDefaults(suiteName: AppConstants.appGroupID)?.set(true, forKey: AppConstants.onboardingCompletedKey)
@@ -542,6 +543,19 @@ class AppState {
             try await Task.sleep(for: .seconds(2))
             try await doFetchAndSave(username: username)
         }
+    }
+
+    /// SUBSCRIPTION-ON-AUTH (2026-06-17): apply the subscription expiry the auth
+    /// response now carries, so it's reflected the instant sign-in succeeds —
+    /// before (and independent of) the /config fetch whose X-Expire header can be
+    /// lost to an RU network blip. Only sets a present value; never clears an
+    /// existing one (a nil here just means "use /config / cached").
+    private func applyAuthSubscription(_ expiryUnix: Int64?) {
+        guard let exp = expiryUnix, exp > 0 else { return }
+        let date = Date(timeIntervalSince1970: TimeInterval(exp))
+        configStore.subscriptionExpire = date
+        subscriptionExpire = date
+        AppLogger.app.info("applyAuthSubscription: \(date)")
     }
 
     private func doFetchAndSave(username: String) async throws {
@@ -802,6 +816,7 @@ class AppState {
             // (Pain #2). Order: access first, then the rotated refresh token.
             configStore.accessToken = result.accessToken
             configStore.refreshToken = result.refreshToken
+            applyAuthSubscription(result.subscriptionExpiry)
             needsReauth = false // session restored silently
             AppLogger.app.info("tryRefreshToken: success")
             return true
@@ -818,6 +833,7 @@ class AppState {
         configStore.refreshToken = result.refreshToken
         configStore.username = result.username
         configStore.authProvider = nil // reRegister only runs for anon users now
+        applyAuthSubscription(result.subscriptionExpiry)
         try await doFetchAndSave(username: result.username)
     }
 
@@ -1066,6 +1082,7 @@ class AppState {
             configStore.refreshToken = result.refreshToken
             configStore.username = result.username
             configStore.authProvider = "google"
+            applyAuthSubscription(result.subscriptionExpiry)
             needsReauth = false
             try await fetchAndSaveConfig()
             subscriptionExpire = configStore.subscriptionExpire
@@ -1136,6 +1153,7 @@ class AppState {
             configStore.refreshToken = result.refreshToken
             configStore.username = result.username
             configStore.authProvider = "email"
+            applyAuthSubscription(result.subscriptionExpiry)
             needsReauth = false
             try await fetchAndSaveConfig()
             subscriptionExpire = configStore.subscriptionExpire
@@ -1178,6 +1196,7 @@ class AppState {
             // anon. credential.user IS the Apple `sub`, stable across reinstall.
             configStore.authProvider = "apple"
             configStore.appleUserID = credential.user
+            applyAuthSubscription(result.subscriptionExpiry)
             needsReauth = false
             // /config 403 on a returning user whose trial has lapsed must NOT
             // be a hard failure — auth itself succeeded. Treat it as "signed
