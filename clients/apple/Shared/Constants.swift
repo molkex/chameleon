@@ -25,7 +25,14 @@ enum AppConfig {
     /// and removed from this pool as part of TD-DE-PRUNE. NL is now
     /// the sole production backend; SPB is the RU relay.
     static let directBackendIPs: [String] = [
-        "147.45.252.234", // NL (Timeweb) — sole production backend
+        // RU-NO-VPN-LOGIN (2026-06-17): MSK relay FIRST. It fronts
+        // api.madfrog.online on :443 with a valid Let's Encrypt cert and is
+        // reachable from RU networks WITHOUT a VPN — unlike NL (foreign IP, RU
+        // blocks it) and a DNS-poisoned api.madfrog.online primary. Without this
+        // a RU user with no VPN had no reachable backend path → "all paths
+        // failed" sign-in (verified: MSK:443 health 200, cert valid).
+        "217.198.5.52",   // MSK relay (RU) — api front, valid cert, RU-reachable
+        "147.45.252.234", // NL (Timeweb) — sole production backend (foreign)
         "185.218.0.43"    // SPB relay (RU) — HTTPS 443 may hijack, HTTP 80 untested
     ]
 
