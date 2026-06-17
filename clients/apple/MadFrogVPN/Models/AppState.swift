@@ -1784,6 +1784,20 @@ class AppState {
         return Self.resolveChain(target: target, outbounds: outbounds)
     }
 
+    /// COUNTRY-PICK-STICKY (2026-06-17): should a persisted server selection be
+    /// RESET to Auto because it no longer resolves? Pure + testable. Only when
+    /// the target is a real pin (not Auto), the chain didn't resolve, AND the
+    /// config genuinely has servers (so the target was retired) — never when the
+    /// config is transiently empty/flat (that's the bug: a mid-refresh miss must
+    /// keep the user's deliberate pin, not silently revert it to Auto).
+    nonisolated static func shouldResetStaleSelection(target: String,
+                                                      chainResolved: Bool,
+                                                      configHasServers: Bool) -> Bool {
+        if chainResolved { return false }
+        if target == "Auto" { return false }
+        return configHasServers
+    }
+
     /// Pure-function core of selection resolution — exposed `internal`
     /// for unit tests. Takes a parsed sing-box outbounds array (straight
     /// from `JSONSerialization`) and returns the ordered selectOutbound
@@ -1931,19 +1945,32 @@ class AppState {
         selectionApplyTask = Task { [weak self] in
             guard let self else { return }
 
-            let chain = self.resolveSelectionChain(target: selectedTag)
+            // COUNTRY-PICK-STICKY (2026-06-17): use the FORGIVING chainOrFallback
+            // (country label → best leaf) instead of the strict
+            // resolveSelectionChain. The strict resolver returned empty for a
+            // country pick whenever the live config was transiently flat
+            // (urltest-less) or mid-refresh, and the block below then NUKED the
+            // user's deliberate country pick back to Auto — "выбор не
+            // запоминается".
+            let chain = self.chainOrFallback(target: selectedTag)
             guard !chain.isEmpty else {
-                // Build-85: target no longer exists in the current config
-                // (the server / country was retired backend-side, e.g. DE
-                // shutdown 2026-05-25). The baked-in default is Auto so
-                // traffic still flows, but the UI keeps showing "🇩🇪 Германия"
-                // forever otherwise. Reset both the persisted tag and the
-                // mirrored @Observable copy so the chip / picker reflect
-                // reality on the next render.
-                TunnelFileLogger.log("applyServerSelectionIfLive: empty chain for '\(selectedTag)' — resetting to Auto", category: "ui")
-                if selectedTag != "Auto", self.configStore.selectedServerTag != nil {
+                // Empty even with fallback. Build-85: when a server / country is
+                // RETIRED backend-side (e.g. DE 2026-05-25) the UI would show
+                // "🇩🇪 Германия" forever, so we reset to Auto. But ONLY when the
+                // config genuinely HAS servers and none match — if there are NO
+                // candidates at all the config is just transiently unavailable,
+                // and nuking the pin is the COUNTRY-PICK-STICKY bug. Keep the pin
+                // and let the next config refresh reconcile.
+                let configHasServers = !self.leafCandidates().isEmpty
+                if Self.shouldResetStaleSelection(target: selectedTag,
+                                                  chainResolved: false,
+                                                  configHasServers: configHasServers),
+                   self.configStore.selectedServerTag != nil {
+                    TunnelFileLogger.log("applyServerSelectionIfLive: '\(selectedTag)' gone from a populated config — resetting to Auto", category: "ui")
                     self.configStore.selectedServerTag = nil
                     self.selectedServerTag = nil
+                } else {
+                    TunnelFileLogger.log("applyServerSelectionIfLive: empty chain for '\(selectedTag)', config flat/unavailable — keeping pin", category: "ui")
                 }
                 return
             }

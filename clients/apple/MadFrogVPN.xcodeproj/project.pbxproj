@@ -269,6 +269,7 @@
 		F126F524927F734DB4534065 /* CoreWLAN.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A630BB5B9993A8152A622ED3 /* CoreWLAN.framework */; };
 		F15221034C503A3468765078 /* WidgetVPNSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DF255FC3085B56FF435958B /* WidgetVPNSnapshot.swift */; };
 		F4DEA647B21A90AD629FEFD7 /* WidgetVPNSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DF255FC3085B56FF435958B /* WidgetVPNSnapshot.swift */; };
+		F55AB5D5563CAACBBC5CFF89 /* CountryPickStickyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3595C7BAAADF16334B8FD4BD /* CountryPickStickyTests.swift */; };
 		F56FFC5B7BABAD4472019C65 /* ExtensionPlatformInterface.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08E7733F68F4037C68291994 /* ExtensionPlatformInterface.swift */; };
 		F7C46ACBB730167749B891B7 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7195CF498E5531209F7FAD2C /* SettingsView.swift */; };
 		FAAAD09A083C269FA8C30EBB /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 9559017B879500FA2F899634 /* PrivacyInfo.xcprivacy */; };
@@ -368,6 +369,7 @@
 		31BA223EF19A5BDE5145B520 /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
 		33947299B156B2AC6BD9B3A8 /* AcctIdentityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcctIdentityTests.swift; sourceTree = "<group>"; };
 		33A809CDAD52A1FB3A57D0A1 /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
+		3595C7BAAADF16334B8FD4BD /* CountryPickStickyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountryPickStickyTests.swift; sourceTree = "<group>"; };
 		3B77B8C83804315DF2505934 /* TunnelStallProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunnelStallProbe.swift; sourceTree = "<group>"; };
 		3C3AA0F75FD43492C173B8C4 /* PacketTunnelProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelProvider.swift; sourceTree = "<group>"; };
 		3C86B933890A16DB4069C1A5 /* DebugLogsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugLogsView.swift; sourceTree = "<group>"; };
@@ -590,6 +592,7 @@
 				46461EB64AC98A85BDA33143 /* AppStateFallbackTests.swift */,
 				828C4AEC2AEC8A2EEB92717E /* ConfigSanitizerTests.swift */,
 				7C4CD0A25B056DBC6DD6A6D8 /* CountryFlagTests.swift */,
+				3595C7BAAADF16334B8FD4BD /* CountryPickStickyTests.swift */,
 				A68B252ED056950D8E56A513 /* CrashReporterSanitizeTests.swift */,
 				309988BC023B66A61A71333A /* DisconnectNotifierTests.swift */,
 				F45C35BECFE7F5EFD0C26FA7 /* EventTrackerTests.swift */,
@@ -1261,6 +1264,7 @@
 				13ACDC2A838051DAD074B9E4 /* AppStateFallbackTests.swift in Sources */,
 				9AB874F30E33334B32A64AA5 /* ConfigSanitizerTests.swift in Sources */,
 				367879BE1B6C1A25A1F9846D /* CountryFlagTests.swift in Sources */,
+				F55AB5D5563CAACBBC5CFF89 /* CountryPickStickyTests.swift in Sources */,
 				09184E05C76A88DC8AF609D8 /* CrashReporterSanitizeTests.swift in Sources */,
 				C58057A931009CE17264DA4D /* DisconnectNotifierTests.swift in Sources */,
 				4C6EA208EAE28CCEBC970A86 /* EventTrackerTests.swift in Sources */,

@@ -187,17 +187,34 @@ next:
       priority: P1
       pain: "#4 support-chat unclear + #2 re-enter"
       effort: S
-      build: true   # re-bundle widget
-      anchor: clients/widget/index.html:286/295/416 (token baked in EventSource URL, TTL 10m jwt.go:159)
-      plan: "On sse.onerror close + debounced openStream() with re-fetch /support/chat-token + backoff; re-open on visibilitychange→visible. Also fixes in-page Bearer refresh (P2)."
+      build: true   # re-bundle widget (bundled in the app)
+      status: implemented_js_syntax_verified   # node --check OK 2026-06-17; on-device e2e pending
+      files:
+        - clients/widget/index.html   # own the reconnect (close + re-mint token + backoff) + visibilitychange re-open
+      done: |
+        openStream() already re-fetched a fresh chat-token every call, but onerror relied on
+        EventSource's BUILT-IN retry which reuses the SAME URL → after the 10-min token TTL every
+        retry 401s and the chat silently dies. Now onerror closes the stream and drives reconnection
+        ourselves via openStream() (fresh token) with exponential backoff (1s→30s cap, reset on
+        onopen); a chat-token fetch failure also schedules a retry; and visibilitychange→visible
+        re-opens a dead stream promptly. JS syntax-checked (node --check).
     - id: COUNTRY-PICK-STICKY
       title: "Живой выбор страны молча сбрасывается в Auto (выбор не запоминается)"
       priority: P1
       pain: "#6"
       effort: M
       build: true
-      anchor: clients/apple/MadFrogVPN/Models/AppState.swift:1867 resolveSelectionChain (strict) + :1877-1880 destructive reset
-      plan: "applyServerSelectionIfLive use forgiving chainOrFallback(target:); remove the persisted-selection nuke on non-resolve — keep pin, log, let next config-refresh reconcile."
+      status: implemented_compile_verified   # macOS BUILD SUCCEEDED 2026-06-17
+      files:
+        - clients/apple/MadFrogVPN/Models/AppState.swift              # applyServerSelectionIfLive → chainOrFallback + shouldResetStaleSelection
+        - clients/apple/Tests/UnitTests/CountryPickStickyTests.swift  # reset-decision truth table
+      done: |
+        applyServerSelectionIfLive used the STRICT resolveSelectionChain (empty on any transient/flat
+        live config) and then NUKED the persisted pin → Auto. Now uses the forgiving chainOrFallback
+        (country label → best leaf), and the reset is gated by a pure shouldResetStaleSelection: reset
+        ONLY when the config genuinely has servers but none match (a retired country — build-85 DE case);
+        a transiently-empty/unavailable config KEEPS the pin and lets the next refresh reconcile.
+        Unit-tested the decision.
     - id: SENDLOG-NO-SILENT-LOSS
       title: "Кнопка 'отправить лог' при сбое рапортует успех, но лог не приложился"
       priority: P1
