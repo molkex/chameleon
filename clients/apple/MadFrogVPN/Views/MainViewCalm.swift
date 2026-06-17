@@ -72,7 +72,7 @@ struct MainViewCalm: View {
                 Text("MadFrog")
                     .font(theme.displayFont(size: 17, weight: .bold))
                     .foregroundStyle(theme.textPrimary)
-                Text(app.subscriptionExpire != nil ? L10n.Home.headerProMember : L10n.Home.headerFree)
+                Text(app.isSubscriptionActive ? L10n.Home.headerProMember : L10n.Home.headerFree)
                     .font(theme.font(size: 11))
                     .foregroundStyle(theme.textSecondary)
             }
@@ -330,7 +330,7 @@ struct MainViewCalm: View {
                 showPaywall = true
             } label: {
                 HStack(spacing: 10) {
-                    Image(systemName: app.subscriptionExpire != nil ? "crown.fill" : "sparkles")
+                    Image(systemName: app.isSubscriptionActive ? "crown.fill" : "sparkles")
                         .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(theme.accent)
                     Text(subscriptionText)

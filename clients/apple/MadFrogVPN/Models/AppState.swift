@@ -82,6 +82,11 @@ class AppState {
     /// toggling the tunnel. Set by `requestConnect()` on first connect
     /// attempt; UI clears it via `proceedAfterPrimer()` or by dismissing.
     var showPermissionPrimer: Bool = false
+    /// EXPIRED-PAYWALL-ON-CONNECT (2026-06-17): flipped true when a CONNECT
+    /// attempt is gated because the subscription is expired/absent — the UI
+    /// presents the paywall instead of toggling the tunnel. Set by
+    /// `requestToggle()` after a reclaim attempt fails; the sheet clears it.
+    var requestPaywall: Bool = false
     /// SUPPORT-CHAT P4: flipped true when the user taps a "support reply" push.
     /// The app root observes this and presents `SupportChatView` from anywhere;
     /// the sheet's dismiss resets it back to false.
@@ -1254,11 +1259,67 @@ class AppState {
     /// Once the user has confirmed the primer, `toggleVPN()` is called.
     /// Subsequent taps go straight to `toggleVPN()`.
     func requestToggle() async {
+        // EXPIRED-PAYWALL-ON-CONNECT (2026-06-17): a CONNECT intent requires an
+        // active subscription. Disconnect is always allowed. Gating here (before
+        // the permission primer) means an expired user sees the paywall, not the
+        // VPN-profile install dialog. We reclaim first (cross-device pay) so a
+        // user who paid elsewhere is never wrongly blocked.
+        if !vpnManager.isConnected {
+            guard await ensureSubscriptionForConnect() else { return }
+        }
         if !vpnManager.isConnected && !vpnManager.hasInstalledProfile {
             showPermissionPrimer = true
             return
         }
         await toggleVPN()
+    }
+
+    /// The pure connect-gate decision: may this user start the tunnel? Active
+    /// backend coverage (future expiry) OR a live StoreKit entitlement. Static +
+    /// pure so it's unit-testable without a live AppState. NULL/absent expiry =
+    /// no coverage (mirrors the backend's hasActiveSubscription canon).
+    static func mayConnect(subscriptionExpire: Date?, isPremium: Bool, now: Date) -> Bool {
+        if isPremium { return true }
+        return subscriptionExpire.map { $0 > now } ?? false
+    }
+
+    /// The ONE client-side "is the subscription active?" signal for UI (PRO
+    /// badge, paywall copy) and the connect gate. An absent/past expiry is NOT
+    /// active (was rendered as PRO via `subscriptionExpire != nil`, so an expired
+    /// user saw a crown — EXPIRED-PAYWALL polish 2026-06-17). Mirrors mayConnect.
+    var isSubscriptionActive: Bool {
+        Self.mayConnect(subscriptionExpire: subscriptionExpire,
+                        isPremium: subscriptionManager.isPremium, now: Date())
+    }
+
+    /// Returns true if the connect may proceed; false if the paywall was
+    /// presented instead. Tries a cross-device reclaim (config refresh +
+    /// StoreKit entitlement) before gating so a payer isn't stranded.
+    private func ensureSubscriptionForConnect() async -> Bool {
+        if Self.mayConnect(subscriptionExpire: subscriptionExpire,
+                           isPremium: subscriptionManager.isPremium, now: Date()) {
+            return true
+        }
+        // Reclaim 1: re-sync backend state (a payment we haven't pulled yet).
+        await refreshConfig()
+        subscriptionExpire = configStore.subscriptionExpire
+        if Self.mayConnect(subscriptionExpire: subscriptionExpire,
+                           isPremium: subscriptionManager.isPremium, now: Date()) {
+            return true
+        }
+        // Reclaim 2: StoreKit entitlement (non-CIS Apple payer auto-restore),
+        // then re-pull the backend state the reclaim updated.
+        if await subscriptionManager.reconcileEntitlementsSilently() {
+            await refreshConfig()
+            subscriptionExpire = configStore.subscriptionExpire
+            if Self.mayConnect(subscriptionExpire: subscriptionExpire,
+                               isPremium: subscriptionManager.isPremium, now: Date()) {
+                return true
+            }
+        }
+        TunnelFileLogger.log("requestToggle: connect gated — subscription expired, showing paywall", category: "ui")
+        requestPaywall = true
+        return false
     }
 
     /// Called by the primer's Continue button to proceed with the actual

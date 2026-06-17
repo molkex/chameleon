@@ -135,14 +135,29 @@ next:
       title: "Истёкшая подписка → при коннекте показать paywall + сервер выселяет истёкшие UUID"
       priority: P1
       pain: "#5 user-requested feature + revenue leak"
-      effort: S(client)+S(server-403-code)+M(server-evict)
-      build: true   # client; server parts deploy without build
-      anchors:
-        - clients/apple/MadFrogVPN/Models/AppState.swift:1250 requestToggle (gate connect on isPremium||expire>now; block nil-expire+cached-config); 488 fetchAndSaveConfig (add 403 arm)
-        - MainViewCalm.swift:75/333 + MainViewNeon.swift:118/442 (home shows expired as PRO — use isSubscriptionActive)
-        - backend/internal/api/mobile/config.go:59-61 (emit {"code":"SUBSCRIPTION_EXPIRED"} + X-Expire even on 403)
-        - backend/internal/cluster/sync.go:109/196 + cmd/chameleon (call ReloadVPNEngine on a timer regardless of `changed`; peers empty → loop never starts → expired UUIDs never evicted between deploys)
-      plan: "On connect intent, refreshConfig() (reclaim cross-device pay) then route to PaywallRouter if !active. Disconnect always allowed."
+      build: true   # client gate rides a build; server parts already deployed
+      status: client_gate_implemented_compile_verified   # macOS BUILD SUCCEEDED 2026-06-17
+      files:
+        - clients/apple/MadFrogVPN/Models/AppState.swift          # mayConnect (pure) + isSubscriptionActive + requestToggle gate + ensureSubscriptionForConnect (2-stage reclaim)
+        - clients/apple/MadFrogVPN/Views/MainView.swift           # PaywallRouter sheet on app.requestPaywall
+        - clients/apple/MadFrogVPN/Views/MainViewCalm.swift       # PRO header/crown → isSubscriptionActive
+        - clients/apple/MadFrogVPN/Views/MainViewNeon.swift       # PRO pill + strip text → isSubscriptionActive
+        - clients/apple/Tests/UnitTests/AppStateConnectGateTests.swift  # mayConnect truth table
+      done: |
+        CLIENT (rides build): requestToggle now gates the CONNECT intent — if not active, it tries a
+        2-stage reclaim (refreshConfig for cross-device pay, then StoreKit reconcileEntitlementsSilently)
+        and only then presents the paywall (AppState.requestPaywall → MainView sheet), so a payer is
+        never wrongly blocked; disconnect always allowed. Canonicalised the client "is active" check into
+        AppState.mayConnect (pure, unit-tested) + isSubscriptionActive, replacing the 4 `subscriptionExpire
+        != nil` sites that rendered an EXPIRED user as PRO. SERVER (already shipped in REFUND-NULL-EXPIRY-
+        GATE, deployed): /config 403 carries {"code":"SUBSCRIPTION_EXPIRED"}; the roster (ListActiveVPNUsers)
+        now excludes NULL/past expiry, so expired UUIDs ARE evicted (the chameleon restart on deploy
+        re-syncs the allow-set).
+      remaining: |
+        (1) fetchAndSaveConfig 403-arm: client could set an explicit expired flag from the new code (today
+        it relies on subscriptionExpire). Minor — gate already works via expiry/isPremium. (2) sync.go
+        PERIODIC re-evict between deploys (so a mid-cycle expiry drops within minutes, not at next deploy) —
+        separate server item.
     - id: REFUND-NULL-EXPIRY-GATE
       title: "NULL subscription_expiry канонизирован как 'нет покрытия' (закрыта утечка после рефанда)"
       priority: P1

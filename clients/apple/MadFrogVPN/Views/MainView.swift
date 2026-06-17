@@ -127,6 +127,13 @@ struct MainView: View {
                 .macSheetSize()
                 .macCloseButton { showPaywall = false }
         }
+        // EXPIRED-PAYWALL-ON-CONNECT: a gated connect attempt asks AppState to
+        // present the paywall (same PaywallRouter as the manual chip).
+        .sheet(isPresented: Bindable(app).requestPaywall) {
+            PaywallRouter().environment(app).environment(themeManager)
+                .macSheetSize()
+                .macCloseButton { app.requestPaywall = false }
+        }
         .sheet(isPresented: $showThemePicker) {
             ThemePickerView(isModal: true).environment(themeManager)
                 .macSheetSize()

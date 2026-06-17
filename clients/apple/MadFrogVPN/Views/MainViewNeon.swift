@@ -115,7 +115,7 @@ struct MainViewNeon: View {
 
             Spacer()
 
-            if app.subscriptionExpire != nil {
+            if app.isSubscriptionActive {
                 Button {
                     showPaywall = true
                 } label: {
@@ -440,7 +440,7 @@ struct MainViewNeon: View {
     }
 
     private var subscriptionStripLeftText: LocalizedStringKey {
-        app.subscriptionExpire != nil ? L10n.Home.subProActive : L10n.Home.subGetPro
+        app.isSubscriptionActive ? L10n.Home.subProActive : L10n.Home.subGetPro
     }
 
     private var subscriptionStripRightText: String {
