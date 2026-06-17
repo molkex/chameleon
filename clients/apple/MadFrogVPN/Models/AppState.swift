@@ -773,8 +773,14 @@ class AppState {
     private func tryRefreshToken() async -> Bool {
         guard let refreshToken = configStore.refreshToken else { return false }
         do {
-            let newAccessToken = try await apiClient.refreshAccessToken(refreshToken)
-            configStore.accessToken = newAccessToken
+            let result = try await apiClient.refreshAccessToken(refreshToken)
+            // Persist BOTH: the backend rotates the refresh token (single-use,
+            // blacklisted for 30d). Storing only the access token left the OLD,
+            // now-consumed refresh token in the keychain, so the NEXT refresh
+            // 401'd with "refresh token already used" → a re-login every ~24h
+            // (Pain #2). Order: access first, then the rotated refresh token.
+            configStore.accessToken = result.accessToken
+            configStore.refreshToken = result.refreshToken
             needsReauth = false // session restored silently
             AppLogger.app.info("tryRefreshToken: success")
             return true

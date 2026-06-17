@@ -74,6 +74,23 @@ struct AuthResult: Codable {
     }
 }
 
+/// Result of `POST /api/mobile/auth/refresh`.
+///
+/// The backend ROTATES the refresh token on every call: each refresh token is
+/// single-use and gets blacklisted (SHA-256) in Redis for 30 days. So the
+/// response carries a brand-new `refreshToken` that the caller MUST persist.
+/// Dropping it (keeping the old, now-consumed token) makes the *next* refresh
+/// resend a blacklisted token → backend 401 "refresh token already used" →
+/// forced visible re-login every ~24h. That was Pain #2.
+struct RefreshResult {
+    let accessToken: String
+    /// The rotated, single-use refresh token. Persist this, not the old one.
+    let refreshToken: String
+    /// Access-token expiry (unix → Date). Optional so an older backend that
+    /// omits `expires_at` still decodes. Available for future proactive refresh.
+    let expiresAt: Date?
+}
+
 /// Delegate that trusts all certificates **only for known fallback hosts**.
 /// When Cloudflare is blocked (e.g. in Russia), the app falls back to direct
 /// IP or the SPB relay which present self-signed or IP-based certificates.
@@ -720,7 +737,7 @@ class APIClient {
     /// IP. Previously this used only `session.data(for:)`, so a primary-host
     /// outage silently fell through to `reRegisterDevice()` and the user
     /// lost their subscription tier by getting a fresh anonymous account.
-    func refreshAccessToken(_ refreshToken: String) async throws -> String {
+    func refreshAccessToken(_ refreshToken: String) async throws -> RefreshResult {
         guard let url = URL(string: "\(AppConstants.baseURL)/api/mobile/auth/refresh") else {
             throw APIError.networkError("Invalid URL")
         }
@@ -736,11 +753,29 @@ class APIClient {
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             throw APIError.unauthorized
         }
-        let json = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
-        guard let token = json["access_token"] as? String else {
+        // Parsing is a pure helper (testability extract, mirrors raceLegPlan):
+        // it surfaces the ROTATED refresh_token so the caller can persist it.
+        guard let result = Self.parseRefreshResponse(data, sentRefreshToken: refreshToken) else {
             throw APIError.unauthorized
         }
-        return token
+        return result
+    }
+
+    /// Parse a successful `/api/mobile/auth/refresh` body. Pure + static so the
+    /// rotation invariant is unit-testable without a live backend.
+    ///
+    /// The backend rotates the refresh token, so the response's `refresh_token`
+    /// MUST win over the one we sent. If the backend omits it (older server),
+    /// fall back to `sentRefreshToken` so the caller never persists an empty
+    /// string. Returns nil iff `access_token` is missing (→ treat as 401).
+    static func parseRefreshResponse(_ data: Data, sentRefreshToken: String) -> RefreshResult? {
+        guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let token = json["access_token"] as? String else {
+            return nil
+        }
+        let rotated = (json["refresh_token"] as? String) ?? sentRefreshToken
+        let expiresAt = (json["expires_at"] as? Double).map { Date(timeIntervalSince1970: $0) }
+        return RefreshResult(accessToken: token, refreshToken: rotated, expiresAt: expiresAt)
     }
 
     // MARK: - Support chat
