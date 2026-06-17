@@ -17,22 +17,32 @@ final class AcctIdentityTests: XCTestCase {
 
     // MARK: - P0 invariant: never anon-demote an identity user
 
-    func testAnonUserMayReRegister() {
-        XCTAssertTrue(AppState.shouldAnonReRegister(authProvider: nil),
-                      "a user with no identity is the only case where anon re-register is valid")
+    func testAnonUserNeverOnboardedMayReRegister() {
+        XCTAssertTrue(AppState.shouldAnonReRegister(authProvider: nil, onboardingCompleted: false),
+                      "no identity + never onboarded (fresh install / true reinstall) is the only valid anon re-register")
+    }
+
+    func testOnboardedUserIsNeverAnonWiped() {
+        // ACCT-IDENTITY-3: a returning user whose authProvider went transiently
+        // nil (Apple sign-in not fully persisted during an RU network blackout)
+        // must NOT be wiped to a fresh anon trial — their real account exists
+        // server-side. This was the field bug (paid acct 12351 dropped to onboarding).
+        XCTAssertFalse(AppState.shouldAnonReRegister(authProvider: nil, onboardingCompleted: true),
+                       "an onboarded user must never be silently demoted to anon, even with nil authProvider")
     }
 
     func testAppleUserIsNeverAnonDemoted() {
-        XCTAssertFalse(AppState.shouldAnonReRegister(authProvider: "apple"),
+        XCTAssertFalse(AppState.shouldAnonReRegister(authProvider: "apple", onboardingCompleted: false),
                        "THE BUG: an Apple identity must never fall back to anon register")
+        XCTAssertFalse(AppState.shouldAnonReRegister(authProvider: "apple", onboardingCompleted: true))
     }
 
     func testGoogleUserIsNeverAnonDemoted() {
-        XCTAssertFalse(AppState.shouldAnonReRegister(authProvider: "google"))
+        XCTAssertFalse(AppState.shouldAnonReRegister(authProvider: "google", onboardingCompleted: false))
     }
 
     func testEmailUserIsNeverAnonDemoted() {
-        XCTAssertFalse(AppState.shouldAnonReRegister(authProvider: "email"))
+        XCTAssertFalse(AppState.shouldAnonReRegister(authProvider: "email", onboardingCompleted: false))
     }
 
     // MARK: - P0 (recurred build 98): a bad cached config must NOT wipe identity

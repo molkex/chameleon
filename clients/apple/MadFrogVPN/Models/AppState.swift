@@ -504,7 +504,7 @@ class AppState {
             let refreshed = await tryRefreshToken()
             if refreshed {
                 try await doFetchAndSave(username: username)
-            } else if AppState.shouldAnonReRegister(authProvider: configStore.authProvider) {
+            } else if AppState.shouldAnonReRegister(authProvider: configStore.authProvider, onboardingCompleted: hasCompletedOnboarding) {
                 // Anonymous device account — safe to mint a fresh one.
                 AppLogger.app.info("fetchAndSaveConfig: refresh failed (anon), re-registering device")
                 try await reRegisterDevice()
@@ -522,7 +522,7 @@ class AppState {
         } catch APIError.serverError(let code) where code == 404 {
             // Backend returns 404 when JWT is valid but user_id is not in DB
             // (DB wiped, migration, soft-delete edge case, etc).
-            if AppState.shouldAnonReRegister(authProvider: configStore.authProvider) {
+            if AppState.shouldAnonReRegister(authProvider: configStore.authProvider, onboardingCompleted: hasCompletedOnboarding) {
                 // Anon: stale creds survive iOS reinstall via Keychain — only
                 // re-registering can unstick. Symptom: "404 on fresh install".
                 AppLogger.app.info("fetchAndSaveConfig: 404 user_not_found (anon), clearing creds + re-registering")
@@ -835,8 +835,24 @@ class AppState {
     /// so the caller re-auths that identity (reclaim by Apple `sub` / magic-link)
     /// instead. Pure + static so it can be unit-tested without constructing the
     /// heavyweight AppState (same pattern as `shouldEscalateBeyondCountry`).
-    static func shouldAnonReRegister(authProvider: String?) -> Bool {
-        authProvider == nil
+    static func shouldAnonReRegister(authProvider: String?, onboardingCompleted: Bool) -> Bool {
+        // ACCT-IDENTITY-3 (2026-06-17): also require that onboarding was NEVER
+        // completed. Field data: a paying Apple user (acct 12351) was silently
+        // wiped to anon and dropped to the first-run onboarding screen because
+        // authProvider went transiently nil — an Apple sign-in that the server
+        // accepted (200) but the client didn't fully persist during an RU network
+        // blackout — and the next /config 404 hit this re-register path. A user who
+        // has completed onboarding has a real account server-side (reclaimed by
+        // re-auth), so NEVER mint a fresh anon trial for them. onboardingCompleted
+        // lives in App Group UserDefaults — it survives keychain loss but is reset
+        // by a genuine delete+reinstall, so a true reinstall still re-registers.
+        authProvider == nil && !onboardingCompleted
+    }
+
+    /// Whether the user has ever completed onboarding (App Group UserDefaults,
+    /// survives keychain loss). Guards the anon re-register path above.
+    private var hasCompletedOnboarding: Bool {
+        UserDefaults(suiteName: AppConstants.appGroupID)?.bool(forKey: AppConstants.onboardingCompletedKey) ?? false
     }
 
     /// A real sing-box config ALWAYS contains an `outbounds` array. Error JSON
