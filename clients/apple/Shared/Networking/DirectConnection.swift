@@ -1,6 +1,7 @@
 import Foundation
 import Network
 import Security
+import CryptoKit
 import os.log
 
 /// Direct TLS dial to a hardcoded IP while presenting a chosen SNI —
@@ -48,6 +49,13 @@ enum DirectConnection {
     /// Perform a single HTTP request against `ip` with the given `sni`
     /// (placed into both TLS ClientHello and HTTP Host header). Returns
     /// body + status. Throws on transport/TLS failure or timeout.
+    /// `pinnedCertSHA256` — when non-nil, the server cert is validated by
+    /// pinning its leaf DER SHA-256 (lowercase hex) instead of chain-vs-SNI.
+    /// Used by the RU-DECOY-SNI leg: it presents a clean SNI (ads.adfox.ru)
+    /// the SNI-filter won't RST, to our MSK relay which serves a self-signed
+    /// cert (no CA chain to validate). Pinning also means a network that
+    /// SNI-hijacks ads.adfox.ru to the REAL adfox gets rejected here — we
+    /// never hand credentials to a server we didn't provision.
     static func request(
         ip: String,
         port: UInt16 = 443,
@@ -56,7 +64,8 @@ enum DirectConnection {
         path: String,
         headers: [String: String],
         body: Data?,
-        timeout: TimeInterval
+        timeout: TimeInterval,
+        pinnedCertSHA256: String? = nil
     ) async throws -> (Data, HTTPResponseMeta) {
         let start = DispatchTime.now()
         return try await withThrowingTaskGroup(of: (Data, HTTPResponseMeta).self) { group in
@@ -65,7 +74,7 @@ enum DirectConnection {
                     ip: ip, port: port, sni: sni,
                     method: method, path: path,
                     headers: headers, body: body,
-                    start: start
+                    start: start, pinnedCertSHA256: pinnedCertSHA256
                 )
             }
             group.addTask {
@@ -90,13 +99,51 @@ enum DirectConnection {
         ip: String, port: UInt16, sni: String,
         method: String, path: String,
         headers: [String: String], body: Data?,
-        start: DispatchTime
+        start: DispatchTime, pinnedCertSHA256: String? = nil
     ) async throws -> (Data, HTTPResponseMeta) {
 
         // Build TLS options with the SNI we want to present. The server
         // sees sni (e.g. "api.madfrog.online"), TCP goes to `ip`.
         let tlsOptions = NWProtocolTLS.Options()
         sec_protocol_options_set_tls_server_name(tlsOptions.securityProtocolOptions, sni)
+
+        // RU-DECOY-SNI (2026-06-17): when a pin is supplied, validate by
+        // leaf-cert SHA-256 instead of chain-vs-SNI. The decoy leg presents
+        // SNI=ads.adfox.ru to our MSK relay (self-signed cert), so a
+        // SecPolicy(ads.adfox.ru) chain check would always fail. Pinning is
+        // strictly *stronger* than name validation here: only the exact cert
+        // we provisioned on MSK is accepted; a hijack to the real adfox (valid
+        // GlobalSign cert) is rejected, so credentials never leak.
+        if let pin = pinnedCertSHA256?.lowercased() {
+            sec_protocol_options_set_verify_block(
+                tlsOptions.securityProtocolOptions,
+                { _, sec_trust, complete in
+                    let trust = sec_trust_copy_ref(sec_trust).takeRetainedValue()
+                    guard let chain = SecTrustCopyCertificateChain(trust) as? [SecCertificate],
+                          let leaf = chain.first else {
+                        AppLogger.network.error("direct.pin no-leaf sni=\(sni, privacy: .public)")
+                        complete(false)
+                        return
+                    }
+                    let der = SecCertificateCopyData(leaf) as Data
+                    let got = SHA256.hash(data: der).map { String(format: "%02x", $0) }.joined()
+                    if got != pin {
+                        AppLogger.network.error("direct.pin mismatch sni=\(sni, privacy: .public) got=\(got, privacy: .public)")
+                    }
+                    complete(got == pin)
+                },
+                .global()
+            )
+            let tcpOptions = NWProtocolTCP.Options()
+            tcpOptions.noDelay = true
+            tcpOptions.connectionTimeout = 5
+            return try await runWith(
+                params: NWParameters(tls: tlsOptions, tcp: tcpOptions),
+                ip: ip, port: port, sni: sni,
+                method: method, path: path,
+                headers: headers, body: body, start: start
+            )
+        }
 
         // Audit H-002b (2026-05-27): validate the cert chain against `sni`.
         // The platform's default verifier uses the *hostname* in the URL,
@@ -135,7 +182,22 @@ enum DirectConnection {
         tcpOptions.noDelay = true
         tcpOptions.connectionTimeout = 5
 
-        let params = NWParameters(tls: tlsOptions, tcp: tcpOptions)
+        return try await runWith(
+            params: NWParameters(tls: tlsOptions, tcp: tcpOptions),
+            ip: ip, port: port, sni: sni,
+            method: method, path: path,
+            headers: headers, body: body, start: start
+        )
+    }
+
+    /// Run a single HTTP/1.1 request over a fully-configured NWParameters
+    /// (TLS options + verify block already applied). Shared by the pinned and
+    /// chain-validated paths of `performRequest`.
+    private static func runWith(
+        params: NWParameters, ip: String, port: UInt16, sni: String,
+        method: String, path: String,
+        headers: [String: String], body: Data?, start: DispatchTime
+    ) async throws -> (Data, HTTPResponseMeta) {
         let host = NWEndpoint.Host(ip)
         let nwPort = NWEndpoint.Port(rawValue: port)!
         let connection = NWConnection(host: host, port: nwPort, using: params)

@@ -246,6 +246,17 @@ class APIClient {
         }
     }
 
+    /// RU-DECOY-SNI (2026-06-17): whether to add the clean-SNI decoy leg
+    /// (ads.adfox.ru → MSK, pinned cert). It's the most reliable backend path
+    /// when RKN SNI-filters api.madfrog.online, so it runs for every sensitive
+    /// request (sign-in / refresh) and for any request from RU or an unknown
+    /// region. Confirmed non-RU regions skip it — their primary path is clean
+    /// and the extra dial would be wasted.
+    static func shouldUseDecoyLeg(sensitive: Bool, region: String?) -> Bool {
+        if sensitive { return true }
+        return region == nil || region == "RU"
+    }
+
     init() {
         let config = URLSessionConfiguration.default
         // RU operators frequently SNI-filter Cloudflare ranges; in that case
@@ -389,6 +400,42 @@ class APIClient {
                 AppLogger.network.info("race.sensitive=true direct_tls_legs=\(raceIPs.count, privacy: .public) http80=skipped")
             } else if Locale.current.region?.identifier == "RU" {
                 AppLogger.network.info("race.region ru=true skipped=DE")
+            }
+
+            // RU-DECOY-SNI (2026-06-17): the highest-priority hedge. Dials the
+            // MSK relay with a clean SNI (ads.adfox.ru) RKN won't RST and a
+            // pinned self-signed cert, routing to the API via the Host header.
+            // Fires at T+150ms so a genuinely-fast primary still wins first, but
+            // ahead of the direct-IP legs (which all carry the filtered SNI).
+            if Self.shouldUseDecoyLeg(sensitive: sensitive, region: Locale.current.region?.identifier) {
+                group.addTask {
+                    try? await Task.sleep(for: .milliseconds(150))
+                    if Task.isCancelled { return nil }
+                    AppLogger.network.info("race.decoy.start sni=\(AppConfig.decoySNI, privacy: .public) ip=\(AppConfig.decoyRelayIP, privacy: .public) elapsed=\(Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000, privacy: .public)ms")
+                    do {
+                        let (bodyData, meta) = try await DirectConnection.request(
+                            ip: AppConfig.decoyRelayIP, port: 443, sni: AppConfig.decoySNI,
+                            method: method, path: path,
+                            headers: reqHeaders, body: body,
+                            timeout: 6, pinnedCertSHA256: AppConfig.decoyCertPin
+                        )
+                        let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
+                        if !Self.fallbackLegWins(status: meta.status, policy: winPolicy) {
+                            AppLogger.network.info("race.decoy.done rejected status=\(meta.status, privacy: .public) policy=\(String(describing: winPolicy), privacy: .public) elapsed=\(ms, privacy: .public)ms")
+                            return nil
+                        }
+                        let response = HTTPURLResponse(
+                            url: url, statusCode: meta.status,
+                            httpVersion: "HTTP/1.1", headerFields: meta.headers
+                        )!
+                        AppLogger.network.info("race.decoy.done ok status=\(meta.status, privacy: .public) elapsed=\(ms, privacy: .public)ms")
+                        return (bodyData, response, "decoy")
+                    } catch {
+                        let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
+                        AppLogger.network.error("race.decoy.done error=\(error.localizedDescription, privacy: .public) elapsed=\(ms, privacy: .public)ms")
+                        return nil
+                    }
+                }
             }
             // Build-36: hedged dispatch (Dean & Barroso "Tail at Scale").
             // Primary fires at T+0; each direct leg waits legIndex*250ms before

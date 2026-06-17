@@ -41,6 +41,22 @@ enum AppConfig {
         URL(string: baseURL)?.host ?? "madfrog.online"
     }
 
+    // RU-DECOY-SNI (2026-06-17): the single most-reliable backend path on a
+    // hostile RU network without a VPN. Measured root cause: RKN's TSPU
+    // SNI-filters `api.madfrog.online` and RSTs the TLS connection (sometimes
+    // mid-response — the server logs 200 but the client never receives it),
+    // which is why every existing race leg (all present that SNI) fails
+    // together, and why sign-in works only with a VPN on. This leg dials the
+    // MSK relay with a CLEAN SNI the filter ignores — `ads.adfox.ru`, the same
+    // camouflage SNI the VPN data-plane already uses successfully — and routes
+    // to the API via the HTTP Host header. MSK serves a self-signed cert we
+    // PIN (decoyCertPin), so the leg is dropped if a network SNI-hijacks
+    // ads.adfox.ru to the real adfox — credentials never leak.
+    static let decoySNI = "ads.adfox.ru"
+    static let decoyRelayIP = "217.198.5.52"   // MSK relay (RU, domestic)
+    /// Leaf-cert DER SHA-256 (lowercase hex) of /etc/nginx/decoy/adfox.crt on MSK.
+    static let decoyCertPin = "497b4ffdc53c9763db397e0453fa70fd16233a2368d081ee06a4106e9a9a82c9"
+
     /// App Group ID (must match your provisioning profile)
     static let appGroupID = "group.com.madfrog.vpn"
 

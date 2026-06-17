@@ -59,4 +59,24 @@ final class APIClientWinPolicyTests: XCTestCase {
         XCTAssertEqual(plan.directIPs, ["147.45.252.234", "185.218.0.43"])
         XCTAssertTrue(plan.httpEightyIPs.isEmpty, "auth must never use cleartext HTTP:80 legs (H-001)")
     }
+
+    // MARK: - RU-DECOY-SNI gate (clean-SNI MSK leg)
+
+    /// Sign-in / refresh (sensitive) must ALWAYS get the decoy leg — it's the
+    /// only path that survives RKN's api.madfrog.online SNI filter without a VPN.
+    func testDecoyLeg_alwaysOnForSensitive() {
+        for region in ["RU", "US", "DE", nil] {
+            XCTAssertTrue(APIClient.shouldUseDecoyLeg(sensitive: true, region: region),
+                          "sensitive auth must use the decoy leg regardless of region (\(region ?? "nil"))")
+        }
+    }
+
+    /// Non-sensitive requests use the decoy leg only where the filtered SNI
+    /// bites: RU or an unknown region. A confirmed non-RU region skips it.
+    func testDecoyLeg_regionGatedForNonSensitive() {
+        XCTAssertTrue(APIClient.shouldUseDecoyLeg(sensitive: false, region: "RU"))
+        XCTAssertTrue(APIClient.shouldUseDecoyLeg(sensitive: false, region: nil))
+        XCTAssertFalse(APIClient.shouldUseDecoyLeg(sensitive: false, region: "US"))
+        XCTAssertFalse(APIClient.shouldUseDecoyLeg(sensitive: false, region: "DE"))
+    }
 }
