@@ -221,8 +221,19 @@ next:
       pain: "#4"
       effort: S(client)+M(server)
       build: true
-      anchor: client send-log fallback reports .sent; backend SupportSend accepts key without B2 HEAD
-      plan: "Client .sentWithoutLog + soft toast (no success-haptic when log missing). Backend HEAD B2 object before accept (400 if absent); typed attachments_unavailable when Storage==nil. Verify B2 CORS allowlist for user-side PUT (or proxy via backend = same-origin)."
+      status: client_done_compile_verified   # macOS BUILD SUCCEEDED 2026-06-17; server HEAD-check remains
+      files:
+        - clients/apple/MadFrogVPN/Models/AppState.swift       # SupportDiagnosticResult.sentWithoutLog
+        - clients/apple/MadFrogVPN/Views/SupportChatView.swift # distinct "журнал не приложился" alert, no success haptic
+      done: |
+        CLIENT (rides build): sendSupportDiagnostic returns .sentWithoutLog when a log EXISTED but the
+        attachment failed and only the text snapshot went — distinct from .sent (no log on disk =
+        nothing lost) and .failed. SupportChatView shows a "Журнал не приложился" alert (no success
+        haptic) instead of a false success.
+      remaining: |
+        SERVER (deploy, no build): SupportSend HEAD-checks the B2 object before accepting the key (400
+        if absent) + typed attachments_unavailable when Storage==nil; verify B2 CORS allowlist for the
+        user-side PUT (or proxy via backend = same-origin). Defense-in-depth, separate deploy.
     # Phase 2 — reliability/infra (P1/P2)
     - id: EXIT-HEALTH-GATING
       title: "Health-gating выходов — троттленный GRA попадает в каждый конфиг, не отзывается"
@@ -260,8 +271,15 @@ next:
       priority: P2
       effort: S
       build: true
-      anchor: MainViewCalm.swift:330 + MainViewNeon.swift:120/416
-      plan: "Trigger PaywallRouter on trial-expiry transition at launch + one-time post-onboarding; instrument paywall.route/paywall.view; measure lift vs 9/257."
+      status: largely_addressed_by_connect_gate   # 2026-06-17 decision
+      decision: |
+        EXPIRED-PAYWALL-ON-CONNECT (shipped this batch) already converts the funnel: every expired
+        user who taps connect now sees the paywall in the moment of intent — a far stronger, less
+        annoying trigger than an auto-popup. A launch-time auto-paywall risks nagging users on every
+        open and overlaps the connect-gate, so it's DEFERRED. If post-build telemetry still shows low
+        paywall exposure, the non-annoying remainder is: (1) instrument paywall.route/paywall.view to
+        measure, (2) a ONE-TIME paywall on the trial→expired transition (state-tracked, not every
+        launch). Measure first, then decide.
     - id: AUDIT-DEBT-CLEANUP
       title: "Долги/рефакторы из аудита (dead-code, SRV-DYNAMIC, goroutines, watchdog 37→<30s)"
       priority: P3

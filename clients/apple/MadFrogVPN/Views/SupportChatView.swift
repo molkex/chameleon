@@ -22,6 +22,7 @@ struct SupportChatView: View {
     @State private var sendingDiag = false
     @State private var showDiagConfirm = false
     @State private var showDiagError = false
+    @State private var showDiagPartial = false   // SENDLOG-NO-SILENT-LOSS: snapshot sent, log attach failed
     @State private var diagSuccessTick = 0   // drives .sensoryFeedback on a successful send
 
     var body: some View {
@@ -74,6 +75,11 @@ struct SupportChatView: View {
             } message: {
                 Text("Проверьте подключение к интернету и попробуйте ещё раз.")
             }
+            .alert("Журнал не приложился", isPresented: $showDiagPartial) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Снимок состояния отправлен, но журнал подключения приложить не удалось. Попробуйте ещё раз или опишите проблему текстом.")
+            }
             .sensoryFeedback(.success, trigger: diagSuccessTick)
         }
         .task { token = await app.accessTokenForSupportChat() }
@@ -87,6 +93,7 @@ struct SupportChatView: View {
             sendingDiag = false
             switch result {
             case .sent: diagSuccessTick &+= 1
+            case .sentWithoutLog: showDiagPartial = true   // no success haptic — the log didn't attach
             case .failed: showDiagError = true
             }
         }

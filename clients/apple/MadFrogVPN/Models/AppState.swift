@@ -666,7 +666,12 @@ class AppState {
 
     /// Outcome of the one-tap "Отправить лог" action so the chat view can give
     /// the user feedback (it used to fail completely silently).
-    enum SupportDiagnosticResult { case sent, failed }
+    /// SENDLOG-NO-SILENT-LOSS (2026-06-17): `.sentWithoutLog` distinguishes
+    /// "the snapshot went but the singbox.log attachment FAILED" from a clean
+    /// `.sent`. Previously the attachment-fail path silently fell back to
+    /// text-only and reported `.sent`, so the user thought the log was attached
+    /// when only the text snapshot went ("думаешь отправил лог, а ушёл текст").
+    enum SupportDiagnosticResult { case sent, sentWithoutLog, failed }
 
     /// One-tap diagnostic for the support chat ("Отправить лог" button). Ships
     /// the app/device/VPN snapshot (state the webview can't see) AS the message
@@ -693,9 +698,20 @@ class AppState {
                 return .sent
             } catch {
                 AppLogger.app.error("sendSupportDiagnostic (with log) failed: \(error.localizedDescription) — retrying text-only")
-                // fall through to the text-only path below
+                // A log EXISTED but couldn't be attached. Still send the text
+                // snapshot so support gets something, but report .sentWithoutLog
+                // — the caller must NOT claim the log was attached.
+                do {
+                    try await apiClient.sendSupportMessage(text: snapshot, accessToken: token)
+                    return .sentWithoutLog
+                } catch {
+                    AppLogger.app.error("sendSupportDiagnostic text-only fallback failed: \(error.localizedDescription)")
+                    return .failed
+                }
             }
         }
+        // No log on disk yet (VPN never connected) — text-only IS the complete
+        // result here, nothing was lost.
         do {
             try await apiClient.sendSupportMessage(text: snapshot, accessToken: token)
             return .sent
