@@ -19,7 +19,7 @@
 # Test coverage + how-to-verify each layer: state/test-map.yaml (decision 0009).
 
 meta:
-  updated: 2026-06-06
+  updated: 2026-06-17
   branch: main
   direction: on_track          # see `assessment` at the bottom
 
@@ -91,6 +91,12 @@ open_decisions:                  # waiting on the user
 
 # ── Shipped (detail: roadmap.yaml#done + incidents/*) ──
 recent:
+  - FULL-SERVICE-AUDIT (2026-06-17) — 35-agent multi-agent audit (8 subsystems, 53 findings,
+    22 P0/P1 verified). Report at audits/2026-06-17-full-service-audit.md. Plan laid into
+    roadmap.yaml#now.audit_2026_06_17_phase0 (P0) + next.audit_2026_06_17 (P1-3). Through-line —
+    core healthy, РФ-network edge cases collapse UX. Top-5 — DNS-FALLBACK (инста, server-only),
+    AUTH-DIRECT-IP-INTERACTIVE (RU sign-in), REFRESH-TOKEN-PERSIST (force-relogin ~daily),
+    SSE-CHATTOKEN-REMINT (chat dies), EXPIRED-PAYWALL-ON-CONNECT (feature + revenue leak). Not started.
   - VPN-DROPS-TRIAGE (2026-06-06) — user "отваливается чаще / вылетает / перезайти в акк".
     ROOT CAUSE of drops = NE memory pressure: sing-box oom-killer "resetting network" at
     40 MiB (iOS ~50 MB extension cap), fed by an UNBOUNDED singbox.log (writeDebugMessage

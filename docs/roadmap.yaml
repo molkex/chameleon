@@ -15,12 +15,199 @@ verified: 2026-06-02T00:30:00Z
 now:
   # ACCT-IDENTITY (P0) + SEC-01/03/04 + VPN-TG-MEDIA + FR-RELAY-LEGS → done 2026-06-01.
   # TRAFFIC-MULTIEXIT → DONE + deployed + verified 2026-06-04 (see done log).
-  []  # no active blockers
+  #
+  # FULL-SERVICE AUDIT 2026-06-17 (35-agent, 8 subsystems, 53 findings, 22 P0/P1 verified).
+  # Full report + per-finding anchors + phased plan: docs/audits/2026-06-17-full-service-audit.md
+  # Trigger: user pain — Instagram-not-loading, re-enter-app, RU sign-in flapping, support-chat unclear.
+  # THROUGH-LINE: core is healthy; РФ-network edge cases collapse UX. Phase-0 = top felt-pain.
+  audit_2026_06_17_phase0:
+    - id: DNS-FALLBACK
+      title: "[SUPERSEDED] DNS-фолбэк для proxied-доменов — НЕ реализуем в sing-box 1.13"
+      priority: P0
+      pain: "#1 Instagram-not-loading"
+      status: superseded_by STALL-DNS-SIGNAL
+      finding_2026_06_17: |
+        Investigated (docs + live probes). VERDICT: the audit's "add a fallback DNS server"
+        is NOT buildable in sing-box 1.13 — dns.fallback/disable_fallback are gone and the
+        evaluate/respond DNS actions that would express conditional fallback are 1.14+ (we're
+        pinned to 1.13 for Xray compat). ALSO disproved server-side health-gating from our RU
+        boxes: live curl from MSK+SPB showed GRA and NL EQUALLY reachable (connect ~50ms) —
+        the RU→FR throttle is intermittent on residential/mobile paths our datacenter relays
+        can't see, so gating from those vantages would false-"healthy". The only honest vantage
+        is the client (urltest through the tunnel from the user's real network). → pivoted to
+        STALL-DNS-SIGNAL.
+    - id: STALL-DNS-SIGNAL
+      title: "Детектор видит смерть DNS-через-прокси (инста не грузит → авто-уход с мёртвой ноги)"
+      priority: P0
+      pain: "#1 Instagram-not-loading + #2 re-enter"
+      effort: M
+      build: true   # client NE change; rides next build, on-device verify
+      status: implemented_compile_verified   # macOS BUILD SUCCEEDED 2026-06-17; iOS test compiles in CI (no local sim)
+      files:
+        - clients/apple/Shared/StallSignals.swift                       # NEW pure seam (parse + decision), testable in MadFrogVPN target
+        - clients/apple/PacketTunnel/RealTrafficStallDetector.swift     # +65 lines: independent DNS-stall trigger
+        - clients/apple/Tests/UnitTests/StallSignalsTests.swift         # NEW: real log lines from the user's capture
+      finding: |
+        RealTrafficStallDetector (the only honest, in-tunnel recovery signal) was BLIND to the
+        field's dominant failure: it ingested only "connection: open connection to … timeout"
+        lines, but the user's log was dominated by "dns: exchange failed for …facebook.com …
+        dial tcp 54.38.243.162:443: i/o timeout" (626×) — which carry no "open connection to"
+        anchor, so nothing counted them and the detector never fired in the bricked-Instagram case.
+      plan: |
+        Added a high-confidence, INDEPENDENT DNS-stall trigger (StallSignals.dnsFailureDomain +
+        dnsStallReached): ≥8 DISTINCT domains time out to resolve AND zero successful dials in the
+        30s window → fire stall → existing re-elect/nudge recovery. Existing dial-timeout
+        thresholds + logic untouched (zero regression risk). DNS failures are not ad-noise, so no
+        meaningfulDownload suppressor needed.
+      remaining: |
+        Recovery-ACTION quality (nudge→urltest) is still limited when the user PINNED a dead
+        country (Auto has nothing to fail to, by Build-42 design) → next layer is an actionable
+        UX ("🇫🇷 недоступна — на Auto?"). On-device verification pending (rides a build).
+    - id: AUTH-DIRECT-IP-INTERACTIVE
+      title: "Direct-IP fallback для интерактивного входа (Apple/Google/magic-verify) — primary-only через CF"
+      priority: P0
+      pain: "#3 RU sign-in flapping"
+      effort: M
+      build: true
+      anchor: clients/apple/MadFrogVPN/Models/APIClient.swift:584/626/695 (bare session.data)
+      plan: |
+        Route through dataWithFallback(sensitive:true) (cert-validated direct-IP, MITM-safe per H-002b).
+        MUST FIRST tighten winner-rule in dataWithFallback (:345/:404): a leg wins only on 2xx OR 401
+        (currently any <500 → build-53 regression risk). +1 retry on network-error. Also closes the
+        magic-verify asymmetry (:695). Unit-test winner-selection; on-device sign-in from RU w/ throttled CF.
+    - id: REFRESH-TOKEN-PERSIST
+      title: "Сохранять rotated refresh-token + expires_at (детерминированный force-релогин ~раз/сутки)"
+      priority: P0
+      pain: "#2 re-enter-app (biggest measurable driver)"
+      effort: M
+      build: true
+      spawned_task: task_cf453dc4
+      anchor: APIClient.refreshAccessToken:723-744 (drops new refresh_token) + AppState.tryRefreshToken:773-785; backend rotates single-use (auth.go:460-516)
+      plan: |
+        Parse+persist new refresh_token + expires_at (backend already returns expires_at jwt.go:41/109).
+        In initialize() proactively refresh near expiry before first authed call. Unit: 2nd refresh uses
+        NEW token; integration: double-refresh no 401.
+    - id: OOM-SELF-HEAL
+      title: "Self-heal туннеля после oom-killer 'resetting network' (никто не переподнимает)"
+      priority: P1   # felt-pain high but needs app-build + on-device mem measurement
+      pain: "#2 re-enter-app"
+      effort: M
+      build: true
+      anchor: RealTrafficStallDetector.swift:77-96 (thresholds inflated, addCloseEvent suppressor dead); reload via ExtensionProvider.swift:459
+      plan: |
+        Fast-path match 'resetting network' / 'memory pressure: critical' in the log parser
+        (ExtensionPlatformInterface.swift:355) → on N hits in window, re-apply routing + nudgeNow()/reloadService.
+        Companion (with field memoryWatchdog before/after, NOT blind): GOMEMLIMIT 42→46-48MiB, drop dead
+        dns-fakeip (clientconfig.go:507), reconcile independent_cache. unit on matcher + injected-log integration.
 
 # ============================================================
 # NEXT — 1-2 week queue, ready to start
 # ============================================================
 next:
+  # ── FULL-SERVICE AUDIT 2026-06-17 — Phases 1-3 (detail+anchors: docs/audits/2026-06-17-full-service-audit.md) ──
+  # Phase 0 (P0) lives in now#audit_2026_06_17_phase0. Items below cross-link existing roadmap ids where they overlap.
+  audit_2026_06_17:
+    # Phase 1 — features & костыли (P1)
+    - id: EXPIRED-PAYWALL-ON-CONNECT
+      title: "Истёкшая подписка → при коннекте показать paywall + сервер выселяет истёкшие UUID"
+      priority: P1
+      pain: "#5 user-requested feature + revenue leak"
+      effort: S(client)+S(server-403-code)+M(server-evict)
+      build: true   # client; server parts deploy without build
+      anchors:
+        - clients/apple/MadFrogVPN/Models/AppState.swift:1250 requestToggle (gate connect on isPremium||expire>now; block nil-expire+cached-config); 488 fetchAndSaveConfig (add 403 arm)
+        - MainViewCalm.swift:75/333 + MainViewNeon.swift:118/442 (home shows expired as PRO — use isSubscriptionActive)
+        - backend/internal/api/mobile/config.go:59-61 (emit {"code":"SUBSCRIPTION_EXPIRED"} + X-Expire even on 403)
+        - backend/internal/cluster/sync.go:109/196 + cmd/chameleon (call ReloadVPNEngine on a timer regardless of `changed`; peers empty → loop never starts → expired UUIDs never evicted between deploys)
+      plan: "On connect intent, refreshConfig() (reclaim cross-device pay) then route to PaywallRouter if !active. Disconnect always allowed."
+    - id: REFUND-NULL-EXPIRY-GATE
+      title: "Refund → subscription_expiry=NULL проходит /config gate (полностью возвращённый юзер сохраняет VPN)"
+      priority: P1
+      effort: S
+      build: false
+      anchor: backend/internal/payments/credit.go:260 + config.go:59/:259
+      plan: "In setStatusAndReconcile when newExpiry==nil set is_active=false (guard refund/former-payer, not trial pre-pay). Test: /config 403 after refund of sole charge."
+    - id: SSE-CHATTOKEN-REMINT
+      title: "Чат поддержки молча умирает — 10-мин SSE-токен не перевыпускается на reconnect"
+      priority: P1
+      pain: "#4 support-chat unclear + #2 re-enter"
+      effort: S
+      build: true   # re-bundle widget
+      anchor: clients/widget/index.html:286/295/416 (token baked in EventSource URL, TTL 10m jwt.go:159)
+      plan: "On sse.onerror close + debounced openStream() with re-fetch /support/chat-token + backoff; re-open on visibilitychange→visible. Also fixes in-page Bearer refresh (P2)."
+    - id: COUNTRY-PICK-STICKY
+      title: "Живой выбор страны молча сбрасывается в Auto (выбор не запоминается)"
+      priority: P1
+      pain: "#6"
+      effort: M
+      build: true
+      anchor: clients/apple/MadFrogVPN/Models/AppState.swift:1867 resolveSelectionChain (strict) + :1877-1880 destructive reset
+      plan: "applyServerSelectionIfLive use forgiving chainOrFallback(target:); remove the persisted-selection nuke on non-resolve — keep pin, log, let next config-refresh reconcile."
+    - id: SENDLOG-NO-SILENT-LOSS
+      title: "Кнопка 'отправить лог' при сбое рапортует успех, но лог не приложился"
+      priority: P1
+      pain: "#4"
+      effort: S(client)+M(server)
+      build: true
+      anchor: client send-log fallback reports .sent; backend SupportSend accepts key without B2 HEAD
+      plan: "Client .sentWithoutLog + soft toast (no success-haptic when log missing). Backend HEAD B2 object before accept (400 if absent); typed attachments_unavailable when Storage==nil. Verify B2 CORS allowlist for user-side PUT (or proxy via backend = same-origin)."
+    # Phase 2 — reliability/infra (P1/P2)
+    - id: EXIT-HEALTH-GATING
+      title: "Health-gating выходов — троттленный GRA попадает в каждый конфиг, не отзывается"
+      priority: P1
+      pain: "#1/#2"
+      effort: M
+      build: false
+      anchor: backend/internal/db/servers.go:135-148 (gate only is_active) + relay.go:218
+      plan: "Add vpn_servers.last_healthy_at; backend probe (TCP+through-tunnel HTTP) per exit ~30-60s; ListActive* excludes exits older than N min (with floor). Pairs with SYNTHETIC-MONITOR."
+      reinforces: PROTO-01
+    - id: SYNTHETIC-MONITOR
+      title: "Внешний synthetic VLESS-монитор — все инциденты находят юзеры, не мониторинг"
+      priority: P1
+      pain: "#1/#2"
+      effort: M
+      reinforces: [MON-01, MON-07]
+      plan: "Small external box (not Timeweb): headless sing-box on prod client-config, curl generate_204 through each exit-leg every 15m via Clash API, Telegram alert. + 1-line UptimeRobot on api.madfrog.online."
+    - id: RELAY-CONFIGS-IN-REPO
+      title: "Relay-конфиги (MSK/SPB nginx) правятся на боксах, не в репо — DR-gap"
+      priority: P2
+      effort: S
+      plan: "Re-sync live SPB conf to infrastructure/spb-relay/ (drift: connect_timeout 5→15s, max_fails=0); add infrastructure/msk-relay/ (api front + SSE location + stream chains) + README + diff script."
+    - id: RU-RATELIMIT-BUCKET
+      title: "Relay source-IP схлопывает всех RU в один 60/min bucket — первый юзер лочит остальных"
+      priority: P1
+      pain: "#3 (backend cause)"
+      effort: M
+      build: false
+      anchor: MSK nginx XFF missing; SPB L4 stream (cf NL nginx.conf:42-52)
+      plan: "(a) MSK nginx set_real_ip_from+real_ip_header XFF; SPB L4 PROXY protocol → NL listen proxy_protocol + set_real_ip_from 185.218.0.43. (b) exempt relay-IP from per-IP limiter / per-user key for /auth/*, raise burst."
+    # NL-RED-01 (SPoF, L) already tracked in next.infrastructure — audit reinforces, no dup.
+    # Phase 3 — monetization & debt (P2/P3)
+    - id: PAYWALL-FUNNEL-TRIGGER
+      title: "Paywall достижим только через мелкий chip (9/257 показов) — структурно убитая воронка"
+      priority: P2
+      effort: S
+      build: true
+      anchor: MainViewCalm.swift:330 + MainViewNeon.swift:120/416
+      plan: "Trigger PaywallRouter on trial-expiry transition at launch + one-time post-onboarding; instrument paywall.route/paywall.view; measure lift vs 9/257."
+    - id: AUDIT-DEBT-CLEANUP
+      title: "Долги/рефакторы из аудита (dead-code, SRV-DYNAMIC, goroutines, watchdog 37→<30s)"
+      priority: P3
+      effort: M
+      details: |
+        Dead-code: raceLegPlan RU-filter APIClient.swift:149-154; PathPicker framing; TunnelStallProbe 32KB-loop.
+        SRV-DYNAMIC finish (cc-prefix vs hardcoded tables ServerGroup.swift:75/288-298, already in next.protocols).
+        GetConfigLegacy /sub/:token (credential-in-URL) — check access logs, delete if dead.
+        Bound goroutines (touchDevice Redis-throttle); FreeKassa amount re-derive; StoreKit loadProducts auto-retry;
+        connect-watchdog 37-40s→<30s (CLAUDE.md mandate); Apple ASN unknown-txn persist+replay vs ack-drop.
+    - id: ADMIN-USER-DETAIL
+      title: "Admin user-detail страница (USR-05) — триаж всех болей = ручной кросс-реф"
+      priority: P2
+      effort: M
+      reinforces: USR-05
+      anchor: backend GetUser exists routes.go:137; SPA route missing App.tsx:202-208 + link users.tsx:236
+      plan: "Route /users/$id; extend toUserResponse (payments/events/support-thread). Collapses 4 manual lookups into one."
+
   launch_checklist:
     # LAUNCH-02 (Family Sharing flag) → DEFERRED 2026-06-03. Apple supports Family
     # Sharing ONLY for non-consumables + auto-renewable subs; our 4 products are all
@@ -609,6 +796,29 @@ deferred:
 # DONE — append-only log. Most recent date first.
 # ============================================================
 done:
+  "2026-06-17":
+    - id: AUTH-REFRESH-ROTATE
+      title: "iOS persists the ROTATED refresh token (fixes forced re-login every ~24h — Pain #2)"
+      status: committed_pending_build   # client-only; rides the next build
+      priority: P1   # "заёбывает что нужно перезаходить"
+      files:
+        - clients/apple/MadFrogVPN/Models/APIClient.swift                  # refreshAccessToken → RefreshResult; parseRefreshResponse helper
+        - clients/apple/MadFrogVPN/Models/AppState.swift                   # tryRefreshToken persists BOTH tokens
+        - clients/apple/Tests/UnitTests/RefreshTokenRotationTests.swift    # rotation invariant
+      notes: |
+        Bug: backend /api/mobile/auth/refresh rotates the refresh token (single-use,
+        SHA-256-blacklisted in Redis 30d) and returns a NEW refresh_token. iOS parsed
+        ONLY access_token and dropped the rotated refresh_token, so the keychain kept
+        the OLD (now-consumed) token. First refresh OK; the SECOND (next 24h access
+        expiry) resent the blacklisted token → Redis NX fail → 401 "refresh token
+        already used" → flagSessionExpired() → visible re-auth banner every ~24-48h.
+        Fix: refreshAccessToken now returns RefreshResult{accessToken, refreshToken,
+        expiresAt}; tryRefreshToken persists BOTH (access first, then rotated refresh).
+        Parsing extracted to pure static APIClient.parseRefreshResponse (mirrors the
+        raceLegPlan testability seam) and pinned by RefreshTokenRotationTests.
+        expires_at is surfaced (→ Date) but proactive-refresh scheduling is NOT wired
+        yet — follow-up if the reactive 401-recovery path proves insufficient.
+        VERIFY: CI ios.yml build-for-testing (no local iOS sim runtime installed).
   "2026-06-09":
     - id: SHIP-1.0.32
       title: "Cut + submit 1.0.32 (build 113) — ships the AUTH-RKN-DIRECT-IP login fix"

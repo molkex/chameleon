@@ -179,7 +179,7 @@ apple:
   models:
     VPNManager:        {status: partial, tests: [VPNManagerTimeoutTests, VPNManagerOnDemandRulesTests], covers: "raceWithTimeout (MED-006), buildOnDemandRules (LAUNCH-07)", gaps: "tunnel lifecycle / sendMessage — on-device only"}
     AppState:          {status: partial, tests: [AppStateFallbackTests, AcctIdentityTests, ProxyChainResolverTests, SupportDiagnosticLogTests], covers: "cascade fallback, shouldAnonReRegister (ACCT-IDENTITY P0), isUsableConfigPayload (ACCT-IDENTITY-2 — bad cached config must not wipe identity), resolveChain, tailLogText (singbox.log tail for the support 'Отправить лог' button — truncation marker, partial-line drop, mid-UTF8 safety, 2026-06-04)", gaps: "1900-LoC orchestration not instantiated"}
-    APIClient:         {status: partial, tests: [APIClientSensitiveFlagTests], covers: "raceLegPlan sensitive-payload gating (H-001/002)", gaps: "hedged-race networking, token refresh, retries"}
+    APIClient:         {status: partial, tests: [APIClientSensitiveFlagTests, RefreshTokenRotationTests], covers: "raceLegPlan sensitive-payload gating (H-001/002); parseRefreshResponse rotation invariant (AUTH-REFRESH-ROTATE, 2026-06-17 — the backend rotates the single-use refresh token; response's NEW refresh_token must win over the consumed one we sent, else next refresh 401s 'already used' → re-login every ~24h, Pain #2; + expires_at→Date, missing-field fallbacks, garbage→nil)", gaps: "hedged-race networking, retries"}
     ConfigStore:       {status: partial, tests: [AcctIdentityTests, MigrationLeafToCountryTests], covers: "identity persist/clear, leaf→country migration", gaps: "no dedicated test file (incidental coverage)"}
     PathPicker:        {status: tested, tests: [PathPickerTests], covers: "countryCode(forSelectedTag:), bestLeaf pin+filter"}
     PingService:       {status: partial, tests: [PingServiceTests], covers: "transportFor classifier, cache reads", gaps: "real socket probes not tested"}
@@ -195,8 +195,9 @@ apple:
     - VPNControlIntents, CountryFlag, CrashReporter (sanitize), DisconnectNotifier
     - TrafficHealthMonitor, ServerTagShape
     - TunnelFileLogger.truncationKeepOffset + isVerboseSingboxLine (TunnelFileLoggerCapTests, LOG-01 2026-06-06 — singbox.log size-cap offset math + ANSI-aware TRACE/DEBUG detection so writeDebugMessage drops the 37%-of-volume verbose firehose from the file sinks; both feed the NE-memory fix behind the oom-killer "resetting network" drops)
+    - StallSignals.dnsFailureDomain + dnsStallReached (StallSignalsTests, STALL-DNS-SIGNAL 2026-06-17 — pure seam extracted from RealTrafficStallDetector so the DNS-stall heuristic is testable from the MadFrogVPN target; pinned against real iPhone-log lines (facebook/apple domains, ANSI noise, NXDOMAIN reject). The detector was blind to "dns: exchange failed … i/o timeout" lines that dominate the bricked-Instagram failure — Pain #1)
   untested_surfaces:
-    - PacketTunnel/* (ExtensionProvider, ExtensionPlatformInterface, RealTrafficStallDetector, TunnelStallProbe) — extension, on-device only
+    - PacketTunnel/* (ExtensionProvider, ExtensionPlatformInterface, RealTrafficStallDetector [DNS-stall trigger now covered indirectly via StallSignalsTests], TunnelStallProbe) — extension wiring on-device only
     - Views/* (20 files) — no UI tests
     - CommandClient, Theme/ThemeManager/Haptics, LegRaceProbe, NetworkFingerprint
   test_files_count: 26

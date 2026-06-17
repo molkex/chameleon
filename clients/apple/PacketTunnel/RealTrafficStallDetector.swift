@@ -108,6 +108,17 @@ final class RealTrafficStallDetector {
         /// Per-hour cap. Real-network outages sometimes flap; we don't
         /// want to thrash UI/connections more than this many times.
         var maxFallbacksPerHour: Int = 6
+
+        /// DNS-stall trigger (2026-06-17): distinct domains that must fail to
+        /// resolve (resolver-path timeout) within the window before we treat
+        /// the active leg's DNS path as dead. Independent of the dial-timeout
+        /// thresholds above — DNS-exchange failures are high-confidence (a wide
+        /// spread of names timing out means the proxied resolver is down, not
+        /// ad-noise), so this fires even when the connection-dial heuristic
+        /// can't (the bricked-Instagram case: nothing resolves → there are no
+        /// "open connection to" dials to count). Paired with successfulDials==0
+        /// in StallSignals.dnsStallReached so it won't fire while data flows.
+        var minDNSFailDomains: Int = 8
     }
 
     // MARK: - Event types
@@ -126,6 +137,14 @@ final class RealTrafficStallDetector {
         let downloadBytes: Int64
     }
 
+    /// A DNS-exchange resolver-path timeout (e.g. `dns: exchange failed for
+    /// facebook.com. IN AAAA: dial tcp <exit>:443: i/o timeout`). Keyed by
+    /// domain so we count DISTINCT failing names, not retries of one.
+    private struct DNSFailure {
+        let timestamp: Date
+        let domain: String
+    }
+
     // MARK: - State
 
     private let config: Config
@@ -138,6 +157,7 @@ final class RealTrafficStallDetector {
 
     private var dialEvents: [DialAttempt] = []
     private var closeEvents: [ConnectionClose] = []
+    private var dnsFailEvents: [DNSFailure] = []
     private var lastFallbackAt: Date?
     private var fallbacksInLastHour: [Date] = []
     private var lastEvaluationAt: Date?
@@ -176,6 +196,18 @@ final class RealTrafficStallDetector {
         // Fast-path filters — most messages are benign and should be
         // skipped without any allocation. Each line ~100 bytes; we get
         // thousands per minute from sing-box at INFO level.
+
+        // DNS-stall (2026-06-17): resolver-path timeouts through the proxied
+        // exit — "dns: exchange failed for <domain>. IN <type>: dial tcp
+        // <exit>:443: i/o timeout". These carry NO "open connection to" anchor,
+        // so the dial-failure branch below never sees them; yet a wide spread of
+        // them is the clearest signal that the active leg is dead (the
+        // bricked-Instagram case). Parsed by the pure StallSignals seam.
+        if let domain = StallSignals.dnsFailureDomain(from: message) {
+            addDNSFailure(DNSFailure(timestamp: now, domain: domain))
+            evaluateIfDue(at: now)
+            return
+        }
 
         // Build-44.1: real user-dial failures from sing-box look like:
         //   "connection: open connection to 95.161.76.100:5222 using outbound/vless[de-direct-de]: dial tcp 162.19.242.30:443: i/o timeout"
@@ -326,6 +358,12 @@ final class RealTrafficStallDetector {
         closeEvents.append(event)
     }
 
+    private func addDNSFailure(_ event: DNSFailure) {
+        let cutoff = event.timestamp.addingTimeInterval(-config.windowSeconds)
+        dnsFailEvents.removeAll { $0.timestamp < cutoff }
+        dnsFailEvents.append(event)
+    }
+
     // MARK: - Evaluation
 
     private func evaluateIfDue(at now: Date) {
@@ -351,6 +389,23 @@ final class RealTrafficStallDetector {
         let cutoff = now.addingTimeInterval(-config.windowSeconds)
         let recentDials = dialEvents.filter { $0.timestamp >= cutoff }
         let recentCloses = closeEvents.filter { $0.timestamp >= cutoff }
+        let recentDNS = dnsFailEvents.filter { $0.timestamp >= cutoff }
+
+        // DNS-stall trigger (independent, high-confidence). Fires when the
+        // proxied resolver path is comprehensively dead — many distinct names
+        // timed out and nothing is dialling through. This catches the
+        // bricked-Instagram case the dial heuristic is blind to (no successful
+        // resolution → no "open connection to" attempts to count).
+        let successfulDials = recentDials.filter { !$0.isTimeout }.count
+        let distinctFailingDomains = Set(recentDNS.map { $0.domain }).count
+        if StallSignals.dnsStallReached(distinctFailingDomains: distinctFailingDomains,
+                                        successfulUserDials: successfulDials,
+                                        minDomains: config.minDNSFailDomains) {
+            fireStall(at: now,
+                      reason: "dns",
+                      detail: "distinctDomains=\(distinctFailingDomains) successfulDials=\(successfulDials)")
+            return
+        }
 
         let attempts = recentDials.count
         guard attempts >= config.minAttempts else { return }
@@ -375,10 +430,19 @@ final class RealTrafficStallDetector {
         }
 
         // All criteria met — fire STALL.
+        fireStall(at: now,
+                  reason: "dial",
+                  detail: "attempts=\(attempts) timeouts=\(timeouts) rate=\(String(format: "%.2f", rate)) distinctDests=\(distinctDests.count) closesWithDownload=\(recentCloses.count)")
+    }
+
+    /// Records the fire (cooldown + per-hour cap bookkeeping), logs the reason,
+    /// and signals the owner. Shared by the dial-timeout and DNS-stall triggers
+    /// so both honour the same cooldown/cap and recovery wiring.
+    private func fireStall(at now: Date, reason: String, detail: String) {
         lastFallbackAt = now
         fallbacksInLastHour.append(now)
         TunnelFileLogger.log(
-            "RealTrafficStallDetector: STALL attempts=\(attempts) timeouts=\(timeouts) rate=\(String(format: "%.2f", rate)) distinctDests=\(distinctDests.count) closesWithDownload=\(recentCloses.count)",
+            "RealTrafficStallDetector: STALL reason=\(reason) \(detail)",
             category: "real-stall"
         )
         onStall(now)
