@@ -119,6 +119,13 @@ final class RealTrafficStallDetector {
         /// "open connection to" dials to count). Paired with successfulDials==0
         /// in StallSignals.dnsStallReached so it won't fire while data flows.
         var minDNSFailDomains: Int = 8
+
+        /// OOM-SELF-HEAL (2026-06-17): oom-killer "resetting network" events in
+        /// the window before we self-heal. 1 = react to the first reset; the
+        /// cooldown + per-hour cap already bound how often the recovery runs, and
+        /// every reset has already dropped connections, so re-electing promptly
+        /// is the right move. Recovery is SILENT (no "switching server" banner).
+        var minOOMResets: Int = 1
     }
 
     // MARK: - Event types
@@ -145,10 +152,15 @@ final class RealTrafficStallDetector {
         let domain: String
     }
 
+    /// An oom-killer "resetting network" event (OOM-SELF-HEAL).
+    private struct OOMReset {
+        let timestamp: Date
+    }
+
     // MARK: - State
 
     private let config: Config
-    private let onStall: (Date) -> Void
+    private let onStall: (StallReason, Date) -> Void
 
     /// Serial queue protects buffers — `writeLogs` may be invoked from
     /// arbitrary libbox-internal goroutines, all funneled through here
@@ -158,6 +170,7 @@ final class RealTrafficStallDetector {
     private var dialEvents: [DialAttempt] = []
     private var closeEvents: [ConnectionClose] = []
     private var dnsFailEvents: [DNSFailure] = []
+    private var oomResetEvents: [OOMReset] = []
     private var lastFallbackAt: Date?
     private var fallbacksInLastHour: [Date] = []
     private var lastEvaluationAt: Date?
@@ -168,7 +181,7 @@ final class RealTrafficStallDetector {
 
     // MARK: - Lifecycle
 
-    init(config: Config = Config(), onStall: @escaping (Date) -> Void) {
+    init(config: Config = Config(), onStall: @escaping (StallReason, Date) -> Void) {
         self.config = config
         self.onStall = onStall
         TunnelFileLogger.log(
@@ -196,6 +209,17 @@ final class RealTrafficStallDetector {
         // Fast-path filters — most messages are benign and should be
         // skipped without any allocation. Each line ~100 bytes; we get
         // thousands per minute from sing-box at INFO level.
+
+        // OOM-SELF-HEAL (2026-06-17): sing-box oom-killer reset the network under
+        // memory pressure ("memory pressure: critical … resetting network"). It
+        // dropped connections to survive the iOS ~50 MB NE ceiling; nothing
+        // re-establishes them until the user re-opens the app (the felt "надо
+        // перезайти"). Treat it as a recovery trigger → silent re-elect.
+        if StallSignals.isMemoryPressureReset(message) {
+            addOOMReset(OOMReset(timestamp: now))
+            evaluateIfDue(at: now)
+            return
+        }
 
         // DNS-stall (2026-06-17): resolver-path timeouts through the proxied
         // exit — "dns: exchange failed for <domain>. IN <type>: dial tcp
@@ -364,6 +388,12 @@ final class RealTrafficStallDetector {
         dnsFailEvents.append(event)
     }
 
+    private func addOOMReset(_ event: OOMReset) {
+        let cutoff = event.timestamp.addingTimeInterval(-config.windowSeconds)
+        oomResetEvents.removeAll { $0.timestamp < cutoff }
+        oomResetEvents.append(event)
+    }
+
     // MARK: - Evaluation
 
     private func evaluateIfDue(at now: Date) {
@@ -390,6 +420,16 @@ final class RealTrafficStallDetector {
         let recentDials = dialEvents.filter { $0.timestamp >= cutoff }
         let recentCloses = closeEvents.filter { $0.timestamp >= cutoff }
         let recentDNS = dnsFailEvents.filter { $0.timestamp >= cutoff }
+        let recentOOM = oomResetEvents.filter { $0.timestamp >= cutoff }
+
+        // OOM-SELF-HEAL trigger (highest priority). The oom-killer already
+        // dropped connections; re-elect promptly so traffic re-establishes
+        // without the user re-opening the app. Recovery is SILENT (StallReason
+        // .oomReset → the owner suppresses the "switching server" banner).
+        if recentOOM.count >= config.minOOMResets {
+            fireStall(at: now, reason: .oomReset, detail: "resets=\(recentOOM.count)")
+            return
+        }
 
         // DNS-stall trigger (independent, high-confidence). Fires when the
         // proxied resolver path is comprehensively dead — many distinct names
@@ -402,7 +442,7 @@ final class RealTrafficStallDetector {
                                         successfulUserDials: successfulDials,
                                         minDomains: config.minDNSFailDomains) {
             fireStall(at: now,
-                      reason: "dns",
+                      reason: .dnsStall,
                       detail: "distinctDomains=\(distinctFailingDomains) successfulDials=\(successfulDials)")
             return
         }
@@ -431,20 +471,20 @@ final class RealTrafficStallDetector {
 
         // All criteria met — fire STALL.
         fireStall(at: now,
-                  reason: "dial",
+                  reason: .dialStall,
                   detail: "attempts=\(attempts) timeouts=\(timeouts) rate=\(String(format: "%.2f", rate)) distinctDests=\(distinctDests.count) closesWithDownload=\(recentCloses.count)")
     }
 
     /// Records the fire (cooldown + per-hour cap bookkeeping), logs the reason,
-    /// and signals the owner. Shared by the dial-timeout and DNS-stall triggers
-    /// so both honour the same cooldown/cap and recovery wiring.
-    private func fireStall(at now: Date, reason: String, detail: String) {
+    /// and signals the owner. Shared by the dial-timeout, DNS-stall and
+    /// OOM-reset triggers so all honour the same cooldown/cap and recovery wiring.
+    private func fireStall(at now: Date, reason: StallReason, detail: String) {
         lastFallbackAt = now
         fallbacksInLastHour.append(now)
         TunnelFileLogger.log(
             "RealTrafficStallDetector: STALL reason=\(reason) \(detail)",
             category: "real-stall"
         )
-        onStall(now)
+        onStall(reason, now)
     }
 }

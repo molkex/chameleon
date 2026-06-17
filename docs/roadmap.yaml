@@ -99,16 +99,29 @@ now:
         NEW token; integration: double-refresh no 401.
     - id: OOM-SELF-HEAL
       title: "Self-heal туннеля после oom-killer 'resetting network' (никто не переподнимает)"
-      priority: P1   # felt-pain high but needs app-build + on-device mem measurement
+      priority: P1
       pain: "#2 re-enter-app"
       effort: M
       build: true
-      anchor: RealTrafficStallDetector.swift:77-96 (thresholds inflated, addCloseEvent suppressor dead); reload via ExtensionProvider.swift:459
-      plan: |
-        Fast-path match 'resetting network' / 'memory pressure: critical' in the log parser
-        (ExtensionPlatformInterface.swift:355) → on N hits in window, re-apply routing + nudgeNow()/reloadService.
-        Companion (with field memoryWatchdog before/after, NOT blind): GOMEMLIMIT 42→46-48MiB, drop dead
-        dns-fakeip (clientconfig.go:507), reconcile independent_cache. unit on matcher + injected-log integration.
+      status: implemented_compile_verified   # macOS BUILD SUCCEEDED 2026-06-17; on-device verify pending
+      files:
+        - clients/apple/Shared/StallSignals.swift                    # StallReason enum + isMemoryPressureReset parser
+        - clients/apple/PacketTunnel/RealTrafficStallDetector.swift  # oom-reset trigger (reuses recovery wiring)
+        - clients/apple/PacketTunnel/ExtensionProvider.swift         # reason-aware onStall; SILENT recovery for oom
+        - clients/apple/Tests/UnitTests/StallSignalsTests.swift      # oom parser tests
+      done: |
+        Built ON TOP of STALL-DNS-SIGNAL. The detector now recognises the oom-killer
+        "memory pressure: critical … resetting network" line (StallSignals.isMemoryPressureReset) and
+        fires the SAME re-elect/nudge recovery that dns/dial stalls use — so after the NE drops
+        connections to survive the ~50 MB jetsam ceiling, traffic re-establishes without the user
+        re-opening the app. Made onStall REASON-AWARE (StallReason enum, not a bool): .oomReset
+        recovers SILENTLY (no "switching server" banner — the oom-killer fires every few min under
+        load, banners would be spam); dns/dial keep the banner. Honours the shared cooldown(90s)+cap(6/h).
+      deferred_not_blind: |
+        Did NOT touch memory tuning (GOMEMLIMIT bump / drop dead dns-fakeip clientconfig.go:507 /
+        independent_cache) — the audit verify flagged these as "needs on-device before/after
+        memoryWatchdog measurement, not blind". Self-heal is the safe shippable half; memory
+        reduction is a follow-up once we can measure on a real device with this build.
 
 # ============================================================
 # NEXT — 1-2 week queue, ready to start

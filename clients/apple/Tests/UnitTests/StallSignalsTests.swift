@@ -41,6 +41,23 @@ final class StallSignalsTests: XCTestCase {
         XCTAssertNil(StallSignals.dnsFailureDomain(from: info))
     }
 
+    // MARK: - OOM-SELF-HEAL
+
+    func testDetectsOOMKillerResetLine() {
+        // Verbatim from the field log (resident hit 83 MB; fired 39× in one capture).
+        let line = "\u{1b}[31mERROR\u{1b}[0m[20007] service/oom-killer[0]: memory pressure: critical, usage: 40 MiB, resetting network"
+        XCTAssertTrue(StallSignals.isMemoryPressureReset(line))
+    }
+
+    func testOOMMatchRequiresBothPressureAndReset() {
+        // "resetting network" alone (e.g. a manual reload) is not an oom event.
+        XCTAssertFalse(StallSignals.isMemoryPressureReset("network: resetting network after config reload"))
+        // A memory log without the reset action is not the trigger either.
+        XCTAssertFalse(StallSignals.isMemoryPressureReset("memory: phys=39MB resident=58MB avail=10MB"))
+        // Unrelated line.
+        XCTAssertFalse(StallSignals.isMemoryPressureReset("inbound/tun[tun-in]: inbound packet connection to 1.2.3.4:443"))
+    }
+
     func testDNSStallDecisionTruthTable() {
         // Wide spread of failing names + nothing dialling = dead resolver path.
         XCTAssertTrue(StallSignals.dnsStallReached(distinctFailingDomains: 8, successfulUserDials: 0, minDomains: 8))

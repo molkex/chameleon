@@ -269,11 +269,11 @@ open class ExtensionProvider: NEPacketTunnelProvider {
         // ping with `onStall` set to no-op (its FAIL counter still logs
         // for diagnostics, but it does NOT cross-process-signal the
         // main app on its own — only RealTrafficStallDetector does).
-        let detector = RealTrafficStallDetector(onStall: { [weak self] now in
+        let detector = RealTrafficStallDetector(onStall: { [weak self] reason, now in
             guard let self else { return }
             self.sharedDefaults?.set(now.timeIntervalSince1970,
                                      forKey: AppConstants.tunnelStallRequestedAtKey)
-            TunnelFileLogger.log("RealTrafficStallDetector: signalled main app via shared defaults", category: "real-stall")
+            TunnelFileLogger.log("RealTrafficStallDetector: signalled main app via shared defaults reason=\(reason)", category: "real-stall")
 
             // Build-49: force sing-box to re-probe all urltest groups RIGHT NOW
             // from inside the extension — don't wait for the suspended main app.
@@ -290,6 +290,12 @@ open class ExtensionProvider: NEPacketTunnelProvider {
                 CFNotificationName(AppConstants.tunnelStallDarwinNotification as CFString),
                 nil, nil, true
             )
+
+            // OOM-SELF-HEAL: a memory-pressure reset recovers SILENTLY — the
+            // re-elect above is enough, and the oom-killer fires every few
+            // minutes under load, so a banner each time would be spam. Only a
+            // genuine leg-stall (dns/dial) shows the "switching server" banner.
+            guard reason != .oomReset else { return }
 
             // For the suspended-app case: passive banner so user can tap to open.
             let content = UNMutableNotificationContent()

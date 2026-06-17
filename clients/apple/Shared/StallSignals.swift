@@ -24,7 +24,32 @@ import Foundation
 /// compat), so the resilience has to come from the client noticing the dead
 /// resolver path and re-electing the outbound. This helper is that missing
 /// signal — kept pure so it can be pinned by tests against real log lines.
+/// Why the tunnel's recovery signal fired. Reason-aware (not a bare bool) so the
+/// owner can tailor the response: a leg-stall warrants a user-facing "switching
+/// server" banner, but a memory-pressure self-heal should recover SILENTLY (the
+/// oom-killer fires every few minutes under load — banners would be spam).
+enum StallReason {
+    /// A spread of real user dials timed out — the active leg can't carry traffic.
+    case dialStall
+    /// The proxied resolver path is dead — nothing is resolving (bricked-Instagram).
+    case dnsStall
+    /// sing-box's oom-killer reset the network under memory pressure; connections
+    /// were dropped and need a re-elect to re-establish (OOM-SELF-HEAL).
+    case oomReset
+}
+
 enum StallSignals {
+
+    /// True for a sing-box oom-killer memory-pressure reset line, e.g.
+    /// `service/oom-killer[0]: memory pressure: critical, usage: 40 MiB, resetting network`.
+    /// This is the felt "tunnel drop / надо перезайти" event — the NE hits the
+    /// iOS ~50 MB jetsam ceiling, sing-box drops connections to survive, and
+    /// nothing re-establishes them until the user re-opens the app. Matched so
+    /// the detector can trigger a silent re-elect (OOM-SELF-HEAL) instead.
+    static func isMemoryPressureReset(_ message: String) -> Bool {
+        guard message.contains("resetting network") else { return false }
+        return message.contains("oom-killer") || message.contains("memory pressure")
+    }
 
     /// Extracts the queried domain from a sing-box DNS-exchange-FAILURE line,
     /// or nil if the line isn't a resolver-path TIMEOUT.
