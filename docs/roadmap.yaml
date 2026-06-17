@@ -237,12 +237,19 @@ next:
     # Phase 2 — reliability/infra (P1/P2)
     - id: EXIT-HEALTH-GATING
       title: "Health-gating выходов — троттленный GRA попадает в каждый конфиг, не отзывается"
-      priority: P1
+      priority: P2   # downgraded after measurement
       pain: "#1/#2"
       effort: M
       build: false
-      anchor: backend/internal/db/servers.go:135-148 (gate only is_active) + relay.go:218
-      plan: "Add vpn_servers.last_healthy_at; backend probe (TCP+through-tunnel HTTP) per exit ~30-60s; ListActive* excludes exits older than N min (with floor). Pairs with SYNTHETIC-MONITOR."
+      status: limited_value_see_note   # 2026-06-17 re-assessed
+      reassessed_2026_06_17: |
+        VANTAGE PROBLEM (measured): the felt failure is the RESIDENTIAL RU→FR throttle, which is
+        invisible from NL AND from our datacenter relays (MSK/SPB curl to GRA & NL both ~50ms — verified).
+        So a server-side health probe can't see what bricks the user, and would false-"healthy" GRA.
+        The honest signal is the CLIENT (through-tunnel) — already shipped as STALL-DNS-SIGNAL (the client
+        now detects the dead exit + re-elects). Server-side gating only catches HARD-DOWN nodes (process
+        crash / box offline) — real but low-frequency. So this is now P2: a hard-down gate
+        (vpn_servers.last_healthy_at + NL TCP/health probe + ListActive* floor), NOT a throttle fix.
       reinforces: PROTO-01
     - id: SYNTHETIC-MONITOR
       title: "Внешний synthetic VLESS-монитор — все инциденты находят юзеры, не мониторинг"
@@ -255,7 +262,12 @@ next:
       title: "Relay-конфиги (MSK/SPB nginx) правятся на боксах, не в репо — DR-gap"
       priority: P2
       effort: S
-      plan: "Re-sync live SPB conf to infrastructure/spb-relay/ (drift: connect_timeout 5→15s, max_fails=0); add infrastructure/msk-relay/ (api front + SSE location + stream chains) + README + diff script."
+      status: done   # 2026-06-17 (commit fee6d54)
+      done: |
+        NEW infrastructure/msk-relay/ (api front w/ XFF+SSE, nginx.conf, README w/ pull/restore/drift flow);
+        refreshed infrastructure/spb-relay/chameleon-stream.conf to live (SPB-FR-RELAY-FLAP drift:
+        max_fails=0 + connect_timeout 5→15s, + :2099 GRA leg). sing-box chains (Reality keys/UUIDs) kept
+        OFF git by design — restore from the encrypted box backup. Secret-scanned before commit.
     - id: RU-RATELIMIT-BUCKET
       title: "[FALSE FINDING] Relay source-IP схлопывает всех RU в один bucket"
       priority: P1
