@@ -28,7 +28,8 @@ func TestListActiveVPNUsers_ExcludesExpiredSubscription(t *testing.T) {
 	// Seed three users:
 	//   - active: vpn creds + future expiry → MUST appear
 	//   - expired: vpn creds + past expiry → MUST NOT appear (P0-E)
-	//   - lifetime: vpn creds + NULL expiry → MUST appear (no-expiry user)
+	//   - nullexp: vpn creds + NULL expiry → MUST NOT appear
+	//     (REFUND-NULL-EXPIRY-GATE 2026-06-17: NULL = no coverage, not lifetime)
 	seed := []*User{
 		{
 			VPNUsername:        ptr("device_active"),
@@ -49,11 +50,11 @@ func TestListActiveVPNUsers_ExcludesExpiredSubscription(t *testing.T) {
 			UpdatedAt:          now,
 		},
 		{
-			VPNUsername:        ptr("device_lifetime"),
+			VPNUsername:        ptr("device_nullexp"),
 			VPNUUID:            ptr("33333333-3333-4333-8333-333333333333"),
 			VPNShortID:         ptr(""),
 			IsActive:           true,
-			SubscriptionExpiry: nil, // NULL — never expires (admin grants, etc.)
+			SubscriptionExpiry: nil, // NULL — no coverage (refunded / never subscribed)
 			CreatedAt:          now,
 			UpdatedAt:          now,
 		},
@@ -82,7 +83,7 @@ func TestListActiveVPNUsers_ExcludesExpiredSubscription(t *testing.T) {
 	if usernames["device_expired"] {
 		t.Error("ListActiveVPNUsers MUST exclude device_expired (P0-E regression)")
 	}
-	if !usernames["device_lifetime"] {
-		t.Error("ListActiveVPNUsers should include device_lifetime (NULL expiry = no expiry)")
+	if usernames["device_nullexp"] {
+		t.Error("ListActiveVPNUsers MUST exclude device_nullexp (REFUND-NULL-EXPIRY-GATE: NULL = no coverage, not lifetime)")
 	}
 }

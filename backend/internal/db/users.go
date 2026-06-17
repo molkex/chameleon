@@ -354,6 +354,13 @@ func (db *DB) WipeUserOnDelete(ctx context.Context, id int64) error {
 // their subscription ends — a fraud path because the iOS client caches
 // /v1/config locally and would otherwise keep authenticating to the
 // tunnel indefinitely (audit P0-E, 2026-05-26).
+//
+// REFUND-NULL-EXPIRY-GATE (2026-06-17): subscription_expiry IS NULL means NO
+// coverage (never subscribed / refunded-to-zero), NOT "lifetime". The old
+// `IS NULL OR …` branch contradicted this function's own doc + the mobile
+// hasActiveSubscription / shouldGrantTrial predicates, and let refunded users
+// linger in the allow-set (a revenue leak — credit.go sets NULL to revoke).
+// Now strictly a future expiry. (Verified on prod: 1 non-paying user affected.)
 func (db *DB) ListActiveVPNUsers(ctx context.Context) ([]User, error) {
 	ctx, cancel := defaultTimeout(ctx)
 	defer cancel()
@@ -364,7 +371,7 @@ func (db *DB) ListActiveVPNUsers(ctx context.Context) ([]User, error) {
 		WHERE is_active = true
 		  AND vpn_uuid IS NOT NULL
 		  AND vpn_username IS NOT NULL
-		  AND (subscription_expiry IS NULL OR subscription_expiry > NOW())
+		  AND subscription_expiry > NOW()
 		ORDER BY id`)
 	if err != nil {
 		return nil, err

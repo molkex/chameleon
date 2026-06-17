@@ -57,6 +57,26 @@ type AuthResponse struct {
 // ErrorResponse is the standard JSON error body.
 type ErrorResponse struct {
 	Error string `json:"error"`
+	// Code is an optional machine-readable error code so the client can branch
+	// without string-matching the human-readable Error. e.g. EXPIRED-PAYWALL
+	// (2026-06-17): a /config 403 carries Code="SUBSCRIPTION_EXPIRED" so the app
+	// can route an expired user straight to the paywall on a connect attempt.
+	Code string `json:"code,omitempty"`
+}
+
+// CodeSubscriptionExpired is the machine-readable code on the /config 403 when
+// the user's subscription is absent or in the past — the client's signal to
+// show the paywall (EXPIRED-PAYWALL-ON-CONNECT).
+const CodeSubscriptionExpired = "SUBSCRIPTION_EXPIRED"
+
+// hasActiveSubscription is the ONE canonical "is this user's subscription
+// currently active?" predicate. subscription_expiry == NULL means NO coverage
+// (never subscribed / refunded-to-zero) — NOT "lifetime" — consistent with
+// shouldGrantTrial and credit.go's revoke path. A user is covered only by a
+// future expiry timestamp. Centralised so the /config gate, the VPN roster
+// (db.ListActiveVPNUsers) and the trial gate can't drift apart again.
+func hasActiveSubscription(u *db.User) bool {
+	return u.SubscriptionExpiry != nil && u.SubscriptionExpiry.After(time.Now())
 }
 
 // Register handles POST /api/mobile/auth/register.

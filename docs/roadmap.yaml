@@ -144,12 +144,29 @@ next:
         - backend/internal/cluster/sync.go:109/196 + cmd/chameleon (call ReloadVPNEngine on a timer regardless of `changed`; peers empty → loop never starts → expired UUIDs never evicted between deploys)
       plan: "On connect intent, refreshConfig() (reclaim cross-device pay) then route to PaywallRouter if !active. Disconnect always allowed."
     - id: REFUND-NULL-EXPIRY-GATE
-      title: "Refund → subscription_expiry=NULL проходит /config gate (полностью возвращённый юзер сохраняет VPN)"
+      title: "NULL subscription_expiry канонизирован как 'нет покрытия' (закрыта утечка после рефанда)"
       priority: P1
       effort: S
-      build: false
-      anchor: backend/internal/payments/credit.go:260 + config.go:59/:259
-      plan: "In setStatusAndReconcile when newExpiry==nil set is_active=false (guard refund/former-payer, not trial pre-pay). Test: /config 403 after refund of sole charge."
+      build: false   # server-deploy only
+      status: implemented_built_tested   # go build + mobile unit tests green; awaiting deploy to NL
+      files:
+        - backend/internal/api/mobile/auth.go        # hasActiveSubscription predicate + ErrorResponse.Code + CodeSubscriptionExpired
+        - backend/internal/api/mobile/config.go      # both gates use hasActiveSubscription (reject nil) + machine-readable code
+        - backend/internal/db/users.go               # ListActiveVPNUsers roster: drop `IS NULL OR`, strictly `> NOW()`
+        - backend/internal/api/mobile/subscription_active_test.go   # predicate unit test
+        - backend/internal/db/users_expiry_filter_test.go           # roster now EXCLUDES NULL-expiry
+      done: |
+        ROOT was a semantic conflict: the VPN roster (ListActiveVPNUsers) + its test treated NULL
+        expiry as "lifetime, include", while shouldGrantTrial, credit.go's revoke comment, and the
+        roster's OWN doc-comment treat NULL as "no coverage". So refund set NULL expecting access
+        revoked, but the roster kept the user in sing-box's allow-set (revenue leak). Measured on
+        prod: exactly 1 user (363 total) in NULL+creds+active state — a 0-payment expired-trial
+        account, no paying user affected. Resolved by canonicalising NULL = no coverage: extracted
+        ONE predicate hasActiveSubscription (expiry != nil && future), used by both /config gates;
+        roster query now strictly `subscription_expiry > NOW()`. Also delivers the EXPIRED-PAYWALL
+        backend signal — /config 403 now carries {"code":"SUBSCRIPTION_EXPIRED"} so the client routes
+        to the paywall without string-matching (the client connect-gate part still rides a build).
+      remaining: "EXPIRED-PAYWALL client connect-gate (AppState.requestToggle) + sync.go periodic re-evict timing — separate items."
     - id: SSE-CHATTOKEN-REMINT
       title: "Чат поддержки молча умирает — 10-мин SSE-токен не перевыпускается на reconnect"
       priority: P1

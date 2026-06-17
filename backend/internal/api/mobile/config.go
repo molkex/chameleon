@@ -55,9 +55,12 @@ func (h *Handler) GetConfig(c echo.Context) error {
 		return c.JSON(http.StatusForbidden, ErrorResponse{Error: "account is deactivated"})
 	}
 
-	// Check subscription expiry.
-	if user.SubscriptionExpiry != nil && user.SubscriptionExpiry.Before(time.Now()) {
-		return c.JSON(http.StatusForbidden, ErrorResponse{Error: "subscription expired"})
+	// Check subscription is active. NULL expiry = no coverage (not "lifetime"),
+	// so an absent OR past expiry is gated out → client shows the paywall. The
+	// machine-readable Code lets the app route to the paywall on a connect
+	// attempt without string-matching (EXPIRED-PAYWALL-ON-CONNECT).
+	if !hasActiveSubscription(user) {
+		return c.JSON(http.StatusForbidden, ErrorResponse{Error: "subscription expired", Code: CodeSubscriptionExpired})
 	}
 
 	// Verify VPN credentials exist.
@@ -256,7 +259,8 @@ func (h *Handler) GetConfigLegacy(c echo.Context) error {
 	if !user.IsActive {
 		return c.String(http.StatusForbidden, "account deactivated")
 	}
-	if user.SubscriptionExpiry != nil && user.SubscriptionExpiry.Before(time.Now()) {
+	// NULL expiry = no coverage (see hasActiveSubscription) — gate it out too.
+	if !hasActiveSubscription(user) {
 		return c.String(http.StatusForbidden, "subscription expired")
 	}
 	if user.VPNUsername == nil || user.VPNUUID == nil {

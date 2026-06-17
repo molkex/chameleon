@@ -114,7 +114,7 @@ backend:
     tier: unit
     status: partial
     coverage_pct: 6
-    covers: "trial-once gate (SEC-01), selected mobile handlers"
+    covers: "trial-once gate (SEC-01), selected mobile handlers; hasActiveSubscription predicate (subscription_active_test.go, REFUND-NULL-EXPIRY-GATE 2026-06-17 — NULL expiry = no coverage NOT lifetime, future=active, past=inactive; the ONE predicate the /config gate + VPN roster + trial gate share)"
     gaps: "most handlers uncovered"
   db:
     src_files: 11
@@ -122,7 +122,7 @@ backend:
     tier: integration
     status: tested
     coverage_pct: n/a
-    covers: "users, payments, servers, charges round-trips (testcontainers PG); active=app-OR-VPN counts + BumpVPNSeen (users_active_test.go, ACTIVE-METRIC 2026-06-03); support chat (support_test.go) — one-open-thread, append/since, ownership, close→fresh-thread, ReopenThread success/already-open/conflict (2026-06-04), purge, wipe-on-delete, admin inbox list; push tokens (push_test.go) — upsert/list/delete/cascade + AllPushTokens/PushTokenStats + broadcast audit-log round-trip (BROADCAST-PUSH 2026-06-04); announcements (announcements_test.go) — ActiveAnnouncements active-AND-in-window filter, CRUD lifecycle, CTA round-trip (INAPP-ANNOUNCEMENTS 2026-06-04); announcement audience/platform targeting matcher is unit-tested in internal/api/mobile/announcements_test.go (announcementMatches/platformFromOS — pure, non-integration); promo codes (promo_test.go, PROMO-CODES 2026-06-05) — code CRUD + ErrConflict, payment-intent round-trip, idempotent RedeemPromo (used_count rises once on webhook retry). Pure rules (validate/discount math) in internal/promo (promo_test.go, non-integration). GAP: mobile resolvePromo/ValidatePromo + webhook intent-amount glue is thin (wires tested layers) — handler-level httptest deferred (TEST-PROMO-HANDLER)."
+    covers: "users, payments, servers, charges round-trips (testcontainers PG); active=app-OR-VPN counts + BumpVPNSeen (users_active_test.go, ACTIVE-METRIC 2026-06-03); support chat (support_test.go) — one-open-thread, append/since, ownership, close→fresh-thread, ReopenThread success/already-open/conflict (2026-06-04), purge, wipe-on-delete, admin inbox list; push tokens (push_test.go) — upsert/list/delete/cascade + AllPushTokens/PushTokenStats + broadcast audit-log round-trip (BROADCAST-PUSH 2026-06-04); announcements (announcements_test.go) — ActiveAnnouncements active-AND-in-window filter, CRUD lifecycle, CTA round-trip (INAPP-ANNOUNCEMENTS 2026-06-04); announcement audience/platform targeting matcher is unit-tested in internal/api/mobile/announcements_test.go (announcementMatches/platformFromOS — pure, non-integration); promo codes (promo_test.go, PROMO-CODES 2026-06-05) — code CRUD + ErrConflict, payment-intent round-trip, idempotent RedeemPromo (used_count rises once on webhook retry). Pure rules (validate/discount math) in internal/promo (promo_test.go, non-integration). GAP: mobile resolvePromo/ValidatePromo + webhook intent-amount glue is thin (wires tested layers) — handler-level httptest deferred (TEST-PROMO-HANDLER). ListActiveVPNUsers roster (users_expiry_filter_test.go) — EXCLUDES past-expiry (P0-E) AND NULL-expiry (REFUND-NULL-EXPIRY-GATE 2026-06-17 — NULL = no coverage, not lifetime)."
     gaps: "0% when Docker absent → unverified in CI-without-Docker. See TEST-IOS-CI sibling concern for infra."
   payments:
     src_files: 1
