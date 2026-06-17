@@ -86,3 +86,29 @@ GlobalSign `*.adfox.ru` cert, HTTP 400). The pin correctly rejects that path, so
 the leg degrades gracefully to the other legs — no regression, and on the
 networks where the VPN's `ads.adfox.ru` camouflage works (the user's), the decoy
 leg reaches MSK and wins.
+
+## Follow-up: build 121 — RU-DECOY-FIRST (the 2nd-sign-in hang)
+
+b120 fixed the *first* sign-in but the user reported the **second** attempt hung
+("1 раз спокойно заходит … выхожу, ещё раз — зависание"). MSK access log for the
+first login showed why:
+
+```
+37.113.209.81 POST /api/mobile/auth/apple 200 648  "MadFrog-iOS"               <- decoy leg won
+37.113.209.81 POST /api/mobile/auth/apple 499 0    "MadFrogVPN/120 CFNetwork…" <- primary, api SNI, client-cancelled
+```
+
+The decoy won, but the **primary leg still opened a TLS connection with SNI
+`api.madfrog.online`** (logged 499 = client closed after the decoy won). That
+ClientHello alone is enough for RKN's TSPU to flag the client→relay flow. The
+first sign-in slips through; the TSPU then escalates and RSTs *everything* to the
+relay — so the second sign-in's decoy is also killed and nothing reaches the
+server (no 2nd-attempt log on NL *or* MSK).
+
+Fix (b121): hold the filtered-SNI legs (primary + direct-IP) `poisonHoldMs =
+2000ms` behind the decoy on sensitive auth; the decoy leads at T+0. A sub-second
+decoy win calls `group.cancelAll()` while the poisoning legs are still asleep, so
+**zero `api.madfrog.online` ClientHellos leave the device** and the TSPU never
+escalates. The 2 s hold only costs latency on the rare network where the decoy
+itself fails. Code: `APIClient.poisonHoldMs` / `decoyLeadMs`, applied to the
+primary task + direct-IP stagger in `dataWithFallback`.

@@ -257,6 +257,18 @@ class APIClient {
         return region == nil || region == "RU"
     }
 
+    /// RU-DECOY-FIRST (2026-06-17): how long the filtered-SNI legs (primary +
+    /// direct-IP) are held so the clean-SNI decoy can win first WITHOUT any
+    /// api.madfrog.online ClientHello leaving the device. Non-zero only for
+    /// sensitive auth — that's where a leaked SNI trips the TSPU and poisons
+    /// the next sign-in. See dataWithFallback for the full rationale.
+    static func poisonHoldMs(sensitive: Bool) -> Int { sensitive ? 2000 : 0 }
+
+    /// Decoy-leg lead time. T+0 for sensitive auth (it must beat the held
+    /// poisoning legs); a light 150ms stagger otherwise so a healthy primary
+    /// still wins without a redundant relay dial.
+    static func decoyLeadMs(sensitive: Bool) -> Int { sensitive ? 0 : 150 }
+
     init() {
         let config = URLSessionConfiguration.default
         // RU operators frequently SNI-filter Cloudflare ranges; in that case
@@ -355,9 +367,28 @@ class APIClient {
         let idempLog = idempotencyKey.map { String($0.prefix(8)) } ?? "n/a"
         AppLogger.network.info("race.start path=\(path, privacy: .public) method=\(method, privacy: .public) idempkey=\(idempLog, privacy: .public)")
 
+        // RU-DECOY-FIRST (2026-06-17): on a sensitive (sign-in / refresh)
+        // request, HOLD every leg that carries the filtered SNI
+        // (api.madfrog.online) — the primary and the direct-IP legs — for
+        // `poisonDelayMs`, and let the clean-SNI decoy lead at T+0. Measured
+        // failure: each sign-in emitted an api.madfrog.online TLS ClientHello
+        // (the primary; NL/MSK logged it as a 499 once the decoy won), which
+        // trips RKN's TSPU. The first attempt slips through, but the TSPU then
+        // escalates and RSTs *everything* to the relay — including the decoy —
+        // so the SECOND sign-in hangs. By holding the poisoning legs behind the
+        // decoy, a sub-second decoy win cancels them while they're still
+        // asleep: ZERO filtered-SNI ClientHellos leave the device, so the TSPU
+        // never escalates and every subsequent sign-in keeps working. The hold
+        // only costs latency on the rare network where the decoy itself fails.
+        let poisonDelayMs = Self.poisonHoldMs(sensitive: sensitive)
+
         return try await withThrowingTaskGroup(of: (Data, URLResponse, String)?.self) { group in
             group.addTask { [session] in
-                AppLogger.network.info("race.primary.start path=\(path, privacy: .public) elapsed=\(Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000, privacy: .public)ms")
+                if poisonDelayMs > 0 {
+                    try? await Task.sleep(for: .milliseconds(poisonDelayMs))
+                    if Task.isCancelled { return nil }
+                }
+                AppLogger.network.info("race.primary.start path=\(path, privacy: .public) delay=\(poisonDelayMs, privacy: .public)ms elapsed=\(Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000, privacy: .public)ms")
                 do {
                     let (data, response) = try await session.data(for: augmentedRequest)
                     let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
@@ -408,8 +439,12 @@ class APIClient {
             // Fires at T+150ms so a genuinely-fast primary still wins first, but
             // ahead of the direct-IP legs (which all carry the filtered SNI).
             if Self.shouldUseDecoyLeg(sensitive: sensitive, region: Locale.current.region?.identifier) {
+                // Lead at T+0 for sensitive auth (the poisoning legs are held
+                // behind it); a light 150ms stagger otherwise so a fast primary
+                // on a healthy network still wins without a redundant dial.
+                let decoyDelayMs = Self.decoyLeadMs(sensitive: sensitive)
                 group.addTask {
-                    try? await Task.sleep(for: .milliseconds(150))
+                    if decoyDelayMs > 0 { try? await Task.sleep(for: .milliseconds(decoyDelayMs)) }
                     if Task.isCancelled { return nil }
                     AppLogger.network.info("race.decoy.start sni=\(AppConfig.decoySNI, privacy: .public) ip=\(AppConfig.decoyRelayIP, privacy: .public) elapsed=\(Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000, privacy: .public)ms")
                     do {
@@ -445,7 +480,10 @@ class APIClient {
             for (i, ip) in raceIPs.enumerated() {
                 let legIndex = 1 + i
                 group.addTask {
-                    let staggerMs = legIndex * 250
+                    // Direct-IP legs also carry the filtered SNI, so on sensitive
+                    // auth they sit behind the same poison hold as the primary —
+                    // they only fire if the decoy didn't win in time.
+                    let staggerMs = poisonDelayMs + legIndex * 250
                     try? await Task.sleep(for: .milliseconds(staggerMs))
                     if Task.isCancelled { return nil }
                     AppLogger.network.info("race.direct.start ip=\(ip, privacy: .public) delay=\(staggerMs, privacy: .public)ms elapsed=\(Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000, privacy: .public)ms")

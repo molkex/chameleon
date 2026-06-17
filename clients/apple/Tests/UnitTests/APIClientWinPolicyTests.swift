@@ -79,4 +79,31 @@ final class APIClientWinPolicyTests: XCTestCase {
         XCTAssertFalse(APIClient.shouldUseDecoyLeg(sensitive: false, region: "US"))
         XCTAssertFalse(APIClient.shouldUseDecoyLeg(sensitive: false, region: "DE"))
     }
+
+    // MARK: - RU-DECOY-FIRST timing (hold the poisoning SNI behind the decoy)
+
+    /// Sensitive auth must HOLD the filtered-SNI legs (primary + direct-IP) so a
+    /// fast decoy win cancels them before any api.madfrog.online ClientHello
+    /// leaves the device — otherwise the leaked SNI trips the TSPU and the next
+    /// sign-in hangs. Non-sensitive traffic keeps the primary at T+0.
+    func testPoisonHold_onlyForSensitive() {
+        XCTAssertEqual(APIClient.poisonHoldMs(sensitive: true), 2000)
+        XCTAssertEqual(APIClient.poisonHoldMs(sensitive: false), 0)
+    }
+
+    /// The decoy leads at T+0 for sensitive auth (must beat the held legs) and
+    /// only lightly staggers otherwise.
+    func testDecoyLead_zeroForSensitive() {
+        XCTAssertEqual(APIClient.decoyLeadMs(sensitive: true), 0)
+        XCTAssertEqual(APIClient.decoyLeadMs(sensitive: false), 150)
+    }
+
+    /// Invariant that makes the fix work: on sensitive auth the decoy fires
+    /// strictly before the poisoning legs, so a sub-second win cancels them
+    /// while still asleep — zero filtered-SNI ClientHellos escape.
+    func testDecoyLeadsPoisonLegsForSensitive() {
+        XCTAssertLessThan(APIClient.decoyLeadMs(sensitive: true),
+                          APIClient.poisonHoldMs(sensitive: true),
+                          "decoy must dial before the held api.madfrog.online legs")
+    }
 }
