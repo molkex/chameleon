@@ -31,14 +31,15 @@ product:
     live:        {version: "1.0.30", build: 102, state: READY_FOR_SALE}   # APPROVED 2026-06-04 (KEYCHAIN-MACOS)
     approved:    {version: "1.0.31", build: 112, state: PENDING_DEVELOPER_RELEASE_AUTO}  # APPROVED by ~2026-06-09, auto-release ON → goes live on its own. support chat + push + announcements + store-country
     in_review:   {version: "1.0.32", build: 113, state: WAITING_FOR_REVIEW}  # SUBMITTED 2026-06-09 — AUTH-RKN-DIRECT-IP login fix (sign-in races cert-validated direct IPs NL/SPB); AFTER_APPROVAL auto-release. reviewSubmission a17265e3
-    testflight:  {version: "1.0.32", build: 113, state: IN_BETA_TESTING}  # b113 assigned to Internal Testers — VERIFY the direct-IP sign-in on device while 1.0.32 is in review
+    testflight:  {version: "1.0.33", build: 114, state: IN_BETA_TESTING}  # b114 VALID + assigned to Internal Testers 2026-06-17 — the 2026-06-17 audit batch (6 pains). VERIFY on device.
     next_step: |
-      (1) DONE 2026-06-09: App Privacy nutrition label updated in ASC web — added User Content / Customer
-      Support (App Functionality, linked-to-identity, NOT tracking) for the support chat.
-      (2) VERIFY 1.0.32/113 sign-in on TestFlight (the direct-IP auth race is untested on-device) while it's
-      in review; cancel the reviewSubmission if a regression shows. (3) 1.0.31 auto-releases on its own.
-      DEFERRED to 1.0.33 (committed, did NOT make b113): badge-clear (da3fd11) + loadProducts retry +
-      PROMO-CODES Phase B (promo field in WebPaywallView).
+      (1) VERIFY 1.0.33/114 on TestFlight (iPhone) — the audit batch is on-device-unverified: инста loads
+      on Auto, no forced re-login, RU sign-in works, expired→paywall on connect, France pick sticks, chat
+      survives, send-log honesty. (2) 1.0.32/113 still in review (AUTH-RKN-DIRECT-IP); 1.0.31 auto-releases.
+      (3) If 1.0.33 verifies, submit it to App Store review (supersedes 1.0.32's fix + adds the batch).
+      BUILD CUT VIA CI (ios-archive-upload, tag ios-build-114) — local Mac lost the iOS 26 platform post-Xcode-update.
+      Server-side remaining (no build): EXIT-HEALTH-GATING, SYNTHETIC-MONITOR, RELAY-CONFIGS-IN-REPO,
+      RU-RATELIMIT-BUCKET, SENDLOG server B2-HEAD; sync.go periodic expired-UUID re-evict.
   iap: 4 non-renewing subs, all APPROVED 2026-05-31 (RU/CIS → WebPaywall/FreeKassa)
 
 # ── Infra (canonical: state/servers.yaml) ───────────────────────────────────

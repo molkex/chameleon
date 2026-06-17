@@ -887,6 +887,24 @@ deferred:
 # ============================================================
 done:
   "2026-06-17":
+    - id: SHIP-1.0.33
+      title: "Cut + upload 1.0.33 (build 114) — ships the full-service audit batch (6 pains)"
+      status: testflight_internal_valid   # b114 VALID + assigned to Internal Testers; on-device verify pending
+      notes: |
+        35-agent FULL-SERVICE-AUDIT (docs/audits/2026-06-17-...) → 9 fixes committed + pushed to main:
+        STALL-DNS-SIGNAL (#1 инста), AUTH-DIRECT-IP-INTERACTIVE (#3 RU sign-in), REFRESH-TOKEN-PERSIST
+        (#2 relogin), OOM-SELF-HEAL (#2 re-enter), EXPIRED-PAYWALL-ON-CONNECT (#5 feature),
+        COUNTRY-PICK-STICKY (#6), SSE-CHATTOKEN-REMINT (#4 chat), SENDLOG-NO-SILENT-LOSS (#4).
+        Backend REFUND-NULL-EXPIRY-GATE deployed + verified on NL (1 non-paying user evicted, 0 payers hit).
+        Each fix shipped with a test; every change compile-verified (macOS BUILD SUCCEEDED — the app target;
+        iOS test compile fixed after CI caught a main-actor-isolation miss on AppState.mayConnect).
+        BUILD via CI: local Mac lost the iOS 26 platform after the Xcode 26.5 update (Apple platform CDN
+        hangs from RU). Used the ios-archive-upload workflow (tag ios-build-114) — set the missing
+        ASC_KEY_ID/ISSUER_ID/KEY_BASE64 repo secrets, fixed GH_TOKEN on the fetch-libbox step, and added an
+        Xcode-26 select step (Apple rejects iOS 18.5-SDK uploads). EXPORT SUCCEEDED + Upload succeeded →
+        b114 VALID → assigned to Internal Testers (group 19b338f9).
+        NEXT: on-device verify on iPhone, then submit 1.0.33 to App Store review. PAYWALL-FUNNEL-TRIGGER
+        deferred (connect-gate covers it). Server P2 infra (exit-health/monitor/relay-configs/ratelimit) remains.
     - id: AUTH-REFRESH-ROTATE
       title: "iOS persists the ROTATED refresh token (fixes forced re-login every ~24h — Pain #2)"
       status: committed_pending_build   # client-only; rides the next build
