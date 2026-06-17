@@ -152,6 +152,28 @@ struct RaceLegPlan: Equatable {
     var httpEightyIPs: [String]
 }
 
+/// Winner policy for the hedged race — controls which statuses a FALLBACK leg
+/// (direct-IP / HTTP:80) may win with. The PRIMARY leg is always authoritative
+/// (wins on any status < 500) regardless of policy.
+///
+/// AUTH-DIRECT-IP-INTERACTIVE (2026-06-17): interactive sign-in (Apple/Google/
+/// magic-verify) historically used a bare `session.data` with NO fallback,
+/// deliberately, because under `.anyBelow500` a transport-mangled 4xx from a
+/// fallback leg (an IP-host nginx 400, a torn-TLS direct leg) could WIN over
+/// primary's correct 200 and make a valid login look "invalid" (build-53). That
+/// left RU sign-in with no recovery when Cloudflare stalls. `.definitiveAuthOnly`
+/// fixes both: a fallback leg may win ONLY on a 2xx (success) or 401 (a real
+/// backend "unauthorized" — nginx on a raw IP returns 400/404, never 401, so a
+/// 401 means the request actually reached the app-layer auth check). Any other
+/// fallback 4xx is treated as non-winning noise, so it can't shadow primary.
+enum FallbackWinPolicy {
+    /// Current default: a fallback leg wins on any status < 500. Keeps
+    /// fetchAndSaveConfig's 404→re-register propagation working.
+    case anyBelow500
+    /// Auth sign-in: a fallback leg wins ONLY on 2xx or 401.
+    case definitiveAuthOnly
+}
+
 class APIClient {
     private let session: URLSession
     private let fallbackSession: URLSession
@@ -193,6 +215,25 @@ class APIClient {
             httpEightyIPs = directIPs
         }
         return RaceLegPlan(primary: true, directIPs: directIPs, httpEightyIPs: httpEightyIPs)
+    }
+
+    /// Whether a FALLBACK leg (direct-IP / HTTP:80) may win the hedged race with
+    /// `status` under `policy`. Pure + static so the winner rule is unit-testable
+    /// without live networking. The PRIMARY leg does NOT use this — it is always
+    /// authoritative on any status < 500 (see dataWithFallback). A 5xx never wins
+    /// from any leg (the server is failing; let another leg or the caller decide).
+    static func fallbackLegWins(status: Int, policy: FallbackWinPolicy) -> Bool {
+        guard status < 500 else { return false }
+        switch policy {
+        case .anyBelow500:
+            return true
+        case .definitiveAuthOnly:
+            // Only a real success or a backend "unauthorized" is a definitive
+            // auth outcome. A raw-IP nginx 400/404 or a torn-TLS leg must NOT
+            // shadow primary's 200 (build-53). 401 reaching the app means the
+            // request truly hit the backend auth check.
+            return (200...299).contains(status) || status == 401
+        }
     }
 
     init() {
@@ -259,7 +300,7 @@ class APIClient {
     /// H-001 / H-002. The cost is no fallback for sensitive endpoints
     /// when Cloudflare is blocked; revisit when DirectConnection learns
     /// to validate the cert chain against the SNI.
-    private func dataWithFallback(for request: URLRequest, sensitive: Bool = false) async throws -> (Data, URLResponse) {
+    private func dataWithFallback(for request: URLRequest, sensitive: Bool = false, winPolicy: FallbackWinPolicy = .anyBelow500) async throws -> (Data, URLResponse) {
         guard let url = request.url else {
             throw APIError.networkError("missing URL")
         }
@@ -359,8 +400,8 @@ class APIClient {
                             timeout: 6
                         )
                         let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
-                        if meta.status >= 500 {
-                            AppLogger.network.info("race.direct.done ip=\(ip, privacy: .public) rejected status=\(meta.status, privacy: .public) elapsed=\(ms, privacy: .public)ms")
+                        if !Self.fallbackLegWins(status: meta.status, policy: winPolicy) {
+                            AppLogger.network.info("race.direct.done ip=\(ip, privacy: .public) rejected status=\(meta.status, privacy: .public) policy=\(String(describing: winPolicy), privacy: .public) elapsed=\(ms, privacy: .public)ms")
                             return nil
                         }
                         let response = HTTPURLResponse(
@@ -418,8 +459,8 @@ class APIClient {
                         let (data, response) = try await fallbackSession.data(for: httpReq)
                         let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
                         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-                        if status >= 500 {
-                            AppLogger.network.info("race.http.done ip=\(ip, privacy: .public) rejected status=\(status, privacy: .public) elapsed=\(ms, privacy: .public)ms")
+                        if !Self.fallbackLegWins(status: status, policy: winPolicy) {
+                            AppLogger.network.info("race.http.done ip=\(ip, privacy: .public) rejected status=\(status, privacy: .public) policy=\(String(describing: winPolicy), privacy: .public) elapsed=\(ms, privacy: .public)ms")
                             return nil
                         }
                         AppLogger.network.info("race.http.done ip=\(ip, privacy: .public) ok status=\(status, privacy: .public) elapsed=\(ms, privacy: .public)ms")
@@ -597,8 +638,12 @@ class APIClient {
         ])
         request.timeoutInterval = 20
 
+        // AUTH-DIRECT-IP-INTERACTIVE (2026-06-17): race the cert-validated
+        // direct-IP legs (sensitive:true) under the .definitiveAuthOnly winner
+        // rule so a stalled Cloudflare primary in RU can't strand sign-in, while
+        // a transport-mangled fallback 4xx still can't shadow primary's 200.
         do {
-            let (data, response) = try await session.data(for: applyTelemetry(to: request))
+            let (data, response) = try await dataWithFallback(for: applyTelemetry(to: request), sensitive: true, winPolicy: .definitiveAuthOnly)
             guard let http = response as? HTTPURLResponse else {
                 throw APIError.networkError("No response")
             }
@@ -623,8 +668,10 @@ class APIClient {
     /// Sign in with Google — trial or return existing account.
     /// `idToken` is the ID token returned by GoogleSignIn SDK.
     ///
-    /// Same reasoning as signInWithApple — bypass the hedged race so a
-    /// transport-mangled 4xx from a fallback leg can't shadow primary's 200.
+    /// Same reasoning as signInWithApple — races the cert-validated direct-IP
+    /// legs under .definitiveAuthOnly (fallback wins only on 2xx/401), so RU
+    /// Cloudflare stalls don't strand sign-in and a mangled fallback 4xx can't
+    /// shadow primary's 200.
     func signInWithGoogle(idToken: String) async throws -> AuthResult {
         let deviceId = PlatformDevice.identifier
         guard let url = URL(string: "\(AppConstants.baseURL)/api/mobile/auth/google") else {
@@ -639,8 +686,12 @@ class APIClient {
         ])
         request.timeoutInterval = 20
 
+        // AUTH-DIRECT-IP-INTERACTIVE (2026-06-17): same as signInWithApple —
+        // race the cert-validated direct-IP legs under .definitiveAuthOnly so a
+        // stalled RU Cloudflare primary can't strand sign-in, with no risk of a
+        // mangled fallback 4xx shadowing primary's 200.
         do {
-            let (data, response) = try await session.data(for: applyTelemetry(to: request))
+            let (data, response) = try await dataWithFallback(for: applyTelemetry(to: request), sensitive: true, winPolicy: .definitiveAuthOnly)
             guard let http = response as? HTTPURLResponse else {
                 throw APIError.networkError("No response")
             }
@@ -703,13 +754,14 @@ class APIClient {
         ])
         request.timeoutInterval = 20
 
-        // Same reasoning as signInWithApple/signInWithGoogle: a transport-
-        // mangled 4xx from a fallback leg (HTTP:80 with Host=<IP>, direct-IP
-        // with a torn-down TLS handshake, etc.) can win the hedged race over
-        // primary's correct 200 and make a valid magic-link look "invalid"
-        // to the user. Auth handshakes go straight through.
+        // AUTH-DIRECT-IP-INTERACTIVE (2026-06-17): race the cert-validated
+        // direct-IP legs so a stalled Cloudflare primary in RU doesn't make a
+        // valid magic-link look "invalid". The .definitiveAuthOnly winner rule
+        // means a fallback leg can only win on 2xx/401 — a transport-mangled 4xx
+        // (the build-53 fear that originally forced a bare single path) can no
+        // longer shadow primary's 200.
         do {
-            let (data, response) = try await session.data(for: applyTelemetry(to: request))
+            let (data, response) = try await dataWithFallback(for: applyTelemetry(to: request), sensitive: true, winPolicy: .definitiveAuthOnly)
             guard let http = response as? HTTPURLResponse else {
                 throw APIError.networkError("No response")
             }

@@ -69,12 +69,22 @@ now:
       pain: "#3 RU sign-in flapping"
       effort: M
       build: true
-      anchor: clients/apple/MadFrogVPN/Models/APIClient.swift:584/626/695 (bare session.data)
-      plan: |
-        Route through dataWithFallback(sensitive:true) (cert-validated direct-IP, MITM-safe per H-002b).
-        MUST FIRST tighten winner-rule in dataWithFallback (:345/:404): a leg wins only on 2xx OR 401
-        (currently any <500 → build-53 regression risk). +1 retry on network-error. Also closes the
-        magic-verify asymmetry (:695). Unit-test winner-selection; on-device sign-in from RU w/ throttled CF.
+      status: implemented_compile_verified   # macOS BUILD SUCCEEDED 2026-06-17; on-device verify pending
+      files:
+        - clients/apple/MadFrogVPN/Models/APIClient.swift              # FallbackWinPolicy + fallbackLegWins + 3 sign-ins routed
+        - clients/apple/Tests/UnitTests/APIClientWinPolicyTests.swift  # winner-rule truth table (build-53 guard)
+      correction: |
+        Audit said requestMagicLink was bare too — actually it already used
+        dataWithFallback(sensitive:true). Only signInWithApple/signInWithGoogle/verifyMagicLink were
+        bare session.data (deliberately — prior comments warned of the build-53 fallback-4xx-shadows-200 risk).
+      done: |
+        Did NOT globally change the race winner-rule (fetchAndSaveConfig RELIES on 404→re-register, and
+        primary must stay authoritative). Instead added an OPT-IN FallbackWinPolicy: default .anyBelow500
+        (unchanged for all existing callers); the 3 interactive sign-ins now race via
+        dataWithFallback(sensitive:true, winPolicy:.definitiveAuthOnly) — a FALLBACK leg wins only on
+        2xx/401, so a transport-mangled 4xx (raw-IP nginx 400 / torn TLS) can't shadow primary's 200
+        (the exact build-53 fear). Primary leg untouched (wins on any <500). Pure fallbackLegWins seam
+        unit-tested. VERIFY on-device: sign in from RU with Cloudflare stalled.
     - id: REFRESH-TOKEN-PERSIST
       title: "Сохранять rotated refresh-token + expires_at (детерминированный force-релогин ~раз/сутки)"
       priority: P0

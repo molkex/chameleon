@@ -157,6 +157,7 @@
 		8C50FBC490B8B107D281C129 /* SingBoxConfigPatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BFE7E8B5C268A8B4E1F44C8 /* SingBoxConfigPatcher.swift */; };
 		8D0556BA2F8691356C8F0E04 /* RunBlocking.swift in Sources */ = {isa = PBXBuildFile; fileRef = 056A5CFAAD6E085B3A0ACF9A /* RunBlocking.swift */; };
 		8E14DDF4A3DED8C5DD74F8A3 /* AppleAuthCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A2105C436C4E871B1CFB916 /* AppleAuthCoordinator.swift */; };
+		8F3B68FA22E1F2CF01E75962 /* APIClientWinPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E7C3630FA4C9E277D146F1B /* APIClientWinPolicyTests.swift */; };
 		8F75A2437F55A299C19D3960 /* TrafficHealthMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0F1E53A2387E8AB9E727CD9 /* TrafficHealthMonitor.swift */; };
 		8FBB24D22BEABD59685F7B82 /* MenuBarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8EF3541F56531E6A2C1EA76 /* MenuBarContent.swift */; };
 		905E0BB257310FDDB4781269 /* PingServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B114B8A077748A71A618058A /* PingServiceTests.swift */; };
@@ -400,6 +401,7 @@
 		7942ED58C1C5E2580B179033 /* AnnouncementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementView.swift; sourceTree = "<group>"; };
 		7C4CD0A25B056DBC6DD6A6D8 /* CountryFlagTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountryFlagTests.swift; sourceTree = "<group>"; };
 		7C61B1AA0AC6A405D189C34B /* PlatformDevice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformDevice.swift; sourceTree = "<group>"; };
+		7E7C3630FA4C9E277D146F1B /* APIClientWinPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClientWinPolicyTests.swift; sourceTree = "<group>"; };
 		8088B4CB467F045A63443C0F /* Announcement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Announcement.swift; sourceTree = "<group>"; };
 		828C4AEC2AEC8A2EEB92717E /* ConfigSanitizerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigSanitizerTests.swift; sourceTree = "<group>"; };
 		84CA81E1B48C9260C55A6012 /* ApplicationServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ApplicationServices.framework; path = System/Library/Frameworks/ApplicationServices.framework; sourceTree = SDKROOT; };
@@ -581,6 +583,7 @@
 			children = (
 				33947299B156B2AC6BD9B3A8 /* AcctIdentityTests.swift */,
 				C5A01555D3038E7947B6CCD7 /* APIClientSensitiveFlagTests.swift */,
+				7E7C3630FA4C9E277D146F1B /* APIClientWinPolicyTests.swift */,
 				46461EB64AC98A85BDA33143 /* AppStateFallbackTests.swift */,
 				828C4AEC2AEC8A2EEB92717E /* ConfigSanitizerTests.swift */,
 				7C4CD0A25B056DBC6DD6A6D8 /* CountryFlagTests.swift */,
@@ -1249,6 +1252,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				65313A361B8F13E330805908 /* APIClientSensitiveFlagTests.swift in Sources */,
+				8F3B68FA22E1F2CF01E75962 /* APIClientWinPolicyTests.swift in Sources */,
 				40EABAB28805EFB67FB4AD26 /* AcctIdentityTests.swift in Sources */,
 				13ACDC2A838051DAD074B9E4 /* AppStateFallbackTests.swift in Sources */,
 				9AB874F30E33334B32A64AA5 /* ConfigSanitizerTests.swift in Sources */,
