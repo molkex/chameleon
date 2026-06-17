@@ -54,6 +54,9 @@ jobs:
         run: brew install xcodegen
 
       - name: Fetch Libbox.xcframework
+        env:
+          # fetch-libbox.sh uses `gh release download`, which needs a token in CI.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ -x scripts/fetch-libbox.sh ]; then
             ./scripts/fetch-libbox.sh
