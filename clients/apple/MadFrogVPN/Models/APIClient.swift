@@ -498,6 +498,30 @@ class APIClient {
         }
     }
 
+    /// AUTH-RETRY (2026-06-17): sign-in over a flaky RU network sometimes hits a
+    /// brief window where EVERY leg (CF + direct IPs) momentarily fails → the
+    /// race throws "all paths failed" and the user had to tap the button again.
+    /// This wraps the auth race with up to 3 attempts (700ms / 1400ms backoff),
+    /// so a short network blip is ridden out silently. Only the transient
+    /// "all paths failed" is retried — a real 401/4xx surfaces immediately.
+    private func dataWithFallbackRetryingAuth(for request: URLRequest) async throws -> (Data, URLResponse) {
+        var lastError: Error = APIError.networkError("all paths failed")
+        for attempt in 1...3 {
+            do {
+                return try await dataWithFallback(for: request, sensitive: true, winPolicy: .definitiveAuthOnly)
+            } catch let err as APIError {
+                if case .networkError(let msg) = err, msg.contains("all paths failed") {
+                    lastError = err
+                    AppLogger.network.info("auth retry \(attempt, privacy: .public)/3 after all-paths-failed")
+                    if attempt < 3 { try? await Task.sleep(for: .milliseconds(700 * attempt)) }
+                    continue
+                }
+                throw err  // a definitive auth outcome (401, decode, etc.) — don't retry
+            }
+        }
+        throw lastError
+    }
+
     // MARK: - Standalone Device Registration
 
     /// Register device for trial access.
@@ -653,7 +677,7 @@ class APIClient {
         // rule so a stalled Cloudflare primary in RU can't strand sign-in, while
         // a transport-mangled fallback 4xx still can't shadow primary's 200.
         do {
-            let (data, response) = try await dataWithFallback(for: applyTelemetry(to: request), sensitive: true, winPolicy: .definitiveAuthOnly)
+            let (data, response) = try await dataWithFallbackRetryingAuth(for: applyTelemetry(to: request))
             guard let http = response as? HTTPURLResponse else {
                 throw APIError.networkError("No response")
             }
@@ -701,7 +725,7 @@ class APIClient {
         // stalled RU Cloudflare primary can't strand sign-in, with no risk of a
         // mangled fallback 4xx shadowing primary's 200.
         do {
-            let (data, response) = try await dataWithFallback(for: applyTelemetry(to: request), sensitive: true, winPolicy: .definitiveAuthOnly)
+            let (data, response) = try await dataWithFallbackRetryingAuth(for: applyTelemetry(to: request))
             guard let http = response as? HTTPURLResponse else {
                 throw APIError.networkError("No response")
             }
@@ -771,7 +795,7 @@ class APIClient {
         // (the build-53 fear that originally forced a bare single path) can no
         // longer shadow primary's 200.
         do {
-            let (data, response) = try await dataWithFallback(for: applyTelemetry(to: request), sensitive: true, winPolicy: .definitiveAuthOnly)
+            let (data, response) = try await dataWithFallbackRetryingAuth(for: applyTelemetry(to: request))
             guard let http = response as? HTTPURLResponse else {
                 throw APIError.networkError("No response")
             }
