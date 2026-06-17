@@ -1644,8 +1644,16 @@ class AppState {
         }
         guard !targets.isEmpty else { return .skipped }
 
-        // Probe every target on its real transport, concurrently.
-        let aliveTags: Set<String> = await withTaskGroup(of: (String, Bool).self) { group in
+        // Probe every target on its real transport, concurrently. CONNECT-PREFLIGHT-FAST
+        // (2026-06-17): return as soon as the FIRST leg proves reachable and cancel
+        // the rest — reachability is binary here, we don't need every result. Field
+        // logs showed preflight cost a flat ~3.2 s on every connect because it waited
+        // for the SLOWEST probe (a dead UDP leg's full 3 s QUIC timeout, common under
+        // RKN) even when a TCP/Reality leg had already answered in ~100 ms. Early-out
+        // shaves that ~3 s off every connect ("долгое подключение"). The dead path
+        // (nothing alive) still waits the full budget — that's the failure case we
+        // WANT to confirm before surfacing .selectedDead / .allDead.
+        let anyAlive: Bool = await withTaskGroup(of: Bool.self) { group in
             for target in targets {
                 let isUDP = udpOnlyTypes.contains(target.type)
                 group.addTask {
@@ -1655,15 +1663,17 @@ class AppState {
                     } else {
                         ms = await PingService.probeTCP(host: target.host, port: target.port, timeout: 2.0)
                     }
-                    return (target.tag, ms > 0)
+                    return ms > 0
                 }
             }
-            var out = Set<String>()
-            for await (tag, alive) in group where alive { out.insert(tag) }
-            return out
+            for await alive in group where alive {
+                group.cancelAll()
+                return true
+            }
+            return false
         }
 
-        if !aliveTags.isEmpty { return .ok }
+        if anyAlive { return .ok }
 
         if selectedTag != nil, let dead = targets.first {
             return .selectedDead(name: dead.tag)
