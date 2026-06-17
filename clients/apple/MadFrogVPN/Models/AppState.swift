@@ -1294,7 +1294,7 @@ class AppState {
     /// backend coverage (future expiry) OR a live StoreKit entitlement. Static +
     /// pure so it's unit-testable without a live AppState. NULL/absent expiry =
     /// no coverage (mirrors the backend's hasActiveSubscription canon).
-    static func mayConnect(subscriptionExpire: Date?, isPremium: Bool, now: Date) -> Bool {
+    nonisolated static func mayConnect(subscriptionExpire: Date?, isPremium: Bool, now: Date) -> Bool {
         if isPremium { return true }
         return subscriptionExpire.map { $0 > now } ?? false
     }
