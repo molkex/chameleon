@@ -19,7 +19,7 @@
 # Test coverage + how-to-verify each layer: state/test-map.yaml (decision 0009).
 
 meta:
-  updated: 2026-06-17
+  updated: 2026-06-21
   branch: main
   direction: on_track          # see `assessment` at the bottom
 
@@ -92,6 +92,13 @@ open_decisions:                  # waiting on the user
 
 # ── Shipped (detail: roadmap.yaml#done + incidents/*) ──
 recent:
+  - PRODUCT-MATURITY-LOOP (2026-06-21, LIVING) — 4-agent product-lens audit (retention/UX/completeness/
+    kostyli) on top of 2026-06-17. Registry+journal: audits/2026-06-21-product-maturity-loop.md (56 items,
+    4 tracks A/B/C/D). HEADLINE: monetization is one-shot BY DESIGN at every layer (non-renewing Apple IAP +
+    one-shot FreeKassa + NO lifecycle engine + churn untracked) = literal "buy once never return". Plus no
+    kill-switch (#1 VPN trust feature), bare paywall, no onboarding/proof-of-protection. Top-ROI fix =
+    A1-lifecycle-engine (daily expiry sweep → push+email; backend-only, no App Store review; senders already
+    exist). This is a running loop; append every change to the doc's §6 journal. Owner picking start track.
   - FULL-SERVICE-AUDIT (2026-06-17) — 35-agent multi-agent audit (8 subsystems, 53 findings,
     22 P0/P1 verified). Report at audits/2026-06-17-full-service-audit.md. Plan laid into
     roadmap.yaml#now.audit_2026_06_17_phase0 (P0) + next.audit_2026_06_17 (P1-3). Through-line —

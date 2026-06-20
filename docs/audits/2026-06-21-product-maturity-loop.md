@@ -1,0 +1,210 @@
+---
+date: 2026-06-21
+type: audit + living-loop
+scope: product maturity — recurring revenue / retention / UX-UI / product-completeness / kostyli
+method: 4-agent parallel audit (retention, UX/UI, completeness, tech-debt) on top of the 2026-06-17 full-service audit
+status: LIVING DOCUMENT — the "весь путь изменений" change journal. Append to §6 every iteration; never rewrite history.
+supersedes_nothing: complements docs/audits/2026-06-17-full-service-audit.md (reliability/security/infra)
+---
+
+# MadFrog VPN — Product-Maturity Loop
+
+> **Why this exists.** The owner is in production with paying customers but wants to *advertise* and earn
+> **recurring** revenue — not "sell a subscription once and never see the user again". The 2026-06-17 audit
+> covered reliability/security/infra. This one adds the lens that audit barely touched: **why people pay
+> once and leave**, plus **UX/UI**, **product completeness**, and **kostyli/tech-debt**. It is a *living*
+> document: §5 is the prioritized registry, §6 is the append-only journal of every change we make.
+
+---
+
+## 1. The headline (read this first)
+
+**The product is monetized as a one-shot purchase, end to end — by design, at every layer.** "Buy once, never
+come back" is not a UX accident; it is the literal behavior of the monetization stack:
+
+1. **All 4 Apple IAPs are `NON_RENEWING_SUBSCRIPTION`** (`docs/state/app-store.yaml:117`, ADR 0005). Apple
+   never auto-charges — the user must *manually re-buy* every cycle. ADR 0005 itself predicts a **30-50% LTV
+   drop** vs auto-renew and says "marketing must remind users to renew" — that reminder system **was never built**.
+2. **FreeKassa (the ONLY rail actually making money — 12 pays ~3489₽; Apple IAP = 0)** has **no recurring
+   billing, no saved card, no failed-payment retry**. Every RU renewal = re-enter email, pick a method, pay in a
+   browser. Maximum-friction re-purchase for 100% of real revenue.
+3. **No lifecycle engine anywhere.** There is no job that scans "expiring in 3 days / expired yesterday" and
+   sends a push or email. The push sender, the email sender, and the audience labels all exist — they are just
+   **not wired to a scheduler**. A lapsed user gets *zero* automated touch.
+4. **Churn is invisible.** EventTracker measures acquisition only (no `trial_expired`, `subscription_renewed`,
+   `resubscribe`). The owner literally cannot *see* churn or renewal rate today.
+
+On top of that, the **UX bookends repel**: a brand-new user hits a sign-in wall with no onboarding/trust moment
+and a fake hand-drawn Google "G"; the free trial (best hook) is a tiny grey underline; once connected the app
+never *proves* it's working (no IP, no location); and the paywall — the revenue moment — is a bare price list
+with no pitch and no mention of the trial. *"Polished in the middle, limping at the edges."*
+
+And the product is **missing the #1 VPN trust feature**: there is **no kill switch** (`includeAllNetworks()`
+returns `false`, `ExtensionPlatformInterface.swift:160`) — when the tunnel drops, traffic silently leaks.
+
+**Through-line:** core engineering is solid; the gaps are *commercial maturity* (recurring billing + lifecycle),
+*trust* (kill switch, proof-of-protection, onboarding), and a *bare paywall*. The good news: the single
+highest-ROI fix — the **lifecycle re-engagement engine** — is backend-only, ships with no App Store review, and
+reuses parts that already exist.
+
+---
+
+## 2. The four tracks
+
+| Track | Theme | Owner question it answers |
+|---|---|---|
+| **A. Recurring revenue / retention** | renewal billing, lifecycle, win-back, churn metrics | "how do I earn every month, not once?" |
+| **B. UX/UI & trust** | onboarding, paywall pitch, proof-of-protection, polish, L10n | "why does it feel unfinished / limping?" |
+| **C. Product completeness** | kill switch, data-usage, IP display, manage-sub, reminders | "what makes it a *real* product?" |
+| **D. Kostyli / tech-debt / infra safety** | deploy/restore safety, dual server-selection model, watchdogs | "what will break / is held by tape?" |
+
+## 3. How we run this loop
+- Each iteration picks the **highest-leverage item(s)** from §5, implements with a test (per decision 0009),
+  verifies, and logs an entry in §6 with date / what / why / files / result.
+- **No-build server/admin items first** (ship same-day) → then **app-build batches** (ride a TestFlight build).
+- High-risk changes to working prod code are flagged and confirmed with the owner before touching.
+- When an item completes, mark it `DONE` in §5 and move the matching roadmap entry.
+
+## 4. Method & provenance
+4 parallel read-only audit agents on 2026-06-21 (retention, UX/UI, product-completeness, kostyli), each told to
+build on — not repeat — the 35-agent 2026-06-17 audit. Every anchor below was grep/Read-verified by an agent.
+Reliability findings (DNS/oom/refresh-token/SSE) live in the 2026-06-17 doc and are not duplicated here.
+
+---
+
+## 5. Problem registry (prioritized)
+
+Severity = impact on the owner's goal (recurring revenue + advertisable quality), not raw bug severity.
+`build?` = needs an App Store / TestFlight build (slow) vs server/admin deploy (same-day).
+
+### Track A — Recurring revenue / retention
+
+| ID | Sev | Anchor | Costs us | Fix | Effort | build? | Status |
+|---|---|---|---|---|---|---|---|
+| `A1-lifecycle-engine` | **P0** | `cmd/chameleon/main.go:391` (enforcement sweep notifies nobody); `push/push.go` + `email/resend.go` only manual | No expiry reminder / trial nudge / win-back anywhere → lapsed users get zero touch | Daily sweep → segment `expiring_3d`/`expired_1d`/`expired_7d` → push + email (senders + audiences already exist) | M | **no** | OPEN |
+| `A2-auto-renew-iap` | **P0** | `app-store.yaml:117`; ADR 0005; `SubscriptionManager.swift:16,26` | Non-renewing = manual re-buy; ADR predicts 30-50% LTV loss; blocks Family Sharing + StoreKit win-back/intro offers | New subscription group w/ auto-renewable product IDs; honor `DID_RENEW`/`EXPIRED`/`GRACE` ASN | L | yes | OPEN (roadmap had it `deferred`, data-gate now satisfied) |
+| `A3-freekassa-recurring` | **P0** | `payments/freekassa/client.go` (one-shot CreateOrder only) | 100% of real revenue is on the rail with no recurring/saved-card/dunning | Saved-card / СБП rebill token + server-side renewal scheduler | L | no | OPEN |
+| `A4-asn-churn-signals` | P1 | `payments/subscription_notification.go:110` (`EXPIRED`/`DID_FAIL_TO_RENEW`/`GRACE` → log+drop); no `auto_renew_status` column | Apple's involuntary-churn signals discarded; can't segment voluntary vs involuntary churn | Persist `auto_renew_status`+`expiration_intent`; act on `DID_FAIL_TO_RENEW` | M | no | OPEN |
+| `A5-proactive-paywall` | P1 | `MainView.swift:125`; paywall only from chips `MainViewNeon.swift:120,416`,`Calm:330` | Paywall seen by 9/257 connecters → 3.8% paid; trial→paid moment has no surface | One-time paywall on trial→expired transition (state-tracked) | S | yes | OPEN (roadmap PAYWALL-FUNNEL-TRIGGER over-optimistically "addressed") |
+| `A6-expiry-warning-ui` | P1 | `MainViewNeon.swift:446`,`Calm:355` (countdown is grey subtitle text only) | Most persuasive moment (trial ends tomorrow) is invisible | Banner + CTA when `daysLeft<=3`; distinct trial vs paid copy | S | yes | OPEN |
+| `A7-client-reengagement` | P1 | no `UNCalendar/TimeInterval` trigger for expiry; `winBack`/`offerCode`/`promotionalOffer` = 0 hits | No local reminder, no win-back offer client-side; promo engine built but unwired to expired audience + absent from paywall | Local notif on expiry; ship promo field in `WebPaywallView.swift:347`; wire promo→expired campaign | M | yes+wiring | OPEN |
+| `A8-annual-savings-framing` | P2 | `WebPaywallView.swift:457` (raw "₽" only) | Annual only ~24%/mo cheaper and UI never shows it → users pick highest-churn monthly | Compute per-month + "save X%"; widen annual discount | S | yes | OPEN |
+| `A9-churn-instrumentation` | P2 | `EventTracker.swift` (acquisition events only); gate `AppState.swift:1372` fires no event | Owner cannot see churn / renewal / trial-conversion rate → advertising blind (no LTV/CAC) | Emit `subscription.expired`/renewed/resubscribe + admin churn dashboard | M | yes+admin | OPEN |
+| `A10-freekassa-refund` | P2 | no FK refund handler; `MarkRefundedAndReconcile` Apple-only (`credit.go:209`) | Refunded RU payment keeps VPN access (small leak on the revenue rail) | FK refund webhook → MarkRefundedAndReconcile | S | no | OPEN |
+| `A11-trial-reinstall-hole` | P3 | `auth.go:635`; TRIAL-ABUSE-REINSTALL | Delete+reinstall → fresh trial (3 of 347 — tiny) | install_secret/DeviceCheck gate | M | no | DEFER-until-grows (correct) |
+
+### Track B — UX/UI & trust
+
+| ID | Sev | Anchor | User feels | Fix | Effort | build? | Status |
+|---|---|---|---|---|---|---|---|
+| `B1-paywall-no-pitch` | P1 | `PaywallView.swift:118,223` (price list, no bullets/badge/savings); two divergent paywalls | Revenue screen is unpersuasive | Benefit bullets + best-value badge + per-month math; restate trial on CTA; frame "no auto-renew" as trust; parity Apple↔Web | M | yes | OPEN |
+| `B2-onboarding-no-trust` | P1 | `OnboardingView.swift:33` (sign-in wall, no intro); trust = 3× 11pt pills | Can't evaluate before handing over identity; drop-off | 2-3 page intro (what/why-trust/free-trial) before auth | M | yes | OPEN |
+| `B3-trial-cta-buried` | P1 | `OnboardingView.swift:108,303` (guest = 13pt grey underline) | Best conversion hook is least visible | Promote "Start free — no account" to a real button | S | yes | OPEN |
+| `B4-no-proof-of-protection` | P1 | `MainViewCalm.swift:135`,`Neon:150` (timer only, no IP/location) | No felt confirmation VPN works | Show apparent IP / "you appear in X" on connect | M | yes | OPEN (= C3) |
+| `B5-support-chat-russian` | P1 | `SupportChatView.swift:64,120` (hardcoded RU); `AnnouncementView.swift:65,98` | EN users hit raw Russian exactly when frustrated | Move strings to Localizable.strings | S | yes | OPEN |
+| `B6-offline-vs-disconnected` | P2 | Neon `home.neon.exposed`="OFFLINE" vs Calm "Disconnected" | "OFFLINE" implies no internet, not "exposed" | Unify to accurate pair ("Not connected"/"Exposed — tap to protect") | S | yes | OPEN |
+| `B7-google-logo-fake` | P2 | `OnboardingView.swift:330` (bold letter "G") | Looks cheap/placeholder on first screen | Official multicolor G asset (also a Google requirement) | S | yes | OPEN |
+| `B8-restore-discoverability` | P2 | restore only on paywall (`PaywallView.swift:50`), absent from Settings | Reinstalled payer can't find restore → tickets | Add Restore to Account/Settings | S | yes | OPEN |
+| `B9-account-sparse` | P2 | `AccountView.swift:14` (system List, UUID username, no provider/email/manage) | Feels unfinished vs themed app | Theme it; show provider/email; Manage-sub link | S/M | yes | OPEN (manage-sub = C4) |
+| `B10-web-paywall-handoff` | P2 | `WebPaywallView.swift:347` (external Safari, no return guidance) | RU users think payment failed → abandon | "Waiting for payment" pending state on return | S/M | yes | OPEN |
+| `B11-list-vs-card-mismatch` | P2 | server picker + Account use system `List`; rest uses themed cards | Inconsistent surface = "limping" | One list idiom; theme system Lists | M | yes | OPEN |
+| `B12-brand-fonts-unshipped` | P2 | `Theme.swift:65` (`displayFontName:nil` "for now") | Signature theme uses system fonts | Ship intended fonts or delete dead config | S/M | yes | OPEN |
+| `B13-theme-picker-dead` | P2 | `ThemePickerView.swift:3` vs `MadFrogVPNApp.swift:58` (`hasSelected` never used) | (dev trap) half-built first-run flow is dead code | Wire it or delete + fix comments | S | yes | OPEN |
+| `B14-a11y-gaps` | P2 | connect button no a11y label (`Calm:136`,`Neon:331`); fixed font sizes; <44pt taps | Poor VoiceOver / Dynamic Type | a11y label+value on connect; relative sizing; 44pt targets | M | yes | OPEN |
+| `B15-stale-mocks-copy` | P3 | `ThemePickerView.swift:113` ("DE-1·24ms" retired DE); `EmailSignInView.swift:69` ("email" not localized) | Small "unfinished" tells | Live mock; use localized placeholder | S | yes | OPEN |
+| `B16-auto-exit-country` | P3 | `MainView.swift:560` (Auto shows 🌍, hides resolved country) | Auto users don't know exit country | Surface resolved country in subtitle on connect | S | yes | OPEN |
+
+### Track C — Product completeness (table-stakes)
+
+> Already shipped & solid (do NOT sandbag): on-demand auto-connect (`VPNManager.swift:141`), Control Center
+> toggle (`MadFrogControlWidget.swift:13`), home/lock widgets (`StatusWidget.swift:49`), Shortcuts/Siri
+> (`VPNControlIntents.swift:164`), per-server ping, disconnect notif + auto-reconnect, delete-account, EN+RU
+> L10n, macOS menu bar.
+
+| ID | Sev | Anchor | Why it matters | Fix | Effort | build? | Status |
+|---|---|---|---|---|---|---|---|
+| `C1-kill-switch` | **P0** | `ExtensionPlatformInterface.swift:160` (`includeAllNetworks=false`); PLANNED later#features | #1 VPN trust feature; absence = silent leak on drop → review-bombs | `includeAllNetworks` + persistent on-demand (not just a toggle) | M | yes | OPEN |
+| `C2-data-usage-stats` | P1 | ABSENT in UI; stats exist server-side; partial PLANNED LAUNCH-09 | Top-3 reason users open a VPN app; absence feels like a toy | Render bytes up/down + session total from existing stats | M | yes | OPEN |
+| `C3-current-ip-location` | P1 | ABSENT | The "is it working?" check; absence → support + distrust | Echo endpoint + a home row | S/M | yes | OPEN (= B4) |
+| `C4-manage-sub-deeplink` | P1 | ABSENT (no `showManageSubscriptions`) | Easy-to-cancel = trust; reduces chargebacks; Apple-friendly | StoreKit `showManageSubscriptions` sheet | S | yes | OPEN |
+| `C5-expiry-reminder` | P1 | ABSENT (date shown `AccountView.swift:87`, no reminder) | For non-renewing IAP this IS the renewal engine | Local notif on expiry date (+ APNs via A1) | S | yes | OPEN (pairs with A1/A7) |
+| `C6-device-management` | P2 | ABSENT (register exists, no list/revoke UI) | Expected account hygiene; hides abuse | Backend list+revoke + UI (SPA has user view) | M | yes | OPEN |
+| `C7-split-tunneling` | P2 | ABSENT (`NEAppRule`); routing modes partially substitute | Power-user retention; RU smart-routing softens it | per-app rules | L | yes | OPEN |
+| `C8-live-activity` | P2 | ABSENT; PLANNED LAUNCH-10 | "Premium" signal | ActivityKit session | M | yes | OPEN |
+| `C9-referral` | P2 | ABSENT (not even on roadmap) | Cheapest growth+retention loop | backend + invite UI | M/L | yes | OPEN |
+| `C10-ipad-layout` | P3 | ABSENT; PLANNED REFAC-03 | iPad gets blown-up phone UI | NavigationSplitView / size classes | M | yes | OPEN |
+| `C11-change-email-export` | P3 | ABSENT (delete exists) | GDPR export nicety | flows | S each | yes | OPEN |
+
+### Track D — Kostyli / tech-debt / infra safety
+
+| ID | Sev | Anchor | Failure mode | Fix | Effort | Status |
+|---|---|---|---|---|---|---|
+| `D1-deploy-no-error-stop` | **P0** | `backend/deploy.sh:335` (`psql <f 2>/dev/null && echo Applied`; 4 migrations no BEGIN/COMMIT) | Failed migration is invisible, deploy reports success → partial apply on sole DB node | `-v ON_ERROR_STOP=1`, drop `2>/dev/null`, fail-fast, wrap migrations in tx | S/M | **DONE 2026-06-21** (iter 1; verified migrations idempotent first) |
+| `D2-restore-broken` | **P0** | `infrastructure/restore.sh:20` reads `-Fc`; real backup is `pg_dump|gzip` `.sql.gz` (`scripts/db-backup.sh`) | Documented DR path **cannot read real backups**; no B2 pull; no drill — on a single-NL SPoF | Make restore consume `.sql.gz` (`gunzip|psql`) + B2 pull + periodic drill | M | **DONE 2026-06-21** (iter 1; rewrote restore.sh; also fixed wrong `backend`→`chameleon` service) |
+| `D3-connect-watchdog-40s` | P0 | `AppState.swift:1389` (18+3+1+18 ≈ 40s, self-documented) | Violates 30s mandate; 40s spinner before error | Retune ≤30s (e.g. 13×2+grace); name the magic 18s | S | OPEN |
+| `D4-ext-start-no-watchdog` | P0 | `ExtensionProvider.swift:447` (`startOrReloadService` blocking, no timeout) | libbox hang → `startTunnel` never resolves | Race against deadline → completionHandler(error) | M | OPEN |
+| `D5-dual-server-selection` | P1 | `ConfigStore.swift:127,295` + `PathPicker.swift:188`; **9** country tables | Root of FR-SELECT / UI-FLAG-HOME / COUNTRY-PICK-STICKY bug class; new country = up to 9 edits | One `Country` registry + `ServerSelection` enum parsed once at boundary (retires SRV-DYNAMIC) | L | OPEN |
+| `D6-neon-badge-AUTO` | P1 | `MainViewNeon.swift:213` (leaf-only lookup → "AUTO" on country pin) | Dual-model fix half-applied (Neon path missed) | Check `app.servers.countries` before leaf / use shared helper | S | OPEN |
+| `D7-geoip-negative-cache` | P1 | `geoip.go:61` (caches zero Result 24h on any failure; unbounded map) | Transient/ratelimit pins blank country/city 24h; backfill blanks | Cache only `status==success`; short negative TTL; bound map | S | OPEN |
+| `D8-relay-drift-manual` | P1 | `infrastructure/{msk,spb}-relay/README.md` (diff is manual) | Off-box edit not pulled → rebuild restores stale config (DR gap) | Scheduled drift-check → telegram alert | M | OPEN |
+| `D9-spb-password-arg` | P1 | `spb-relay/README.md:13` (`sshpass -p "$PW"`) | Password in process args (`ps`/`/proc`); only node not on keys | Key auth, or `sshpass -e`/`-f` | M | OPEN |
+| `D10-watchdog-hardcoded-tag` | P1 | `scripts/singbox-watchdog.sh:8` (`v1.13.6-userapi` hardcoded ×2) | Tag bump → watchdog resurrects stale image during outage | Source tag from shared `.env` | S | **DONE 2026-06-21** (iter 1; new `scripts/singbox.env`, both scripts source it) |
+| `D11-admin-204-crash` | P1 | `clients/admin/src/lib/api.ts:24` (always `res.json()`); `nodes.go:1042` returns 204 | DeleteServer succeeds but SPA throws "delete failed" | `if status===204 return undefined` | S | **DONE 2026-06-21** (iter 1; +4 vitest tests, 14/14 green, tsc clean) |
+| `D12-install-no-set-e` | ~~P1~~ | `infrastructure/deploy/install.sh:16` | — | — | — | **FALSE FINDING** (install.sh already has `set -euo pipefail` at :16; agent looked at wrong file) |
+| `D13-realtraffic-suppressor-dead` | P1 | `RealTrafficStallDetector.swift:379` (`addCloseEvent` never called) | False-positive guard silently disabled | Wire from log-ingest or remove+document | M | OPEN |
+| `D14-v2ray-stats-plaintext` | P2 | `stats_v2ray.go:53` (`insecure.NewCredentials()` to GRA) | Per-user usernames+bytes cleartext over internet (ufw-gated only) | TLS / tunnel as defense-in-depth | M | OPEN |
+| `D15-settings-raw-json` | P2 | `clients/admin/src/pages/settings.tsx:137` (free-text JSON, no validation) | One typo persists malformed config; 2nd source of truth | JSON.parse guard / deprecate for table API | M | OPEN |
+| `D16-deploy-sed-fragility` | P2 | `backend/deploy.sh:197` (chain of literal `sed -i`) | Template whitespace change → sed matches nothing → wrong default incl SNI | Placeholder template that fails on un-substituted token | M | OPEN |
+| `D17-misc-dead-code` | P2/P3 | `APIClient.swift:200` (dead RU filter on retired DE IP); `Constants.swift:14` (dead fallbackBaseURL); `log-monitor.sh:33` (retired DE IP active); dup admin helpers; TZ ambiguity | Maintainability / masks missing RU-detection | delete dead code; extract `lib/format.ts`; pin/label TZ | S each | OPEN |
+| `D18-td-cert-pin-untracked` | P3 | `APIClient.swift:111` (HIGH TODO, no roadmap id) | InsecureDelegate is host-allowlisted + DirectConnection validates chain — residual = cleartext :80 legs (gated for sensitive) | File tracked TD-CERT-PIN; pin server cert fingerprint | S | OPEN (already TD-CERT-PIN in roadmap security) |
+
+---
+
+## 6. Change journal (append-only — the "весь путь изменений")
+
+> One entry per iteration. Format: date · iteration · what · why · files · test · result. Never edit past entries.
+
+### 2026-06-21 · Iteration 0 — Baseline audit
+- **What:** Ran a 4-agent parallel product-maturity audit (retention, UX/UI, completeness, kostyli) on top of
+  the 2026-06-17 reliability audit. Built this living document: §5 registry (A1–A11, B1–B16, C1–C11, D1–D18 =
+  56 items) + §1 headline + §6 journal.
+- **Why:** Owner wants recurring revenue + advertisable quality; needed one prioritized map distinguishing the
+  *commercial-maturity* gaps from the already-solid engineering.
+- **Files:** this doc (new). No code changed.
+- **Result:** Baseline established. Headline finding: monetization is one-shot by design at every layer; the
+  fastest high-ROI fix is `A1-lifecycle-engine` (backend-only, no App Store review). Awaiting owner's pick of
+  starting track/sequence before touching prod code (per agree-first rule).
+
+### 2026-06-21 · Iteration 1 — P0 infra safety + cheap infra debt (branch `product-maturity-loop`)
+Owner granted full autonomy ("все сам решай, я спать"). Picked safety-first because subsequent iterations
+deploy backend changes — harden the deploy/restore path *before* relying on it. All changes are script/SPA
+only, fully verifiable, zero outbound-to-user risk; nothing deployed live yet (on a branch).
+
+- **D1 — deploy hides failed migrations → fixed.** `backend/deploy.sh`: replaced the
+  `psql <f 2>/dev/null && echo Applied` loop (no `ON_ERROR_STOP`, stderr discarded, `&&`-list exempt from
+  `set -e`) with `psql -v ON_ERROR_STOP=1` + visible stderr + fail-fast `exit 1` that aborts the deploy
+  *before* the build/restart steps so new code never runs against a half-applied schema.
+  *Why safe:* first verified ALL 25 numbered migrations are idempotent (IF NOT EXISTS / DROP IF EXISTS /
+  ON CONFLICT DO NOTHING / WHERE NOT EXISTS) and none use `CONCURRENTLY`, so a re-run after a fix is safe and
+  this can't break a currently-working deploy. *Verify:* `bash -n` OK.
+- **D2 — restore.sh can't read real backups → rewrote.** Real backups are plain `pg_dump|gzip` (`*.sql.gz`,
+  no `--clean`) but the script ran `pg_restore` (custom-format only) and stopped a service named `backend`
+  that doesn't exist (it's `chameleon`). New `infrastructure/restore.sh`: consumes `*.sql.gz` (`gunzip|psql`),
+  `--from-b2 <name>` pulls from Backblaze first, `--list-b2` lists, drop+recreate DB (needed because plain
+  dumps carry no DROP), `ON_ERROR_STOP=1`, correct `chameleon` service + `--no-deps`, legacy `*.dump` path
+  kept. *Verify:* `bash -n` OK, +x restored. **Next:** run an actual restore drill on NL (deferred — needs box).
+- **D10 — hardcoded sing-box image tag → single source.** New `backend/scripts/singbox.env`
+  (`SINGBOX_IMAGE=...`); `singbox-run.sh` + `singbox-watchdog.sh` now source it with the literal as fallback.
+  Bump one line on a fork rebuild → watchdog can no longer resurrect a stale image. Backward compatible.
+- **D11 — admin 204 crash → fixed + tested.** `clients/admin/src/lib/api.ts`: return `undefined` on HTTP 204
+  before `res.json()` (DeleteServer no longer surfaces a false "delete failed" toast). Added
+  `src/lib/api.test.ts` (4 tests: 204, 200-body, 4xx detail, 5xx-masked). *Verify:* `vitest run` 14/14 green,
+  `tsc --noEmit` clean.
+- **D12 — FALSE FINDING.** `infrastructure/deploy/install.sh` already has `set -euo pipefail` (:16). No change.
+
+Result: 5 infra-safety items closed (4 fixed + 1 false), the two scariest DR landmines on the single DB node
+neutralized. Files: `backend/deploy.sh`, `infrastructure/restore.sh`, `backend/scripts/{singbox.env,singbox-run.sh,singbox-watchdog.sh}`, `clients/admin/src/lib/{api.ts,api.test.ts}`.
+Next iteration: **A1 lifecycle re-engagement engine** (backend; built DISABLED so it can't blast real users
+overnight — owner reviews copy + flips it on).
+
+<!-- next iteration appended below -->

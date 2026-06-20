@@ -21,6 +21,12 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     console.error(`API ${method} ${path} failed (${res.status}):`, detail);
     throw new Error(res.status >= 500 ? "Server error. Please try again." : detail);
   }
+  // 204 No Content (e.g. DeleteServer) carries no body — calling res.json()
+  // would throw "Unexpected end of JSON input" and surface as a false "delete
+  // failed" toast even though the request succeeded. (PRODUCT-MATURITY-LOOP D11)
+  if (res.status === 204) {
+    return undefined as T;
+  }
   return res.json();
 }
 

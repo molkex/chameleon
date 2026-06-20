@@ -5,7 +5,12 @@
 set -euo pipefail
 
 CONTAINER="singbox"
-IMAGE="sing-box-fork:v1.13.6-userapi"
+# Image tag: single source of truth in singbox.env (PRODUCT-MATURITY-LOOP D10).
+# Falls back to the literal default if the file is absent (backward compatible).
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=/dev/null
+[ -f "$SCRIPT_DIR/singbox.env" ] && . "$SCRIPT_DIR/singbox.env"
+IMAGE="${SINGBOX_IMAGE:-sing-box-fork:v1.13.6-userapi}"
 VOLUME="chameleon-singbox-config"
 
 if [ "${1:-}" = "--force" ]; then

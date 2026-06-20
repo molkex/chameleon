@@ -330,11 +330,37 @@ if [ -n "$TG_BOT_TOKEN" ]; then
     echo ">>> Telegram alerts configured"
 fi
 
-# ── Run migration ──────────────────────────────────────────────────────────
+# ── Run migrations (fail-fast, errors visible) ─────────────────────────────
+# PRODUCT-MATURITY-LOOP D1 (2026-06-21): the old loop ran
+#   psql ... < "$f" 2>/dev/null && echo "Applied"
+# which (a) had no ON_ERROR_STOP so psql plowed past a failing statement,
+# (b) discarded stderr, and (c) being a non-final command in an &&-list was
+# exempt from `set -e` — so a failed migration was INVISIBLE and the deploy
+# reported success then built/restarted against a half-applied schema (the
+# documented NL legacy-table footgun, made systemic).
+# Now: ON_ERROR_STOP=1 aborts the file on the first SQL error, stderr is
+# surfaced, and a failure ABORTS the deploy before the build/restart steps.
+# All numbered migrations are idempotent (IF NOT EXISTS / DROP IF EXISTS /
+# ON CONFLICT DO NOTHING / WHERE NOT EXISTS), so re-running after a fix is safe.
 echo ">>> Running DB migrations..."
+migration_failed=0
 for f in migrations/0[0-9][0-9]_*.sql; do
-    [ -f "$f" ] && docker exec -i chameleon-postgres psql -U chameleon -d chameleon < "$f" 2>/dev/null && echo "    Applied: $f"
+    [ -f "$f" ] || continue
+    if docker exec -i chameleon-postgres psql -v ON_ERROR_STOP=1 -U chameleon -d chameleon < "$f"; then
+        echo "    Applied: $f"
+    else
+        echo "    !! FAILED: $f (see psql error above)"
+        migration_failed=1
+        break
+    fi
 done
+if [ "$migration_failed" -ne 0 ]; then
+    echo ""
+    echo ">>> ✗ ABORTING DEPLOY — a migration failed; schema may be partially applied."
+    echo ">>>   Fix the offending migration, then re-run ./deploy.sh (migrations are idempotent)."
+    echo ">>>   Verify on the box: docker exec -it chameleon-postgres psql -U chameleon -d chameleon -c '\\dt'"
+    exit 1
+fi
 
 # ── Docker volumes ─────────────────────────────────────────────────────────
 docker volume create chameleon-pgdata 2>/dev/null || true
