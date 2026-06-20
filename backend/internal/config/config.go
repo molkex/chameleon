@@ -21,18 +21,29 @@ import (
 // All sections are required to be present in the YAML file,
 // though individual fields within sections may have defaults.
 type Config struct {
-	Server    ServerConfig    `yaml:"server"`
-	Database  DatabaseConfig  `yaml:"database"`
-	Redis     RedisConfig     `yaml:"redis"`
-	Auth      AuthConfig      `yaml:"auth"`
-	VPN       VPNConfig       `yaml:"vpn"`
-	Cluster   ClusterConfig   `yaml:"cluster"`
-	Relay     RelayConfig     `yaml:"relay"`
-	RateLimit RateLimitConfig `yaml:"rate_limit"`
-	Payments  PaymentsConfig  `yaml:"payments"`
-	Email     EmailConfig     `yaml:"email"`
+	Server    ServerConfig      `yaml:"server"`
+	Database  DatabaseConfig    `yaml:"database"`
+	Redis     RedisConfig       `yaml:"redis"`
+	Auth      AuthConfig        `yaml:"auth"`
+	VPN       VPNConfig         `yaml:"vpn"`
+	Cluster   ClusterConfig     `yaml:"cluster"`
+	Relay     RelayConfig       `yaml:"relay"`
+	RateLimit RateLimitConfig   `yaml:"rate_limit"`
+	Payments  PaymentsConfig    `yaml:"payments"`
+	Email     EmailConfig       `yaml:"email"`
 	Google    GoogleOAuthConfig `yaml:"google"`
-	Secrets   SecretsConfig   `yaml:"secrets"`
+	Secrets   SecretsConfig     `yaml:"secrets"`
+	Lifecycle LifecycleConfig   `yaml:"lifecycle"`
+}
+
+// LifecycleConfig controls the A1 re-engagement engine (PRODUCT-MATURITY-LOOP):
+// a daily sweep that reminds users whose subscription/trial is lapsing/lapsed.
+// DISABLED by default — turning it on sends real push + email to customers, so
+// review reach + copy via DryRun first.
+type LifecycleConfig struct {
+	Enabled  bool   `yaml:"enabled"`   // master switch (default false)
+	DryRun   bool   `yaml:"dry_run"`   // log who WOULD be contacted, send nothing
+	DeepLink string `yaml:"deep_link"` // CTA url for emails, e.g. https://madfrog.online/app
 }
 
 // SecretsConfig holds keys used to encrypt sensitive DB columns at rest.
@@ -159,25 +170,25 @@ type RemoteStatsEndpoint struct {
 
 // VPNConfig controls VPN protocol settings and server entries.
 type VPNConfig struct {
-	ListenPort      int           `yaml:"listen_port"`       // default: 2096
+	ListenPort      int           `yaml:"listen_port"` // default: 2096
 	Reality         RealityConfig `yaml:"reality"`
 	Servers         []ServerEntry `yaml:"servers"`
-	ClientMTU       int           `yaml:"client_mtu"`        // default: 1400
-	DNSRemote       string        `yaml:"dns_remote"`        // default: "https://1.1.1.1/dns-query"
-	DNSDirect       string        `yaml:"dns_direct"`        // default: "https://8.8.8.8/dns-query"
-	UrltestInterval Duration      `yaml:"urltest_interval"`  // default: 3m
-	ClashAPIPort    int           `yaml:"clash_api_port"`    // default: 9090
-	UserAPIPort     int           `yaml:"user_api_port"`     // default: 15380; 0 = disabled
-	UserAPISecret   string        `yaml:"user_api_secret"`   // supports ${ENV_VAR}
-	V2RayAPIPort    int           `yaml:"v2ray_api_port"`    // default: 8080; gRPC StatsService for per-user traffic
+	ClientMTU       int           `yaml:"client_mtu"`       // default: 1400
+	DNSRemote       string        `yaml:"dns_remote"`       // default: "https://1.1.1.1/dns-query"
+	DNSDirect       string        `yaml:"dns_direct"`       // default: "https://8.8.8.8/dns-query"
+	UrltestInterval Duration      `yaml:"urltest_interval"` // default: 3m
+	ClashAPIPort    int           `yaml:"clash_api_port"`   // default: 9090
+	UserAPIPort     int           `yaml:"user_api_port"`    // default: 15380; 0 = disabled
+	UserAPISecret   string        `yaml:"user_api_secret"`  // supports ${ENV_VAR}
+	V2RayAPIPort    int           `yaml:"v2ray_api_port"`   // default: 8080; gRPC StatsService for per-user traffic
 	// TRAFFIC-MULTIEXIT: remote exit nodes (GRA, etc.) whose per-user stats
 	// are summed with NL's. Default empty = NL-only. See RemoteStatsEndpoint.
 	RemoteStatsEndpoints []RemoteStatsEndpoint `yaml:"remote_stats_endpoints"`
 	// UDP protocols — Hysteria2 and TUIC v5 share a TLS cert.
-	Hysteria2Port int    `yaml:"hysteria2_port"`  // 0 = disabled
-	TUICPort      int    `yaml:"tuic_port"`       // 0 = disabled
-	UDPCertPath   string `yaml:"udp_cert_path"`   // path inside container, e.g. /etc/singbox/server.crt
-	UDPKeyPath    string `yaml:"udp_key_path"`    // path inside container, e.g. /etc/singbox/server.key
+	Hysteria2Port int    `yaml:"hysteria2_port"` // 0 = disabled
+	TUICPort      int    `yaml:"tuic_port"`      // 0 = disabled
+	UDPCertPath   string `yaml:"udp_cert_path"`  // path inside container, e.g. /etc/singbox/server.crt
+	UDPKeyPath    string `yaml:"udp_key_path"`   // path inside container, e.g. /etc/singbox/server.key
 	// Hysteria2 Salamander obfuscation PSK. When set, QUIC packets are
 	// XOR-wrapped so DPI can't fingerprint them as QUIC (RKN throttles the
 	// QUIC fingerprint after the handshake). The SAME value is plumbed into
@@ -210,13 +221,13 @@ type ServerEntry struct {
 
 // ClusterConfig controls multi-node cluster synchronization.
 type ClusterConfig struct {
-	Enabled              bool         `yaml:"enabled"`
-	NodeID               string       `yaml:"node_id"`
-	Secret               string       `yaml:"secret"`                 // shared secret for cluster auth; supports ${ENV_VAR}
-	SyncInterval         Duration     `yaml:"sync_interval"`          // default: 30s
-	ReconcileInterval    Duration     `yaml:"reconcile_interval"`     // default: 5m (full sync fallback)
-	PubSubChannel        string       `yaml:"pubsub_channel"`         // default: "chameleon:sync"
-	Peers                []PeerConfig `yaml:"peers"`
+	Enabled           bool         `yaml:"enabled"`
+	NodeID            string       `yaml:"node_id"`
+	Secret            string       `yaml:"secret"`             // shared secret for cluster auth; supports ${ENV_VAR}
+	SyncInterval      Duration     `yaml:"sync_interval"`      // default: 30s
+	ReconcileInterval Duration     `yaml:"reconcile_interval"` // default: 5m (full sync fallback)
+	PubSubChannel     string       `yaml:"pubsub_channel"`     // default: "chameleon:sync"
+	Peers             []PeerConfig `yaml:"peers"`
 }
 
 // RelayConfig holds RelayUserSyncer parameters. The `secrets` field maps

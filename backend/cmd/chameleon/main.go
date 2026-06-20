@@ -40,6 +40,7 @@ import (
 	"github.com/chameleonvpn/chameleon/internal/config"
 	"github.com/chameleonvpn/chameleon/internal/db"
 	"github.com/chameleonvpn/chameleon/internal/email"
+	"github.com/chameleonvpn/chameleon/internal/lifecycle"
 	"github.com/chameleonvpn/chameleon/internal/metrics"
 	"github.com/chameleonvpn/chameleon/internal/push"
 	"github.com/chameleonvpn/chameleon/internal/secrets"
@@ -412,6 +413,42 @@ func run() error {
 			}
 		}
 	}()
+
+	// A1 lifecycle re-engagement (PRODUCT-MATURITY-LOOP, 2026-06-21): daily sweep
+	// that reminds users whose subscription/trial is lapsing/lapsed (the counter
+	// to "buy once, never come back"). DISABLED by default; with dry_run it logs
+	// reach + sends nothing. First sweep runs ~1min after start, then every 24h.
+	if cfg.Lifecycle.Enabled {
+		lifecycleEngine := &lifecycle.Engine{
+			DB:     database,
+			Push:   pushClient,
+			Email:  emailSender,
+			Logger: logger,
+			CTA:    cfg.Lifecycle.DeepLink,
+			DryRun: cfg.Lifecycle.DryRun,
+		}
+		logger.Info("lifecycle re-engagement enabled", zap.Bool("dry_run", cfg.Lifecycle.DryRun))
+		go func() {
+			timer := time.NewTimer(time.Minute)
+			defer timer.Stop()
+			select {
+			case <-ctx.Done():
+				return
+			case <-timer.C:
+			}
+			lifecycleEngine.Sweep(ctx)
+			ticker := time.NewTicker(24 * time.Hour)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					lifecycleEngine.Sweep(ctx)
+				}
+			}
+		}()
+	}
 
 	srv := &api.Server{
 		Ctx:     ctx, // cancelled on shutdown — stops rate-limiter cleanup goroutine

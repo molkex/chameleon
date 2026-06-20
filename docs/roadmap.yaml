@@ -634,6 +634,16 @@ next:
         handlers themselves (SupportSend rate-limit tiers via Redis, SupportStream
         SSE replay+fan-out) need an httptest + test-DB + miniredis harness. Medium
         effort; the security-critical chat-token replay-guard is already unit-tested.
+    - id: TEST-LIFECYCLE-SWEEP
+      priority: P3
+      title: Integration-test the A1 lifecycle engine DB query + Sweep wiring
+      notes: |
+        PRODUCT-MATURITY-LOOP iter 2 (2026-06-21). Pure logic IS covered
+        (internal/lifecycle/lifecycle_test.go: Window ranges, fresh-trial
+        exclusion, all 18 Compose variants, paid/trial framing, lang default).
+        GAP: db.LifecycleCandidates (window + not-already-reminded + paid EXISTS,
+        migration 027) and Engine.Sweep (push 410-prune, email, record) need a
+        test-DB harness. Medium effort. Engine ships DISABLED so no prod risk yet.
 
   client_reliability:
     - id: CFG-01

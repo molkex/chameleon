@@ -81,7 +81,7 @@ Severity = impact on the owner's goal (recurring revenue + advertisable quality)
 
 | ID | Sev | Anchor | Costs us | Fix | Effort | build? | Status |
 |---|---|---|---|---|---|---|---|
-| `A1-lifecycle-engine` | **P0** | `cmd/chameleon/main.go:391` (enforcement sweep notifies nobody); `push/push.go` + `email/resend.go` only manual | No expiry reminder / trial nudge / win-back anywhere → lapsed users get zero touch | Daily sweep → segment `expiring_3d`/`expired_1d`/`expired_7d` → push + email (senders + audiences already exist) | M | **no** | OPEN |
+| `A1-lifecycle-engine` | **P0** | `cmd/chameleon/main.go:391` (enforcement sweep notifies nobody); `push/push.go` + `email/resend.go` only manual | No expiry reminder / trial nudge / win-back anywhere → lapsed users get zero touch | Daily sweep → segment `expiring_soon`/`expired_recent`/`expired_winback` → push + email (senders + audiences already exist) | M | **no** | **BUILT (disabled) 2026-06-21** (iter 2; new `internal/lifecycle` + mig 027 + dry-run; deploys dormant; **owner: review copy → set `lifecycle.enabled`**) |
 | `A2-auto-renew-iap` | **P0** | `app-store.yaml:117`; ADR 0005; `SubscriptionManager.swift:16,26` | Non-renewing = manual re-buy; ADR predicts 30-50% LTV loss; blocks Family Sharing + StoreKit win-back/intro offers | New subscription group w/ auto-renewable product IDs; honor `DID_RENEW`/`EXPIRED`/`GRACE` ASN | L | yes | OPEN (roadmap had it `deferred`, data-gate now satisfied) |
 | `A3-freekassa-recurring` | **P0** | `payments/freekassa/client.go` (one-shot CreateOrder only) | 100% of real revenue is on the rail with no recurring/saved-card/dunning | Saved-card / СБП rebill token + server-side renewal scheduler | L | no | OPEN |
 | `A4-asn-churn-signals` | P1 | `payments/subscription_notification.go:110` (`EXPIRED`/`DID_FAIL_TO_RENEW`/`GRACE` → log+drop); no `auto_renew_status` column | Apple's involuntary-churn signals discarded; can't segment voluntary vs involuntary churn | Persist `auto_renew_status`+`expiration_intent`; act on `DID_FAIL_TO_RENEW` | M | no | OPEN |
@@ -206,5 +206,49 @@ Result: 5 infra-safety items closed (4 fixed + 1 false), the two scariest DR lan
 neutralized. Files: `backend/deploy.sh`, `infrastructure/restore.sh`, `backend/scripts/{singbox.env,singbox-run.sh,singbox-watchdog.sh}`, `clients/admin/src/lib/{api.ts,api.test.ts}`.
 Next iteration: **A1 lifecycle re-engagement engine** (backend; built DISABLED so it can't blast real users
 overnight — owner reviews copy + flips it on).
+
+### 2026-06-21 · Iteration 2 — A1 lifecycle re-engagement engine (built DISABLED)
+The headline business fix: the direct counter to "buy once, never come back". A daily sweep finds users whose
+subscription/trial is lapsing or recently lapsed and sends a push + email reminder, **once per cycle**.
+
+- **Why disabled by default:** enabling it sends real push + email to real customers. It deploys *dormant*
+  (`lifecycle.enabled=false`); with `dry_run=true` it logs exactly who WOULD be contacted and sends nothing.
+  The owner reviews reach + copy, then flips it on. Building it on a branch overnight without a kill switch
+  would risk blasting the whole base with un-reviewed copy — not acceptable unattended.
+- **What was built:**
+  - `backend/migrations/027_lifecycle_reminders.sql` — idempotency table; unique (user_id, kind, expiry_ref)
+    so each reminder fires once per subscription cycle (re-subscription = new expiry_ref = eligible again).
+  - `backend/internal/db/lifecycle.go` — `LifecycleCandidates` (active users in a window, not-yet-reminded,
+    NULL-expiry excluded per REFUND-NULL-EXPIRY-GATE, paid-vs-trial via the payments EXISTS) +
+    `RecordLifecycleReminder` (ON CONFLICT DO NOTHING).
+  - `backend/internal/lifecycle/lifecycle.go` — pure `Window(kind,now)` + `Compose(kind,paid,lang,cta)`
+    (RU+EN, renew-vs-convert copy, branded email) + `Engine.Sweep` (push to all tokens w/ 410-prune reusing
+    `push.ErrBadToken`, email if present, then record; dry-run logs only; ctx-cancellable).
+  - `config.LifecycleConfig{Enabled,DryRun,DeepLink}` + `cmd/chameleon/main.go` daily ticker (first run ~1min
+    after start, then 24h), gated on `cfg.Lifecycle.Enabled`.
+- **Window choice:** "expiring" = next **24h** (not 72h) so a freshly-registered 3-day-trial user isn't told
+  "expires in 3 days" on day 0 (unit-tested: `TestExpiringWindowExcludesFreshTrial`).
+- **Verify:** `go build ./...` OK · `go vet ./...` OK · `gofmt` clean · `internal/lifecycle` tests green
+  (Window ranges, fresh-trial exclusion, all 18 Compose variants non-empty + CTA present, paid/trial framing,
+  lang default→RU). DB-deploy only, **no app build**.
+- **Known gaps (logged):** (1) **TEST-LIFECYCLE-SWEEP** — the `LifecycleCandidates` SQL + `Engine.Sweep`
+  wiring need a test-DB integration harness (pure logic is covered). (2) per-user **locale not persisted** →
+  copy defaults to RU; EN selectable once a locale column exists. (3) email "from" reuses the Resend config.
+- **How the owner enables it (after review):** add to the NL backend config YAML:
+  ```yaml
+  lifecycle:
+    enabled: true
+    dry_run: true            # start here — watch logs "lifecycle: DRY-RUN would notify"
+    deep_link: "https://madfrog.online/app"
+  ```
+  Then `cd backend && ./deploy.sh nl`, watch logs a day, then set `dry_run: false`. (Config defaults to
+  disabled, so the code can ship in any earlier deploy harmlessly.)
+
+Result: the single highest-ROI retention mechanism exists, tested, and ready — gated behind one flag so it
+can't fire un-reviewed. Files: `migrations/027_lifecycle_reminders.sql`,
+`internal/{lifecycle/lifecycle.go,lifecycle/lifecycle_test.go,db/lifecycle.go,config/config.go}`,
+`cmd/chameleon/main.go`.
+Next iteration: backend retention leaks that need no app build — **A10** (FreeKassa refund handler) and
+**A4** (persist Apple ASN churn signals), then **D7** (geoip negative-cache).
 
 <!-- next iteration appended below -->
