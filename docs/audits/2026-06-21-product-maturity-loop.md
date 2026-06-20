@@ -145,7 +145,7 @@ Severity = impact on the owner's goal (recurring revenue + advertisable quality)
 | `D4-ext-start-no-watchdog` | P0 | `ExtensionProvider.swift:447` (`startOrReloadService` blocking, no timeout) | libbox hang → `startTunnel` never resolves | Race against deadline → completionHandler(error) | M | OPEN |
 | `D5-dual-server-selection` | P1 | `ConfigStore.swift:127,295` + `PathPicker.swift:188`; **9** country tables | Root of FR-SELECT / UI-FLAG-HOME / COUNTRY-PICK-STICKY bug class; new country = up to 9 edits | One `Country` registry + `ServerSelection` enum parsed once at boundary (retires SRV-DYNAMIC) | L | OPEN |
 | `D6-neon-badge-AUTO` | P1 | `MainViewNeon.swift:213` (leaf-only lookup → "AUTO" on country pin) | Dual-model fix half-applied (Neon path missed) | Check `app.servers.countries` before leaf / use shared helper | S | OPEN |
-| `D7-geoip-negative-cache` | P1 | `geoip.go:61` (caches zero Result 24h on any failure; unbounded map) | Transient/ratelimit pins blank country/city 24h; backfill blanks | Cache only `status==success`; short negative TTL; bound map | S | OPEN |
+| `D7-geoip-negative-cache` | P1 | `geoip.go:61` (caches zero Result 24h on any failure; unbounded map) | Transient/ratelimit pins blank country/city 24h; backfill blanks | Cache only `status==success`; short negative TTL; bound map | S | **DONE 2026-06-21** (iter 3; 10min negative TTL + 50k cap + evict; +5 tests, 8/8 green) |
 | `D8-relay-drift-manual` | P1 | `infrastructure/{msk,spb}-relay/README.md` (diff is manual) | Off-box edit not pulled → rebuild restores stale config (DR gap) | Scheduled drift-check → telegram alert | M | OPEN |
 | `D9-spb-password-arg` | P1 | `spb-relay/README.md:13` (`sshpass -p "$PW"`) | Password in process args (`ps`/`/proc`); only node not on keys | Key auth, or `sshpass -e`/`-f` | M | OPEN |
 | `D10-watchdog-hardcoded-tag` | P1 | `scripts/singbox-watchdog.sh:8` (`v1.13.6-userapi` hardcoded ×2) | Tag bump → watchdog resurrects stale image during outage | Source tag from shared `.env` | S | **DONE 2026-06-21** (iter 1; new `scripts/singbox.env`, both scripts source it) |
@@ -250,5 +250,21 @@ can't fire un-reviewed. Files: `migrations/027_lifecycle_reminders.sql`,
 `cmd/chameleon/main.go`.
 Next iteration: backend retention leaks that need no app build — **A10** (FreeKassa refund handler) and
 **A4** (persist Apple ASN churn signals), then **D7** (geoip negative-cache).
+
+### 2026-06-21 · Iteration 3 — D7 geoip negative-cache self-heal
+- **What:** `backend/internal/geoip/geoip.go`: `fetch` now returns `(Result, ok bool)`; `Lookup` caches a
+  SUCCESS for 24h but a FAILURE (network error / non-200 / rate-limit / status!=success) for only 10min
+  (`negativeTTL`), so a transient ip-api outage or a sign-up burst hitting the 45 req/min free tier no longer
+  pins blank country/city for a full day. Added a 50k-entry cap + `evictExpiredLocked` (the map was unbounded).
+- **Why it matters for the goal:** country/city is what feeds analytics, audience targeting, and the FreeKassa
+  allowlist — blank-for-24h corrupts exactly the data the owner needs to advertise + segment.
+- **Verify:** added `baseURL` seam for httptest; +5 tests (success long-TTL, rate-limit→negative-TTL,
+  status-fail→negative-TTL, eviction) → `internal/geoip` 8/8 green; build/vet/gofmt clean. No app build.
+
+— Pausing active work here (session loop). 4 iterations complete (0 baseline, 1 infra-safety, 2 lifecycle
+engine, 3 geoip). All committed on branch `product-maturity-loop`; nothing deployed/enabled (owner reviews).
+Next when resumed: **A4** (persist Apple ASN churn signals — auto_renew_status/expiration_intent), **A10**
+(FreeKassa refund webhook → MarkRefundedAndReconcile), then the app-build UX batch (B-track) which needs an
+iOS build, so those get implemented + unit-tested to ride a build, not submitted unattended.
 
 <!-- next iteration appended below -->
