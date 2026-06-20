@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Save } from "lucide-react";
+import { jsonParseError } from "@/lib/format";
 
 interface BrandingSettings {
   profile_title: string;
@@ -60,6 +61,18 @@ export default function SettingsPage() {
     onError: (e) => toast.error(`Save failed: ${e.message}`),
   });
 
+  // D15: the VPN-servers field is free-text JSON saved verbatim. Reject a typo
+  // BEFORE the PATCH so we never persist malformed config (every Save button
+  // sends the whole form, so guard here once).
+  const handleSave = () => {
+    const jsonErr = jsonParseError(form.vpn_servers);
+    if (jsonErr) {
+      toast.error(`VPN Servers JSON is invalid: ${jsonErr}`);
+      return;
+    }
+    saveMutation.mutate();
+  };
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Settings</h1>
@@ -99,7 +112,7 @@ export default function SettingsPage() {
                 placeholder="12" />
             </div>
           </div>
-          <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+          <Button onClick={handleSave} disabled={saveMutation.isPending}>
             <Save className="mr-2 h-4 w-4" />
             Save Changes
           </Button>
@@ -116,7 +129,7 @@ export default function SettingsPage() {
                 placeholder="7" type="number" />
             </div>
           </div>
-          <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+          <Button onClick={handleSave} disabled={saveMutation.isPending}>
             <Save className="mr-2 h-4 w-4" />
             Save Changes
           </Button>
@@ -143,7 +156,7 @@ export default function SettingsPage() {
               rows={4}
             />
           </div>
-          <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+          <Button onClick={handleSave} disabled={saveMutation.isPending}>
             <Save className="mr-2 h-4 w-4" />
             Save Changes
           </Button>

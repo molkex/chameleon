@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { Search, Trash2, Clock, Link, ArrowUp, ArrowDown, ArrowUpDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { statusColor } from "@/lib/constants";
 import { deviceName } from "@/lib/devices";
+import { countryFlag } from "@/lib/format";
 
 const PAGE_SIZES = [25, 50, 100, 200] as const;
 type PageSize = (typeof PAGE_SIZES)[number];
@@ -83,13 +84,6 @@ function SortHead({
       </button>
     </TableHead>
   );
-}
-
-function countryFlag(code: string): string {
-  if (!code || code.length !== 2) return "";
-  const base = 0x1f1e6;
-  const A = "A".charCodeAt(0);
-  return String.fromCodePoint(base + code.charCodeAt(0) - A) + String.fromCodePoint(base + code.charCodeAt(1) - A);
 }
 
 function formatLastSeen(iso: string | null): string {

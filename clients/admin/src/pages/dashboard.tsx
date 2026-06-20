@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Users, Activity, TrendingUp, Clock, Flame, Wallet, Receipt, CreditCard, Banknote } from "lucide-react";
 import { STATUS_COLORS } from "@/lib/constants";
+import { countryFlag } from "@/lib/format";
 
 interface TrafficOutliersResponse {
   users: Array<{
@@ -20,12 +21,6 @@ interface TrafficOutliersResponse {
   limit: number;
 }
 
-function countryFlag(code: string): string {
-  if (!code || code.length !== 2) return "";
-  const base = 0x1f1e6;
-  const A = "A".charCodeAt(0);
-  return String.fromCodePoint(base + code.charCodeAt(0) - A) + String.fromCodePoint(base + code.charCodeAt(1) - A);
-}
 
 interface DashboardStats {
   total_users: number;

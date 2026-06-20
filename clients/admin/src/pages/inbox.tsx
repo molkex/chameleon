@@ -1,6 +1,7 @@
 import { useState, useRef, type KeyboardEvent, type ChangeEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { relativeTime } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -100,21 +101,6 @@ function threadIdentity(t: Thread): string {
 }
 
 // Relative time, same vocabulary as users.tsx / events.tsx.
-function relativeTime(iso: string): string {
-  if (!iso) return "—";
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return "—";
-  const diff = Date.now() - then;
-  const min = Math.floor(diff / 60000);
-  if (min < 1) return "только что";
-  if (min < 60) return `${min}м`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}ч`;
-  const day = Math.floor(hr / 24);
-  if (day < 30) return `${day}д`;
-  return new Date(iso).toLocaleDateString();
-}
-
 function messageTime(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;

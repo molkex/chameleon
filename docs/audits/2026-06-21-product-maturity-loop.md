@@ -153,9 +153,9 @@ Severity = impact on the owner's goal (recurring revenue + advertisable quality)
 | `D12-install-no-set-e` | ~~P1~~ | `infrastructure/deploy/install.sh:16` | — | — | — | **FALSE FINDING** (install.sh already has `set -euo pipefail` at :16; agent looked at wrong file) |
 | `D13-realtraffic-suppressor-dead` | P1 | `RealTrafficStallDetector.swift:379` (`addCloseEvent` never called) | False-positive guard silently disabled | Wire from log-ingest or remove+document | M | OPEN |
 | `D14-v2ray-stats-plaintext` | P2 | `stats_v2ray.go:53` (`insecure.NewCredentials()` to GRA) | Per-user usernames+bytes cleartext over internet (ufw-gated only) | TLS / tunnel as defense-in-depth | M | OPEN |
-| `D15-settings-raw-json` | P2 | `clients/admin/src/pages/settings.tsx:137` (free-text JSON, no validation) | One typo persists malformed config; 2nd source of truth | JSON.parse guard / deprecate for table API | M | OPEN |
+| `D15-settings-raw-json` | P2 | `clients/admin/src/pages/settings.tsx:137` (free-text JSON, no validation) | One typo persists malformed config; 2nd source of truth | JSON.parse guard / deprecate for table API | M | **DONE 2026-06-21** (iter 5; `handleSave` rejects invalid `vpn_servers` JSON before PATCH, all 3 buttons; +tests) |
 | `D16-deploy-sed-fragility` | P2 | `backend/deploy.sh:197` (chain of literal `sed -i`) | Template whitespace change → sed matches nothing → wrong default incl SNI | Placeholder template that fails on un-substituted token | M | OPEN |
-| `D17-misc-dead-code` | P2/P3 | `APIClient.swift:200` (dead RU filter on retired DE IP); `Constants.swift:14` (dead fallbackBaseURL); `log-monitor.sh:33` (retired DE IP active); dup admin helpers; TZ ambiguity | Maintainability / masks missing RU-detection | delete dead code; extract `lib/format.ts`; pin/label TZ | S each | OPEN |
+| `D17-misc-dead-code` | P2/P3 | `APIClient.swift:200` (dead RU filter on retired DE IP); `Constants.swift:14` (dead fallbackBaseURL); `log-monitor.sh:33` (retired DE IP active); dup admin helpers; TZ ambiguity | Maintainability / masks missing RU-detection | delete dead code; extract `lib/format.ts`; pin/label TZ | S each | **PARTIAL — admin dedupe DONE 2026-06-21** (iter 5; `lib/format.ts` countryFlag+relativeTime, removed 2 identical copies + 1; +tests). REMAINING: iOS dead-code (APIClient/Constants — needs iOS build), `log-monitor.sh:33` DE IP, TZ labeling. |
 | `D18-td-cert-pin-untracked` | P3 | `APIClient.swift:111` (HIGH TODO, no roadmap id) | InsecureDelegate is host-allowlisted + DirectConnection validates chain — residual = cleartext :80 legs (gated for sensitive) | File tracked TD-CERT-PIN; pin server cert fingerprint | S | OPEN (already TD-CERT-PIN in roadmap security) |
 
 ---
@@ -301,5 +301,24 @@ revenue levers (A2 auto-renewable IAP, A3 FreeKassa recurring) need your App-Sto
 
 Next iteration: a fully-verifiable admin/kostyli win — **D15** (settings.tsx saves raw JSON with no
 validation) + **D17 admin** (extract duplicated countryFlag/relative-time into `lib/format.ts` with tests).
+
+### 2026-06-21 · Iteration 5 — admin kostyli: JSON-validation (D15) + dedupe formatters (D17)
+Fully-locally-verifiable admin cleanups (the "костыли" the owner explicitly asked about).
+
+- **D15 — settings saved raw JSON unchecked → guarded.** `clients/admin/src/pages/settings.tsx`: a `handleSave`
+  now runs `jsonParseError(form.vpn_servers)` and blocks the PATCH with a toast on a malformed VPN-servers
+  blob (all 3 Save buttons route through it). No more silently persisting a typo'd config.
+- **D17 (admin) — byte-identical helpers deduped → `src/lib/format.ts`.** `countryFlag` existed identically in
+  `dashboard.tsx` + `users.tsx`; `relativeTime` in `inbox.tsx`. Extracted to one module (countryFlag now also
+  case-insensitive) + `jsonParseError`. Removed all 3 local copies; pages import the shared versions.
+- **Verify:** `tsc --noEmit` clean; vitest **22/22** (+8 new in `src/lib/format.test.ts`:
+  countryFlag/relativeTime/jsonParseError incl. case-insensitivity, RU time buckets, malformed-JSON).
+- **Left intentionally:** `log-monitor.sh:33` DE-label case is harmless dead mapping (no DE host exists) —
+  not worth churning a working script. iOS dead-code (APIClient/Constants) stays in D17-remaining (needs build).
+
+Files: `clients/admin/src/lib/{format.ts,format.test.ts}`, `clients/admin/src/pages/{settings,dashboard,users,inbox}.tsx`.
+
+— 6 iterations done (0–5). Branch `product-maturity-loop`; nothing deployed/enabled. Next: continue
+fully-verifiable backend/admin items, then prepare the B-track UX batch (implement+unit-test to ride a CI iOS build).
 
 <!-- next iteration appended below -->
