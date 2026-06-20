@@ -43,6 +43,48 @@ type dashboardStatsResponse struct {
 	RecentTransactions []recentTransactionDTO `json:"recent_transactions"`
 	ExpiringUsers      []interface{}          `json:"expiring_users"`
 	Payments           paymentsBlockDTO       `json:"payments"`
+	Retention          retentionStatsDTO      `json:"retention"` // A9 churn/retention visibility
+}
+
+// retentionStatsDTO surfaces churn/retention with derived rates so the owner can
+// see whether users come BACK (the recurring-revenue question), not just sign up.
+type retentionStatsDTO struct {
+	ActiveSubscribers  int64   `json:"active_subscribers"`
+	Expired7d          int64   `json:"expired_7d"`
+	Expired30d         int64   `json:"expired_30d"`
+	EverTrialed        int64   `json:"ever_trialed"`
+	PaidUsers          int64   `json:"paid_users"`
+	RepeatPayers       int64   `json:"repeat_payers"`
+	TrialConverted     int64   `json:"trial_converted"`
+	TrialConversionPct float64 `json:"trial_conversion_pct"` // trial_converted / ever_trialed
+	RepeatPurchasePct  float64 `json:"repeat_purchase_pct"`  // repeat_payers / paid_users
+}
+
+// toRetentionDTO derives the rates (guarding divide-by-zero). Pure — unit-tested.
+func toRetentionDTO(s *db.RetentionStats) retentionStatsDTO {
+	if s == nil {
+		return retentionStatsDTO{}
+	}
+	d := retentionStatsDTO{
+		ActiveSubscribers: s.ActiveSubscribers,
+		Expired7d:         s.Expired7d,
+		Expired30d:        s.Expired30d,
+		EverTrialed:       s.EverTrialed,
+		PaidUsers:         s.PaidUsers,
+		RepeatPayers:      s.RepeatPayers,
+		TrialConverted:    s.TrialConverted,
+	}
+	if s.EverTrialed > 0 {
+		d.TrialConversionPct = round1(float64(s.TrialConverted) / float64(s.EverTrialed) * 100)
+	}
+	if s.PaidUsers > 0 {
+		d.RepeatPurchasePct = round1(float64(s.RepeatPayers) / float64(s.PaidUsers) * 100)
+	}
+	return d
+}
+
+func round1(f float64) float64 {
+	return float64(int64(f*10+0.5)) / 10
 }
 
 // paymentsBlockDTO carries the dashboard payments rollup. Periods is keyed by
@@ -82,7 +124,7 @@ type recentTransactionDTO struct {
 }
 
 type dashboardStats struct {
-	TotalUsers  int64 `json:"total_users"`
+	TotalUsers int64 `json:"total_users"`
 	// Provisioned = is_active && vpn_uuid IS NOT NULL. NOT engagement
 	// — for a VPN app this is ~= TotalUsers. Kept for backwards-compat
 	// with the SPA's existing DashboardResponse interface; new code
@@ -92,8 +134,8 @@ type dashboardStats struct {
 	// Active24h / Active30d = users with last_seen within the window.
 	// These are the real engagement counts and what the dashboard
 	// surfaces as "Active (24h)" and "Active (30d)" cards (added 2026-05-28).
-	Active24h   int64 `json:"active_24h"`
-	Active30d   int64 `json:"active_30d"`
+	Active24h int64 `json:"active_24h"`
+	Active30d int64 `json:"active_30d"`
 }
 
 type vpnStats struct {
@@ -126,14 +168,14 @@ type nodeResponse struct {
 	RAMUsed      *float64         `json:"ram_used"`
 	RAMTotal     *float64         `json:"ram_total"`
 	Disk         *float64         `json:"disk"`
-	LastSyncAt   *time.Time        `json:"last_sync_at,omitempty"`
-	SyncStatus   string            `json:"sync_status,omitempty"`
-	SyncedUsers  int               `json:"synced_users,omitempty"`
-	ProviderName string            `json:"provider_name,omitempty"`
-	CostMonthly  float64           `json:"cost_monthly,omitempty"`
-	ProviderURL  string            `json:"provider_url,omitempty"`
-	Notes        string            `json:"notes,omitempty"`
-	Containers   []containerInfo   `json:"containers,omitempty"`
+	LastSyncAt   *time.Time       `json:"last_sync_at,omitempty"`
+	SyncStatus   string           `json:"sync_status,omitempty"`
+	SyncedUsers  int              `json:"synced_users,omitempty"`
+	ProviderName string           `json:"provider_name,omitempty"`
+	CostMonthly  float64          `json:"cost_monthly,omitempty"`
+	ProviderURL  string           `json:"provider_url,omitempty"`
+	Notes        string           `json:"notes,omitempty"`
+	Containers   []containerInfo  `json:"containers,omitempty"`
 }
 
 type containerInfo struct {
@@ -155,8 +197,8 @@ type protocolInfo struct {
 }
 
 type listNodesResponse struct {
-	Nodes             []nodeResponse `json:"nodes"`
-	TotalCostMonthlyRub float64      `json:"total_cost_monthly_rub"`
+	Nodes               []nodeResponse `json:"nodes"`
+	TotalCostMonthlyRub float64        `json:"total_cost_monthly_rub"`
 }
 
 // SyncConfig handles POST /api/admin/nodes/sync
@@ -301,6 +343,14 @@ func (h *Handler) GetDashboard(c echo.Context) error {
 		}
 	}
 
+	// A9 churn/retention. Degrade gracefully — a stalled query serves zeros, not a 500.
+	retention := retentionStatsDTO{}
+	if rs, err := h.DB.RetentionStats(ctx); err != nil {
+		h.Logger.Error("admin: dashboard: retention stats", zap.Error(err))
+	} else {
+		retention = toRetentionDTO(rs)
+	}
+
 	return c.JSON(http.StatusOK, dashboardStatsResponse{
 		Stats: dashboardStats{
 			TotalUsers:  totalUsers,
@@ -317,6 +367,7 @@ func (h *Handler) GetDashboard(c echo.Context) error {
 		RecentTransactions: recent,
 		ExpiringUsers:      []interface{}{},
 		Payments:           payments,
+		Retention:          retention,
 	})
 }
 
@@ -845,7 +896,7 @@ func (h *Handler) ListServers(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"servers":              resp,
+		"servers":                resp,
 		"total_cost_monthly_rub": totalCost,
 	})
 }

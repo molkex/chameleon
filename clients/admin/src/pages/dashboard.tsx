@@ -83,12 +83,26 @@ interface RecentTransaction {
   created_at_fmt: string;
 }
 
+// A9 churn/retention — "do users come BACK", the recurring-revenue question.
+interface RetentionStats {
+  active_subscribers: number;
+  expired_7d: number;
+  expired_30d: number;
+  ever_trialed: number;
+  paid_users: number;
+  repeat_payers: number;
+  trial_converted: number;
+  trial_conversion_pct: number;
+  repeat_purchase_pct: number;
+}
+
 interface DashboardResponse {
   stats: DashboardStats;
   vpn: VpnStats;
   recent_transactions: RecentTransaction[];
   expiring_users: ExpiringUser[];
   payments: PaymentsBlock;
+  retention?: RetentionStats; // optional — older backend builds omit it
 }
 
 // MON-04: backs the System Health strip. Mirrors infraResponse in the Go
@@ -324,7 +338,7 @@ export default function DashboardPage() {
 
   if (isLoading || !data) return <Skeleton />;
 
-  const { stats, vpn, recent_transactions, expiring_users, payments } = data;
+  const { stats, vpn, recent_transactions, expiring_users, payments, retention } = data;
 
   const trafficGB = vpn.total_traffic_gb ?? ((vpn.bw_in_gb ?? 0) + (vpn.bw_out_gb ?? 0));
 
@@ -374,6 +388,26 @@ export default function DashboardPage() {
           sub={`по оплатам с суммой`}
           icon={CreditCard} color="text-purple-400" />
       </div>
+
+      {/* A9 Retention — does the money RECUR? active subscribers, recent churn,
+          trial→paid conversion, and repeat-purchase rate (the recurring-revenue
+          signal the dashboard previously couldn't show). */}
+      {retention && (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard title="Активные подписки" value={retention.active_subscribers}
+            sub={`истекли за 7д: ${retention.expired_7d} · 30д: ${retention.expired_30d}`}
+            icon={Users} color="text-emerald-400" />
+          <StatCard title="Конверсия триала" value={`${retention.trial_conversion_pct}%`}
+            sub={`${retention.trial_converted} из ${retention.ever_trialed} триалов оплатили`}
+            icon={TrendingUp} color="text-yellow-400" />
+          <StatCard title="Повторные оплаты" value={`${retention.repeat_purchase_pct}%`}
+            sub={`${retention.repeat_payers} из ${retention.paid_users} платят ≥2 раз`}
+            icon={Receipt} color="text-blue-400" />
+          <StatCard title="Платящих всего" value={retention.paid_users}
+            sub={`уникальных плательщиков`}
+            icon={Wallet} color="text-purple-400" />
+        </div>
+      )}
 
       {/* Payments — detailed section with period toggle + source breakdown. */}
       <Card>

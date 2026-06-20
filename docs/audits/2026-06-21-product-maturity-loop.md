@@ -84,13 +84,13 @@ Severity = impact on the owner's goal (recurring revenue + advertisable quality)
 | `A1-lifecycle-engine` | **P0** | `cmd/chameleon/main.go:391` (enforcement sweep notifies nobody); `push/push.go` + `email/resend.go` only manual | No expiry reminder / trial nudge / win-back anywhere → lapsed users get zero touch | Daily sweep → segment `expiring_soon`/`expired_recent`/`expired_winback` → push + email (senders + audiences already exist) | M | **no** | **BUILT (disabled) 2026-06-21** (iter 2; new `internal/lifecycle` + mig 027 + dry-run; deploys dormant; **owner: review copy → set `lifecycle.enabled`**) |
 | `A2-auto-renew-iap` | **P0** | `app-store.yaml:117`; ADR 0005; `SubscriptionManager.swift:16,26` | Non-renewing = manual re-buy; ADR predicts 30-50% LTV loss; blocks Family Sharing + StoreKit win-back/intro offers | New subscription group w/ auto-renewable product IDs; honor `DID_RENEW`/`EXPIRED`/`GRACE` ASN | L | yes | OPEN (roadmap had it `deferred`, data-gate now satisfied) |
 | `A3-freekassa-recurring` | **P0** | `payments/freekassa/client.go` (one-shot CreateOrder only) | 100% of real revenue is on the rail with no recurring/saved-card/dunning | Saved-card / СБП rebill token + server-side renewal scheduler | L | no | OPEN |
-| `A4-asn-churn-signals` | P1 | `payments/subscription_notification.go:110` (`EXPIRED`/`DID_FAIL_TO_RENEW`/`GRACE` → log+drop); no `auto_renew_status` column | Apple's involuntary-churn signals discarded; can't segment voluntary vs involuntary churn | Persist `auto_renew_status`+`expiration_intent`; act on `DID_FAIL_TO_RENEW` | M | no | OPEN |
+| `A4-asn-churn-signals` | P1 | `payments/subscription_notification.go:110` (`EXPIRED`/`DID_FAIL_TO_RENEW`/`GRACE` → log+drop); no `auto_renew_status` column | Apple's involuntary-churn signals discarded; can't segment voluntary vs involuntary churn | Persist `auto_renew_status`+`expiration_intent`; act on `DID_FAIL_TO_RENEW` | M | no | **DEFERRED** (iter 4: `apple` pkg doesn't parse renewalInfo + these events don't fire for NON-renewing subs — becomes useful with A2; low value now) |
 | `A5-proactive-paywall` | P1 | `MainView.swift:125`; paywall only from chips `MainViewNeon.swift:120,416`,`Calm:330` | Paywall seen by 9/257 connecters → 3.8% paid; trial→paid moment has no surface | One-time paywall on trial→expired transition (state-tracked) | S | yes | OPEN (roadmap PAYWALL-FUNNEL-TRIGGER over-optimistically "addressed") |
 | `A6-expiry-warning-ui` | P1 | `MainViewNeon.swift:446`,`Calm:355` (countdown is grey subtitle text only) | Most persuasive moment (trial ends tomorrow) is invisible | Banner + CTA when `daysLeft<=3`; distinct trial vs paid copy | S | yes | OPEN |
 | `A7-client-reengagement` | P1 | no `UNCalendar/TimeInterval` trigger for expiry; `winBack`/`offerCode`/`promotionalOffer` = 0 hits | No local reminder, no win-back offer client-side; promo engine built but unwired to expired audience + absent from paywall | Local notif on expiry; ship promo field in `WebPaywallView.swift:347`; wire promo→expired campaign | M | yes+wiring | OPEN |
 | `A8-annual-savings-framing` | P2 | `WebPaywallView.swift:457` (raw "₽" only) | Annual only ~24%/mo cheaper and UI never shows it → users pick highest-churn monthly | Compute per-month + "save X%"; widen annual discount | S | yes | OPEN |
-| `A9-churn-instrumentation` | P2 | `EventTracker.swift` (acquisition events only); gate `AppState.swift:1372` fires no event | Owner cannot see churn / renewal / trial-conversion rate → advertising blind (no LTV/CAC) | Emit `subscription.expired`/renewed/resubscribe + admin churn dashboard | M | yes+admin | OPEN |
-| `A10-freekassa-refund` | P2 | no FK refund handler; `MarkRefundedAndReconcile` Apple-only (`credit.go:209`) | Refunded RU payment keeps VPN access (small leak on the revenue rail) | FK refund webhook → MarkRefundedAndReconcile | S | no | OPEN |
+| `A9-churn-instrumentation` | P2 | `EventTracker.swift` (acquisition events only); gate `AppState.swift:1372` fires no event | Owner cannot see churn / renewal / trial-conversion rate → advertising blind (no LTV/CAC) | Emit `subscription.expired`/renewed/resubscribe + admin churn dashboard | M | yes+admin | **DASHBOARD DONE 2026-06-21** (iter 4; admin shows active-subs / churn-7d-30d / trial-conversion% / repeat-purchase% from existing data). Client event-emit half still rides a build. |
+| `A10-freekassa-refund` | P2 | no FK refund handler; `MarkRefundedAndReconcile` Apple-only (`credit.go:209`) | Refunded RU payment keeps VPN access (small leak on the revenue rail) | FK refund webhook → MarkRefundedAndReconcile | S | no | **DEFERRED** (iter 4: FK pkg exposes no refund/cancel notification type — needs FreeKassa's refund-callback spec; owner to confirm FK even pushes refunds) |
 | `A11-trial-reinstall-hole` | P3 | `auth.go:635`; TRIAL-ABUSE-REINSTALL | Delete+reinstall → fresh trial (3 of 347 — tiny) | install_secret/DeviceCheck gate | M | no | DEFER-until-grows (correct) |
 
 ### Track B — UX/UI & trust
@@ -266,5 +266,40 @@ engine, 3 geoip). All committed on branch `product-maturity-loop`; nothing deplo
 Next when resumed: **A4** (persist Apple ASN churn signals — auto_renew_status/expiration_intent), **A10**
 (FreeKassa refund webhook → MarkRefundedAndReconcile), then the app-build UX batch (B-track) which needs an
 iOS build, so those get implemented + unit-tested to ride a build, not submitted unattended.
+
+### 2026-06-21 · Iteration 4 — A9 churn/retention visibility on the admin dashboard
+The owner can't decide whether advertising pays back without seeing whether users **come back**. The dashboard
+showed acquisition (total/active/DAU) but zero retention. Added it, computed read-only from existing tables.
+
+- **What:** `backend/internal/db/retention.go` — `RetentionStats` (one round-trip): active_subscribers,
+  expired_7d, expired_30d, ever_trialed, paid_users, repeat_payers (≥2 completed = the recurring-revenue core),
+  trial_converted. Wired into `GetDashboard` (`internal/api/admin/nodes.go`) via a pure `toRetentionDTO` that
+  derives **trial_conversion_pct** + **repeat_purchase_pct** (divide-by-zero guarded). New SPA cards on the
+  dashboard (`clients/admin/src/pages/dashboard.tsx`): "Активные подписки / Конверсия триала / Повторные
+  оплаты / Платящих всего". Graceful-degrade: query error serves zeros, not a 500.
+- **Why aligned:** this is the literal "do they come back?" number — the metric the whole loop is about, and
+  what the owner needs to compute LTV/CAC before spending on ads.
+- **Verify:** backend `go build ./...` + `go vet` + `gofmt` clean; pure-DTO unit tests
+  (`internal/api/admin/retention_dto_test.go`: rates, zero-guards, nil, rounding) green; SPA `tsc` clean +
+  vitest 14/14; DB integration test (`internal/db/retention_test.go`, `//go:build integration`) compiles and
+  asserts the 7 counts against seeded users/payments — runs in CI/Docker (no local Docker, repo's standard).
+- **Decisions this iter:** **A4 DEFERRED** — the `apple` package doesn't parse `renewalInfo`
+  (auto_renew_status/expiration_intent) and those events don't even fire for NON-renewing subs; it becomes
+  worthwhile only alongside A2 (auto-renewable migration). **A10 DEFERRED** — the FreeKassa package exposes no
+  refund/cancel notification type; implementing a refund webhook needs FreeKassa's refund-callback spec (owner
+  to confirm FK pushes refunds at all). Neither is safe to guess at unattended.
+
+Files: `internal/db/{retention.go,retention_test.go}`, `internal/api/admin/{nodes.go,retention_dto_test.go}`,
+`clients/admin/src/pages/dashboard.tsx`.
+
+— **Constraint note for the morning:** local env has **no Docker** (DB integration tests run only in CI) and
+**can't compile iOS** (Mac lost the iOS 26 platform; iOS builds via CI). So overnight I'm prioritizing
+fully-locally-verifiable backend/admin work; the **B-track UX** items (paywall pitch, onboarding,
+proof-of-protection, localize support chat) are high-value but need an iOS build to verify — I'll implement +
+unit-test those so they ride your next CI build rather than shipping Swift I can't compile. The biggest
+revenue levers (A2 auto-renewable IAP, A3 FreeKassa recurring) need your App-Store-Connect / PSP setup.
+
+Next iteration: a fully-verifiable admin/kostyli win — **D15** (settings.tsx saves raw JSON with no
+validation) + **D17 admin** (extract duplicated countryFlag/relative-time into `lib/format.ts` with tests).
 
 <!-- next iteration appended below -->
