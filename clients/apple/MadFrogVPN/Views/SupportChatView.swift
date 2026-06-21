@@ -61,24 +61,24 @@ struct SupportChatView: View {
                         }
                     }
                     .disabled(token == nil || sendingDiag)
-                    .accessibilityLabel(Text("Отправить диагностику"))
+                    .accessibilityLabel(Text(L10n.SupportChat.sendDiagA11y))
                 }
             }
-            .alert("Отправить журнал в поддержку?", isPresented: $showDiagConfirm) {
-                Button("Отправить") { sendDiagnostic() }
-                Button("Отмена", role: .cancel) {}
+            .alert(L10n.SupportChat.confirmTitle, isPresented: $showDiagConfirm) {
+                Button(L10n.SupportChat.confirmSend) { sendDiagnostic() }
+                Button(L10n.SupportChat.cancel, role: .cancel) {}
             } message: {
-                Text("Уйдёт снимок состояния приложения и журнал подключения — он может содержать адреса серверов и технические данные.")
+                Text(L10n.SupportChat.confirmMessage)
             }
-            .alert("Не удалось отправить", isPresented: $showDiagError) {
-                Button("OK", role: .cancel) {}
+            .alert(L10n.SupportChat.errorTitle, isPresented: $showDiagError) {
+                Button(L10n.SupportChat.ok, role: .cancel) {}
             } message: {
-                Text("Проверьте подключение к интернету и попробуйте ещё раз.")
+                Text(L10n.SupportChat.errorMessage)
             }
-            .alert("Журнал не приложился", isPresented: $showDiagPartial) {
-                Button("OK", role: .cancel) {}
+            .alert(L10n.SupportChat.partialTitle, isPresented: $showDiagPartial) {
+                Button(L10n.SupportChat.ok, role: .cancel) {}
             } message: {
-                Text("Снимок состояния отправлен, но журнал подключения приложить не удалось. Попробуйте ещё раз или опишите проблему текстом.")
+                Text(L10n.SupportChat.partialMessage)
             }
             .sensoryFeedback(.success, trigger: diagSuccessTick)
         }
@@ -117,7 +117,8 @@ private func makeSupportWebView(coordinator: SupportChatCoordinator) -> WKWebVie
 
     guard let url = Bundle.main.url(forResource: "index", withExtension: "html"),
           let html = try? String(contentsOf: url, encoding: .utf8) else {
-        wv.loadHTMLString("<body style='background:#05140d;color:#eafff0;font-family:-apple-system'>Чат временно недоступен.</body>", baseURL: nil)
+        let unavailable = String(localized: "support.chat.unavailable")
+        wv.loadHTMLString("<body style='background:#05140d;color:#eafff0;font-family:-apple-system'>\(unavailable)</body>", baseURL: nil)
         return wv
     }
     // baseURL = API origin → the widget's /api/... fetch + SSE are same-origin.

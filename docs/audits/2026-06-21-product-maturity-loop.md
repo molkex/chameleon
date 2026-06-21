@@ -101,8 +101,8 @@ Severity = impact on the owner's goal (recurring revenue + advertisable quality)
 | `B2-onboarding-no-trust` | P1 | `OnboardingView.swift:33` (sign-in wall, no intro); trust = 3× 11pt pills | Can't evaluate before handing over identity; drop-off | 2-3 page intro (what/why-trust/free-trial) before auth | M | yes | OPEN |
 | `B3-trial-cta-buried` | P1 | `OnboardingView.swift:108,303` (guest = 13pt grey underline) | Best conversion hook is least visible | Promote "Start free — no account" to a real button | S | yes | OPEN |
 | `B4-no-proof-of-protection` | P1 | `MainViewCalm.swift:135`,`Neon:150` (timer only, no IP/location) | No felt confirmation VPN works | Show apparent IP / "you appear in X" on connect | M | yes | OPEN (= C3) |
-| `B5-support-chat-russian` | P1 | `SupportChatView.swift:64,120` (hardcoded RU); `AnnouncementView.swift:65,98` | EN users hit raw Russian exactly when frustrated | Move strings to Localizable.strings | S | yes | OPEN |
-| `B6-offline-vs-disconnected` | P2 | Neon `home.neon.exposed`="OFFLINE" vs Calm "Disconnected" | "OFFLINE" implies no internet, not "exposed" | Unify to accurate pair ("Not connected"/"Exposed — tap to protect") | S | yes | OPEN |
+| `B5-support-chat-russian` | P1 | `SupportChatView.swift:64,120` (hardcoded RU); `AnnouncementView.swift:65,98` | EN users hit raw Russian exactly when frustrated | Move strings to Localizable.strings | S | yes | **SUPPORT-CHAT DONE 2026-06-21** (iter 7; `L10n.SupportChat` + en/ru, all 8 alert/button/a11y literals + fallback HTML). REMAINING: `AnnouncementView` (cta/dismiss/badges) — next iter. |
+| `B6-offline-vs-disconnected` | P2 | Neon `home.neon.exposed`="OFFLINE" vs Calm "Disconnected" | "OFFLINE" implies no internet, not "exposed" | Unify to accurate pair ("Not connected"/"Exposed — tap to protect") | S | yes | **DONE 2026-06-21** (iter 7; en "OFFLINE"→"UNPROTECTED" — accurate: online-but-exposed, not no-internet) |
 | `B7-google-logo-fake` | P2 | `OnboardingView.swift:330` (bold letter "G") | Looks cheap/placeholder on first screen | Official multicolor G asset (also a Google requirement) | S | yes | OPEN |
 | `B8-restore-discoverability` | P2 | restore only on paywall (`PaywallView.swift:50`), absent from Settings | Reinstalled payer can't find restore → tickets | Add Restore to Account/Settings | S | yes | OPEN |
 | `B9-account-sparse` | P2 | `AccountView.swift:14` (system List, UUID username, no provider/email/manage) | Feels unfinished vs themed app | Theme it; show provider/email; Manage-sub link | S/M | yes | OPEN (manage-sub = C4) |
@@ -346,5 +346,24 @@ Files: `MadFrogVPN/Models/PlanPricing.swift`, `MadFrogVPN/Models/L10n.swift`,
 `Tests/UnitTests/PlanPricingTests.swift`.
 Next: more B-track — **B6** ("OFFLINE"→accurate label, pure `.strings`) + **B5** (localize hardcoded RU in
 SupportChatView/AnnouncementView), both low-risk + `swiftc -parse`/`plutil`-verifiable.
+
+### 2026-06-21 · Iteration 7 — B6 misleading label + B5 support-chat localization (B-track)
+- **B6:** en `home.neon.exposed` "OFFLINE" → **"UNPROTECTED"**. "OFFLINE" implied no internet; the user is in
+  fact online but unprotected (VPN off) — the opposite of what "OFFLINE" suggests. (RU "ОТКЛЮЧЕНЫ" was already
+  accurate.) Calm's "Disconnected" left as-is (not misleading).
+- **B5 (support chat):** the entire diagnostic flow was hardcoded Russian via `.alert("Русский")` literals —
+  which Swift treats as `LocalizedStringKey`s with no `.strings` entry, so EN users saw the raw Russian
+  fallback when seeking help. Added `L10n.SupportChat` (11 keys) + en/ru `.strings`; replaced all 8
+  alert/button/accessibility literals; the WebView "chat unavailable" fallback now uses `String(localized:)`.
+  Zero residual RU literals (outside comments).
+- **Verify:** `swiftc -parse` OK (SupportChatView.swift, L10n.swift); `plutil -lint` OK (en+ru). Rides CI build.
+- **Note:** the `.string` accessor mentioned in L10n.swift's doc-comment was never actually implemented — used
+  `String(localized:)` for the one plain-String (HTML) context instead. (Could file a tiny cleanup to drop the
+  stale doc line.)
+
+Files: `MadFrogVPN/Models/L10n.swift`, `MadFrogVPN/Resources/{en,ru}.lproj/Localizable.strings`,
+`MadFrogVPN/Views/SupportChatView.swift`.
+Next: finish **B5** (`AnnouncementView` cta/dismiss/badge localization), then **B7** (Google logo) /
+**B15** (email placeholder + stale DE mock) — all `swiftc -parse`/`plutil`-verifiable.
 
 <!-- next iteration appended below -->

@@ -141,6 +141,18 @@
 "webpaywall.legal.terms"           = "Условия";
 "webpaywall.legal.privacy"         = "Конфиденциальность";
 "webpaywall.plan.days_one_device"  = "%d дн. · 1 устройство";
+
+"support.diag.a11y"             = "Отправить диагностику";
+"support.diag.confirm.title"    = "Отправить журнал в поддержку?";
+"support.diag.confirm.send"     = "Отправить";
+"support.diag.cancel"           = "Отмена";
+"support.diag.confirm.message"  = "Уйдёт снимок состояния приложения и журнал подключения — он может содержать адреса серверов и технические данные.";
+"support.diag.error.title"      = "Не удалось отправить";
+"support.diag.ok"               = "OK";
+"support.diag.error.message"    = "Проверьте подключение к интернету и попробуйте ещё раз.";
+"support.diag.partial.title"    = "Журнал не приложился";
+"support.diag.partial.message"  = "Снимок состояния отправлен, но журнал подключения приложить не удалось. Попробуйте ещё раз или опишите проблему текстом.";
+"support.chat.unavailable"      = "Чат временно недоступен.";
 "webpaywall.plan.per_month"        = "≈ %d ₽/мес";
 "webpaywall.plan.save"             = "выгода %d%%";
 "webpaywall.error.plans"           = "Не удалось загрузить тарифы.";

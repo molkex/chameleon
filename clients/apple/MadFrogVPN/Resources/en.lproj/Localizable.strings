@@ -30,7 +30,7 @@
 
 "home.neon.you_are"              = "YOU ARE";
 "home.neon.protected"            = "PROTECTED";
-"home.neon.exposed"              = "OFFLINE";
+"home.neon.exposed"              = "UNPROTECTED";
 "home.neon.connecting"           = "CONNECTING";
 "home.neon.reconnecting"         = "RECONNECTING";
 "home.neon.stopping"             = "STOPPING";
@@ -141,6 +141,18 @@
 "webpaywall.legal.terms"           = "Terms";
 "webpaywall.legal.privacy"         = "Privacy";
 "webpaywall.plan.days_one_device"  = "%d days · 1 device";
+
+"support.diag.a11y"             = "Send diagnostics";
+"support.diag.confirm.title"    = "Send log to support?";
+"support.diag.confirm.send"     = "Send";
+"support.diag.cancel"           = "Cancel";
+"support.diag.confirm.message"  = "A snapshot of the app state and the connection log will be sent — it may contain server addresses and technical data.";
+"support.diag.error.title"      = "Couldn't send";
+"support.diag.ok"               = "OK";
+"support.diag.error.message"    = "Check your internet connection and try again.";
+"support.diag.partial.title"    = "Log wasn't attached";
+"support.diag.partial.message"  = "The state snapshot was sent, but the connection log couldn't be attached. Try again or describe the problem in text.";
+"support.chat.unavailable"      = "Chat is temporarily unavailable.";
 "webpaywall.plan.per_month"        = "≈ %d ₽/mo";
 "webpaywall.plan.save"             = "save %d%%";
 "webpaywall.error.plans"           = "Could not load plans.";

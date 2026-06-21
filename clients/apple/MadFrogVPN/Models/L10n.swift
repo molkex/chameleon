@@ -178,6 +178,22 @@ enum L10n {
         }
     }
 
+    // B5 (PRODUCT-MATURITY-LOOP): the support-chat diagnostic flow was hardcoded
+    // Russian — EN users hit raw Russian exactly when seeking help.
+    enum SupportChat {
+        static let sendDiagA11y   = LKey("support.diag.a11y")
+        static let confirmTitle   = LKey("support.diag.confirm.title")
+        static let confirmSend    = LKey("support.diag.confirm.send")
+        static let cancel         = LKey("support.diag.cancel")
+        static let confirmMessage = LKey("support.diag.confirm.message")
+        static let errorTitle     = LKey("support.diag.error.title")
+        static let ok             = LKey("support.diag.ok")
+        static let errorMessage   = LKey("support.diag.error.message")
+        static let partialTitle   = LKey("support.diag.partial.title")
+        static let partialMessage = LKey("support.diag.partial.message")
+        static let unavailable    = LKey("support.chat.unavailable")
+    }
+
     enum Paywall {
         static let title             = LKey("paywall.title")
         static let headerTitle       = LKey("paywall.header.title")
