@@ -535,4 +535,25 @@ Owner: "будь проактивным" → took it through release, not just c
 
 Owner verify: install b122 on iPhone, sign in from RU repeatedly (should be reliable); App Store submit when happy.
 
+### 2026-06-21 · Iteration 16 — b123 shipped (cert-cap fixed) + oom-memory investigated from real data
+- **b123 to TestFlight (Internal Testers, verified).** First archive FAILED: *"account reached the maximum
+  number of certificates"* — my earlier LOCAL sim/macOS dev builds (`-allowProvisioningUpdates`) maxed the
+  Apple Development certs, so CI couldn't sign. Revoked 7 stale "Created via API" dev certs (kept manual + 2
+  recent + distribution certs untouched) → re-ran → archive+upload OK → assigned. Lesson: local dev builds
+  consume the shared cert pool; revoke after.
+- **oom-reset investigated with REAL data** (b122 device log): `service/oom-killer: memory pressure: critical,
+  usage: 40 MiB, resetting network` ×2 — the felt "VPN сам выключается." It's the **libbox fork oom-killer at
+  40 MiB** (`LibboxSetMemoryLimit(true)`, a fork hardcode — raising it risks the ~50MB iOS jetsam hard-kill).
+  Two SAFE reductions made:
+  - **Removed dead `dns-fakeip`** (clientconfig.go) — unreferenced server still allocated its 198.18/15 fakeip
+    table in the NE. Server-side; **deployed to NL** (config-gen; clients get it on next /config).
+  - **GOMEMLIMIT 42MiB → 38MiB** (ExtensionProvider) — real finding: 42 sat ABOVE the 40 trip, so Go never
+    pressed before the fork reset (inert). 38 is below the trip → runtime releases under 40 first.
+  - Left `IndependentCache: true` (intentional split-horizon .ru-direct vs proxy — flipping risks DNS leak).
+    `OOM-SELF-HEAL` already auto-recovers after a reset.
+- **Cadence decision:** GOMEMLIMIT is committed but NOT yet built into a build — shipping it bundled with b123
+  would confound (if GC-thrash, can't tell it from the DNS fix). Ship it as its own build AFTER b123's DNS fix
+  is confirmed on-device, so its memory effect is measured cleanly (via the device memory-watchdog log).
+- Verify: go build/vet/test (vpn) OK; swiftc -parse OK; NL deploy healthy; singbox untouched.
+
 <!-- next iteration appended below -->
