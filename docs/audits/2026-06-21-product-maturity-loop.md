@@ -104,7 +104,7 @@ Severity = impact on the owner's goal (recurring revenue + advertisable quality)
 | `B5-support-chat-russian` | P1 | `SupportChatView.swift:64,120` (hardcoded RU); `AnnouncementView.swift:65,98` | EN users hit raw Russian exactly when frustrated | Move strings to Localizable.strings | S | yes | **DONE 2026-06-21** (iter 7 support-chat + iter 8 AnnouncementView cta/dismiss/badges via `String(localized:)`; en=ru=296 keys) |
 | `B6-offline-vs-disconnected` | P2 | Neon `home.neon.exposed`="OFFLINE" vs Calm "Disconnected" | "OFFLINE" implies no internet, not "exposed" | Unify to accurate pair ("Not connected"/"Exposed — tap to protect") | S | yes | **DONE 2026-06-21** (iter 7; en "OFFLINE"→"UNPROTECTED" — accurate: online-but-exposed, not no-internet) |
 | `B7-google-logo-fake` | P2 | `OnboardingView.swift:330` (bold letter "G") | Looks cheap/placeholder on first screen | Official multicolor G asset (also a Google requirement) | S | yes | OPEN |
-| `B8-restore-discoverability` | P2 | restore only on paywall (`PaywallView.swift:50`), absent from Settings | Reinstalled payer can't find restore → tickets | Add Restore to Account/Settings | S | yes | OPEN |
+| `B8-restore-discoverability` | P2 | restore only on paywall (`PaywallView.swift:50`), absent from Settings | Reinstalled payer can't find restore → tickets | Add Restore to Account/Settings | S | yes | **DONE 2026-06-21** (iter 10; Account "Restore Purchases" → `app.subscriptionManager.restorePurchases()` + `refreshConfig` (StoreKit + FreeKassa cross-device) + result alert) |
 | `B9-account-sparse` | P2 | `AccountView.swift:14` (system List, UUID username, no provider/email/manage) | Feels unfinished vs themed app | Theme it; show provider/email; Manage-sub link | S/M | yes | OPEN (manage-sub = C4) |
 | `B10-web-paywall-handoff` | P2 | `WebPaywallView.swift:347` (external Safari, no return guidance) | RU users think payment failed → abandon | "Waiting for payment" pending state on return | S/M | yes | OPEN |
 | `B11-list-vs-card-mismatch` | P2 | server picker + Account use system `List`; rest uses themed cards | Inconsistent surface = "limping" | One list idiom; theme system Lists | M | yes | OPEN |
@@ -412,5 +412,21 @@ heavier UI needing on-device review (B2 onboarding, B4 proof-of-protection, B9 a
 consistency) + asset-dependent (B7). Approaching the point where the highest-value next steps are owner-gated
 (A2/A3 billing, A1 enable, on-device verification of this whole branch). Will keep doing safe verifiable items
 and lengthen cadence as the safe backlog thins.
+
+### 2026-06-21 · Iteration 10 — B8 Restore Purchases in Account (+ cadence note)
+- **What:** added a "Restore Purchases" row to `AccountView` (was only on the paywall, so a reinstalled payer
+  who never opened the paywall couldn't recover access → "I paid but it's gone" tickets). Calls
+  `app.subscriptionManager.restorePurchases()` (StoreKit) **and** `app.refreshConfig()` (reclaims a
+  cross-device FreeKassa payment too), then shows a result alert (restored / nothing found). Used
+  `app.subscriptionManager` (AppState owns it, `private(set)`) rather than `@Environment(SubscriptionManager)`
+  — the env isn't injected on the Account path, so this avoids a potential runtime crash.
+- **Verify:** `swiftc -parse` OK (AccountView, L10n); `plutil -lint` OK; key parity **304=304**. Rides CI build.
+
+— **10 commits.** This is the natural end of the autonomously-safe backlog: revenue groundwork (A1/A8/A9),
+UX value + trust (B1/B5/B6/B8/B15), infra safety + debt (D1/D2/D7/D10/D11/D15/D17) are done or advanced. The
+remaining registry items are owner-gated (A2/A3/A1-enable/on-device verify) or heavier UI that needs your
+review (B2 onboarding, B4 proof-of-protection, B9 account redesign, B11 list consistency, C1 kill-switch).
+Per stewardship, the loop now moves to a **long idle heartbeat** rather than manufacturing marginal commits —
+it stays alive to pick up direction when you wake. Re-point it any time by replying to this session.
 
 <!-- next iteration appended below -->

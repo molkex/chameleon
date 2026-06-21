@@ -280,6 +280,9 @@
 "account.username"               = "Username";
 "account.subscription"           = "Subscription";
 "account.subscription.pro_until" = "Pro until %@";
+"account.restore"                = "Restore Purchases";
+"account.restore.active"         = "Your subscription has been restored.";
+"account.restore.none"           = "No active purchases were found to restore.";
 "account.subscription.free"      = "Free trial";
 
 /* ===== Legal ===== */

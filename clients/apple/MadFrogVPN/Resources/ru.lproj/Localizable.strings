@@ -280,6 +280,9 @@
 "account.username"               = "Логин";
 "account.subscription"           = "Подписка";
 "account.subscription.pro_until" = "Pro до %@";
+"account.restore"                = "Восстановить покупки";
+"account.restore.active"         = "Подписка восстановлена.";
+"account.restore.none"           = "Активных покупок для восстановления не найдено.";
 "account.subscription.free"      = "Бесплатный триал";
 
 /* ===== Юридическое ===== */

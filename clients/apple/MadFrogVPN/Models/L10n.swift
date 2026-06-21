@@ -330,6 +330,10 @@ enum L10n {
         static let username               = LKey("account.username")
         static let subscription           = LKey("account.subscription")
         static let subscriptionFree       = LKey("account.subscription.free")
+        // B8: restore discoverability outside the paywall.
+        static let restore                = LKey("account.restore")
+        static let restoreActive          = LKey("account.restore.active")
+        static let restoreNone            = LKey("account.restore.none")
 
         static func subscriptionProUntil(_ date: String) -> String {
             String(format: String(localized: "account.subscription.pro_until"), date)

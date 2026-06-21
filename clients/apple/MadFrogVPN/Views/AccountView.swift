@@ -10,6 +10,9 @@ struct AccountView: View {
 
     @State private var showDeleteConfirm = false
     @State private var showLogoutConfirm = false
+    @State private var restoring = false
+    @State private var showRestoreResult = false
+    @State private var restoredActive = false
 
     var body: some View {
         List {
@@ -29,6 +32,27 @@ struct AccountView: View {
                     Text(subscriptionLabel)
                         .foregroundStyle(.secondary)
                 }
+            }
+
+            // B8: restore must be reachable outside the paywall — a reinstalled
+            // payer who never opens the paywall otherwise can't recover access.
+            Section {
+                Button {
+                    guard !restoring else { return }
+                    restoreSubscription()
+                } label: {
+                    Label {
+                        Text(L10n.Account.restore)
+                    } icon: {
+                        if restoring {
+                            ProgressView()
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                        }
+                    }
+                }
+                .tint(.primary)
+                .disabled(restoring)
             }
 
             Section {
@@ -81,6 +105,23 @@ struct AccountView: View {
             }
         } message: {
             Text(L10n.Settings.logoutBody)
+        }
+        .alert(Text(restoredActive ? L10n.Account.restoreActive : L10n.Account.restoreNone),
+               isPresented: $showRestoreResult) {
+            Button(L10n.Paywall.ok, role: .cancel) {}
+        }
+    }
+
+    private func restoreSubscription() {
+        restoring = true
+        Task {
+            // StoreKit restore (Apple) + a config refresh (reclaims a cross-device
+            // FreeKassa payment too). Mirrors the paywall restore + connect-gate reclaim.
+            await app.subscriptionManager.restorePurchases()
+            await app.refreshConfig()
+            restoring = false
+            restoredActive = app.subscriptionExpire.map { $0 > Date() } ?? false
+            showRestoreResult = true
         }
     }
 
