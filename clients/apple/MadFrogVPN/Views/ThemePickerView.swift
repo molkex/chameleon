@@ -110,7 +110,7 @@ private struct ThemeCard: View {
                                     .foregroundStyle(theme.background)
                             )
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Connected")
+                            Text(L10n.Home.statusProtected)
                                 .font(theme.font(size: 14, weight: .semibold))
                                 .foregroundStyle(theme.textPrimary)
                             Text("Netherlands · 24ms")

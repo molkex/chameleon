@@ -7,7 +7,8 @@ import SwiftUI
 ///
 /// Usage in SwiftUI: `Text(L10n.Home.statusProtected)` — returns
 /// `LocalizedStringKey`, Text looks up the key in the active bundle.
-/// For plain `String` contexts: `L10n.Home.statusProtected.string`.
+/// For plain `String` contexts use `String(localized: "the.key")` directly
+/// (there is no `.string` accessor on `LocalizedStringKey`).
 enum L10n {
     enum Home {
         static let label               = LKey("home.status.label")

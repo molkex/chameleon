@@ -429,4 +429,14 @@ review (B2 onboarding, B4 proof-of-protection, B9 account redesign, B11 list con
 Per stewardship, the loop now moves to a **long idle heartbeat** rather than manufacturing marginal commits —
 it stays alive to pick up direction when you wake. Re-point it any time by replying to this session.
 
+### 2026-06-21 · Iteration 11 — finishing touches (heartbeat tick)
+Small zero-risk cleanups (no new risky work while idling):
+- `ThemePickerView` theme-preview mock said hardcoded English "Connected" — now `L10n.Home.statusProtected`,
+  so the preview matches the REAL home copy ("Protected"/"Защищены") and localizes.
+- L10n.swift doc-comment referenced a `.string` accessor that was never implemented → corrected to point at
+  `String(localized:)`.
+- **Verify:** `swiftc -parse` OK (both). Rides CI build.
+
+Files: `MadFrogVPN/Views/ThemePickerView.swift`, `MadFrogVPN/Models/L10n.swift`. Loop stays on hourly heartbeat.
+
 <!-- next iteration appended below -->
