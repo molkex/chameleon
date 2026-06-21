@@ -502,4 +502,21 @@ client races it). Still owner-gated: ship a build carrying `decoyRelays` (1.0.33
 Files: `Shared/Constants.swift`, `MadFrogVPN/Models/APIClient.swift`,
 `infrastructure/monitoring/ru-auth-healthcheck.sh`, `infrastructure/spb-relay/decoy-adfox.conf`.
 
+### 2026-06-21 · Iteration 14 — per-leg sign-in telemetry (make residential failure measurable)
+The RU residential sign-in failure is invisible server-side (RKN RSTs in flight) and from a datacenter (MSK
+monitor sees legs healthy) — only the real device knows which leg carried the request. So instrument it.
+- **APIClient** (a class): `lastSensitiveAuthLeg` captures the winning leg of each SENSITIVE race
+  (`primary | decoy | http-<ip> | nil=all-failed`), reset per attempt, set at the race-winner point.
+- **AppState**: `logAuthLeg(provider:ok:)` emits `auth.attempt {provider, leg, ok, region}` via the existing
+  EventTracker batch → backend `app_events` → admin `/events`, from apple/google/email sign-ins (success+fail).
+- **Value:** real-user data on CF-vs-decoy win rate by region + sign-in failure rate — the thing that ends the
+  "guess on a device" cycle. (The dead direct-IP legs can be removed once telemetry confirms they never win —
+  deferred so the data justifies it + the change can be test-verified.)
+- **Verify:** `swiftc -parse` OK (APIClient, AppState). Rides build.
+
+— **RU sign-in is now fully addressed in code/infra:** root cause found from prod (iter 12), live RU monitor
+(iter 12), SPOF killed via 2nd decoy — server LIVE + client coded (iter 13), per-leg telemetry (iter 14). The
+**one remaining bottleneck is shipping a build** carrying the iter-13/14 client code (decoyRelays + telemetry)
+to TestFlight/App Store — everything client-side waits on that. Owner-gated (CI tag push + Apple review).
+
 <!-- next iteration appended below -->
