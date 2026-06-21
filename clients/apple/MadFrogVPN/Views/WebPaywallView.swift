@@ -95,11 +95,15 @@ struct WebPaywallView: View {
     }
 
     private var planCards: some View {
-        VStack(spacing: 12) {
+        // A8: baseline = the costliest per-month plan (monthly); cards show their
+        // saving vs it so a longer plan reads as the better deal.
+        let baselinePerMonth = PlanPricing.baselinePerMonthRub(plans.map { ($0.priceRub, $0.days) })
+        return VStack(spacing: 12) {
             ForEach(plans) { plan in
                 WebPlanCard(
                     plan: plan,
                     isSelected: plan.id == selectedPlan,
+                    baselinePerMonthRub: baselinePerMonth,
                     theme: theme
                 )
                 .onTapGesture {
@@ -430,7 +434,15 @@ struct WebPaywallView: View {
 private struct WebPlanCard: View {
     let plan: APIClient.PaymentPlan
     let isSelected: Bool
+    let baselinePerMonthRub: Int
     let theme: Theme
+
+    private var perMonth: Int {
+        PlanPricing.perMonthRub(priceRub: plan.priceRub, days: plan.days)
+    }
+    private var savings: Int {
+        PlanPricing.savingsPercent(perMonthRub: perMonth, baselinePerMonthRub: baselinePerMonthRub)
+    }
 
     var body: some View {
         HStack {
@@ -448,15 +460,33 @@ private struct WebPlanCard: View {
                             .foregroundStyle(theme.accent)
                             .clipShape(Capsule())
                     }
+                    // A8: quantified savings vs the monthly per-month price.
+                    if savings > 0 {
+                        Text(L10n.WebPaywall.planSave(savings))
+                            .font(.caption2.weight(.bold))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(theme.accent.opacity(0.18))
+                            .foregroundStyle(theme.accent)
+                            .clipShape(Capsule())
+                    }
                 }
                 Text(L10n.WebPaywall.planDaysOneDevice(plan.days))
                     .font(theme.font(size: 12))
                     .foregroundStyle(theme.textSecondary)
             }
             Spacer()
-            Text("\(plan.priceRub) ₽")
-                .font(theme.displayFont(size: 20, weight: .bold))
-                .foregroundStyle(theme.accent)
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("\(plan.priceRub) ₽")
+                    .font(theme.displayFont(size: 20, weight: .bold))
+                    .foregroundStyle(theme.accent)
+                // A8: per-month equivalent so longer plans read as cheaper.
+                if perMonth > 0 {
+                    Text(L10n.WebPaywall.planPerMonth(perMonth))
+                        .font(theme.font(size: 11))
+                        .foregroundStyle(theme.textSecondary)
+                }
+            }
         }
         .padding()
         .background(

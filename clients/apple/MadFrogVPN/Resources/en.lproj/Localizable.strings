@@ -141,6 +141,8 @@
 "webpaywall.legal.terms"           = "Terms";
 "webpaywall.legal.privacy"         = "Privacy";
 "webpaywall.plan.days_one_device"  = "%d days · 1 device";
+"webpaywall.plan.per_month"        = "≈ %d ₽/mo";
+"webpaywall.plan.save"             = "save %d%%";
 "webpaywall.error.plans"           = "Could not load plans.";
 "webpaywall.error.auth"            = "Authorization required.";
 "webpaywall.error.pending"         = "Payment is still processing…";

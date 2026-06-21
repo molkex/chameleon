@@ -168,6 +168,14 @@ enum L10n {
         static func planDaysOneDevice(_ days: Int) -> String {
             String(format: String(localized: "webpaywall.plan.days_one_device"), days)
         }
+
+        // A8: per-month price + savings framing on the plan cards.
+        static func planPerMonth(_ rub: Int) -> String {
+            String(format: String(localized: "webpaywall.plan.per_month"), rub)
+        }
+        static func planSave(_ pct: Int) -> String {
+            String(format: String(localized: "webpaywall.plan.save"), pct)
+        }
     }
 
     enum Paywall {

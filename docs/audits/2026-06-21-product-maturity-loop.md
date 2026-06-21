@@ -88,7 +88,7 @@ Severity = impact on the owner's goal (recurring revenue + advertisable quality)
 | `A5-proactive-paywall` | P1 | `MainView.swift:125`; paywall only from chips `MainViewNeon.swift:120,416`,`Calm:330` | Paywall seen by 9/257 connecters → 3.8% paid; trial→paid moment has no surface | One-time paywall on trial→expired transition (state-tracked) | S | yes | OPEN (roadmap PAYWALL-FUNNEL-TRIGGER over-optimistically "addressed") |
 | `A6-expiry-warning-ui` | P1 | `MainViewNeon.swift:446`,`Calm:355` (countdown is grey subtitle text only) | Most persuasive moment (trial ends tomorrow) is invisible | Banner + CTA when `daysLeft<=3`; distinct trial vs paid copy | S | yes | OPEN |
 | `A7-client-reengagement` | P1 | no `UNCalendar/TimeInterval` trigger for expiry; `winBack`/`offerCode`/`promotionalOffer` = 0 hits | No local reminder, no win-back offer client-side; promo engine built but unwired to expired audience + absent from paywall | Local notif on expiry; ship promo field in `WebPaywallView.swift:347`; wire promo→expired campaign | M | yes+wiring | OPEN |
-| `A8-annual-savings-framing` | P2 | `WebPaywallView.swift:457` (raw "₽" only) | Annual only ~24%/mo cheaper and UI never shows it → users pick highest-churn monthly | Compute per-month + "save X%"; widen annual discount | S | yes | OPEN |
+| `A8-annual-savings-framing` | P2 | `WebPaywallView.swift:457` (raw "₽" only) | Annual only ~24%/mo cheaper and UI never shows it → users pick highest-churn monthly | Compute per-month + "save X%"; widen annual discount | S | yes | **DONE 2026-06-21** (iter 6; pure `PlanPricing` + per-month + "выгода X%" badge, RU/EN; rides CI build). Widening the actual discount is an owner pricing call. |
 | `A9-churn-instrumentation` | P2 | `EventTracker.swift` (acquisition events only); gate `AppState.swift:1372` fires no event | Owner cannot see churn / renewal / trial-conversion rate → advertising blind (no LTV/CAC) | Emit `subscription.expired`/renewed/resubscribe + admin churn dashboard | M | yes+admin | **DASHBOARD DONE 2026-06-21** (iter 4; admin shows active-subs / churn-7d-30d / trial-conversion% / repeat-purchase% from existing data). Client event-emit half still rides a build. |
 | `A10-freekassa-refund` | P2 | no FK refund handler; `MarkRefundedAndReconcile` Apple-only (`credit.go:209`) | Refunded RU payment keeps VPN access (small leak on the revenue rail) | FK refund webhook → MarkRefundedAndReconcile | S | no | **DEFERRED** (iter 4: FK pkg exposes no refund/cancel notification type — needs FreeKassa's refund-callback spec; owner to confirm FK even pushes refunds) |
 | `A11-trial-reinstall-hole` | P3 | `auth.go:635`; TRIAL-ABUSE-REINSTALL | Delete+reinstall → fresh trial (3 of 347 — tiny) | install_secret/DeviceCheck gate | M | no | DEFER-until-grows (correct) |
@@ -320,5 +320,31 @@ Files: `clients/admin/src/lib/{format.ts,format.test.ts}`, `clients/admin/src/pa
 
 — 6 iterations done (0–5). Branch `product-maturity-loop`; nothing deployed/enabled. Next: continue
 fully-verifiable backend/admin items, then prepare the B-track UX batch (implement+unit-test to ride a CI iOS build).
+
+### 2026-06-21 · Iteration 6 — A8 paywall per-month + savings framing (B-track UX, rides CI build)
+First B-track item. The FreeKassa paywall showed only raw "599 ₽", so users defaulted to the cheapest visible
+number (monthly = highest-churn). Now each card shows an effective **per-month price** + a **"выгода X%"** badge
+vs the costliest-per-month (monthly) plan, nudging toward longer commitments.
+
+- **What:** new pure `clients/apple/MadFrogVPN/Models/PlanPricing.swift` (perMonthRub / baselinePerMonthRub /
+  savingsPercent — Foundation-only). `L10n.WebPaywall.planPerMonth/planSave` + `webpaywall.plan.per_month` /
+  `.save` in en+ru `.strings`. `WebPaywallView` computes the baseline once and each `WebPlanCard` renders the
+  per-month line + a savings capsule. Unit test `Tests/UnitTests/PlanPricingTests.swift` (real prices:
+  229/30, 599/90, 1099/180, 1999/365 → per-month 229/200/183/164; annual ~28% off).
+- **iOS verification model (important):** local Mac can't compile the iOS app (lost iOS 26 platform) and has no
+  Docker, so for Swift I verify what I can locally and lean on CI for the full build: **`swiftc -parse` PASSES**
+  on PlanPricing.swift, L10n.swift, WebPaywallView.swift, PlanPricingTests.swift (grammar valid); **`plutil
+  -lint` OK** on both `.strings`; XcodeGen globs `MadFrogVPN/` + `Tests/UnitTests` so both new files auto-include.
+  Full type-check + test run happens in CI `build-for-testing` (repo's standard — iOS unit tests never run
+  locally). The SwiftUI "cannot find X in scope" editor diagnostics are single-file isolation artifacts, not
+  real errors. Nothing pushed; owner reviews + CI gates before any release.
+- **Owner follow-up:** the *actual* discount curve (monthly 229 → annual ~165/mo ≈ 28%) is shallow; widening
+  the annual discount to create a stronger pull is a pricing decision for you.
+
+Files: `MadFrogVPN/Models/PlanPricing.swift`, `MadFrogVPN/Models/L10n.swift`,
+`MadFrogVPN/Resources/{en,ru}.lproj/Localizable.strings`, `MadFrogVPN/Views/WebPaywallView.swift`,
+`Tests/UnitTests/PlanPricingTests.swift`.
+Next: more B-track — **B6** ("OFFLINE"→accurate label, pure `.strings`) + **B5** (localize hardcoded RU in
+SupportChatView/AnnouncementView), both low-risk + `swiftc -parse`/`plutil`-verifiable.
 
 <!-- next iteration appended below -->

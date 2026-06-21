@@ -141,6 +141,8 @@
 "webpaywall.legal.terms"           = "Условия";
 "webpaywall.legal.privacy"         = "Конфиденциальность";
 "webpaywall.plan.days_one_device"  = "%d дн. · 1 устройство";
+"webpaywall.plan.per_month"        = "≈ %d ₽/мес";
+"webpaywall.plan.save"             = "выгода %d%%";
 "webpaywall.error.plans"           = "Не удалось загрузить тарифы.";
 "webpaywall.error.auth"            = "Требуется авторизация.";
 "webpaywall.error.pending"         = "Платёж ещё обрабатывается…";
