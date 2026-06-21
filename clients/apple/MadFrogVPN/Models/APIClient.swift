@@ -188,6 +188,13 @@ class APIClient {
     private let session: URLSession
     private let fallbackSession: URLSession
 
+    /// AUTH-LEG-TELEMETRY (PRODUCT-MATURITY-LOOP 2026-06-21): which leg carried the
+    /// last SENSITIVE (sign-in) request — "primary" | "decoy" | "http-<ip>" | nil
+    /// (all failed). AppState reads this after a sign-in and emits it so the
+    /// otherwise-invisible RU residential failure mode becomes measurable from real
+    /// users (who win on CF vs the decoy, and how often nothing wins).
+    private(set) var lastSensitiveAuthLeg: String?
+
     /// build-88 testability extract — see `RaceLegPlan` doc.
     static func raceLegPlan(sensitive: Bool,
                             isAuthenticated: Bool,
@@ -337,6 +344,8 @@ class APIClient {
         guard let url = request.url else {
             throw APIError.networkError("missing URL")
         }
+
+        if sensitive { lastSensitiveAuthLeg = nil }   // reset; a throw below leaves it nil = "all failed"
 
         let method = request.httpMethod ?? "GET"
         let path: String = {
@@ -580,6 +589,7 @@ class APIClient {
             for try await result in group {
                 if let winner = result {
                     group.cancelAll()
+                    if sensitive { lastSensitiveAuthLeg = winner.2 }
                     let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
                     AppLogger.network.info("race.winner leg=\(winner.2, privacy: .public) elapsed=\(ms, privacy: .public)ms")
                     return (winner.0, winner.1)

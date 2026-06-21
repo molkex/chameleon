@@ -1068,6 +1068,18 @@ class AppState {
 
     /// Sign in by Google ID token received from GoogleSignIn SDK.
     /// Parallel to `signInWithApple` but without a credential wrapper.
+    /// AUTH-LEG-TELEMETRY (PRODUCT-MATURITY-LOOP 2026-06-21): record which transport
+    /// leg carried (or failed) a sign-in, so the RU residential failure mode becomes
+    /// measurable from real users — CF vs decoy win rate, and how often nothing wins.
+    /// The server side (RU monitor on MSK) only sees datacenter vantage; this is the
+    /// real-device signal. Fire-and-forget via the existing EventTracker batch.
+    private func logAuthLeg(provider: String, ok: Bool) async {
+        let leg = apiClient.lastSensitiveAuthLeg ?? "none"
+        let region = Locale.current.region?.identifier ?? "unknown"
+        await eventTracker.log(name: "auth.attempt",
+                               properties: ["provider": provider, "leg": leg, "ok": ok, "region": region])
+    }
+
     func signInWithGoogle(idToken: String) async {
         AppLogger.app.info("signInWithGoogle: entry, tokenLen=\(idToken.count, privacy: .public)")
         TunnelFileLogger.log("signInWithGoogle: ENTER, tokenLen=\(idToken.count)", category: "auth")
@@ -1089,9 +1101,11 @@ class AppState {
             UserDefaults(suiteName: AppConstants.appGroupID)?.set(true, forKey: AppConstants.onboardingCompletedKey)
             isAuthenticated = true
             TunnelFileLogger.log("signInWithGoogle: SUCCESS", category: "auth")
+            await logAuthLeg(provider: "google", ok: true)
         } catch {
             AppLogger.app.error("signInWithGoogle: failed: \(String(describing: error), privacy: .public)")
             TunnelFileLogger.log("signInWithGoogle: FAILED — \(String(describing: error))", category: "auth")
+            await logAuthLeg(provider: "google", ok: false)
             errorMessage = String(localized: "onboarding.signin_failed")
         }
     }
@@ -1160,9 +1174,11 @@ class AppState {
             UserDefaults(suiteName: AppConstants.appGroupID)?.set(true, forKey: AppConstants.onboardingCompletedKey)
             isAuthenticated = true
             TunnelFileLogger.log("consumeMagicToken: SUCCESS", category: "auth")
+            await logAuthLeg(provider: "email", ok: true)
         } catch {
             AppLogger.app.error("consumeMagicToken: failed: \(String(describing: error), privacy: .public)")
             TunnelFileLogger.log("consumeMagicToken: FAILED — \(String(describing: error))", category: "auth")
+            await logAuthLeg(provider: "email", ok: false)
             errorMessage = String(localized: "magic.error.invalid_link")
         }
     }
@@ -1215,17 +1231,21 @@ class AppState {
             UserDefaults(suiteName: AppConstants.appGroupID)?.set(true, forKey: AppConstants.onboardingCompletedKey)
             isAuthenticated = true
             TunnelFileLogger.log("signInWithApple: SUCCESS", category: "auth")
+            await logAuthLeg(provider: "apple", ok: true)
         } catch let apiErr as APIError {
             AppLogger.app.error("signInWithApple: APIError \(String(describing: apiErr), privacy: .public)")
             TunnelFileLogger.log("signInWithApple: FAILED APIError \(String(describing: apiErr))", category: "auth")
+            await logAuthLeg(provider: "apple", ok: false)
             errorMessage = signInFailureMessage(for: apiErr)
         } catch let decodingErr as DecodingError {
             AppLogger.app.error("signInWithApple: decode error \(String(describing: decodingErr), privacy: .public)")
             TunnelFileLogger.log("signInWithApple: FAILED decode \(String(describing: decodingErr))", category: "auth")
+            await logAuthLeg(provider: "apple", ok: false)
             errorMessage = String(localized: "onboarding.signin_failed") + " (decode)"
         } catch {
             AppLogger.app.error("signInWithApple: failed: \(String(describing: error), privacy: .public)")
             TunnelFileLogger.log("signInWithApple: FAILED — \(String(describing: error))", category: "auth")
+            await logAuthLeg(provider: "apple", ok: false)
             errorMessage = String(localized: "onboarding.signin_failed")
         }
     }
