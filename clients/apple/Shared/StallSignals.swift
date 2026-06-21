@@ -69,7 +69,16 @@ enum StallSignals {
         guard message.contains("i/o timeout")
             || message.contains("context deadline exceeded")
             || message.contains("operation timed out")
-            || message.contains("TLS handshake timeout") else { return nil }
+            || message.contains("TLS handshake timeout")
+            // 2026-06-21, from a REAL b122 on-device log of a ~1-min "sites won't
+            // load": the dominant resolver-path death wasn't a dial timeout but the
+            // RELAY connection dropping mid-read — "use of closed network connection"
+            // (49× to MSK :2097/:2099), and its siblings reset/broken-pipe. These are
+            // transport-DEAD (path gone), not bad-name (NXDOMAIN/SERVFAIL), so they're
+            // a true stall signal. Without them the detector never fired → no recovery.
+            || message.contains("use of closed network connection")
+            || message.contains("connection reset by peer")
+            || message.contains("broken pipe") else { return nil }
 
         guard let r = message.range(of: "dns: exchange failed for ") else { return nil }
         let after = message[r.upperBound...]

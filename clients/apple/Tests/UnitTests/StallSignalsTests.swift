@@ -20,6 +20,17 @@ final class StallSignalsTests: XCTestCase {
         XCTAssertEqual(StallSignals.dnsFailureDomain(from: deadlineLine), "edge-mqtt-fallback.facebook.com")
     }
 
+    // Real b122 on-device log (2026-06-21): a ~1-min "sites won't load" was 49 DNS
+    // failures with "use of closed network connection" to the MSK relay (:2097/:2099)
+    // — the relay leg dropped mid-read. The detector MUST count these as resolver-path
+    // death (it didn't before, so no recovery fired). Regression guard for that fix.
+    func testParsesRelayDroppedDNSFailures() {
+        let closed = "\u{1b}[31mERROR\u{1b}[0m[0067] [70431940 1.34s] dns: exchange failed for x.com. IN A: read tcp 100.84.24.63:58486->217.198.5.52:2099: use of closed network connection"
+        let reset  = "dns: exchange failed for app.squareup.com. IN AAAA: read tcp 100.84.24.63:58486->217.198.5.52:2097: connection reset by peer"
+        XCTAssertEqual(StallSignals.dnsFailureDomain(from: closed), "x.com")
+        XCTAssertEqual(StallSignals.dnsFailureDomain(from: reset), "app.squareup.com")
+    }
+
     func testStripsTrailingFQDNDotAndLowercases() {
         let line = "dns: exchange failed for API.Instagram.COM. IN A: operation timed out"
         XCTAssertEqual(StallSignals.dnsFailureDomain(from: line), "api.instagram.com")
