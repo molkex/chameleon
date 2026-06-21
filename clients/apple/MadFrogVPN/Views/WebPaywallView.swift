@@ -33,6 +33,7 @@ struct WebPaywallView: View {
             ScrollView {
                 VStack(spacing: 20) {
                     header
+                    PaywallBenefits(theme: theme)   // B1: value pitch above the plans
                     if plans.isEmpty && isLoading {
                         ProgressView().padding(.top, 40)
                     } else {

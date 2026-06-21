@@ -159,6 +159,12 @@
 "announcement.badge.promo"      = "🎁 PROMO";
 "announcement.badge.update"     = "✨ UPDATE";
 "announcement.badge.important"  = "ℹ︎ INFO";
+
+"paywall.benefit.nologs"        = "No logs, no tracking";
+"paywall.benefit.fast"          = "Fast servers (Netherlands, France)";
+"paywall.benefit.unblock"       = "Unblock sites, apps & streaming";
+"paywall.benefit.noads"         = "No ads, no speed limits";
+"paywall.benefit.norenew"       = "No auto-renew — no surprise charges";
 "webpaywall.plan.per_month"        = "≈ %d ₽/mo";
 "webpaywall.plan.save"             = "save %d%%";
 "webpaywall.error.plans"           = "Could not load plans.";

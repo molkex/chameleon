@@ -20,6 +20,8 @@ struct PaywallView: View {
                 VStack(spacing: 20) {
                     header
 
+                    PaywallBenefits(theme: theme)   // B1: value pitch above the plans
+
                     if sub.isLoading && sub.products.isEmpty {
                         ProgressView().padding(.top, 40)
                     } else if sub.products.isEmpty {

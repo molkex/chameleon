@@ -194,6 +194,17 @@ enum L10n {
         static let unavailable    = LKey("support.chat.unavailable")
     }
 
+    // B1 (PRODUCT-MATURITY-LOOP): value-prop bullets shared by both paywalls.
+    // Feature/trust-focused (no trial promise — the paywall often shows AFTER the
+    // once-per-account trial is spent); no-auto-renew is framed as a positive.
+    enum PaywallBenefits {
+        static let noLogs  = LKey("paywall.benefit.nologs")
+        static let fast    = LKey("paywall.benefit.fast")
+        static let unblock = LKey("paywall.benefit.unblock")
+        static let noAds   = LKey("paywall.benefit.noads")
+        static let noRenew = LKey("paywall.benefit.norenew")
+    }
+
     enum Paywall {
         static let title             = LKey("paywall.title")
         static let headerTitle       = LKey("paywall.header.title")

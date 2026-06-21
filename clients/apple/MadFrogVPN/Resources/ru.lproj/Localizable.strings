@@ -159,6 +159,12 @@
 "announcement.badge.promo"      = "🎁 АКЦИЯ";
 "announcement.badge.update"     = "✨ ОБНОВЛЕНИЕ";
 "announcement.badge.important"  = "ℹ︎ ВАЖНО";
+
+"paywall.benefit.nologs"        = "Без логов и слежки";
+"paywall.benefit.fast"          = "Быстрые серверы (Нидерланды, Франция)";
+"paywall.benefit.unblock"       = "Доступ к сайтам, приложениям и стримингу";
+"paywall.benefit.noads"         = "Без рекламы и ограничений скорости";
+"paywall.benefit.norenew"       = "Без автопродления — без неожиданных списаний";
 "webpaywall.plan.per_month"        = "≈ %d ₽/мес";
 "webpaywall.plan.save"             = "выгода %d%%";
 "webpaywall.error.plans"           = "Не удалось загрузить тарифы.";

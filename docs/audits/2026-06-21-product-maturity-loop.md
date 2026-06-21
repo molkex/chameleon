@@ -97,7 +97,7 @@ Severity = impact on the owner's goal (recurring revenue + advertisable quality)
 
 | ID | Sev | Anchor | User feels | Fix | Effort | build? | Status |
 |---|---|---|---|---|---|---|---|
-| `B1-paywall-no-pitch` | P1 | `PaywallView.swift:118,223` (price list, no bullets/badge/savings); two divergent paywalls | Revenue screen is unpersuasive | Benefit bullets + best-value badge + per-month math; restate trial on CTA; frame "no auto-renew" as trust; parity Apple↔Web | M | yes | OPEN |
+| `B1-paywall-no-pitch` | P1 | `PaywallView.swift:118,223` (price list, no bullets/badge/savings); two divergent paywalls | Revenue screen is unpersuasive | Benefit bullets + best-value badge + per-month math; restate trial on CTA; frame "no auto-renew" as trust; parity Apple↔Web | M | yes | **DONE 2026-06-21** (iter 9; shared `PaywallBenefits` value-pitch on BOTH paywalls; "no auto-renew = no surprise charges" framed as trust; web savings badges from A8). REMAINING refinement: best-value badge on Apple `PlanCard`. |
 | `B2-onboarding-no-trust` | P1 | `OnboardingView.swift:33` (sign-in wall, no intro); trust = 3× 11pt pills | Can't evaluate before handing over identity; drop-off | 2-3 page intro (what/why-trust/free-trial) before auth | M | yes | OPEN |
 | `B3-trial-cta-buried` | P1 | `OnboardingView.swift:108,303` (guest = 13pt grey underline) | Best conversion hook is least visible | Promote "Start free — no account" to a real button | S | yes | OPEN |
 | `B4-no-proof-of-protection` | P1 | `MainViewCalm.swift:135`,`Neon:150` (timer only, no IP/location) | No felt confirmation VPN works | Show apparent IP / "you appear in X" on connect | M | yes | OPEN (= C3) |
@@ -387,5 +387,30 @@ Files: `MadFrogVPN/Views/{AnnouncementView,EmailSignInView,ThemePickerView}.swif
 (B7 Google logo needs the official asset). Next: assess B-track remainder vs. winding the loop toward an
 owner-review handoff (the highest-value remaining work — A2/A3 billing, A1 enable, on-device verification — is
 owner-gated).
+
+### 2026-06-21 · Iteration 9 — B1 paywall value-pitch (both paywalls)
+The revenue moment was a bare price list. Added a shared `PaywallBenefits` block above the plans on BOTH the
+StoreKit (`PaywallView`) and FreeKassa (`WebPaywallView`) paywalls.
+
+- **What:** new `MadFrogVPN/Views/PaywallBenefits.swift` (5 themed bullets: no-logs, fast servers (NL/FR),
+  unblock sites/apps/streaming, no ads/limits, and a highlighted **"no auto-renew — no surprise charges"**) +
+  `L10n.PaywallBenefits` (5 keys, en/ru). Wired after the header in both paywall bodies.
+- **Deliberate copy choice:** NO "3 days free" bullet — the paywall frequently shows AFTER the once-per-account
+  trial is spent (connect-gate), so promising a trial there would be misleading. Instead the non-renewing model
+  is reframed as a *trust* selling point ("no surprise charges"), which is accurate in every state.
+- **Verify:** `swiftc -parse` OK (PaywallBenefits, PaywallView, WebPaywallView, L10n); `plutil -lint` OK;
+  key parity **301=301**; all 5 benefit keys present in both langs. XcodeGen globs pick up the new view file.
+  Rides CI build.
+- **Remaining refinement:** a "best value" badge on the Apple `PlanCard` (web cards already show savings % from
+  A8); restating the trial belongs in onboarding (B2/B3), not here.
+
+Files: `MadFrogVPN/Views/{PaywallBenefits.swift,PaywallView.swift,WebPaywallView.swift}`,
+`MadFrogVPN/Models/L10n.swift`, `MadFrogVPN/Resources/{en,ru}.lproj/Localizable.strings`.
+
+— **10 commits.** B-track value items mostly done (A8 savings, B1 pitch, B5/B6/B15). The remaining B work is
+heavier UI needing on-device review (B2 onboarding, B4 proof-of-protection, B9 account screen, B11 list
+consistency) + asset-dependent (B7). Approaching the point where the highest-value next steps are owner-gated
+(A2/A3 billing, A1 enable, on-device verification of this whole branch). Will keep doing safe verifiable items
+and lengthen cadence as the safe backlog thins.
 
 <!-- next iteration appended below -->
