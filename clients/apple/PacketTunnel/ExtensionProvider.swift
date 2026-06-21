@@ -157,7 +157,15 @@ open class ExtensionProvider: NEPacketTunnelProvider {
         // GOMEMLIMIT is a soft target (Go 1.19+); GOGC=25 makes GC run 4× more
         // often than default (100). These MUST be set before libbox init loads
         // the Go runtime. Matches practice of Hiddify/sfi.
-        setenv("GOMEMLIMIT", "42MiB", 1)
+        //
+        // 2026-06-21 (PRODUCT-MATURITY-LOOP): lowered 42MiB → 38MiB. Real device
+        // logs show the libbox oom-killer (LibboxSetMemoryLimit) resetting the
+        // network at 40 MiB. The old 42MiB GOMEMLIMIT sat ABOVE that trip, so Go
+        // never pressed before the fork reset — it was inert. 38MiB is below the
+        // trip, so the runtime GCs/releases under 40 first. This can only free
+        // more memory (worst case = a little extra GC CPU); verify resets drop via
+        // the on-device memory watchdog log before tuning further.
+        setenv("GOMEMLIMIT", "38MiB", 1)
         setenv("GOGC", "25", 1)
         setenv("GODEBUG", "madvdontneed=1", 1)
 
@@ -167,7 +175,7 @@ open class ExtensionProvider: NEPacketTunnelProvider {
         // seconds these lines are the only diagnostic the user can surface.
         TunnelFileLogger.logSync("========== TUNNEL START ==========")
         TunnelFileLogger.logSync("libbox version: \(LibboxVersion())")
-        TunnelFileLogger.logSync("GOMEMLIMIT=42MiB GOGC=25 — iOS 50MB cap mitigation", category: "memory")
+        TunnelFileLogger.logSync("GOMEMLIMIT=38MiB GOGC=25 — below the 40MiB oom-killer trip", category: "memory")
         TunnelFileLogger.log("options keys: \(options?.keys.joined(separator: ", ") ?? "nil")")
 
         // If user just stopped VPN from iOS Settings, On Demand will try to restart immediately.

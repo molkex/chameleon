@@ -504,7 +504,11 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 				// (Yandex, no detour) via the DNS rules below.
 				{Tag: "dns-remote", Type: "https", Server: "1.1.1.1", Detour: "Proxy"},
 				{Tag: "dns-direct", Type: "https", Server: "77.88.8.8"},
-				{Tag: "dns-fakeip", Type: "fakeip", Inet4Range: "198.18.0.0/15"},
+				// dns-fakeip removed 2026-06-21 (PRODUCT-MATURITY-LOOP): dead server —
+				// no DNS rule or route strategy referenced it, but sing-box still
+				// allocated its 198.18.0.0/15 fakeip bookkeeping in the memory-tight NE.
+				// Real device logs show the fork oom-killer resetting at 40 MiB; dropping
+				// unused allocations is one safe reduction.
 			},
 			Rules: []clientDNSRule{
 				{DomainSuffix: ruAlwaysDirectDomains, Server: "dns-direct"},
