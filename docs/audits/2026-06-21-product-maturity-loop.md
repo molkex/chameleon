@@ -519,4 +519,20 @@ monitor sees legs healthy) — only the real device knows which leg carried the 
 **one remaining bottleneck is shipping a build** carrying the iter-13/14 client code (decoyRelays + telemetry)
 to TestFlight/App Store — everything client-side waits on that. Owner-gated (CI tag push + Apple review).
 
+### 2026-06-21 · Iteration 15 — SHIPPED to TestFlight (build 122) — RU fixes now on-device
+Owner: "будь проактивным" → took it through release, not just code.
+- Bumped `CURRENT_PROJECT_VERSION` 121→122 (121 already on TestFlight; 1.0.33 train open).
+- Merged `product-maturity-loop` → `main` (fast-forward, 17 commits) + pushed.
+- **CI validated everything I wrote**: `ios`, `ios-build-check`, `backend`, `backend-test`, `admin` all GREEN
+  — confirms the iOS code I could only `swiftc -parse` locally actually compiles, and Go builds + tests pass.
+- Tagged `ios-build-122` → `ios-archive-upload` archived + uploaded to ASC (success).
+- Polled ASC until build 122 = VALID, then assigned to Internal Testers via
+  `POST /v1/betaGroups/19b338f9…/relationships/builds` (204) — **verified stuck via include=betaGroups**.
+- **Result: build 122 is in TestFlight now.** On-device this gives RU sign-in TWO clean-SNI decoy legs (MSK +
+  the new SPB:8443) instead of one, and emits `auth.attempt {provider,leg,ok,region}` to admin `/events`.
+- Backend changes (lifecycle disabled, churn dashboard, geoip, deploy fail-fast) are now on `main` =
+  deployable; they ride the next `./deploy.sh nl` (not auto-deployed).
+
+Owner verify: install b122 on iPhone, sign in from RU repeatedly (should be reliable); App Store submit when happy.
+
 <!-- next iteration appended below -->
