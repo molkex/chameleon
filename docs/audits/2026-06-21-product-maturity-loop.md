@@ -156,6 +156,8 @@ Severity = impact on the owner's goal (recurring revenue + advertisable quality)
 | `D15-settings-raw-json` | P2 | `clients/admin/src/pages/settings.tsx:137` (free-text JSON, no validation) | One typo persists malformed config; 2nd source of truth | JSON.parse guard / deprecate for table API | M | **DONE 2026-06-21** (iter 5; `handleSave` rejects invalid `vpn_servers` JSON before PATCH, all 3 buttons; +tests) |
 | `D16-deploy-sed-fragility` | P2 | `backend/deploy.sh:197` (chain of literal `sed -i`) | Template whitespace change → sed matches nothing → wrong default incl SNI | Placeholder template that fails on un-substituted token | M | OPEN |
 | `D17-misc-dead-code` | P2/P3 | `APIClient.swift:200` (dead RU filter on retired DE IP); `Constants.swift:14` (dead fallbackBaseURL); `log-monitor.sh:33` (retired DE IP active); dup admin helpers; TZ ambiguity | Maintainability / masks missing RU-detection | delete dead code; extract `lib/format.ts`; pin/label TZ | S each | **PARTIAL — admin dedupe DONE 2026-06-21** (iter 5; `lib/format.ts` countryFlag+relativeTime, removed 2 identical copies + 1; +tests). REMAINING: iOS dead-code (APIClient/Constants — needs iOS build), `log-monitor.sh:33` DE IP, TZ labeling. |
+| `RU-AUTH-LEGS-DEAD` | **P0** | `DirectConnection.swift:148` + NL:443=Reality `*.adfox.ru` cert (measured 2026-06-21) | Direct-IP auth fallback legs rejected (wrong cert) → RU sign-in = CF + single decoy; live 1.0.30 = CF alone → flaky login is the real churn driver | Ship 1.0.33 (decoy); next build: drop dead legs + 2nd decoy on SPB + per-leg telemetry; monitor LIVE on MSK | L (cross-cutting) | **INVESTIGATED + MONITORED 2026-06-21** (iter 12; fixes are client/owner-gated) |
+| `MON-RU-AUTH` | P1 | `infrastructure/monitoring/ru-auth-healthcheck.sh` | (none — new capability) | RU-vantage auth monitor on MSK, cron */5, Telegram alerts on decoy/both-leg death | S | **DONE 2026-06-21** (iter 12; deployed + alert verified) |
 | `D18-td-cert-pin-untracked` | P3 | `APIClient.swift:111` (HIGH TODO, no roadmap id) | InsecureDelegate is host-allowlisted + DirectConnection validates chain — residual = cleartext :80 legs (gated for sensitive) | File tracked TD-CERT-PIN; pin server cert fingerprint | S | OPEN (already TD-CERT-PIN in roadmap security) |
 
 ---
@@ -438,5 +440,43 @@ Small zero-risk cleanups (no new risky work while idling):
 - **Verify:** `swiftc -parse` OK (both). Rides CI build.
 
 Files: `MadFrogVPN/Views/ThemePickerView.swift`, `MadFrogVPN/Models/L10n.swift`. Loop stays on hourly heartbeat.
+
+### 2026-06-21 · Iteration 12 — REAL-DATA prod investigation (RU sign-in) + live monitor
+Owner redirected: the real churn driver isn't the billing model — it's that **after paying, the VPN misbehaves
+(drops itself, asks to re-login), and RU sign-in is flaky** — and he wants decisions driven by REAL prod data,
+not the audit doc. So I went to the boxes (NL, MSK) and measured.
+
+**What the data actually showed:**
+1. **NL backend auth is HEALTHY** — 24h: 46×401, 28×403, 1×500, 8 refresh-reuse. Not mass failure. → the RU
+   sign-in failures **never reach NL** (RKN RSTs them in flight), so server logs look clean while users can't
+   log in. Confirms it's a *transport* problem, only visible from a RU vantage.
+2. **Direct-IP auth fallback legs are DEAD BY DESIGN (new finding).** Ground truth on NL: `:443` is sing-box
+   Reality presenting a `*.adfox.ru` (Yandex) cert; **there is no `api.madfrog.online` cert on NL**, API is on
+   `:80` only. The app's direct-IP auth legs dial `IP:443` SNI=`api.madfrog.online` and verify chain-vs-SNI
+   (`DirectConnection.swift:148`) → they get the Reality cert → **rejected**. And that SNI is RKN-filterable on
+   any IP. So **RU sign-in transport = primary(CF) + clean-SNI decoy(→MSK) only**; the "direct-IP fallback" the
+   team thought it had for auth contributes nothing in RU.
+3. **The live App Store build (1.0.30) has NO decoy leg** (that's 1.0.33/TestFlight) → live RU users rely on
+   **Cloudflare alone**; when CF throttles in residential RU, sign-in fails with zero fallback. This is the
+   user's exact symptom, grounded in data.
+4. From MSK (real RU IP) right now: `primary=200, decoy=200` — so the failures are **intermittent/residential**,
+   not reproducible from a datacenter (why "проверим на устройстве" kept failing).
+5. Minor: NL logs `sing-box check skipped: binary not found on PATH` every 10 min — the periodic engine-reload's
+   config validation guardrail is silently off (binary isn't in the backend container). Latent VPN-outage risk.
+
+**What I shipped (server-side, autonomous, verified live):**
+- **RU-vantage auth monitor deployed to MSK** (`/opt/chameleon/monitoring/ru-auth-healthcheck.sh`, cron */5),
+  reframed to the TRUE leg model: alerts when the decoy leg dies (the RKN-resilient survivor) or both legs die.
+  Telegram alerting replicated from NL + **verified end-to-end** (test alert delivered). Turns "ship blind" into
+  "know within 5 min when RU auth breaks." Honest limit: datacenter vantage misses residential-only throttle.
+
+**Real-data-driven next steps (recorded, see registry `RU-AUTH-LEGS-DEAD`):**
+- CRITICAL (owner): ship 1.0.33 → gives live RU users the decoy leg they currently lack.
+- Client (next build): drop the dead direct-IP-SNI-api auth legs; add a SECOND clean-SNI decoy on SPB so RU
+  sign-in isn't single-legged; add per-leg sign-in telemetry so residential failures become measurable from
+  real devices (the only way to see the intermittent case).
+- Server: fix the NL `sing-box check` guardrail; stand up a 2nd decoy on SPB (ready for the client leg).
+
+Files: `infrastructure/monitoring/ru-auth-healthcheck.sh` (deployed to MSK).
 
 <!-- next iteration appended below -->
