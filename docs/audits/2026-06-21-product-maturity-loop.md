@@ -156,7 +156,7 @@ Severity = impact on the owner's goal (recurring revenue + advertisable quality)
 | `D15-settings-raw-json` | P2 | `clients/admin/src/pages/settings.tsx:137` (free-text JSON, no validation) | One typo persists malformed config; 2nd source of truth | JSON.parse guard / deprecate for table API | M | **DONE 2026-06-21** (iter 5; `handleSave` rejects invalid `vpn_servers` JSON before PATCH, all 3 buttons; +tests) |
 | `D16-deploy-sed-fragility` | P2 | `backend/deploy.sh:197` (chain of literal `sed -i`) | Template whitespace change → sed matches nothing → wrong default incl SNI | Placeholder template that fails on un-substituted token | M | OPEN |
 | `D17-misc-dead-code` | P2/P3 | `APIClient.swift:200` (dead RU filter on retired DE IP); `Constants.swift:14` (dead fallbackBaseURL); `log-monitor.sh:33` (retired DE IP active); dup admin helpers; TZ ambiguity | Maintainability / masks missing RU-detection | delete dead code; extract `lib/format.ts`; pin/label TZ | S each | **PARTIAL — admin dedupe DONE 2026-06-21** (iter 5; `lib/format.ts` countryFlag+relativeTime, removed 2 identical copies + 1; +tests). REMAINING: iOS dead-code (APIClient/Constants — needs iOS build), `log-monitor.sh:33` DE IP, TZ labeling. |
-| `RU-AUTH-LEGS-DEAD` | **P0** | `DirectConnection.swift:148` + NL:443=Reality `*.adfox.ru` cert (measured 2026-06-21) | Direct-IP auth fallback legs rejected (wrong cert) → RU sign-in = CF + single decoy; live 1.0.30 = CF alone → flaky login is the real churn driver | Ship 1.0.33 (decoy); next build: drop dead legs + 2nd decoy on SPB + per-leg telemetry; monitor LIVE on MSK | L (cross-cutting) | **INVESTIGATED + MONITORED 2026-06-21** (iter 12; fixes are client/owner-gated) |
+| `RU-AUTH-LEGS-DEAD` | **P0** | `DirectConnection.swift:148` + NL:443=Reality `*.adfox.ru` cert (measured 2026-06-21) | Direct-IP auth fallback legs rejected (wrong cert) → RU sign-in = CF + single decoy; live 1.0.30 = CF alone → flaky login is the real churn driver | Ship 1.0.33 (decoy); next build: drop dead legs + 2nd decoy on SPB + per-leg telemetry; monitor LIVE on MSK | L (cross-cutting) | **SPOF FIXED 2026-06-21** (iter 13; 2nd decoy SPB:8443 LIVE+verified from RU, client races both, monitor tracks both). Remaining: ship a build; drop dead direct-IP legs; per-leg telemetry. |
 | `MON-RU-AUTH` | P1 | `infrastructure/monitoring/ru-auth-healthcheck.sh` | (none — new capability) | RU-vantage auth monitor on MSK, cron */5, Telegram alerts on decoy/both-leg death | S | **DONE 2026-06-21** (iter 12; deployed + alert verified) |
 | `D18-td-cert-pin-untracked` | P3 | `APIClient.swift:111` (HIGH TODO, no roadmap id) | InsecureDelegate is host-allowlisted + DirectConnection validates chain — residual = cleartext :80 legs (gated for sensitive) | File tracked TD-CERT-PIN; pin server cert fingerprint | S | OPEN (already TD-CERT-PIN in roadmap security) |
 
@@ -478,5 +478,28 @@ not the audit doc. So I went to the boxes (NL, MSK) and measured.
 - Server: fix the NL `sing-box check` guardrail; stand up a 2nd decoy on SPB (ready for the client leg).
 
 Files: `infrastructure/monitoring/ru-auth-healthcheck.sh` (deployed to MSK).
+
+### 2026-06-21 · Iteration 13 — kill the RU sign-in SPOF (2nd decoy leg) — server LIVE, client coded
+Acting on the iter-12 finding (RU sign-in = CF + the single MSK decoy = SPOF). Added a SECOND clean-SNI decoy.
+
+- **Server (DEPLOYED + verified live, zero VPN risk):** stood up a 2nd decoy on **SPB:8443** — a separate port
+  that does NOT touch SPB's live VPN `:443` stream passthrough (verified intact: still presents NL Reality
+  `*.adfox.ru` cert after reload). Copied the SAME pinned cert from MSK (fingerprint `497b4ff…` confirmed), added
+  the vhost (`infrastructure/spb-relay/decoy-adfox.conf`), `ufw allow 8443`, `nginx -t` OK, graceful reload.
+  **Tested from MSK (real RU IP): SPB:8443 decoy = 200 in 0.15s.** Real client IP preserved (direct TLS term,
+  not behind the stream; NL already trusts SPB's XFF).
+- **Client (coded, parse-verified, rides build):** `AppConfig.decoyRelays = [(MSK,443),(SPB,8443)]`; the
+  `dataWithFallback` decoy branch now races BOTH relays. Same pin validates either. A relay not yet serving the
+  decoy just pin-mismatches and drops out → the client leg was safe to write before/independent of the server.
+- **Monitor (updated + redeployed to MSK):** probes both decoy relays; `decoy_ok` = either answers; new
+  "🟠 redundancy degraded (one relay down, SPOF restored)" warn tier. Live run: `primary=200 decoy_msk=200
+  decoy_spb=200`.
+- **Verify:** `swiftc -parse` OK (Constants, APIClient); `bash -n` OK; live RU-vantage 200 on all three legs;
+  VPN passthrough confirmed untouched.
+
+Net: RU sign-in is no longer single-legged the moment the next build ships (server side is already live + the
+client races it). Still owner-gated: ship a build carrying `decoyRelays` (1.0.33 line) so users get it.
+Files: `Shared/Constants.swift`, `MadFrogVPN/Models/APIClient.swift`,
+`infrastructure/monitoring/ru-auth-healthcheck.sh`, `infrastructure/spb-relay/decoy-adfox.conf`.
 
 <!-- next iteration appended below -->

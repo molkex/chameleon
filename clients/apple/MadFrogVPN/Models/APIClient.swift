@@ -443,32 +443,40 @@ class APIClient {
                 // behind it); a light 150ms stagger otherwise so a fast primary
                 // on a healthy network still wins without a redundant dial.
                 let decoyDelayMs = Self.decoyLeadMs(sensitive: sensitive)
-                group.addTask {
-                    if decoyDelayMs > 0 { try? await Task.sleep(for: .milliseconds(decoyDelayMs)) }
-                    if Task.isCancelled { return nil }
-                    AppLogger.network.info("race.decoy.start sni=\(AppConfig.decoySNI, privacy: .public) ip=\(AppConfig.decoyRelayIP, privacy: .public) elapsed=\(Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000, privacy: .public)ms")
-                    do {
-                        let (bodyData, meta) = try await DirectConnection.request(
-                            ip: AppConfig.decoyRelayIP, port: 443, sni: AppConfig.decoySNI,
-                            method: method, path: path,
-                            headers: reqHeaders, body: body,
-                            timeout: 6, pinnedCertSHA256: AppConfig.decoyCertPin
-                        )
-                        let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
-                        if !Self.fallbackLegWins(status: meta.status, policy: winPolicy) {
-                            AppLogger.network.info("race.decoy.done rejected status=\(meta.status, privacy: .public) policy=\(String(describing: winPolicy), privacy: .public) elapsed=\(ms, privacy: .public)ms")
+                // RU-DECOY-2ND (2026-06-21): race the clean-SNI decoy across BOTH RU
+                // relays (MSK + SPB) so sign-in survives one relay dying — MSK alone
+                // was a SPOF. Same pinned cert on both, so a relay not yet serving the
+                // decoy SNI just pin-mismatches and drops out (safe before SPB is wired).
+                for decoy in AppConfig.decoyRelays {
+                    let decoyIP = decoy.ip
+                    let decoyPort = decoy.port
+                    group.addTask {
+                        if decoyDelayMs > 0 { try? await Task.sleep(for: .milliseconds(decoyDelayMs)) }
+                        if Task.isCancelled { return nil }
+                        AppLogger.network.info("race.decoy.start sni=\(AppConfig.decoySNI, privacy: .public) ip=\(decoyIP, privacy: .public) port=\(decoyPort, privacy: .public) elapsed=\(Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000, privacy: .public)ms")
+                        do {
+                            let (bodyData, meta) = try await DirectConnection.request(
+                                ip: decoyIP, port: decoyPort, sni: AppConfig.decoySNI,
+                                method: method, path: path,
+                                headers: reqHeaders, body: body,
+                                timeout: 6, pinnedCertSHA256: AppConfig.decoyCertPin
+                            )
+                            let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
+                            if !Self.fallbackLegWins(status: meta.status, policy: winPolicy) {
+                                AppLogger.network.info("race.decoy.done rejected ip=\(decoyIP, privacy: .public) status=\(meta.status, privacy: .public) policy=\(String(describing: winPolicy), privacy: .public) elapsed=\(ms, privacy: .public)ms")
+                                return nil
+                            }
+                            let response = HTTPURLResponse(
+                                url: url, statusCode: meta.status,
+                                httpVersion: "HTTP/1.1", headerFields: meta.headers
+                            )!
+                            AppLogger.network.info("race.decoy.done ok ip=\(decoyIP, privacy: .public) status=\(meta.status, privacy: .public) elapsed=\(ms, privacy: .public)ms")
+                            return (bodyData, response, "decoy")
+                        } catch {
+                            let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
+                            AppLogger.network.error("race.decoy.done error ip=\(decoyIP, privacy: .public) error=\(error.localizedDescription, privacy: .public) elapsed=\(ms, privacy: .public)ms")
                             return nil
                         }
-                        let response = HTTPURLResponse(
-                            url: url, statusCode: meta.status,
-                            httpVersion: "HTTP/1.1", headerFields: meta.headers
-                        )!
-                        AppLogger.network.info("race.decoy.done ok status=\(meta.status, privacy: .public) elapsed=\(ms, privacy: .public)ms")
-                        return (bodyData, response, "decoy")
-                    } catch {
-                        let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
-                        AppLogger.network.error("race.decoy.done error=\(error.localizedDescription, privacy: .public) elapsed=\(ms, privacy: .public)ms")
-                        return nil
                     }
                 }
             }

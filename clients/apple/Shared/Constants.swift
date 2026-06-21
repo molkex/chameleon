@@ -54,7 +54,17 @@ enum AppConfig {
     // ads.adfox.ru to the real adfox — credentials never leak.
     static let decoySNI = "ads.adfox.ru"
     static let decoyRelayIP = "217.198.5.52"   // MSK relay (RU, domestic)
-    /// Leaf-cert DER SHA-256 (lowercase hex) of /etc/nginx/decoy/adfox.crt on MSK.
+    /// RU-DECOY-2ND (PRODUCT-MATURITY-LOOP 2026-06-21): race the clean-SNI decoy
+    /// across BOTH RU relays so RU sign-in isn't single-legged (MSK alone was a
+    /// SPOF — real-data finding 2026-06-21). Both serve the SAME pinned cert, so
+    /// decoyCertPin validates either. SPB's decoy is on :8443 (a separate port that
+    /// does NOT touch SPB's live VPN :443 passthrough). A relay not yet serving the
+    /// decoy pin-mismatches and drops out → safe to ship before SPB is wired.
+    static let decoyRelays: [(ip: String, port: UInt16)] = [
+        ("217.198.5.52", 443),    // MSK — direct :443 decoy vhost
+        ("185.218.0.43", 8443),   // SPB — :8443 (off the live VPN :443 stream)
+    ]
+    /// Leaf-cert DER SHA-256 (lowercase hex) of /etc/nginx/decoy/adfox.crt (same on MSK + SPB).
     static let decoyCertPin = "497b4ffdc53c9763db397e0453fa70fd16233a2368d081ee06a4106e9a9a82c9"
 
     /// App Group ID (must match your provisioning profile)

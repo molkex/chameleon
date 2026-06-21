@@ -42,31 +42,35 @@ ALERT="${SCRIPT_DIR}/telegram-alert.sh"
 
 code() { curl -sS -o /dev/null -w '%{http_code}' --max-time "$TIMEOUT" "$@" 2>/dev/null || echo "000"; }
 
-# --- the two REAL RU auth-transport legs ---
+# --- the REAL RU auth-transport legs ---
 C_PRIMARY=$(code "https://${HOST}${PROBE_PATH}")                                              # Cloudflare (filterable SNI)
-C_DECOY=$(code --resolve "${DECOY_SNI}:443:${DECOY_IP}" -H "Host: ${HOST}" -k "https://${DECOY_SNI}${PROBE_PATH}")  # clean-SNI survivor
+# clean-SNI decoy legs (RKN survivors) — MSK:443 + SPB:8443 (RU-DECOY-2ND, no SPOF)
+C_DECOY_MSK=$(code --resolve "${DECOY_SNI}:443:${DECOY_IP}" -H "Host: ${HOST}" -k "https://${DECOY_SNI}${PROBE_PATH}")
+C_DECOY_SPB=$(code --resolve "${DECOY_SNI}:8443:${SPB_IP}" -H "Host: ${HOST}" -k "https://${DECOY_SNI}:8443${PROBE_PATH}")
 
-# --- informational only: direct-IP :443 legs are Reality (wrong cert) — expected non-200 ---
-C_NL443=$(code -k --resolve "${HOST}:443:${NL_IP}" "https://${HOST}${PROBE_PATH}")
-C_SPB443=$(code -k --resolve "${HOST}:443:${SPB_IP}" "https://${HOST}${PROBE_PATH}")
-
-LINE="primary=${C_PRIMARY} decoy=${C_DECOY} (info: nl443=${C_NL443} spb443=${C_SPB443})"
+LINE="primary=${C_PRIMARY} decoy_msk=${C_DECOY_MSK} decoy_spb=${C_DECOY_SPB}"
 echo "[$(date -u +%FT%TZ)] ru-auth ${LINE}"
 
 alert() { [ -x "$ALERT" ] && "$ALERT" "$1" || true; }
 
 primary_ok=false; [ "$C_PRIMARY" = "200" ] && primary_ok=true
-decoy_ok=false;   [ "$C_DECOY"   = "200" ] && decoy_ok=true
+# decoy transport is healthy if EITHER relay answers (2nd leg removes the SPOF)
+decoy_ok=false;   { [ "$C_DECOY_MSK" = "200" ] || [ "$C_DECOY_SPB" = "200" ]; } && decoy_ok=true
 
 # CRITICAL: no RU auth transport at all.
 if ! $primary_ok && ! $decoy_ok; then
   alert "🔴 RU SIGN-IN DOWN — both auth legs unreachable from $(hostname). ${LINE}"
   exit 2
 fi
-# WARN: the RKN-resilient decoy leg is down. Primary (CF) alone dies the moment
-# RKN escalates SNI-filtering — this is the leg whose loss precedes user outage.
+# WARN: both decoy relays are down → only CF left, which dies the moment RKN
+# escalates SNI-filtering. This is the leg whose loss precedes user outage.
 if ! $decoy_ok; then
-  alert "🟡 RU decoy leg DOWN (only CF left — fragile under RKN filtering). ${LINE}"
+  alert "🟡 RU decoy legs DOWN (both relays) — only CF left, fragile under RKN filtering. ${LINE}"
   exit 1
+fi
+# DEGRADED: one decoy relay down → SPOF is back until it recovers (no outage yet).
+if [ "$C_DECOY_MSK" != "200" ] || [ "$C_DECOY_SPB" != "200" ]; then
+  alert "🟠 RU decoy redundancy degraded — one relay down (SPOF restored). ${LINE}"
+  exit 0
 fi
 exit 0
