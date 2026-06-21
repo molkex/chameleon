@@ -101,7 +101,7 @@ Severity = impact on the owner's goal (recurring revenue + advertisable quality)
 | `B2-onboarding-no-trust` | P1 | `OnboardingView.swift:33` (sign-in wall, no intro); trust = 3× 11pt pills | Can't evaluate before handing over identity; drop-off | 2-3 page intro (what/why-trust/free-trial) before auth | M | yes | OPEN |
 | `B3-trial-cta-buried` | P1 | `OnboardingView.swift:108,303` (guest = 13pt grey underline) | Best conversion hook is least visible | Promote "Start free — no account" to a real button | S | yes | OPEN |
 | `B4-no-proof-of-protection` | P1 | `MainViewCalm.swift:135`,`Neon:150` (timer only, no IP/location) | No felt confirmation VPN works | Show apparent IP / "you appear in X" on connect | M | yes | OPEN (= C3) |
-| `B5-support-chat-russian` | P1 | `SupportChatView.swift:64,120` (hardcoded RU); `AnnouncementView.swift:65,98` | EN users hit raw Russian exactly when frustrated | Move strings to Localizable.strings | S | yes | **SUPPORT-CHAT DONE 2026-06-21** (iter 7; `L10n.SupportChat` + en/ru, all 8 alert/button/a11y literals + fallback HTML). REMAINING: `AnnouncementView` (cta/dismiss/badges) — next iter. |
+| `B5-support-chat-russian` | P1 | `SupportChatView.swift:64,120` (hardcoded RU); `AnnouncementView.swift:65,98` | EN users hit raw Russian exactly when frustrated | Move strings to Localizable.strings | S | yes | **DONE 2026-06-21** (iter 7 support-chat + iter 8 AnnouncementView cta/dismiss/badges via `String(localized:)`; en=ru=296 keys) |
 | `B6-offline-vs-disconnected` | P2 | Neon `home.neon.exposed`="OFFLINE" vs Calm "Disconnected" | "OFFLINE" implies no internet, not "exposed" | Unify to accurate pair ("Not connected"/"Exposed — tap to protect") | S | yes | **DONE 2026-06-21** (iter 7; en "OFFLINE"→"UNPROTECTED" — accurate: online-but-exposed, not no-internet) |
 | `B7-google-logo-fake` | P2 | `OnboardingView.swift:330` (bold letter "G") | Looks cheap/placeholder on first screen | Official multicolor G asset (also a Google requirement) | S | yes | OPEN |
 | `B8-restore-discoverability` | P2 | restore only on paywall (`PaywallView.swift:50`), absent from Settings | Reinstalled payer can't find restore → tickets | Add Restore to Account/Settings | S | yes | OPEN |
@@ -111,7 +111,7 @@ Severity = impact on the owner's goal (recurring revenue + advertisable quality)
 | `B12-brand-fonts-unshipped` | P2 | `Theme.swift:65` (`displayFontName:nil` "for now") | Signature theme uses system fonts | Ship intended fonts or delete dead config | S/M | yes | OPEN |
 | `B13-theme-picker-dead` | P2 | `ThemePickerView.swift:3` vs `MadFrogVPNApp.swift:58` (`hasSelected` never used) | (dev trap) half-built first-run flow is dead code | Wire it or delete + fix comments | S | yes | OPEN |
 | `B14-a11y-gaps` | P2 | connect button no a11y label (`Calm:136`,`Neon:331`); fixed font sizes; <44pt taps | Poor VoiceOver / Dynamic Type | a11y label+value on connect; relative sizing; 44pt targets | M | yes | OPEN |
-| `B15-stale-mocks-copy` | P3 | `ThemePickerView.swift:113` ("DE-1·24ms" retired DE); `EmailSignInView.swift:69` ("email" not localized) | Small "unfinished" tells | Live mock; use localized placeholder | S | yes | OPEN |
+| `B15-stale-mocks-copy` | P3 | `ThemePickerView.swift:113` ("DE-1·24ms" retired DE); `EmailSignInView.swift:69` ("email" not localized) | Small "unfinished" tells | Live mock; use localized placeholder | S | yes | **DONE 2026-06-21** (iter 8; "DE-1·24ms"→"Netherlands·24ms"; email prompt → `L10n.Magic.emailPlaceholder`) |
 | `B16-auto-exit-country` | P3 | `MainView.swift:560` (Auto shows 🌍, hides resolved country) | Auto users don't know exit country | Surface resolved country in subtitle on connect | S | yes | OPEN |
 
 ### Track C — Product completeness (table-stakes)
@@ -365,5 +365,27 @@ Files: `MadFrogVPN/Models/L10n.swift`, `MadFrogVPN/Resources/{en,ru}.lproj/Local
 `MadFrogVPN/Views/SupportChatView.swift`.
 Next: finish **B5** (`AnnouncementView` cta/dismiss/badge localization), then **B7** (Google logo) /
 **B15** (email placeholder + stale DE mock) — all `swiftc -parse`/`plutil`-verifiable.
+
+### 2026-06-21 · Iteration 8 — finish B5 (announcements) + B15 (stale mocks/placeholder)
+- **B5 (announcements):** `AnnouncementView` CTA fallback ("Открыть"), dismiss ("Понятно"), and the three kind
+  badges ("🎁 АКЦИЯ" / "✨ ОБНОВЛЕНИЕ" / "ℹ︎ ВАЖНО") were hardcoded RU rendered via `Text(verbatim)`. Localized
+  via `String(localized:)` + 5 new `announcement.*` keys (en/ru). Admin-authored `ctaLabel` kept verbatim
+  (dynamic content). **B5 now fully closed.**
+- **B15:** `EmailSignInView` prompt `Text("email")` → `Text(L10n.Magic.emailPlaceholder)` (the localized
+  "you@example.com" already existed but was bypassed). `ThemePickerView` mock "DE-1 · 24ms" → "Netherlands ·
+  24ms" (DE is retired; "DE-1" leaf-naming is what the home screen deliberately hides).
+- **Verify:** `swiftc -parse` OK (AnnouncementView, EmailSignInView, ThemePickerView); `plutil -lint` OK;
+  **en/ru key parity 296=296**; no residual RU literals in AnnouncementView. Rides CI build.
+- **Minor left:** the theme-preview "Connected" label is still hardcoded English (illustrative mock chrome,
+  P3); the stale `.string` doc-comment in L10n.swift.
+
+Files: `MadFrogVPN/Views/{AnnouncementView,EmailSignInView,ThemePickerView}.swift`,
+`MadFrogVPN/Resources/{en,ru}.lproj/Localizable.strings`.
+
+— **9 commits, B-track substantially done** (B5/B6/B8-pending/B15 + A8). Remaining B items are heavier
+(B1 paywall pitch, B2 onboarding, B4 proof-of-protection — real UI, higher review value) or asset-dependent
+(B7 Google logo needs the official asset). Next: assess B-track remainder vs. winding the loop toward an
+owner-review handoff (the highest-value remaining work — A2/A3 billing, A1 enable, on-device verification — is
+owner-gated).
 
 <!-- next iteration appended below -->

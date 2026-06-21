@@ -62,12 +62,13 @@ struct AnnouncementView: View {
     @ViewBuilder
     private var primaryButton: some View {
         if let url = announcement.ctaURL {
-            actionButton(announcement.ctaLabel ?? "Открыть") {
+            // ctaLabel is admin-authored (dynamic) → keep verbatim; the fallback is localized.
+            actionButton(announcement.ctaLabel ?? String(localized: "announcement.cta.default")) {
                 openURL(url)
                 app.dismissActiveAnnouncement()
             }
         } else {
-            actionButton("Понятно") { app.dismissActiveAnnouncement() }
+            actionButton(String(localized: "announcement.dismiss")) { app.dismissActiveAnnouncement() }
         }
     }
 
@@ -95,9 +96,9 @@ struct AnnouncementView: View {
 
     private var badgeStyle: (String, Color) {
         switch announcement.kind {
-        case "promo": return ("🎁 АКЦИЯ", theme.accentSecondary)
-        case "update": return ("✨ ОБНОВЛЕНИЕ", theme.accent)
-        default: return ("ℹ︎ ВАЖНО", theme.accent)
+        case "promo": return (String(localized: "announcement.badge.promo"), theme.accentSecondary)
+        case "update": return (String(localized: "announcement.badge.update"), theme.accent)
+        default: return (String(localized: "announcement.badge.important"), theme.accent)
         }
     }
 }

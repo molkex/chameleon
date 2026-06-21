@@ -153,6 +153,12 @@
 "support.diag.partial.title"    = "Log wasn't attached";
 "support.diag.partial.message"  = "The state snapshot was sent, but the connection log couldn't be attached. Try again or describe the problem in text.";
 "support.chat.unavailable"      = "Chat is temporarily unavailable.";
+
+"announcement.cta.default"      = "Open";
+"announcement.dismiss"          = "Got it";
+"announcement.badge.promo"      = "🎁 PROMO";
+"announcement.badge.update"     = "✨ UPDATE";
+"announcement.badge.important"  = "ℹ︎ INFO";
 "webpaywall.plan.per_month"        = "≈ %d ₽/mo";
 "webpaywall.plan.save"             = "save %d%%";
 "webpaywall.error.plans"           = "Could not load plans.";

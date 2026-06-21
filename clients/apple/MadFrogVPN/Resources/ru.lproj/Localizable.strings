@@ -153,6 +153,12 @@
 "support.diag.partial.title"    = "Журнал не приложился";
 "support.diag.partial.message"  = "Снимок состояния отправлен, но журнал подключения приложить не удалось. Попробуйте ещё раз или опишите проблему текстом.";
 "support.chat.unavailable"      = "Чат временно недоступен.";
+
+"announcement.cta.default"      = "Открыть";
+"announcement.dismiss"          = "Понятно";
+"announcement.badge.promo"      = "🎁 АКЦИЯ";
+"announcement.badge.update"     = "✨ ОБНОВЛЕНИЕ";
+"announcement.badge.important"  = "ℹ︎ ВАЖНО";
 "webpaywall.plan.per_month"        = "≈ %d ₽/мес";
 "webpaywall.plan.save"             = "выгода %d%%";
 "webpaywall.error.plans"           = "Не удалось загрузить тарифы.";

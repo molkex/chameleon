@@ -113,7 +113,7 @@ private struct ThemeCard: View {
                             Text("Connected")
                                 .font(theme.font(size: 14, weight: .semibold))
                                 .foregroundStyle(theme.textPrimary)
-                            Text("DE-1 · 24ms")
+                            Text("Netherlands · 24ms")
                                 .font(theme.font(size: 12))
                                 .foregroundStyle(theme.textSecondary)
                         }
