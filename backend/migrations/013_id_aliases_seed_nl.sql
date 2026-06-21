@@ -1,11 +1,22 @@
 -- Migration 013: seed id_aliases with NL→DE mappings (one-shot, idempotent).
 -- Generated 2026-04-25 from backups/inventory_20260425/. 31 matched + 1 race-dedup.
 -- See 012_id_aliases.sql for table purpose.
+--
+-- 2026-06-21 FIX (PRODUCT-MATURITY-LOOP): the original used raw `VALUES … ON
+-- CONFLICT (alt_id) DO NOTHING`, but real_id has an FK to users(id). On the live
+-- NL DB most of these real_ids don't exist (they were DE-inventory ids), so the
+-- INSERT FK-failed — and the OLD deploy.sh swallowed the error (psql 2>/dev/null
+-- && echo Applied), so this migration NEVER actually applied and nobody knew. The
+-- D1 deploy fail-fast surfaced it. Rewritten to insert ONLY rows whose real_id
+-- exists in users (FK-safe + idempotent); on NL this is a safe near-no-op, and on
+-- any DB that does have those users it seeds correctly.
 
 -- Inline commas BEFORE the trailing -- comment, otherwise the comment
 -- swallows the comma and psql sees adjacent tuples without a separator.
 
-INSERT INTO id_aliases (alt_id, real_id, source) VALUES
+INSERT INTO id_aliases (alt_id, real_id, source)
+SELECT v.alt_id, v.real_id, v.source
+FROM (VALUES
   (2, 12088, 'nl_decommission'),  -- device_3ce22712 (adc20e5a-7b51-4856-9b85-80a44f55a797)
   (3, 12318, 'nl_decommission'),  -- device_75bb6aa8 (9dafceeb-58e0-4157-bfe0-427c27059f95)
   (4, 12351, 'nl_decommission'),  -- device_b6f01ebb (68ba1e44-74ab-425b-b12d-1cfae8348325)
@@ -37,10 +48,14 @@ INSERT INTO id_aliases (alt_id, real_id, source) VALUES
   (33028, 46090, 'nl_decommission'),  -- device_5018048c (caf2fd22-2f62-4850-9e03-5d6e5b73e47b)
   (33029, 46091, 'nl_decommission'),  -- device_e930e053 (288c48ba-dcea-46e0-9012-4598a1820766)
   (33125, 46187, 'nl_decommission')   -- device_c5909650 (687addd4-4bf7-4535-9aaa-daed0555bf99)
+) AS v(alt_id, real_id, source)
+WHERE EXISTS (SELECT 1 FROM users u WHERE u.id = v.real_id)
 ON CONFLICT (alt_id) DO NOTHING;
 
 -- Race-dedup: device_5b1fac69 was registered twice on the same second on
 -- different nodes (DE id=32446 ec7a2b8d, NL id=19376 245aeec7). Both
 -- anonymous, no subscription. Alias NL id 19376 → DE 32446.
-INSERT INTO id_aliases (alt_id, real_id, source) VALUES (19376, 32446, 'race_dedup')
+INSERT INTO id_aliases (alt_id, real_id, source)
+SELECT 19376, 32446, 'race_dedup'
+WHERE EXISTS (SELECT 1 FROM users u WHERE u.id = 32446)
 ON CONFLICT (alt_id) DO NOTHING;
