@@ -61,6 +61,8 @@ func countryDisplay(cc string) string {
 		return "🇺🇸 США"
 	case "ru":
 		return "🇷🇺 Россия"
+	case "pl":
+		return "🇵🇱 Польша"
 	default:
 		return ""
 	}

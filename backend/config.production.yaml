@@ -115,6 +115,10 @@ relay:
     # syncer keep gra1's VLESS Reality user list in sync — without it, users
     # registered after the node's bake get a silent Reality reject on 🇫🇷.
     gra1: "${USER_API_SECRET}"
+    # waw1 = remote Poland exit (OVH Warsaw, added 2026-06-26). Reuses the same
+    # user_api secret as NL/gra1 (cloned from GRA's sing-box config), so the syncer
+    # pushes the active user roster to WAW's User API (217.182.74.70:15380).
+    waw1: "${USER_API_SECRET}"
 
 rate_limit:
   mobile_per_minute: 60
