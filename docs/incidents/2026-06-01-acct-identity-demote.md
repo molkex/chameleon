@@ -1,3 +1,9 @@
+---
+title: ACCT-IDENTITY — app silently demoted Apple-authed payer to anonymous trial
+date: 2026-06-01
+status: resolved
+tags: [incident, auth, apple, identity, p0]
+---
 # 2026-06-01 — ACCT-IDENTITY: app silently demoted an Apple-authed payer to a fresh anonymous trial
 
 **Severity:** P0 (paying users lost their account in-app) · **Status:** fixed

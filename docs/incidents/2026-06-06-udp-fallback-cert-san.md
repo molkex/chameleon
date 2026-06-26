@@ -1,3 +1,9 @@
+---
+title: UDP fallback silently dead — cert missing SAN
+date: 2026-06-06
+status: resolved
+tags: [incident, vpn, udp, hysteria2, tuic, tls, cert]
+---
 # 2026-06-06 — UDP fallback (Hysteria2/TUIC) silently dead: cert had no SAN
 
 **Severity:** medium (degraded resilience, not an outage) · **Status:** resolved

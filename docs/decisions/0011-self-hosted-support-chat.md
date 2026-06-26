@@ -1,3 +1,9 @@
+---
+title: "0011 — Self-hosted support chat (build on own stack, not Chatwoot)"
+date: 2026-06-02
+status: active
+tags: [decision, support, chat, adr]
+---
 # 0011 — Self-hosted support chat (build on own stack, not Chatwoot)
 
 - Status: accepted

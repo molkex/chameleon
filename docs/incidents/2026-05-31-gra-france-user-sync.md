@@ -1,3 +1,9 @@
+---
+title: GRA France exit dead — missing live user-sync
+date: 2026-05-31
+status: resolved
+tags: [incident, vpn, gra, france, user-sync]
+---
 # 2026-05-31 — France (GRA) exit dead for post-bake users: missing live user-sync
 
 **Severity:** P0 (user-facing — 🇫🇷 France exit unusable on live 1.0.28)

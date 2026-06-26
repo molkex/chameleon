@@ -1,3 +1,9 @@
+---
+title: NL exit geo-leak — Gemini/Google geo-blocked over VPN
+date: 2026-05-31
+status: resolved
+tags: [incident, vpn, geo, nl]
+---
 # 2026-05-31 — NL exit "looked Russian" (Gemini/Google geo-blocked over the VPN)
 
 **Status:** RESOLVED 2026-05-31. Verified on device (whoer → USA, Gemini opens).

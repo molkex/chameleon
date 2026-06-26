@@ -1,3 +1,9 @@
+---
+title: France relay legs via MSK and SPB relays
+date: 2026-06-01
+status: resolved
+tags: [incident, vpn, relay, france, msk, spb]
+---
 # 2026-06-01 — France via the RU relays (MSK→FR + SPB→FR)
 
 **Type:** feature / infra · **Status:** live, verified · No app build (clients refetch `/config`).

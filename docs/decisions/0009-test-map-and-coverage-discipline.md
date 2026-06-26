@@ -1,3 +1,9 @@
+---
+title: "0009 — test-map.yaml + coverage discipline"
+date: 2026-06-01
+status: active
+tags: [decision, testing, coverage, adr]
+---
 # 0009 — test-map.yaml + coverage discipline
 
 - Status: accepted

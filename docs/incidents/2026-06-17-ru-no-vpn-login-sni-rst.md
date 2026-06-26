@@ -1,3 +1,9 @@
+---
+title: RU-no-VPN sign-in fails — RKN SNI-filters api.madfrog.online
+date: 2026-06-17
+status: resolved
+tags: [incident, ru, sni, rkn, auth, ios]
+---
 # 2026-06-17 — RU-no-VPN sign-in fails: RKN SNI-filters api.madfrog.online
 
 **Severity:** high (core flow — users could not sign in without already having a VPN on)

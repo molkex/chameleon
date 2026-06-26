@@ -19,9 +19,9 @@
 # Test coverage + how-to-verify each layer: state/test-map.yaml (decision 0009).
 
 meta:
-  updated: 2026-06-21
+  updated: 2026-06-26
   branch: main
-  direction: on_track          # see `assessment` at the bottom
+  direction: on_track          # see `assessment` at the bottom — redundancy now actively being built
 
 # ── Product ────────────────────────────────────────────────────────────────
 product:
@@ -72,154 +72,39 @@ health:
 
 # ── Right now (canonical: roadmap.yaml) ─────────────────────────────────────
 now:
-  № ── RESUME HERE next session (2026-06-04 end-of-session handoff) ──
-  - SUPPORT-CHAT — WORKS end-to-end + feature-complete for MVP. Client chat (webview) — send,
-    history, SSE live, dup+token fixes (b104), diagnostic-snapshot button + photo/file attachments
-    (b105, on TestFlight). AGENT SIDE LIVE — admin SPA Поддержка page at /admin/app/inbox — list,
-    read, reply + attachments → push to client via Redis SSE (deployed). Attachments via B2 presigned
-    (verified e2e on prod). APNs PUSH (P4) — agent reply notifies the client; backend LIVE (log
-    "support push enabled"), iOS in b106; on-device e2e pending. MSK nginx SSE done. REMAINING before
-    App Store submit — privacy policy + ASC data label (5.1.1 — chat stores messages/files, policy
-    says no-usage-metadata). NOT yet built — 3b auto-attach singbox.log, full-P3 polish (admin-SSE,
-    canned replies, notes, assignment, Telegram bridge). Open — widget BUNDLED vs hosted chat.madfrog.online.
-  - AWAIT-REVIEW 1.0.30 (build 102, KEYCHAIN-MACOS) WAITING_FOR_REVIEW (submitted 2026-06-04,
-    AFTER_APPROVAL auto-release). 1.0.29 (101) shipped 2026-06-02. After 1.0.30 ships → submit
-    1.0.31/104 (needs the privacy work above first).
+  № ── RESUME HERE next session (2026-06-26 end-of-session handoff) ──
+  - 🔴 NL OUTAGE (active) — Timeweb ams-1 DDoS → backend+DB+admin+RU→NL VPN DOWN since ~16:05 MSK
+    2026-06-26 (~3h+ at handoff). PROVIDER incident, not ours/not billing. GRA (France) exit
+    unaffected. NL VM stuck `hard_rebooting`; when Timeweb fixes ams-1, if it doesn't auto-recover
+    in ~10min → Timeweb support ticket. GRA monitor TG-pings on recovery. THEN — verify stack
+    (pg/redis/chameleon/singbox + api/health + admin), finish WAW activation + replication.
+    See incidents/2026-06-26-timeweb-nl-ams1-outage.md.
+  - 🟡 WAW STANDBY + POLAND EXIT (NL-RED-01 / ADR 0012) — OVH Warsaw 217.182.74.70 provisioned;
+    VPN server-side UP (sing-box-fork clone of GRA, own Reality key, :443 verified). "Poland for
+    ALL users" + Postgres replication GATED on NL (config-gen/DB/user-sync live there). One clean
+    op when NL returns. memory project_waw_standby + state/servers.yaml#waw.
+  - 🟢 GRA auto-renew ON (was manual, near-miss 30.06) + external off-Timeweb monitor LIVE on GRA
+    (infrastructure/gra-monitor — closes the "health-check ran on NL" blind spot).
+  - STRUCTURE/TEST/HYGIENE AUDIT (2026-06-26) — audits/2026-06-26-structure-test-hygiene-audit.md.
+    Tests GREEN. Tracked in roadmap#next.audit_2026_06_26 — 3 P1 money-path test gaps
+    (payment webhook / Apple verify / config handler) + 3 P1 security (H-01 cert-pin, H-02
+    subscription_token→GRA leak, H-03 /sub/:token) + structure reorg remainder.
+  - PRODUCT-MATURITY-LOOP (living, audits/2026-06-21) — b123 on TestFlight; monetization-one-shot
+    headline still the strategic gap (A1-lifecycle engine shipped DISABLED).
+  - App Store trains — 1.0.30/102 live; 1.0.31 approved auto-release; 1.0.32/113 in review; 1.0.33/123 TestFlight.
 open_decisions:                  # waiting on the user
   - SUBDOMAIN-SCRUB — bot/speedtest.madfrog.online → 85.239.49.28 (intentional? repoint?)
   - SUPPORT-CHAT hosting — MVP shipped BUNDLED (not chat.madfrog.online). Keep bundled or
     move to hosted later? (one-line URL switch in SupportChatView.)
 
 # ── Shipped (detail: roadmap.yaml#done + incidents/*) ──
-recent:
-  - PRODUCT-MATURITY-LOOP (2026-06-21, LIVING) — 4-agent product-lens audit (retention/UX/completeness/
-    kostyli) on top of 2026-06-17. Registry+journal: audits/2026-06-21-product-maturity-loop.md (56 items,
-    4 tracks A/B/C/D). HEADLINE: monetization is one-shot BY DESIGN at every layer (non-renewing Apple IAP +
-    one-shot FreeKassa + NO lifecycle engine + churn untracked) = literal "buy once never return". Plus no
-    kill-switch (#1 VPN trust feature), bare paywall, no onboarding/proof-of-protection. Top-ROI fix =
-    A1-lifecycle-engine (daily expiry sweep → push+email; backend-only, no App Store review; senders already
-    exist). This is a running loop; append every change to the doc's §6 journal. Owner picking start track.
-  - FULL-SERVICE-AUDIT (2026-06-17) — 35-agent multi-agent audit (8 subsystems, 53 findings,
-    22 P0/P1 verified). Report at audits/2026-06-17-full-service-audit.md. Plan laid into
-    roadmap.yaml#now.audit_2026_06_17_phase0 (P0) + next.audit_2026_06_17 (P1-3). Through-line —
-    core healthy, РФ-network edge cases collapse UX. Top-5 — DNS-FALLBACK (инста, server-only),
-    AUTH-DIRECT-IP-INTERACTIVE (RU sign-in), REFRESH-TOKEN-PERSIST (force-relogin ~daily),
-    SSE-CHATTOKEN-REMINT (chat dies), EXPIRED-PAYWALL-ON-CONNECT (feature + revenue leak). Not started.
-  - VPN-DROPS-TRIAGE (2026-06-06) — user "отваливается чаще / вылетает / перезайти в акк".
-    ROOT CAUSE of drops = NE memory pressure: sing-box oom-killer "resetting network" at
-    40 MiB (iOS ~50 MB extension cap), fed by an UNBOUNDED singbox.log (writeDebugMessage
-    wrote libbox's DEBUG firehose raw, no cap → 565 MB). FIXES: (1) UDP-FALLBACK-CERT-SAN
-    (below). (2) LOG-01 — singbox.log 4 MB cap (memory-safe seek-tail) + writeDebugMessage
-    now drops TRACE/DEBUG from the file sinks (build-99 missed it; DEBUG was 37% of an iPhone
-    log that confirmed the oom-killer fires ~every 5-6 min). Pure helpers + tests; iOS
-    build-for-testing GREEN; rides 1.0.32. Residual: 40 MiB = iOS NE 50 MB hard cap — if
-    resets persist post-update, next lever is runtime mem (DNS cache/conn limits), not blind.
-    "перезайти в акк" = old
-    Mac build 101 (no KEYCHAIN-MACOS fix from 1.0.30) losing identity → ReauthView (which
-    DOES offer Apple + email; Apple-reclaim is safe, no data loss). Rec: update Mac to 1.0.30.
-  - ADMIN-PAYMENT-TIME-MSK (2026-06-06, SHIPPED — deployed NL, admin-only) — payment times on
-    the dashboard showed UTC (−3h), not MSK. recentTransactionDTO.CreatedAtFmt was formatted
-    from the UTC DB timestamp; added fmtMSK (FixedZone UTC+3, no tzdata dep) + applied + tested.
-    Frontend toLocaleString times use viewer-browser TZ (fine if MSK) — only the backend string was hard-UTC.
-  - ADMIN-NODES-PROTOCOLS (2026-06-06, SHIPPED — deployed NL, admin-only) — admin showed
-    incomplete data. ListProtocols was hardcoded VLESS-only (Hysteria2/TUIC hidden) → now
-    derived from config (pure vpnProtocols+test). Nodes list only had relay-* servers → GRA
-    exit + MSK relay missing → buildRemoteNodes (all active non-local servers, grouped by
-    host, exit/relay classified, TCP-probed). Servers page was already complete. Deploy note:
-    NL `docker restart` resets SSH conntrack — nginx had to be re-upped after the deploy.
-  - UDP-FALLBACK-CERT-SAN (2026-06-06, SHIPPED — NL+GRA, no app build) — user "VPN
-    отваливается чаще" → client log showed ALL Hysteria2/TUIC legs dead each urltest
-    ("certificate is not valid for any names, but wanted ads.adfox.ru"). SEC-03 regression:
-    client now PINS the UDP cert + verifies server_name=ads.adfox.ru, but the server
-    self-signed cert was still CN=madfrog.online with NO SAN. Regenerated cert
-    (CN+SAN=ads.adfox.ru) on NL + copied the SAME cert to GRA (client pins ONE cert,
-    NL's UDPCertPEM, for ALL UDP legs incl fr-h2-gra1), restart chameleon+singbox.
-    Verified live (real RU H2 traffic). Guardrails: regression test + deploy.sh SAN guard.
-    incidents/2026-06-06-udp-fallback-cert-san.md. NB: server RKN probing high but FLAT
-    (~8-10k/day) — not the cause; admin-no-VPN = use https://api.madfrog.online/admin/app/ (CF-bypass).
-  - PROMO-CODES (2026-06-05, SHIPPED — backend+admin live+e2e-verified on NL; iOS field = build 1.0.32) —
-    % discount codes for the FreeKassa paywall. internal/promo (pure rules+math, unit-tested) + mig 026
-    (promo_codes/payment_intents/promo_redemptions) + db CRUD + idempotent redeem (integration-tested) +
-    mobile validate/discounted-initiate/webhook-reconcile + admin "Промокоды" page. Deploys without a build;
-    native code-entry field in WebPaywallView rides 1.0.32. Engine for the expired-trial re-engagement.
-  - FUNNEL-ANALYSIS (2026-06-05) — real funnel from prod + Apple — 372 downloads (Apple Trends 18-31 May) →
-    345 reg (93%) → 296 launch → 257 VPN-connect (87%, strong activation) → 13 paid (3.8%). Findings —
-    monetization is THE gap (paywall seen by only 9/257, trials hide it); real money is RU/FreeKassa (12
-    pays, ~3489₽), Apple IAP 0 (3 void = dev/sandbox cleanups, NOT a bug). 78% of base from the 28-29 May
-    burner. docs/plans/{madfrog-plan,funnel,ru-roadmap-flow,what-we-have}.html — visual plan/funnel hub.
-  - IAP-LOADPRODUCTS-RETRY (2026-06-05, committed — rides 1.0.32) — StoreKit Product.products(for) can
-    return [] without throwing → empty paywall (prod — paywall.view products=0). Extracted
-    SubscriptionManager.loadWithRetry (pure, injected fetch+sleep) — retries while empty/throwing; 6 unit tests.
-  - TRIAL-ABUSE-REINSTALL (2026-06-05, NOTED in roadmap — P3, defer) — delete-account/reinstall → fresh
-    trial (SEC-01 trial-once is per-account; install_secret is anti-hijack keyed to device_id, not a
-    cross-account gate). Scale tiny (3 deleted of 347; "2+ per IP" are our VPN-exit IPs + carrier-NAT).
-    Layered fix planned (install_secret gate / DeviceCheck) — act if it grows.
-  - STORE-COUNTRY (2026-06-04, SHIPPED — IAP backfill + admin display live on NL, client-send in b111) —
-    App Store download region (storefront) now captured + shown in admin Users (🛍). store_country
-    (mig 006) existed but was never filled. (1) no-build — payer backfill from the verified Apple JWS
-    Storefront (db.SetStoreCountry). (2) build 111 — iOS caches Storefront.current + sends X-Store-Country,
-    touchDevice persists it. Country/version announcement targeting still deferred.
-  - INAPP-ANNOUNCEMENTS (2026-06-04, SHIPPED — backend+admin live on NL, iOS card on TestFlight b110) —
-    admin-authored messages shown in-app on open (reaches ALL active users, no push permission). Backend
-    (mig 024 announcements + ActiveAnnouncements active-AND-in-window + admin CRUD + mobile
-    /announcements/active) + admin "Анонсы" page DEPLOYED to NL + full authed CRUD e2e verified on prod.
-    iOS — centered dismissible card (variant B, neon/calm theme, kind badge + optional CTA), loaded on
-    auth + foreground, dismissed-ids remembered — build 110. TARGETING (2026-06-04, deployed NL,
-    e2e-verified, NO app build) — per-announcement audience (all/trial/paid/expired) + platform
-    (all/ios/macos), filtered server-side from the authed user (mig 025, db.UserHasPaid). Reach = real
-    users on the next App Store release of 1.0.31.
-  - BROADCAST-PUSH (2026-06-04, SHIPPED — admin live on NL, no app build) — admin "Рассылка" page
-    (/admin/app/push) sends an APNs push to ALL registered device tokens — compose title+body, live
-    preview, recipient count, confirm dialog, 24-worker fan-out + 410-prune + audit log
-    (push_broadcasts, mig 023), {total,sent,failed}. Reuses the P4 sender; iOS already displays any
-    push. Verified live (endpoints 401/403, table, page asset 200). REACH — ~1 device until 1.0.31
-    ships to App Store (live b101 has no push). NEXT — INAPP-ANNOUNCEMENTS (in-app banner on open — all
-    active users, needs a client build → rides next release).
-  - SUPPORT-CHAT-POLISH (2026-06-04, SHIPPED — admin live on NL, iOS/widget on TestFlight b108) —
-    on-device review follow-ups. Widget — diag confirm now a standard .alert (was a cramped iOS-26
-    tail-popover w/ no Cancel); greet on first open instead of a blank void; day separators; file
-    bubble fixed (filename no longer smushed; caption above the chip so "diagnostic + singbox.log"
-    reads as ONE message — confirmed one DB row). Admin inbox (deployed+verified live) — close/reopen
-    threads (POST .../status + db.ReopenThread/ErrConflict, integration-tested) + open/closed/all
-    filter + canned-replies dropdown.
-  - SUPPORT-CHAT-LOGFIX (2026-06-04, SHIPPED — admin live on NL, iOS on TestFlight b107) — two
-    reported bugs fixed. (1) the native "Отправить лог" button silently no-op'd (used the cached/
-    expired access token → 401); now it refreshes the token AND attaches the real singbox.log tail
-    (256 KiB cap, text/plain, presign→PUT→message) + confirm dialog + success/failure feedback. This
-    is №3b auto-attach. SHIPPED in build 107 (VALID, Internal Testers). (2) admin inbox composer was
-    clipped (ScrollArea flex-1 missing min-h-0); one-class fix — DEPLOYED to NL + verified live
-    (min-h-0 in the boevoy inbox asset). iOS+macOS+admin builds all green; tailLogText unit-tested.
-  - TRAFFIC-MULTIEXIT (2026-06-04, deployed+verified NL) — per-user traffic now summed across
-    exits (NL + GRA). runTrafficCollector polls each cfg.remote_stats_endpoints exit + merges by
-    username (vpn.MergeUserTraffic). GRA reached via a socat forwarder (GRA:8081→127.0.0.1:8080,
-    ufw NL-only) — no VPN restart. Verified on the wire (ESTAB NL→GRA gRPC, zero errors). telemetry→green.
-  - BUILD-103 / 1.0.31 (2026-06-04) — SUPPORT-CHAT P2 + widget-timer + FR-SELECT cut to TestFlight
-    (Internal Testers, IN_BETA_TESTING). MSK nginx SSE (step 4b) done → chat live-push works.
-  - SUBMIT-1.0.30 (2026-06-04) — 1.0.29 APPROVED→live unblocked it; 1.0.30/102 (keychain) submitted
-    to App Store review standalone (Plan X — decoupled from the chat build's privacy-policy gate).
-  - SUPPORT-CHAT (2026-06-03) — built end-to-end — P0 backend DEPLOYED to NL (mig 020
-    support_chat_threads/messages, REST send/list/thread, SSE+Redis, chat-token, 90d purge,
-    rate-limit tiers, wipe-on-delete); P1 web widget (clients/widget) approved; P2 in-app
-    WKWebView replaces mailto Support. Remaining — build 103 + MSK nginx 4b + privacy. ADR 0011.
-  - WIDGET-TIMER + FR-SELECT/SRV-DYNAMIC + CI-green (2026-06-03) — Home widget "Защищено"
-    timer no longer resets on transparent restarts; new-country picker selection sticks; fixed
-    2 pre-existing red CI workflows. All ride build 103.
-  - BUILD-102 / 1.0.30 (2026-06-03) — keychain re-sign fix (KEYCHAIN-MACOS) cut to TestFlight
-    iOS+macOS (1.0.29/101 train was closed → bumped to 1.0.30). LAUNCH-02 → deferred (non-renewing
-    subs can't Family Share). config.go cancel-alert deployed.
-  - ACTIVE-METRIC (2026-06-03, deployed NL) — admin "Active (24h)" was app-/config-fetches
-    only → could read below live "Online". Added users.last_vpn_seen (mig 019) bumped by the
-    traffic collector; Active = app OR VPN. last_seen/DAU/funnel untouched.
-  - KEYCHAIN-MACOS (2026-06-03) — Mac "акк→trial after update" was NOT a real demote;
-    legacy keychain ACL is signature-bound. Fixed → data-protection keychain + access
-    group + seamless migration (incidents/2026-06-03-macos-keychain-trial-on-update.md)
-  - DOCS-MIGRATE + TEST-MAP — retired ~2300 legacy doc lines; new state/test-map.yaml +
-    ADR 0009 (coverage discipline); OPERATIONS/TROUBLESHOOTING/PAYMENTS/topology.yaml gone
-  - ACCT-IDENTITY (P0) — no more silent demote of Apple payers to anon trial; ReauthView ladder
-  - SEC-01/03/04 — trial-once, UDP TLS cert-pin, Apple refund→revoke (all deployed NL)
-  - SETTINGS-L10N, UI-FLAG-HOME, vector CountryFlag, PRO tappable, merged refresh button
-  - FR relay legs — SPB→FR (ru-spb-fr) + MSK→FR (fr-via-msk), verified
-  - VPN-TG-MEDIA — resolved by clean-egress IP swap (user-confirmed)
+recent:                          # full detail: roadmap.yaml#done + incidents/ + audits/
+  - "2026-06-26 — NL outage (Timeweb ams-1 DDoS) + WAW warm-standby/Poland-exit server-side provisioned + structure/test/hygiene audit (audits/2026-06-26)"
+  - "2026-06-21 — PRODUCT-MATURITY-LOOP (living, audits/2026-06-21); b123 TestFlight; A1 lifecycle-engine shipped DISABLED"
+  - "2026-06-17 — FULL-SERVICE-AUDIT (35-agent, audits/2026-06-17); through-line: core healthy, РФ-network edge cases collapse UX"
+  - "2026-06-06 — UDP-FALLBACK-CERT-SAN + LOG-01 (NE oom-killer log churn); VPN-DROPS-TRIAGE root-caused"
+  - "2026-06-04 — SUPPORT-CHAT e2e, in-app announcements, broadcast push, TRAFFIC-MULTIEXIT, 1.0.30 submit"
+  - "earlier — ACCT-IDENTITY (ADR 0010), SEC-01..04, KEYCHAIN-MACOS, FR relay legs, GRA bring-up, DOCS-MIGRATE+TEST-MAP"
 
 # ── Operational pointers ────────────────────────────────────────────────────
 ops:
@@ -232,13 +117,19 @@ ops:
 
 # ── Are we going the right way? ─────────────────────────────────────────────
 assessment: |
-  YES — on track. Core P0 (auth identity) and the audited security findings
-  (SEC-01..04) are closed and deployed; France is a real 2nd exit with relay
-  diversity; the app is one TestFlight verification away from a 1.0.29 submit.
-  Architecture is sound for current scale. The honest watch-items are
-  redundancy (single-NL backend/DB — NL-RED-01 planned), observability
-  (multi-exit traffic accounting — TRAFFIC-MULTIEXIT), and test depth — the
-  2026-06-01 audit found money/auth paths (Apple IAP verify, admin creds) and
-  the whole admin SPA untested; all 8 gaps are now tracked in state/test-map.yaml
-  + roadmap.testing (none block shipping). Docs are now fully YAML-first
-  (decisions 0006 + 0009); the legacy MD bloat is gone.
+  MOSTLY on track, with one loud lesson. The 2026-06-26 Timeweb ams-1 outage
+  took the WHOLE control plane down for hours with zero failover — the exact
+  single-NL SPoF that ADR 0004 "accepted". That risk is no longer acceptable and
+  is now being ACTIVELY closed: ADR 0012 (warm standby) + a real second host
+  (OVH Warsaw) provisioned this session, an external off-Timeweb monitor live,
+  GRA auto-renew fixed. Remaining redundancy work (Postgres replication, MSK
+  upstream failover, the "Poland for all users" exit activation) is gated on NL
+  coming back. Core product is healthy: auth identity (ADR 0010), SEC-01..04,
+  France as a real 2nd exit, multi-exit telemetry. The honest watch-items now:
+  (1) finish NL-RED-01 — redundancy is half-built, do not stop; (2) the
+  2026-06-26 audit found the money-in HTTP HANDLERS (FreeKassa webhook, Apple
+  verify, config) have zero handler-level tests despite the logic being tested —
+  3 P1 items tracked; (3) 3 P1 security findings (cert-pin, token-leak-to-exit,
+  /sub credential-in-URL) tracked. Tests are GREEN; docs split (0006) is correct,
+  this session de-bloated + de-staled the state docs. Direction: forward, but
+  redundancy + money-path test coverage are the two things to not let slip.

@@ -127,6 +127,35 @@ now:
 # NEXT — 1-2 week queue, ready to start
 # ============================================================
 next:
+  # ── STRUCTURE/TEST/HYGIENE AUDIT 2026-06-26 (detail: docs/audits/2026-06-26-structure-test-hygiene-audit.md) ──
+  audit_2026_06_26:
+    # P1 — money-path test gaps (logic IS tested per-package; the HTTP HANDLER glue is NOT)
+    - {id: TEST-PAYMENT-WEBHOOK, priority: P1, build: false,
+       title: "httptest for FreeKassaWebhook + InitiatePayment/PaymentStatus (api/mobile/payment_webhook.go, payment.go)",
+       risk: "money-in; webhook replay → double-credit if error path wrong"}
+    - {id: TEST-APPLE-SUBSCRIPTION-HANDLER, priority: P1, build: false,
+       title: "httptest for VerifySubscription handler (api/mobile/subscription.go) — mock payments/apple.Verify seam",
+       risk: "money-in / IAP fraud gate"}
+    - {id: TEST-MOBILE-CONFIG-HANDLER, priority: P2, build: false,
+       title: "httptest smoke for GetConfig (api/mobile/config.go) — subscription gate + config shape"}
+    # P1 — security (from hygiene agent H-01/02/03)
+    - {id: H-02-TOKEN-LEAK, priority: P1, build: false,
+       title: "Strip subscription_token from cluster SyncUser/SyncedUser (cluster/models.go) — GRA exit doesn't need it"}
+    - {id: H-03-SUB-TOKEN-URL, priority: P1, build: false,
+       title: "Audit /sub/:token (server.go:259) — grep NL nginx logs; delete route + DB column if dead"}
+    - {id: TD-CERT-PIN, priority: P1, build: true, note: "= H-01; already in next.security",
+       title: "Replace InsecureDelegate with fingerprint pin via /server/info (APIClient.swift)"}
+    # P2/P3 — hygiene (ride builds / low-risk)
+    - {id: H-05-STDERR-CAP, priority: P2, build: true, title: "Cap stderr.log (libbox C-side) on startTunnel — LOG-01 remainder"}
+    - {id: H-06-COUNTRY-DISPLAY, priority: P2, build: true, title: "Ship display_name in backend config; drop duplicated iOS countryDisplay (drifts us/ru)"}
+    - {id: H-08-STALLPROBE-DEAD, priority: P2, build: true, title: "Remove passive-only TunnelStallProbe instantiation (superseded by RealTrafficStallDetector)"}
+    - {id: H-12-UXVPN, priority: P3, build: true, note: "= UX-VPN", title: "Wire anotherVPNActive() into handleStatus(.disconnected)"}
+    - {id: H-07-XRAY-RENAME, priority: P3, build: false, title: "Rename admin xray_version field + /restart-xray route → singbox (keep alias)"}
+    # Structure / docs hygiene (this session did state-staleness + critical CLAUDE.md fix + archived superseded + repo-map)
+    - {id: DOCS-ROADMAP-TRIM, priority: P2, title: "Trim roadmap#done entries to id+date+one-liner (narrative already in incidents/audits) — ~1800 lines saveable; + project.yaml#recent → pointer"}
+    - {id: DOCS-ARCH-ARCHIVE, priority: P3, title: "Move arch/target.md + arch/mesh.md (aspirational/historical) to archive with link stubs"}
+    - {id: CLAUDE-KEYFILES, priority: P3, title: "Add omitted Ключевые файлы (vpn/singbox.go, userapi.go, cluster/, iOS SingBoxConfigPatcher/LegRaceProbe/RealTrafficStallDetector/TrafficHealthMonitor/CommandClient)"}
+
   # ── FULL-SERVICE AUDIT 2026-06-17 — Phases 1-3 (detail+anchors: docs/audits/2026-06-17-full-service-audit.md) ──
   # Phase 0 (P0) lives in now#audit_2026_06_17_phase0. Items below cross-link existing roadmap ids where they overlap.
   audit_2026_06_17:
@@ -518,13 +547,42 @@ next:
 
   infrastructure:
     - id: NL-RED-01
-      title: Provision Hetzner Helsinki as NL redundancy
-      priority: high
-      decision_ref: decisions/0004-single-nl-spof.md
+      title: NL control-plane redundancy — warm standby (backend+DB) off Timeweb + resilience nets
+      priority: CRITICAL   # bumped from high after the 2026-06-26 SEV-1 (Timeweb ams-1 outage)
+      decision_ref: decisions/0012-nl-redundancy-warm-standby.md   # supersedes 0004 posture
+      incident_ref: incidents/2026-06-26-timeweb-nl-ams1-outage.md
+      runbook: playbooks/nl-failover.md
+      trigger: |
+        2026-06-26 Timeweb DDoS→ams-1 regional outage took the ENTIRE control plane down
+        (API+admin+landing+RU→NL VPN) with zero failover for 30+ min. SPoF is no longer acceptable.
+      phase_0_now:   # buildable WITHOUT a standby / without NL up
+        - id: NL-RED-MON
+          title: External off-Timeweb monitor on GRA (OVH) — origin health + Timeweb hours_left → TG
+          why: health-check.sh runs ON NL so it went silent when NL died; closes MON-01
+          status: in_progress   # 2026-06-26
+        - id: NL-RED-AUTOPAY
+          title: Verify Timeweb autopay (SBP) works + balance alarm hours_left<72
+          note: autopay_card_info=sbp, monthly_cost 8501₽, runway ~185h as of 2026-06-26
+        - id: NL-RED-RESTORE-DRILL
+          title: Prove the B2 restore path end-to-end (restore.sh, rewritten 2026-06-21)
+        - id: NL-RED-DNS-TTL
+          title: Drop api.madfrog.online relevant TTLs to 300s for fast cutover
+      phase_1_standby:   # host DONE 2026-06-26; replication BLOCKED on NL recovery
+        - DONE 2026-06-26 — provisioned OVH Warsaw (Hetzner reg failed) vps-c2c3ed1c / 217.182.74.70,
+          Debian12+Docker, ssh debian@ + our key, auto-renew ON. (memory project_waw_standby)
+        - TODO — add `waw` node to deploy.sh; deploy idle chameleon/redis/nginx + static
+        - TODO — Postgres streaming replication NL→WAW (pg_basebackup -R); verify pg_stat_replication  # needs NL up
+      phase_2_failover:
+        - MSK nginx upstream { NL primary; HEL backup } for the RU API path
+        - Failover runbook DRILL (promote HEL, flip MSK+CF, verify, fail back) — quarterly
+      phase_3_later:
+        - CF Load Balancing origin failover for the apex (admin/landing) — no more 522
+        - Consider automated promotion (only after manual path is drilled; split-brain fencing)
+      blocked_on: "standby host — no Hetzner acct in secrets; create one OR order 2nd OVH VPS (non-GRA region)"
       acceptance:
-        - tcptraceroute :443 + :8443 from RU MTS / Beeline / MegaFon / T2 — SYN-ACK received
-        - VLESS Reality handshake from RU-LTE — success within 2s on 5/5 attempts
-        - 24h cluster sync with NL — no vpn_username conflict spam
+        - NL fully down → manual promote + repoint restores API+admin in < 10 min (drilled)
+        - Postgres replication lag < 5s steady-state; RPO ≈ seconds (was 24h B2-only)
+        - External monitor alerts on origin-down independently of NL being up
 
   monitoring:
     - id: MON-01

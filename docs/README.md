@@ -13,10 +13,10 @@ This folder is the canonical knowledge base for the project. Everything in `~/.c
 | `decisions/`        | MD     | Architecture Decision Records (ADRs). Numbered, dated, immutable         | **Append-only** — supersede with new ADR |
 | `playbooks/`        | MD     | How-to procedures: deploy, release, recover from incident                | Yes, refine over time |
 | `incidents/`        | MD     | Post-mortems for production incidents. Dated, immutable                  | **Append-only**     |
-| `audits/`           | MD     | Point-in-time audits (internal + external/GPT/Gemini)                    | Append per audit    |
+| `audits/`           | MD     | Point-in-time audits (internal + external/GPT/Gemini). Superseded 2026-05 audits moved to `archive/2026-05/` | Append per audit    |
 | `release-notes/`    | MD     | Per-build user-facing release notes                                      | Append per release  |
 | `roadmap.yaml`      | YAML   | Single roadmap: now / next / later / done / deferred                     | Yes, anytime        |
-| `archive/`          | mixed  | One-off snapshots, retired plans, old UI prototypes. Keep for history.   | Frozen              |
+| `archive/`          | mixed  | One-off snapshots, retired plans, old UI prototypes. Superseded 2026-06 plans moved here. Keep for history. | Frozen              |
 
 ## Rules of the road
 
@@ -88,6 +88,7 @@ Convention bootstrapped 2026-05-28; YAML-first migration (DOCS-MIGRATE) **comple
 - **Roadmap:** [`roadmap.yaml`](roadmap.yaml)
 
 **Architecture (MD):**
+- **Repo map (what is where):** [`arch/repo-map.md`](arch/repo-map.md)
 - **Overview:** [`arch/overview.md`](arch/overview.md) · **VPN engine:** [`arch/vpn.md`](arch/vpn.md) · **Backend layout:** [`arch/backend.md`](arch/backend.md) · **Payments:** [`arch/payments.md`](arch/payments.md)
 
 **Playbooks (how-to):**
