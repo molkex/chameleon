@@ -110,6 +110,25 @@ else
     alert "postgres" "🔴 <b>$HOSTNAME</b>: postgres NOT accepting connections"
 fi
 
+# ── replication (NL primary → WAW warm standby, 2026-06-28) ──────────────────
+# The standby (WAW, ADR 0012) gives RPO ≈ seconds vs 24h B2-only. A SILENT break
+# (tunnel down / slot inactive / replica crashed) leaves us thinking we have a
+# warm standby when we don't. Alert if nothing is streaming, or lag is high.
+REPL_MAX_LAG_SEC=120
+REPL_STAT=$(docker exec chameleon-postgres psql -U chameleon -d chameleon -tAc \
+    "select count(*) filter (where state='streaming') || '|' || coalesce(max(extract(epoch from replay_lag))::int,0) from pg_stat_replication" 2>/dev/null)
+if [ -n "$REPL_STAT" ]; then
+    REPL_STREAMING=$(echo "$REPL_STAT" | cut -d'|' -f1)
+    REPL_LAG=$(echo "$REPL_STAT" | cut -d'|' -f2)
+    if [ "${REPL_STREAMING:-0}" -lt 1 ]; then
+        alert "replication" "🔴 <b>$HOSTNAME</b>: NO standby streaming — WAW replica DOWN (warm standby UNPROTECTED)"
+    elif [ "${REPL_LAG:-0}" -gt "$REPL_MAX_LAG_SEC" ]; then
+        alert "replication" "🟠 <b>$HOSTNAME</b>: replication lag ${REPL_LAG}s (> ${REPL_MAX_LAG_SEC}s) — WAW standby falling behind"
+    else
+        clear_alert "replication"
+    fi
+fi   # psql-failed (empty) → postgres check above already pages; don't double-alert
+
 # ── redis ──────────────────────────────────────────────────────────────────
 # redis-cli PING returns "PONG" when alive. Auth-aware: REDIS_PASSWORD lives
 # in /opt/chameleon/backend/.env, source it so the ping works on auth-on

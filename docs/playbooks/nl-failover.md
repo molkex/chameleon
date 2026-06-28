@@ -53,34 +53,51 @@ this repo present, `~/.secrets.env` available to the deploy.
    short ETA, **waiting may beat failing over** (failover has failback cost). Fail over
    when: NL down with no ETA, or down > ~15–20 min, or data-loss risk.
 
-## 2. Promote HEL (manual, with fencing)
+## 2. Promote WAW (manual, with fencing) — EXACT commands
 
-1. **Fence the old primary** — if NL is reachable at all, stop its writes first
-   (`ssh nl 'cd /opt/chameleon && docker compose stop chameleon'`) to prevent
-   split-brain. If NL is 100% unreachable (today's case), it can't accept writes anyway.
-2. Promote HEL postgres: `docker exec chameleon-postgres pg_ctl promote` (or
-   `SELECT pg_promote();`). Verify `pg_is_in_recovery()` → `f`.
-3. HEL chameleon now writes successfully; restart it to clear any read-only-era state:
-   `ssh hel 'cd /opt/chameleon && docker compose up -d --no-deps --force-recreate chameleon'`.
+Standby = `chameleon-postgres-standby` on WAW (`debian@217.182.74.70`, sudo docker). The
+WAW app tier (chameleon/redis/nginx) is NOT running in steady state — only the DB replica
++ the sing-box exit are. Promote = make the replica writable, then bring up the app tier.
+
+1. **Fence the old primary.** If NL is reachable at all, stop its writes first:
+   `ssh -i ~/.ssh/claude-code-ssh-key root@147.45.252.234 'cd /opt/chameleon/backend && docker compose stop chameleon nginx'`.
+   If NL is 100% unreachable (the 2026-06-26 case), it can't accept writes — skip.
+2. **Promote the replica** (WAW becomes a writable primary):
+   `ssh ... debian@217.182.74.70 'sudo docker exec chameleon-postgres-standby psql -U chameleon -d chameleon -c "select pg_promote()"'`
+   Verify `pg_is_in_recovery()` → `f`. The SSH tunnel + replicator slot are now moot.
+3. **Bring up the WAW app tier** pointed at the local (now-writable) DB on 127.0.0.1:5432:
+   - redis: `sudo docker run -d --name chameleon-redis --network host --restart always redis:7-alpine redis-server --requirepass "$CHAMELEON_REDIS_PASSWORD" --maxmemory 128mb --maxmemory-policy allkeys-lru`
+   - chameleon + nginx: deploy from the repo. `deploy.sh` is NL-shaped (root, plain `docker`);
+     for WAW either add a `waw` node (debian@ + sudo) OR run the prebuilt binary + a WAW
+     compose (no postgres service — the standby already serves :5432; redis above; chameleon
+     env DATABASE_URL=postgres://chameleon:PW@127.0.0.1:5432, REDIS_URL=127.0.0.1:6379).
+     ⚠️ NOT pre-built/drilled — see "Drill" note. This is the one untested gap; stage it
+     before relying on a fast RTO.
 4. **Repoint traffic:**
-   - RU API: flip MSK nginx upstream so HEL is primary
-     (`upstream { server HEL:80; server NL:80 backup; }`), `nginx -t && reload`.
-   - Apex (admin/landing): in Cloudflare, set the `madfrog.online` origin / LB to HEL
-     (or change the A record; TTL is 300s).
-   - `api.madfrog.online` A-record stays → MSK (the relay), so flipping the MSK upstream
-     is enough for the RU path; no public DNS change needed there.
-5. Verify: `curl https://api.madfrog.online/health` → 200; admin loads; a test sign-in works.
-6. VPN exits (NL/GRA sing-box) are independent of the backend at runtime — existing
-   sessions are unaffected; the promoted backend resumes user provisioning.
+   - RU API (the main path): on MSK, flip the upstream NL→WAW:
+     `ssh ... root@217.198.5.52 "sed -i 's#147.45.252.234:80#217.182.74.70:80#g' /etc/nginx/sites-available/api.madfrog.online && nginx -t && systemctl reload nginx"`
+     (also `decoy-adfox` if RU sign-in must follow). Open WAW ufw :80 from MSK first.
+   - Apex (admin/landing): in Cloudflare set the `madfrog.online` origin to 217.182.74.70.
+   - `api.madfrog.online` A-record stays → MSK, so the MSK flip is enough for the API path.
+5. Verify: `curl https://api.madfrog.online/health` → 200; admin loads; test sign-in.
+6. VPN exits (NL/GRA/WAW sing-box) are independent of the backend at runtime — existing
+   sessions unaffected; the promoted backend resumes user provisioning + roster sync.
 
 ## 3. Fail back (after NL returns)
 
-1. Do **not** let NL's old primary serve writes — it's now stale. Bring NL's postgres up
-   as a **replica of HEL** (same `pg_basebackup` from HEL, or `pg_rewind` if WAL allows).
-2. Once NL is a healthy streaming replica and caught up, schedule a calm cutover back
-   (reverse §2) during low traffic, or simply **keep HEL as primary** and make NL the
-   standby — there's no obligation to fail back to NL.
+1. NL's old primary is now STALE — do not let it serve writes. Rebuild NL's postgres as a
+   **replica of WAW** (`pg_basebackup` from WAW, or `pg_rewind` if WAL lines up).
+2. Once NL is a caught-up streaming replica, either cut back to NL (reverse §2 during low
+   traffic) or **keep WAW as primary** and leave NL as the standby — no obligation to flip back.
 3. Update `docs/state/servers.yaml` + `project.yaml` to reflect the current primary.
+
+## Drill status (2026-06-28)
+
+Replication is LIVE + monitored (NL health-check alerts if the standby stops streaming or
+lag > 120s). A real promote DIVERGES the replica (you must re-`pg_basebackup` afterward), so
+it is NOT exercised casually — run it as a **planned drill in a low-traffic window**, and
+before relying on a fast RTO, **pre-stage step 3** (the WAW app-tier image + compose) so
+promote is `pg_promote` + `compose up`, not a cold deploy.
 
 ## Guardrails
 
