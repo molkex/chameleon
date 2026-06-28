@@ -72,17 +72,14 @@ health:
 
 # ── Right now (canonical: roadmap.yaml) ─────────────────────────────────────
 now:
-  № ── RESUME HERE next session (2026-06-26 end-of-session handoff) ──
-  - 🔴 NL OUTAGE (active) — Timeweb ams-1 DDoS → backend+DB+admin+RU→NL VPN DOWN since ~16:05 MSK
-    2026-06-26 (~3h+ at handoff). PROVIDER incident, not ours/not billing. GRA (France) exit
-    unaffected. NL VM stuck `hard_rebooting`; when Timeweb fixes ams-1, if it doesn't auto-recover
-    in ~10min → Timeweb support ticket. GRA monitor TG-pings on recovery. THEN — verify stack
-    (pg/redis/chameleon/singbox + api/health + admin), finish WAW activation + replication.
-    See incidents/2026-06-26-timeweb-nl-ams1-outage.md.
-  - 🟡 WAW STANDBY + POLAND EXIT (NL-RED-01 / ADR 0012) — OVH Warsaw 217.182.74.70 provisioned;
-    VPN server-side UP (sing-box-fork clone of GRA, own Reality key, :443 verified). "Poland for
-    ALL users" + Postgres replication GATED on NL (config-gen/DB/user-sync live there). One clean
-    op when NL returns. memory project_waw_standby + state/servers.yaml#waw.
+  № ── RESUME HERE next session (2026-06-28 end-of-session handoff) ──
+  - ✅ NL RECOVERED — the 2026-06-26 Timeweb ams-1 outage was network-only (containers stayed Up;
+    no reboot/data loss). api/health 200, all containers healthy. incidents/2026-06-26-timeweb-nl-ams1-outage.md.
+  - ✅ WAW POLAND EXIT LIVE (2026-06-28) — 🇵🇱 Польша now in /config for ALL users (vpn_servers
+    waw1 is_active=true; pl-direct-waw1 + pl-h2-waw1 legs). e2e-verified (throwaway VLESS client
+    exits via 217.182.74.70); RelayUserSyncer keeps WAW==GRA roster. memory project_waw_standby.
+    TODO (separate): Postgres replication NL→WAW (the standby half) + optional relay chains
+    waw-via-msk / ru-spb-waw for RU-whitelist users.
   - 🟢 GRA auto-renew ON (was manual, near-miss 30.06) + external off-Timeweb monitor LIVE on GRA
     (infrastructure/gra-monitor — closes the "health-check ran on NL" blind spot).
   - STRUCTURE/TEST/HYGIENE AUDIT (2026-06-26) — audits/2026-06-26-structure-test-hygiene-audit.md.

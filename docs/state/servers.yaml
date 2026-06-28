@@ -58,6 +58,25 @@ gra:
                               # baked-only (not User-API-managed). See
                               # incidents/2026-05-31-gra-france-user-sync.md
 
+waw:
+  status: production          # LIVE 2026-06-28 — 3rd exit (Poland) in /config for ALL users
+  ip: 217.182.74.70
+  ipv6: 2001:41d0:623:677::1
+  hostname: vps-c2c3ed1c.vps.ovh.net
+  hosting: OVH (Warsaw WAW2, Poland) — VPS-3 2027, 6 vCPU/12 GB/100 GB, ~€12.24/mo, auto-renew ON
+  ssh: debian@217.182.74.70   # key auth (claude-code-ssh-key), root via sudo; password stale post-rebuild
+  role:
+    - vpn_node                # sing-box-fork VLESS Reality :443/tcp + Hysteria2 :443/udp (clone of GRA)
+    - warm_standby            # NL-RED-01 / ADR 0012 — Postgres replication NOT yet set up (separate task)
+  vpn_servers_key: waw1       # NL Postgres vpn_servers row, country_code=PL, is_active=true (2026-06-28)
+  reality_pubkey: WlpKYeCDkiOhuwdwxvJiN-tEkWMlj0YII44k58iabz8   # own keypair (secrets CHAMELEON_WAW_REALITY_*)
+  user_sync: live             # RelayUserSyncer pushes active roster to user_api http://217.182.74.70:15380
+                              # (ufw NL/MSK/SPB-only, bearer USER_API_SECRET). Verified WAW==GRA user count.
+                              # e2e-verified 2026-06-28: throwaway VLESS client exits via 217.182.74.70.
+  todo:
+    - relay chains waw-via-msk / ru-spb-waw for RU-whitelist users (optional; direct leg already live)
+    - Postgres streaming replication NL→WAW (the standby half — ADR 0012, playbooks/nl-failover.md)
+
 # Russian-side relay fronting api.madfrog.online for RU users behind GFW,
 # AND a VPN relay: nginx fronts the API, sing-box runs the relay chains.
 msk_relay:
