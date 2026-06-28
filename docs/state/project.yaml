@@ -78,7 +78,7 @@ now:
   - ✅ WAW POLAND EXIT LIVE (2026-06-28) — 🇵🇱 Польша now in /config for ALL users (vpn_servers
     waw1 is_active=true; pl-direct-waw1 + pl-h2-waw1 legs). e2e-verified (throwaway VLESS client
     exits via 217.182.74.70); RelayUserSyncer keeps WAW==GRA roster. memory project_waw_standby.
-    TODO (separate): Postgres replication NL→WAW (the standby half) + optional relay chains
+    TODO (separate) — Postgres replication NL→WAW (the standby half) + optional relay chains
     waw-via-msk / ru-spb-waw for RU-whitelist users.
   - 🟢 GRA auto-renew ON (was manual, near-miss 30.06) + external off-Timeweb monitor LIVE on GRA
     (infrastructure/gra-monitor — closes the "health-check ran on NL" blind spot).
