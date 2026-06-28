@@ -67,7 +67,13 @@ waw:
   ssh: debian@217.182.74.70   # key auth (claude-code-ssh-key), root via sudo; password stale post-rebuild
   role:
     - vpn_node                # sing-box-fork VLESS Reality :443/tcp + Hysteria2 :443/udp (clone of GRA)
-    - warm_standby            # NL-RED-01 / ADR 0012 — Postgres replication NOT yet set up (separate task)
+    - warm_standby            # NL-RED-01 / ADR 0012 — Postgres streaming replication LIVE 2026-06-28
+  replication:                # NL primary → WAW standby, over an SSH tunnel (encrypted; no public 5432)
+    standby_container: chameleon-postgres-standby   # postgres:16-alpine, --network host, vol chameleon-pgdata-standby
+    transport: autossh pg-tunnel-nl.service (WAW 127.0.0.1:15432 → NL 127.0.0.1:5432, key ~/.ssh/nl_tunnel)
+    primary_role: replicator   # slot waw_standby; pw in secrets CHAMELEON_PG_REPLICATOR_PASSWORD
+    state: streaming           # verified lag ~0.05s, data parity NL==WAW. RPO≈seconds (was 24h)
+    todo: failover automation (MSK upstream backup + pg_promote step + drill) — replication itself done
   vpn_servers_key: waw1       # NL Postgres vpn_servers row, country_code=PL, is_active=true (2026-06-28)
   reality_pubkey: WlpKYeCDkiOhuwdwxvJiN-tEkWMlj0YII44k58iabz8   # own keypair (secrets CHAMELEON_WAW_REALITY_*)
   user_sync: live             # RelayUserSyncer pushes active roster to user_api http://217.182.74.70:15380

@@ -567,18 +567,20 @@ next:
           title: Prove the B2 restore path end-to-end (restore.sh, rewritten 2026-06-21)
         - id: NL-RED-DNS-TTL
           title: Drop api.madfrog.online relevant TTLs to 300s for fast cutover
-      phase_1_standby:   # host DONE 2026-06-26; replication BLOCKED on NL recovery
-        - DONE 2026-06-26 — provisioned OVH Warsaw (Hetzner reg failed) vps-c2c3ed1c / 217.182.74.70,
-          Debian12+Docker, ssh debian@ + our key, auto-renew ON. (memory project_waw_standby)
-        - TODO — add `waw` node to deploy.sh; deploy idle chameleon/redis/nginx + static
-        - TODO — Postgres streaming replication NL→WAW (pg_basebackup -R); verify pg_stat_replication  # needs NL up
-      phase_2_failover:
-        - MSK nginx upstream { NL primary; HEL backup } for the RU API path
-        - Failover runbook DRILL (promote HEL, flip MSK+CF, verify, fail back) — quarterly
+      phase_1_standby:   # ✅ DONE 2026-06-28 — host + replication live
+        - DONE 2026-06-26 — provisioned OVH Warsaw vps-c2c3ed1c / 217.182.74.70, Debian12+Docker, auto-renew ON.
+        - DONE 2026-06-28 — also became the LIVE Poland VPN exit (waw1, /config for all users).
+        - DONE 2026-06-28 — Postgres streaming replication NL→WAW over an SSH tunnel (autossh
+          pg-tunnel-nl.service; replicator role + slot waw_standby; chameleon-postgres-standby on WAW).
+          VERIFIED streaming lag ~0.05s + data parity. RPO≈seconds (was 24h). memory project_waw_standby.
+      phase_2_failover:   # NEXT — replication done, automate the cutover
+        - MSK nginx upstream { NL primary; WAW backup } for the RU API path
+        - promote-standby step (pg_promote on WAW + flip MSK upstream + CF origin) — playbooks/nl-failover.md
+        - Failover DRILL (promote WAW, verify, fail back) — quarterly. Replication-lag alert in GRA monitor.
       phase_3_later:
         - CF Load Balancing origin failover for the apex (admin/landing) — no more 522
         - Consider automated promotion (only after manual path is drilled; split-brain fencing)
-      blocked_on: "standby host — no Hetzner acct in secrets; create one OR order 2nd OVH VPS (non-GRA region)"
+      blocked_on: "nothing — phase 1 done; phase 2 (failover automation + drill) is the next chunk"
       acceptance:
         - NL fully down → manual promote + repoint restores API+admin in < 10 min (drilled)
         - Postgres replication lag < 5s steady-state; RPO ≈ seconds (was 24h B2-only)

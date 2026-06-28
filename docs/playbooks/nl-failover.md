@@ -1,19 +1,26 @@
 ---
 title: NL failover — warm standby bring-up, promotion, failback
-date: 2026-06-26
-status: draft   # commands firm up at Phase-1 build time; design = ADR 0012
+date: 2026-06-28
+status: active   # replication LIVE 2026-06-28; promote/failback procedures below
 tags: [failover, redundancy, postgres, nl, playbook]
 ---
 
 # NL failover runbook
 
-Implements [ADR 0012](../decisions/0012-nl-redundancy-warm-standby.md). The standby
-("HEL") is a non-Timeweb box (Hetzner Helsinki) running the same control-plane stack as
-NL, with Postgres in streaming replication from NL. **Manual failover only (v1)** — see
+Implements [ADR 0012](../decisions/0012-nl-redundancy-warm-standby.md). The standby is
+**WAW (OVH Warsaw, 217.182.74.70)** — not Hetzner (reg failed) — running the same
+sing-box exit + a Postgres streaming replica of NL. **Manual failover only (v1)** — see
 ADR 0012 for the split-brain rationale.
 
-> Status: this is the target procedure. Phase-0 items (monitor, alarms, DNS TTL) are
-> live; Phase-1 (the standby itself) is provisioned when NL recovers + a host exists.
+> **STATUS 2026-06-28 — replication is LIVE.** Actual wiring (replaces the generic §0 below):
+> - NL primary postgres:16-alpine (127.0.0.1:5432), role `replicator` + slot `waw_standby`,
+>   pg_hba `host replication replicator 172.19.0.0/16 scram-sha-256`.
+> - Encrypted transport = **SSH tunnel** `pg-tunnel-nl.service` (autossh on WAW, key
+>   ~/.ssh/nl_tunnel restricted on NL to `permitopen=127.0.0.1:5432`): WAW 127.0.0.1:15432 → NL 127.0.0.1:5432.
+> - WAW standby = container `chameleon-postgres-standby` (postgres:16-alpine, --network host,
+>   vol chameleon-pgdata-standby), built via `pg_basebackup -h127.0.0.1 -p15432 -U replicator -R -S waw_standby -X stream`.
+> - Verify: NL `select * from pg_stat_replication` (state=streaming); WAW `select pg_is_in_recovery()` (t).
+> Still TODO: MSK upstream backup + the promote automation (§2) + a drill.
 
 ## 0. Standby bring-up (one-time, Phase 1)
 
