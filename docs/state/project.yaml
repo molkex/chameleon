@@ -75,11 +75,14 @@ now:
   № ── RESUME HERE next session (2026-06-28 end-of-session handoff) ──
   - ✅ NL RECOVERED — the 2026-06-26 Timeweb ams-1 outage was network-only (containers stayed Up;
     no reboot/data loss). api/health 200, all containers healthy. incidents/2026-06-26-timeweb-nl-ams1-outage.md.
-  - ✅ WAW POLAND EXIT LIVE (2026-06-28) — 🇵🇱 Польша now in /config for ALL users (vpn_servers
-    waw1 is_active=true; pl-direct-waw1 + pl-h2-waw1 legs). e2e-verified (throwaway VLESS client
-    exits via 217.182.74.70); RelayUserSyncer keeps WAW==GRA roster. memory project_waw_standby.
-    TODO (separate) — Postgres replication NL→WAW (the standby half) + optional relay chains
-    waw-via-msk / ru-spb-waw for RU-whitelist users.
+  - ✅ WAW DONE (2026-06-28) — both halves. (1) 🇵🇱 Польша VPN exit LIVE in /config for ALL
+    users (waw1 is_active=true; pl-direct-waw1 + pl-h2-waw1; e2e-verified). (2) Postgres
+    streaming replication NL→WAW over an SSH tunnel — warm standby, RPO≈seconds (was 24h),
+    streaming lag ~0.05s, data parity verified, + NL health-check alerts on replication break/lag.
+    memory project_waw_standby; playbooks/nl-failover.md (exact promote runbook).
+    REMAINING (NL-RED-01 phase 2, not blocking) — pre-stage WAW app-tier image + run a
+    planned-window failover DRILL (a real promote diverges the replica); optional RU relay
+    chains waw-via-msk / ru-spb-waw; MSK upstream auto-backup (deferred — manual flip via runbook).
   - 🟢 GRA auto-renew ON (was manual, near-miss 30.06) + external off-Timeweb monitor LIVE on GRA
     (infrastructure/gra-monitor — closes the "health-check ran on NL" blind spot).
   - STRUCTURE/TEST/HYGIENE AUDIT (2026-06-26) — audits/2026-06-26-structure-test-hygiene-audit.md.
