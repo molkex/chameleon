@@ -147,7 +147,8 @@ next:
        title: "Replace InsecureDelegate with fingerprint pin via /server/info (APIClient.swift)"}
     # P2/P3 — hygiene (ride builds / low-risk)
     - {id: H-05-STDERR-CAP, priority: P2, build: true, title: "Cap stderr.log (libbox C-side) on startTunnel — LOG-01 remainder"}
-    - {id: H-06-COUNTRY-DISPLAY, priority: P2, build: true, title: "Ship display_name in backend config; drop duplicated iOS countryDisplay (drifts us/ru)"}
+    - {id: H-06-COUNTRY-DISPLAY, priority: P2, build: true, status: done_2026-06-28,
+       title: "DONE — iOS flag now data-driven (decode cc from backend tag emoji + emoji fallback + 🇵🇱 vector). New countries render with zero app edits. Rides next build (38cc596)."}
     - {id: H-08-STALLPROBE-DEAD, priority: P2, build: true, title: "Remove passive-only TunnelStallProbe instantiation (superseded by RealTrafficStallDetector)"}
     - {id: H-12-UXVPN, priority: P3, build: true, note: "= UX-VPN", title: "Wire anotherVPNActive() into handleStatus(.disconnected)"}
     - {id: H-07-XRAY-RENAME, priority: P3, build: false, title: "Rename admin xray_version field + /restart-xray route → singbox (keep alias)"}
