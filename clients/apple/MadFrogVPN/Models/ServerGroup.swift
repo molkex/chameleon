@@ -195,14 +195,19 @@ struct CountryGroup: Identifiable {
     /// "us","ru"). Derived from `flagEmoji` so it always matches the backend
     /// label. nil → globe (non-country / unknown groups).
     var countryCode: String? {
-        switch flagEmoji {
-        case "🇳🇱": return "nl"
-        case "🇩🇪": return "de"
-        case "🇫🇷": return "fr"
-        case "🇺🇸": return "us"
-        case "🇷🇺": return "ru"
-        default:   return nil
+        // Data-driven: decode the cc straight from the backend group tag's
+        // leading flag emoji (two regional-indicator scalars → ISO alpha-2).
+        // Works for ANY country incl. new ones like 🇵🇱 — no per-country edit.
+        // Vector flags exist for a subset; CountryFlag falls back to the emoji
+        // for the rest. See audit 2026-06-26 (H-06).
+        let scalars = Array(flagEmoji.unicodeScalars.prefix(2))
+        guard scalars.count == 2 else { return nil }
+        var cc = ""
+        for u in scalars {
+            guard (0x1F1E6...0x1F1FF).contains(u.value) else { return nil }
+            cc.append(Character(UnicodeScalar(UInt8(0x61 + (u.value - 0x1F1E6)))))
         }
+        return cc
     }
 
     var bestDelayText: String {

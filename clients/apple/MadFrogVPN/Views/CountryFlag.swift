@@ -7,6 +7,10 @@ import SwiftUI
 /// two-letter key ("nl","de","fr","us","ru"); nil → globe (Auto/unknown).
 struct CountryFlag: View {
     let code: String?
+    /// Data-driven fallback: the backend group tag's flag emoji (e.g. "🇵🇱").
+    /// When `code` has no hand-drawn vector, render this emoji instead of a
+    /// blank globe — so a NEW exit country shows its flag with zero app changes.
+    var emoji: String? = nil
     /// Flag width in points. Height is derived at the standard 3:2 ratio.
     var width: CGFloat = 30
     var corner: CGFloat = 3
@@ -30,14 +34,27 @@ struct CountryFlag: View {
         case "de": horizontal([.black, Self.deRed, Self.deGold])
         case "ru": horizontal([.white, Self.ruBlue, Self.ruRed])
         case "fr": vertical([Self.frBlue, .white, Self.frRed])
+        case "pl": horizontal([.white, Self.plRed])
         case "us": usFlag
         default:
-            ZStack {
-                Rectangle().fill(.white.opacity(0.08))
-                Image(systemName: "globe")
-                    .resizable().scaledToFit()
-                    .padding(height * 0.12)
-                    .foregroundStyle(.white.opacity(0.85))
+            // Data-driven: if the backend gave us a real flag emoji for a
+            // country we don't have a vector for yet, render the emoji (fills
+            // the badge) instead of a blank globe. Only the true unknown
+            // (Auto / non-country) falls all the way through to the globe.
+            if let e = emoji, !e.isEmpty,
+               e.unicodeScalars.allSatisfy({ (0x1F1E6...0x1F1FF).contains($0.value) }) {
+                ZStack {
+                    Rectangle().fill(.white.opacity(0.08))
+                    Text(e).font(.system(size: height * 0.95))
+                }
+            } else {
+                ZStack {
+                    Rectangle().fill(.white.opacity(0.08))
+                    Image(systemName: "globe")
+                        .resizable().scaledToFit()
+                        .padding(height * 0.12)
+                        .foregroundStyle(.white.opacity(0.85))
+                }
             }
         }
     }
@@ -97,6 +114,7 @@ struct CountryFlag: View {
     private static let ruRed  = Color(red: 0.835, green: 0.169, blue: 0.118)
     private static let frBlue = Color(red: 0.0,   green: 0.333, blue: 0.643)
     private static let frRed  = Color(red: 0.937, green: 0.255, blue: 0.208)
+    private static let plRed  = Color(red: 0.863, green: 0.157, blue: 0.227)
     private static let usRed  = Color(red: 0.698, green: 0.133, blue: 0.204)
     private static let usBlue = Color(red: 0.235, green: 0.231, blue: 0.431)
 }

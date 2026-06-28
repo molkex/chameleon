@@ -228,7 +228,8 @@ struct MainViewNeon: View {
                 ZStack {
                     RoundedRectangle(cornerRadius: 10)
                         .fill(.white.opacity(0.06))
-                    CountryFlag(code: VPNStateHelper.selectedServerCountryCode(app), width: 30)
+                    CountryFlag(code: VPNStateHelper.selectedServerCountryCode(app),
+                                emoji: VPNStateHelper.selectedServerFlag(app), width: 30)
                 }
                 .frame(width: 44, height: 44)
                 .overlay(

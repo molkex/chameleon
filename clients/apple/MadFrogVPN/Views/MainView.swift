@@ -299,14 +299,16 @@ enum VPNStateHelper {
     /// "fr","us","ru"), resolved consistently with `selectedServerFlag`. nil =
     /// Auto/unknown (→ globe). Drives the vector `CountryFlag` (non-emoji).
     static func selectedServerCountryCode(_ app: AppState) -> String? {
-        switch selectedServerFlag(app) {
-        case "🇳🇱": return "nl"
-        case "🇩🇪": return "de"
-        case "🇫🇷": return "fr"
-        case "🇺🇸": return "us"
-        case "🇷🇺": return "ru"
-        default:   return nil
+        // Data-driven: decode the cc from the selected group's flag emoji (any
+        // country incl. 🇵🇱 — no per-country edit). Non-flag (🌍 Auto) → nil → globe.
+        let scalars = Array(selectedServerFlag(app).unicodeScalars.prefix(2))
+        guard scalars.count == 2 else { return nil }
+        var cc = ""
+        for u in scalars {
+            guard (0x1F1E6...0x1F1FF).contains(u.value) else { return nil }
+            cc.append(Character(UnicodeScalar(UInt8(0x61 + (u.value - 0x1F1E6)))))
         }
+        return cc
     }
 
     /// Live "current leg" for the selected country — reads the urltest pick
@@ -623,7 +625,7 @@ private struct CountryRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            CountryFlag(code: country.countryCode, width: 32)
+            CountryFlag(code: country.countryCode, emoji: country.flagEmoji, width: 32)
                 .frame(width: 40, height: 40)
 
             VStack(alignment: .leading, spacing: 2) {
