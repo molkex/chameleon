@@ -14,11 +14,14 @@ snapshot: [`../state/project.yaml`](../state/project.yaml).
 
 ## Nodes at a glance
 
+> Post-failover state (2026-06-29). WAW = primary backend+DB; NL = streaming replica.
+
 | Node | Role | SSH |
 |---|---|---|
-| NL `147.45.252.234` | backend + DB + VPN exit (sole authority) | `ssh -i ~/.ssh/claude-code-ssh-key root@147.45.252.234` |
-| GRA `54.38.243.162` | 2nd VPN exit (France), VPN-only | `ssh -i ~/.ssh/claude-code-ssh-key debian@54.38.243.162` |
-| MSK `217.198.5.52` | api front + VPN relay chains | `ssh -i ~/.ssh/claude-code-ssh-key root@217.198.5.52` |
+| WAW `217.182.74.70` | **PRIMARY** backend + DB + VPN exit (waw1, Poland) | `ssh -i ~/.ssh/claude-code-ssh-key debian@217.182.74.70` |
+| NL `147.45.252.234` | streaming REPLICA of WAW; chameleon STOPPED; nl2 VPN exit deactivated | `ssh -i ~/.ssh/claude-code-ssh-key root@147.45.252.234` |
+| GRA `54.38.243.162` | VPN exit (France, gra1) | `ssh -i ~/.ssh/claude-code-ssh-key debian@54.38.243.162` |
+| MSK `217.198.5.52` | api front (upstream → WAW:8000) + VPN relay chains | `ssh -i ~/.ssh/claude-code-ssh-key root@217.198.5.52` |
 | SPB `185.218.0.43` | TCP/whitelist-bypass relay | `sshpass -p "$SPRINTBOX_VPS_PASSWORD" ssh root@185.218.0.43` (password, not key) |
 
 SSH to NL requires `claude-code-ssh-key` pinned with `IdentitiesOnly yes` or
@@ -70,8 +73,8 @@ key juggling — see [`../incidents/2026-05-31-gra-france-user-sync.md`](../inci
 2. Generate Reality keypair; run sing-box as a standalone container via
    [`singbox-run.sh`](../../backend/scripts/singbox-run.sh) (never in compose).
 3. Validate before any client test: `sing-box check -c <config>.json` on the box.
-4. Bind the User API to `0.0.0.0:15380`, `ufw allow` **only** from NL
-   `147.45.252.234`, protect with `USER_API_SECRET` (bearer).
+4. Bind the User API to `0.0.0.0:15380`, `ufw allow` **only** from the active primary
+   (currently WAW `217.182.74.70`; was NL `147.45.252.234` pre-2026-06-29), protect with `USER_API_SECRET` (bearer).
 5. Insert the row in NL Postgres `vpn_servers` (`key`, `host`, `country_code`,
    `reality_public_key`, `user_api_url=http://<ip>:15380`). NL's RelayUserSyncer
    then pushes the active user set every 30 s + on each registration.

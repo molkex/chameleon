@@ -1,11 +1,17 @@
 ---
 title: NL failover — warm standby bring-up, promotion, failback
 date: 2026-06-28
-status: active   # replication LIVE 2026-06-28; promote/failback procedures below
+status: active
 tags: [failover, redundancy, postgres, nl, playbook]
 ---
 
 # NL failover runbook
+
+> ⚠️ **EXECUTED 2026-06-29 — WAW is now the live PRIMARY; NL is the replica.**
+> §2 below describes what was done during the failover. §0 (HEL bring-up) is
+> historical/superseded — WAW (OVH Warsaw) was used instead of Hetzner Helsinki.
+> For the current live topology see [`../state/runtime.yaml`](../state/runtime.yaml)
+> and [ADR 0013](../decisions/0013-ha-failover-msk-ingress.md).
 
 Implements [ADR 0012](../decisions/0012-nl-redundancy-warm-standby.md). The standby is
 **WAW (OVH Warsaw, 217.182.74.70)** — not Hetzner (reg failed) — running the same

@@ -1,3 +1,10 @@
+---
+title: Chameleon Mesh Architecture v2 (aspirational)
+date: 2026-04-22
+status: archived
+tags: [architecture, mesh, aspirational, not-built]
+---
+
 # Chameleon Mesh Architecture v2
 
 > ⚠️ ASPIRATIONAL (2026-04-22) — the "20+ node / CockroachDB / libp2p" v2 design

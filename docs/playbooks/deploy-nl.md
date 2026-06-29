@@ -7,7 +7,15 @@ tags: [deploy, nl, backend, playbook]
 
 # Deploy backend to NL
 
-NL is the sole production node (see [`../decisions/0004-single-nl-spof.md`](../decisions/0004-single-nl-spof.md)). Standard backend deploy uses `backend/deploy.sh`.
+> ⚠️ **NL is a REPLICA since the 2026-06-29 failover.** `deploy.sh nl` now refuses
+> (set `ALLOW_NL_DEPLOY=1` to force — only for emergency recovery). Primary backend
+> is **WAW (217.182.74.70)**; bring up its backend with
+> `infrastructure/failover/waw-backend-up.sh`. See
+> [ADR 0013](../decisions/0013-ha-failover-msk-ingress.md).
+>
+> The rest of this document is kept as historical reference for when NL was primary.
+
+NL was the sole production node (see [`../decisions/0004-single-nl-spof.md`](../decisions/0004-single-nl-spof.md)). Standard backend deploy uses `backend/deploy.sh`.
 
 **Critical:** deploys never touch sing-box by default. VPN sessions survive backend restarts.
 

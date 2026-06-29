@@ -32,7 +32,7 @@ App traffic
                       ├─ direct exit   → NL 147.45.252.234:443  /  GRA 54.38.243.162:443
                       ├─ relay chain   → MSK 217.198.5.52 (vless → userspace WG → NL/GRA)
                       └─ whitelist     → SPB 185.218.0.43 (RU whitelist-bypass legs)
-                 → Xray-core 25.12.8 inbound on the exit → direct outbound → internet
+                 → sing-box-fork:v1.13.6-userapi inbound on the exit → direct outbound → internet
                     (NL egress source-bound to 72.56.79.25 for clean US geo)
 ```
 
@@ -95,9 +95,10 @@ GET    /api/v1/inbounds/{tag}/users        list
 
 The same client (`NewUserAPIClientFromURL`) drives **`RelayUserSyncer`**
 ([`../../backend/internal/cluster/relay.go`](../../backend/internal/cluster/relay.go)):
-NL pushes the active user set to remote exits/relays (GRA `user_api_url`
-`http://54.38.243.162:15380`) — event-driven on each mutation + a periodic safety
-net. The User API is ufw-restricted to NL + bearer-gated.
+The primary backend (WAW since 2026-06-29 failover; previously NL) pushes the active
+user set to remote exits/relays (GRA `user_api_url` `http://54.38.243.162:15380`) —
+event-driven on each mutation + a periodic safety net. The User API is ufw-restricted
+to the active primary + bearer-gated.
 
 ## Route rule ORDER (client) — must not reorder
 
@@ -127,8 +128,8 @@ proxied DNS geolocates to the exit country, not RU.
 | **DNS in 1.13** | DNS servers route direct by default — no `detour:"direct"` needed (use detour only to force a path, e.g. `Proxy`). |
 | **QUIC reject** | `no_drop:true` on the UDP/443 reject, or iOS hangs on some sites. |
 | **TUN stack** | `"system"` only — `mixed`/`gvisor` break the NetworkExtension. |
-| **mux** | sing-box `mux` (h2mux) is **incompatible** with the Xray server — never enable on the client. |
-| **Xray version** | Server-side Xray-core pinned **25.12.8**. **NOT v26** — incompatible with sing-box 1.13. |
+| **mux** | sing-box `mux` (h2mux) is **not used** — disabled by design. Do not enable on the client. |
+| **Server** | All exits run `sing-box-fork:v1.13.6-userapi` (NOT Xray-core). Xray-core is legacy/retired. |
 | **UDP TLS** | Hysteria2/TUIC legs ship only with a **pinned** cert (`tls.certificate`), never `insecure:true` (SEC-03). |
 | **validate** | Always `sing-box check -c config.json` before any rollout (also enforced in `writeConfigLocked`). |
 | **migration** | On any sing-box version bump, read https://sing-box.sagernet.org/migration/ before regenerating configs. |

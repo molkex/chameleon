@@ -4,68 +4,85 @@
 # here first. backend/deploy.sh + docker-compose.yml are the actual
 # moving parts; this file is the at-a-glance map.
 
-verified: 2026-06-01
+verified: 2026-06-29
 
-# NL is the only production node since DE retirement (2026-05-25).
+# WAW is the PRIMARY backend+DB since the 2026-06-29 failover (ADR 0013).
+# NL (147.45.252.234) is now a streaming replica; its chameleon is STOPPED.
 # See state/servers.yaml for the full mesh.
+
+# --- PRIMARY ---
+waw_217_182_74_70:
+  os: Linux (Debian 12)
+  ssh: debian@217.182.74.70
+  install_path: /opt/chameleon
+  docker_compose: infrastructure/failover/waw-backend-up.sh (custom bringup)
+  role: PRIMARY backend + DB since 2026-06-29 failover
+
+  containers:
+    chameleon-failover:
+      image: backend-chameleon:latest
+      role: Go API backend (primary)
+      ports: ["8000"]
+      health: GET /health → 200
+    chameleon-postgres-standby:
+      image: postgres:16-alpine
+      role: PROMOTED replica — now writable primary store
+      note: was streaming replica of NL; promoted 2026-06-29 via pg_promote()
+    redis:
+      image: redis:7-alpine
+      role: pub/sub + idempotency cache + magic-link tokens
+    singbox:
+      role: VLESS Reality on :443/tcp — waw1 VPN exit (Poland)
+      image: sing-box-fork:v1.13.6-userapi
+
+# --- REPLICA (was primary until 2026-06-29) ---
 nl_147_45_252_234:
   os: Linux (Ubuntu)
   ssh: root@147.45.252.234
   install_path: /opt/chameleon
   docker_compose: backend/docker-compose.yml
 
+  status: REPLICA since 2026-06-29; chameleon backend STOPPED; nl2 VPN exit DEACTIVATED (is_active=false)
   containers:
     chameleon:
-      image: backend-chameleon:latest    # built from backend/Dockerfile.prebuilt (NL has 2GB RAM, can't compile Go in Docker)
-      role: Go API backend
-      ports: ["80:8080", "443:8443"]     # nginx fronts both
-      depends_on: [chameleon-postgres, chameleon-redis, docker-socket-proxy]
-      env_from: /opt/chameleon/.env
-      health: GET /health → 200 within 8s
+      status: STOPPED (do not start; NL is read-only replica)
     chameleon-nginx:
-      image: nginx + admin SPA bundle    # vite build → /usr/share/nginx/html
-      role: TLS termination + admin SPA + /api/* upstream → chameleon
+      image: nginx + admin SPA bundle
+      role: TLS termination + admin SPA (still serving static assets)
       ports: ["80:80", "443:443"]
       cert: Let's Encrypt for madfrog.online + api.madfrog.online
     chameleon-postgres:
       image: postgres:16-alpine
       volume: chameleon-pgdata
-      role: primary store (users, payments, vpn_servers, app_events, audit_log)
-      backups: db-backup.sh (cron daily) → Backblaze B2
+      role: streaming replica of WAW (~0.05 s lag); read-only
+      backups: db-backup.sh (cron daily) → Backblaze B2 (still running on NL)
     chameleon-redis:
       image: redis:7-alpine
       volume: chameleon-redisdata
-      role: pub/sub + idempotency cache + magic-link tokens
+      role: idle (backend stopped)
     docker-socket-proxy:
       image: tecnativa/docker-socket-proxy
-      role: MED-010 — replaces raw /var/run/docker.sock mount for chameleon
-      exposed_apis: [containers, info]
+      role: MED-010 — still present
     singbox:
-      role: VLESS Reality on :443/tcp, sole VPN traffic handler
-      important: |
-        Runs OUTSIDE docker-compose as a standalone container so normal
-        chameleon deploys never touch it. VPN sessions survive backend
-        restarts. Restart only with `--with-singbox` flag.
+      role: nl2 VPN exit — DEACTIVATED (is_active=false in vpn_servers)
+      image: sing-box-fork:v1.13.6-userapi
       config: /etc/singbox/singbox-config.json
-      logs: docker logs singbox
     singbox-log-watcher:
       role: MON-06 — cron(*/1) Python parser of singbox logs
       output: /var/log/singbox-events.jsonl
-      consumed_by: chameleon admin /api/v1/admin/status/handshake-errors
     metrics-agent:
-      role: node-level metrics (CPU/RAM/disk) → chameleon DB
-      consumed_by: admin /dashboard
+      role: node-level metrics (CPU/RAM/disk) → (backend stopped — writes failing)
 
   cron:
-    "0 3 * * *":  db-backup.sh         # daily 03:00 UTC → B2 off-host
-    "*/1 * * * *": singbox-log-watcher  # handshake-error aggregation
-    "*/5 * * * *": health-check.sh     # MON-02 → Telegram alert on 2-consecutive failures
+    "0 3 * * *":  db-backup.sh         # still running (replica backups are valid)
+    "*/1 * * * *": singbox-log-watcher  # running but singbox is deactivated
+    "*/5 * * * *": health-check.sh     # DISABLED after failover
 
 # Russian-side relay (see state/servers.yaml#msk_relay).
 # Not a docker host — bare nginx forwarder.
 msk_217_198_5_52:
   ssh: root@217.198.5.52
-  role: nginx upstream → nl:80 for api.madfrog.online traffic
+  role: SINGLE API ingress — nginx upstream → WAW:8000 for api.madfrog.online traffic (was nl:80; updated 2026-06-29 failover)
   config_in_repo: NONE (modifications happen on-box)
   fronts: api.madfrog.online
 

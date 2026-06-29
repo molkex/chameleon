@@ -24,6 +24,16 @@ get_node_config() {
             echo "DE retired 2026-05-25 — refusing to deploy"; exit 1
             ;;
         nl)
+            # ⚠️ 2026-06-29 FAILOVER: NL is now a streaming REPLICA; WAW (OVH Warsaw) is the
+            # PRIMARY backend+DB. Deploying chameleon to NL would start its backend against a
+            # read-only replica (crash-loop) — or split-brain if NL's DB is ever promoted.
+            # The current primary is whatever MSK points to: `infrastructure/failover/failover.sh status`.
+            # To make NL primary again, run failover.sh first. Override only if you know what you're doing.
+            if [ "${ALLOW_NL_DEPLOY:-0}" != "1" ]; then
+                echo "REFUSING: NL is a REPLICA since the 2026-06-29 failover (primary = WAW)."
+                echo "  See ADR 0013 / infrastructure/failover/. To force: ALLOW_NL_DEPLOY=1 ./deploy.sh nl"
+                exit 1
+            fi
             NODE_SSH="root@147.45.252.234"
             NODE_DIR="/opt/chameleon"
             NODE_NODE_ID="nl2-1"

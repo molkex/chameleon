@@ -21,20 +21,28 @@ A native iOS / macOS VPN app (MadFrog VPN) with our own backend, payments (Store
 │  - SwiftUI views, EventTracker, SubscriptionManager (StoreKit2) │
 │  - NetworkExtension PacketTunnel hosting sing-box (libbox 1.13) │
 └───┬─────────────────────────────────────────────────────────────┘
-    │ HTTPS (api.madfrog.online via MSK relay, or direct NL/SPB fallback)
+    │ HTTPS (api.madfrog.online via MSK relay, or direct WAW/SPB fallback)
     │
 ┌───▼─────────────────────────────────────────────────────────────┐
-│  NL backend (147.45.252.234) — sole production node             │
+│  WAW backend (217.182.74.70) — PRIMARY backend+DB since 2026-06-29 │
 │                                                                  │
-│  nginx ┬─→ chameleon (Go binary, internal/api/{mobile,admin})   │
-│        ╰─→ /admin/app → admin SPA static bundle (Vite + TanStack)│
-│                                                                  │
-│  postgres-16 + redis-7  (in docker compose)                     │
+│  chameleon-failover (Go binary :8000, internal/api/{mobile,admin})│
+│  chameleon-postgres-standby (promoted, writable postgres:16)    │
+│  redis                                                           │
 │  singbox  (standalone container, VLESS Reality on :443/tcp)     │
-│  singbox-log-watcher (cron, MON-06)                             │
-│  metrics-agent (node metrics → DB)                              │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│  NL (147.45.252.234) — streaming REPLICA of WAW (since 2026-06-29) │
+│                                                                  │
+│  chameleon backend: STOPPED; nl2 VPN exit: DEACTIVATED          │
+│  postgres: read-only streaming replica of WAW (~0.05 s lag)     │
+│  singbox-log-watcher + metrics-agent still running              │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+> Failover design: [ADR 0013](../decisions/0013-ha-failover-msk-ingress.md) (MSK-ingress as source of truth, no Patroni).
+> Tooling: `infrastructure/failover/{failover.sh,rebuild-replica.sh,waw-backend-up.sh}`.
 
 For the iOS network race, the MSK API relay, and the SPB TCP fallback, see [mesh.md](mesh.md).
 
@@ -57,18 +65,19 @@ chameleon/
 ## Critical paths
 
 - **iOS connects** → see [mesh.md](mesh.md#ios-network-race).
-- **Backend deploy** → [`../playbooks/deploy-nl.md`](../playbooks/deploy-nl.md).
+- **Backend deploy (WAW primary)** → `infrastructure/failover/waw-backend-up.sh`; historical NL procedure → [`../playbooks/deploy-nl.md`](../playbooks/deploy-nl.md) (NL is now a replica — see banner at top of that file).
 - **iOS release via CLI** → [`../playbooks/ios-cli-release.md`](../playbooks/ios-cli-release.md).
 - **Apple rejection recovery** → [`../playbooks/apple-reject-recovery.md`](../playbooks/apple-reject-recovery.md).
 
-## Operational truths (as of 2026-06-01)
+## Operational truths (snapshot; see [`../state/project.yaml`](../state/project.yaml) for live state)
 
-> Live snapshot is [`../state/project.yaml`](../state/project.yaml) — read that first; these bullets are the narrative gloss.
+> Live snapshot is [`../state/project.yaml`](../state/project.yaml) — read that first; these bullets are the narrative gloss. This section reflects 2026-06-29 post-failover state.
 
-- 🟢 **1.0.28 build 91 LIVE** on App Store; **1.0.29 build 98** on TestFlight (pending submit). EventTracker telemetry → `/admin/app/events`.
+- 🟢 **WAW (217.182.74.70) = PRIMARY backend+DB** since the 2026-06-29 failover. NL is a streaming replica; its chameleon backend is stopped. See [ADR 0013](../decisions/0013-ha-failover-msk-ingress.md).
+- 🟢 **Three VPN exits**: WAW/Poland (waw1, primary), GRA/France (54.38.243.162, gra1), NL exit deactivated (is_active=false). MSK & SPB RU relays active. Single-NL SPoF resolved — [ADR 0004](../decisions/0004-single-nl-spof.md) superseded by [ADR 0012/0013](../decisions/).
 - 🟢 **IAPs APPROVED** (all 4, 2026-05-31). Monetization unblocked (non-CIS via StoreKit; RU/CIS via WebPaywall/FreeKassa).
-- 🟢 **Two VPN exits**: NL (147.45.252.234) + GRA/France (54.38.243.162), plus MSK & SPB RU relays. Backend/DB is still single-NL — that SPoF is the open redundancy item (NL-RED-01, [`../decisions/0004-single-nl-spof.md`](../decisions/0004-single-nl-spof.md)).
-- 🟡 Per-user traffic only counted on the NL exit (TRAFFIC-MULTIEXIT). Lint debt: see `roadmap.yaml` → stats.tech_debt_items.
+- 🟢 **MSK upstream** now points to WAW:8000 (was nl:80).
+- 🟡 Per-user traffic only counted on active exits (TRAFFIC-MULTIEXIT). Lint debt: see `roadmap.yaml` → stats.tech_debt_items.
 
 ## When this overview is wrong
 

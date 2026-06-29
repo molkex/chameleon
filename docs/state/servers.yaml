@@ -5,17 +5,16 @@
 # infrastructure/topology.yaml was retired 2026-06-01 — server facts live here,
 # VPN client-config shape moved to ../arch/vpn.md.)
 
-verified: 2026-06-01
+verified: 2026-06-29
 spof_warning: |
-  VPN-exit failover added 2026-05-30: GRA (OVH Gravelines) is a 2nd
-  VLESS-Reality+Hysteria2 exit — if NL's VPN IP is RKN-blocked, clients
-  auto-switch via the Auto urltest group. BUT backend/API/Postgres are
-  still single-NL: if the whole NL box dies, the service still goes down.
-  Full backend/DB standby (cluster replica on GRA) is the next step.
+  2026-06-29 FAILOVER: backend/DB is NO LONGER single-NL. WAW (OVH Warsaw) is the
+  PRIMARY backend+DB; NL is a streaming REPLICA. "Who is primary" = where the MSK
+  upstream points (failover.sh status). VPN exits dual: WAW(PL) + GRA(FR).
+  Remaining SPoF = MSK (the single API ingress). Design: decisions/0013.
 
-# Production VPN node — sole authority for /api/* and /vpn (sing-box).
+# 2026-06-29: NL is now a streaming REPLICA of WAW (chameleon STOPPED). Was the primary.
 nl:
-  status: production
+  status: replica   # of WAW; chameleon backend STOPPED, nl2 VPN exit deactivated
   ip: 147.45.252.234                  # MAIN IP — inbound (clients connect here :443), SSH, DNS, relays. DO NOT DELETE.
   egress_ip: 72.56.79.25              # added 2026-05-31: user-traffic EGRESS source-bound here (clean US-geo, vs RU on main IP). See incidents/2026-05-31-geo-leak-nl-exit.md
   hosting: Timeweb
@@ -27,9 +26,10 @@ nl:
     inet4_bind_address (config egress_bind_ip). Inbound stays on the main IP.
     IP persisted via systemd unit vpn-egress-ip.service.
   role:
-    - vpn_node           # sing-box VLESS Reality on :443/tcp (inbound on main IP, egress via 72.56.79.25)
-    - api_backend        # chameleon Go binary, :80 + :443 nginx
-    - admin_spa          # /admin/app via nginx
+    - postgres_replica   # ⭐ 2026-06-29: streaming replica of WAW (chameleon-postgres, lag ~0.05s). pg-tunnel-waw.service.
+    - vpn_node           # sing-box still up BUT nl2 vpn_servers row DEACTIVATED (stale roster, replica-only)
+    - api_backend        # INACTIVE — chameleon STOPPED at the failover (do NOT start: deploy.sh nl guarded)
+    - admin_spa          # INACTIVE — nginx stopped
     - ss_ws_router       # singbox-ss-ws container — separate prod (user's router), do NOT touch
   ssh: root@147.45.252.234
   domain_apex: madfrog.online        # CF-proxied → here
@@ -59,29 +59,27 @@ gra:
                               # incidents/2026-05-31-gra-france-user-sync.md
 
 waw:
-  status: production          # LIVE 2026-06-28 — 3rd exit (Poland) in /config for ALL users
+  status: production          # ⭐ PRIMARY backend+DB since the 2026-06-29 failover (was warm standby)
   ip: 217.182.74.70
   ipv6: 2001:41d0:623:677::1
   hostname: vps-c2c3ed1c.vps.ovh.net
   hosting: OVH (Warsaw WAW2, Poland) — VPS-3 2027, 6 vCPU/12 GB/100 GB, ~€12.24/mo, auto-renew ON
-  ssh: debian@217.182.74.70   # key auth (claude-code-ssh-key), root via sudo; password stale post-rebuild
+  ssh: debian@217.182.74.70   # key auth (claude-code-ssh-key), root via sudo
   role:
-    - vpn_node                # sing-box-fork VLESS Reality :443/tcp + Hysteria2 :443/udp (clone of GRA)
-    - warm_standby            # NL-RED-01 / ADR 0012 — Postgres streaming replication LIVE 2026-06-28
-  replication:                # NL primary → WAW standby, over an SSH tunnel (encrypted; no public 5432)
-    standby_container: chameleon-postgres-standby   # postgres:16-alpine, --network host, vol chameleon-pgdata-standby
-    transport: autossh pg-tunnel-nl.service (WAW 127.0.0.1:15432 → NL 127.0.0.1:5432, key ~/.ssh/nl_tunnel)
-    primary_role: replicator   # slot waw_standby; pw in secrets CHAMELEON_PG_REPLICATOR_PASSWORD
-    state: streaming           # verified lag ~0.05s, data parity NL==WAW. RPO≈seconds (was 24h)
-    todo: failover automation (MSK upstream backup + pg_promote step + drill) — replication itself done
-  vpn_servers_key: waw1       # NL Postgres vpn_servers row, country_code=PL, is_active=true (2026-06-28)
+    - primary_backend_db      # chameleon-failover :8000 + chameleon-postgres-standby (PROMOTED) + redis. MSK → here.
+    - vpn_node                # sing-box-fork VLESS Reality :443/tcp + Hysteria2 :443/udp (Poland)
+  replication:                # WAW PRIMARY → NL replica (reversed at the 2026-06-29 failover), SSH tunnel
+    direction: WAW(primary) → NL(replica)
+    nl_tunnel: autossh pg-tunnel-waw.service ON NL (binds NL docker-gateway:15432 → WAW:5432; NL ufw allows docker subnet)
+    slot: nl_standby (on WAW); replicator role; pw secrets CHAMELEON_PG_REPLICATOR_PASSWORD
+    state: streaming           # verified lag ~0.05s, parity 378==378. RPO≈seconds. monitor: waw-repl-mon.timer on WAW.
+  backend: chameleon-failover on :8000 (--network host, --env-file ~/failover/*.env, config node_id=waw1). Rebuild via infrastructure/failover/waw-backend-up.sh
+  vpn_servers_key: waw1       # vpn_servers row, country_code=PL, is_active=true
   reality_pubkey: WlpKYeCDkiOhuwdwxvJiN-tEkWMlj0YII44k58iabz8   # own keypair (secrets CHAMELEON_WAW_REALITY_*)
-  user_sync: live             # RelayUserSyncer pushes active roster to user_api http://217.182.74.70:15380
-                              # (ufw NL/MSK/SPB-only, bearer USER_API_SECRET). Verified WAW==GRA user count.
-                              # e2e-verified 2026-06-28: throwaway VLESS client exits via 217.182.74.70.
+  user_sync: live             # RelayUserSyncer (on WAW) pushes roster to GRA+WAW user_api :15380 (ufw → WAW now)
   todo:
-    - relay chains waw-via-msk / ru-spb-waw for RU-whitelist users (optional; direct leg already live)
-    - Postgres streaming replication NL→WAW (the standby half — ADR 0012, playbooks/nl-failover.md)
+    - HA: drill failover.sh + GRA watchdog (decisions/0013); WAW nginx + deploy.sh waw (P1 cleanup); admin SPA via CF→WAW
+    - optional relay chains waw-via-msk / ru-spb-waw for RU-whitelist users
 
 # Russian-side relay fronting api.madfrog.online for RU users behind GFW,
 # AND a VPN relay: nginx fronts the API, sing-box runs the relay chains.
@@ -90,8 +88,8 @@ msk_relay:
   ip: 217.198.5.52
   hosting: Timeweb MSK
   location: Moscow, RU
-  role: api_relay + vpn_relay
-  upstream: nl:80
+  role: api_relay + vpn_relay   # ⭐ the SINGLE API ingress — "who is primary" = where this upstream points
+  upstream: WAW 217.182.74.70:8000   # 2026-06-29 failover flipped it from nl:80 (api.madfrog.online + decoy-adfox)
   fronts: api.madfrog.online
   dns: A record points to msk_relay directly (NOT Cloudflare)
   # sing-box relay chains (VLESS Reality inbound → userspace WireGuard → exit).

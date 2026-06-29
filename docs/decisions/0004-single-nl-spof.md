@@ -1,7 +1,8 @@
 ---
 title: Accept single-NL SPoF for now; Hetzner Helsinki is planned redundancy
 date: 2026-05-26
-status: active
+status: superseded
+superseded_by: ["0012-nl-redundancy-warm-standby", "0013-ha-failover-msk-ingress"]
 tags: [infrastructure, risk, roadmap]
 ---
 

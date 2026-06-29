@@ -14,7 +14,7 @@
 #   that way (integration-tagged → needs Postgres; or non-Go).
 
 meta:
-  updated: 2026-06-26
+  updated: 2026-06-29
   verified_via: "go test ./... (GREEN, all pkgs), admin vitest 22/22 — verified 2026-06-26 (audits/2026-06-26-structure-test-hygiene-audit.md)"
   # 2026-06-26 audit drift fixes: geoip 36→87%; secrets/storage block was merged-wrong (now split: secrets 80, storage 39);
   # packages not yet listed below but tested: lifecycle (50.5%), promo (72.4%), push (30.7%); admin tests 10→22.
@@ -206,7 +206,7 @@ apple:
     - PacketTunnel/* (ExtensionProvider, ExtensionPlatformInterface, RealTrafficStallDetector [DNS-stall trigger now covered indirectly via StallSignalsTests], TunnelStallProbe) — extension wiring on-device only
     - Views/* (20 files) — no UI tests
     - CommandClient, Theme/ThemeManager/Haptics, LegRaceProbe, NetworkFingerprint
-  test_files_count: 26
+  test_files_count: 33   # 2026-06-29: +CountryFlagTests (data-driven flag), +PlanPricingTests, etc.
   build_for_testing: "VERIFIED 2026-06-01 — `xcodebuild build-for-testing -scheme MadFrogVPNTests -destination generic/platform=iOS Simulator CODE_SIGNING_ALLOWED=NO` exits 0. Fixed a pre-existing breakage that blocked it: EventTrackerTests had `await` inside XCTAssertEqual autoclosures (illegal under Xcode 26.5 / Swift 6) — hoisted into lets."
   ci_status: "WIRED 2026-06-01 (TEST-IOS-CI done) — scripts/fetch-libbox.sh pulls Libbox.xcframework.zip (146M) from the libbox-v1.13.5 GitHub Release (ditto-extract preserves macOS symlinks); ios.yml builds iOS+macOS and build-for-testing the test bundle. Run step is compile-only (the test HOST crashes on launch in an unsigned sim — see apple_note)."
 
@@ -215,7 +215,7 @@ apple:
 # ──────────────────────────────────────────────────────────────────────────
 admin:
   framework: "vitest 4 + jsdom + @testing-library/react + jest-dom (added 2026-06-01)"
-  tests: 10   # 3 files
+  tests: 22   # 5 files (2026-06-29: +api.test.ts, +format.test.ts)
   verify: "cd clients/admin && npm run test:run"
   covers: "deviceName (utsname→label, unknown-fallback, trim, null/empty→—); cn (clsx+twMerge tailwind conflict resolution); Badge component smoke (render children, variant data-attr + class) — proves the jsdom+RTL harness e2e"
   gap: "page-level smoke tests (dashboard/users/payments) still need TanStack Query+Router provider mocking — follow-up. TEST-ADMIN-SPA harness closed 2026-06-01."

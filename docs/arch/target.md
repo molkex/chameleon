@@ -1,3 +1,10 @@
+---
+title: Target Architecture — Chameleon / MadFrog VPN (historical draft)
+date: 2026-04-23
+status: archived
+tags: [architecture, refactor, historical, not-executed]
+---
+
 # Target Architecture — Chameleon / MadFrog VPN
 
 > ⚠️ HISTORICAL DRAFT (2026-04-23) — never executed; kept for context. Current

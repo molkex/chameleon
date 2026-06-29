@@ -19,7 +19,7 @@
 # Test coverage + how-to-verify each layer: state/test-map.yaml (decision 0009).
 
 meta:
-  updated: 2026-06-26
+  updated: 2026-06-29
   branch: main
   direction: on_track          # see `assessment` at the bottom — redundancy now actively being built
 
@@ -43,11 +43,14 @@ product:
   iap: 4 non-renewing subs, all APPROVED 2026-05-31 (RU/CIS → WebPaywall/FreeKassa)
 
 # ── Infra (canonical: state/servers.yaml) ───────────────────────────────────
-infra:
-  backend_db: NL 147.45.252.234   # sole backend+DB node — SPoF accepted (decision 0004)
+infra:                            # TOPOLOGY FLIPPED 2026-06-29 (failover) — 0004 superseded by 0012/0013
+  primary_backend_db: WAW 217.182.74.70   # PRIMARY since 2026-06-29 (chameleon-failover :8000 + postgres + redis)
+  replica_backend_db: NL 147.45.252.234   # streaming replica of WAW (chameleon STOPPED, lag ~0.05s)
+  api_ingress: MSK 217.198.5.52   # single ingress = source of truth; upstream → WAW:8000
   vpn_exits:
-    - {country: NL, key: nl2,  host: 147.45.252.234}
-    - {country: FR, key: gra1, host: 54.38.243.162}     # live 2nd exit since 2026-05-30
+    - {country: PL, key: waw1, host: 217.182.74.70}     # primary box doubles as a VPN exit (Poland)
+    - {country: FR, key: gra1, host: 54.38.243.162}     # live since 2026-05-30
+    - {country: NL, key: nl2,  host: 147.45.252.234, active: false}  # deactivated 2026-06-29 (stale roster, NL is replica-only)
   relays:                          # RU-side, for users behind RKN whitelists
     - {key: msk, host: 217.198.5.52, role: relay,            chains:   [nl-via-msk, fr-via-msk]}
     - {key: spb, host: 185.218.0.43, role: whitelist_bypass, forwards: [ru-spb-nl, ru-spb-fr]}
@@ -58,31 +61,37 @@ stack:
   backend: Go 1.25 · Echo v4 · pgx/v5 · go-redis/v9 · Postgres 16 · Redis 7 · Docker/Nginx
   admin:   React 19 · Tailwind 4 · TanStack · Vite 7   (clients/admin/)
   apple:   Swift 6 · SwiftUI (iOS17+/macOS14+) · StoreKit2 · NetworkExtension · libbox 1.13  (clients/apple/)
-  vpn:     VLESS Reality TCP (primary) · sing-box 1.13.x client · Xray 25.12.8 server
-           Hysteria2/TUIC present but DISABLED on prod (ports NULL)
+  vpn:     VLESS Reality TCP (primary) · sing-box 1.13.x client · sing-box-fork:v1.13.6-userapi server (NOT Xray)
+           Hysteria2 UDP fallback live; TUIC present but DISABLED on prod
 
 # ── Health of the big rocks ─────────────────────────────────────────────────
 health:
   auth:      green   # ACCT-IDENTITY fixed 2026-06-01 (Keychain identity, no anon-demote)
   payments:  green   # SEC-04 refund-revoke live; trial-once (SEC-01) live
-  vpn_nl:    green
-  vpn_fr:    green   # direct + via SPB + via MSK, all verified exit 54.38.243.162
-  telemetry: green   # TRAFFIC-MULTIEXIT live 2026-06-04 — NL+GRA per-user stats summed; MSK/SPB chain to those exits
-  redundancy: amber  # backend/DB single-NL; NL-RED-01 (Hetzner Helsinki) planned
+  vpn_pl:    green   # WAW (Poland) exit live + primary box
+  vpn_fr:    green   # GRA direct + via SPB + via MSK, all verified exit 54.38.243.162
+  telemetry: green   # TRAFFIC-MULTIEXIT live 2026-06-04
+  redundancy: amber-improving  # 2026-06-29: WAW primary ↔ NL replica streaming (RPO≈s). Failover PROVEN (live 2026-06-29) + scripted (failover.sh). Remaining: drill + auto-watchdog + WAW nginx/admin. MSK = single ingress SPoF.
 
 # ── Right now (canonical: roadmap.yaml) ─────────────────────────────────────
 now:
-  № ── RESUME HERE next session (2026-06-28 end-of-session handoff) ──
-  - ✅ NL RECOVERED — the 2026-06-26 Timeweb ams-1 outage was network-only (containers stayed Up;
-    no reboot/data loss). api/health 200, all containers healthy. incidents/2026-06-26-timeweb-nl-ams1-outage.md.
-  - ✅ WAW DONE (2026-06-28) — both halves. (1) 🇵🇱 Польша VPN exit LIVE in /config for ALL
-    users (waw1 is_active=true; pl-direct-waw1 + pl-h2-waw1; e2e-verified). (2) Postgres
-    streaming replication NL→WAW over an SSH tunnel — warm standby, RPO≈seconds (was 24h),
-    streaming lag ~0.05s, data parity verified, + NL health-check alerts on replication break/lag.
-    memory project_waw_standby; playbooks/nl-failover.md (exact promote runbook).
-    REMAINING (NL-RED-01 phase 2, not blocking) — pre-stage WAW app-tier image + run a
-    planned-window failover DRILL (a real promote diverges the replica); optional RU relay
-    chains waw-via-msk / ru-spb-waw; MSK upstream auto-backup (deferred — manual flip via runbook).
+  № ── RESUME HERE next session (2026-06-29 end-of-session handoff) ──
+  - ✅✅ FAILOVER EXECUTED LIVE 2026-06-29 (2nd NL outage) — WAW is now PRIMARY backend+DB; NL
+    rebuilt as a streaming REPLICA of WAW (lag ~0.05s, parity). Service stayed up on WAW
+    (API + VPN), zero data loss. Codified into infrastructure/failover/{failover.sh,
+    rebuild-replica.sh,waw-backend-up.sh} + decisions/0013 (MSK-ingress = source of truth).
+    nl2 exit deactivated; NL health-check cron disabled; deploy.sh nl guarded; WAW repl-monitor live.
+    memory project_waw_standby has the full wiring + gotchas (docker-gateway/ufw).
+  - ⏭️ HA REMAINING (the user's goal — "any server down → auto") — (1) DRILL failover.sh in a
+    low-traffic window (blocker for auto); (2) then GRA WATCHDOG auto-trigger (sustained/multi-
+    vantage/anti-flap); (3) P1 cleanup — deploy.sh waw + nginx on WAW (admin SPA back) — admin
+    via CF still → NL (down). decisions/0013 phases; infrastructure/failover/README.
+  - 🔒 AUDIT 2026-06-29 (5-agent) — code GREEN (17/17 Go, 22 admin). NEW security to fix —
+    H-02 subscription_token leaks to peers in CLUSTER sync (cluster/models.go), H-03 /sub token
+    cred-in-URL, /metrics unauth on :8000, freekassa empty-allowlist. Failover-script bugs FIXED
+    (changeme default, 0.0.0.0 bind, StrictHostKeyChecking). audits/2026-06-29-*.md.
+  - 📊 App Store — 1.0.30/102 live; 1.0.31 auto-release; 1.0.32/113 in review; 1.0.33/123 TestFlight.
+    iOS data-driven country flags (🇵🇱 + emoji fallback) committed (38cc596), rides next build.
   - 🟢 GRA auto-renew ON (was manual, near-miss 30.06) + external off-Timeweb monitor LIVE on GRA
     (infrastructure/gra-monitor — closes the "health-check ran on NL" blind spot).
   - STRUCTURE/TEST/HYGIENE AUDIT (2026-06-26) — audits/2026-06-26-structure-test-hygiene-audit.md.
@@ -108,7 +117,7 @@ recent:                          # full detail: roadmap.yaml#done + incidents/ +
 
 # ── Operational pointers ────────────────────────────────────────────────────
 ops:
-  deploy_backend: "cd backend && ./deploy.sh nl"   # playbooks/deploy-nl.md
+  deploy_backend: "infrastructure/failover/waw-backend-up.sh"   # WAW is primary since 2026-06-29; deploy.sh nl REFUSES (replica). failover.sh status = current primary.
   ios_release:    playbooks/ios-cli-release.md      # archive → ASC → assign to Internal Testers group
   ssh_nl:   "ssh -i ~/.ssh/claude-code-ssh-key root@147.45.252.234"
   ssh_gra:  "ssh -i ~/.ssh/claude-code-ssh-key debian@54.38.243.162"

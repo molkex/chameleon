@@ -127,6 +127,20 @@ now:
 # NEXT — 1-2 week queue, ready to start
 # ============================================================
 next:
+  # ── POST-FAILOVER AUDIT 2026-06-29 (detail: docs/audits/2026-06-29-failover-state-audit.md) ──
+  audit_2026_06_29:
+    # security found post-failover (failover-script bugs already FIXED commit 0fc981b)
+    - {id: SEC-CLUSTER-TOKEN, priority: P1, build: false, title: "Strip subscription_token (full VPN-config cred) from cluster SyncUser wire struct (cluster/models.go:34,116) — leaks to peers in plaintext"}
+    - {id: SEC-SUB-URL, priority: P1, build: false, note: "= H-03", title: "/sub/:token cred-in-URL (server.go:259) — grep nginx logs, delete if dead, else query-param/JWT"}
+    - {id: SEC-METRICS-AUTH, priority: P1, build: false, title: "/metrics unauth on :8000 (server.go:185) — exposed now WAW serves :8000 direct. Bind 127.0.0.1 or IP-gate."}
+    - {id: SEC-FREEKASSA-ALLOWLIST, priority: P2, build: false, title: "freekassa empty ip_whitelist silently allows all (client.go:147) — log loud warning"}
+    - {id: INFRA-FAILOVER-SHELLCHECK, priority: P1, title: "CI shellcheck/bash -n on infrastructure/failover/*.sh — destructive scripts unvalidated"}
+    # HA completion (the user's goal: any-node-down → auto)
+    - {id: HA-DRILL, priority: P1, title: "DRILL failover.sh in a low-traffic window (blocker for auto-trigger)"}
+    - {id: HA-WATCHDOG, priority: P2, title: "GRA watchdog → failover.sh on sustained/multi-vantage outage + anti-flap (after HA-DRILL)"}
+    - {id: HA-WAW-PIPELINE, priority: P1, title: "deploy.sh waw + nginx on WAW (symmetry + admin SPA back; CF apex origin → WAW)"}
+    - {id: TESTMAP-DRIFT, priority: P3, status: done_2026-06-29, title: "DONE — admin 10→22, apple 26→33 fixed; lifecycle/promo/push/PlanPricing entries still TODO"}
+
   # ── STRUCTURE/TEST/HYGIENE AUDIT 2026-06-26 (detail: docs/audits/2026-06-26-structure-test-hygiene-audit.md) ──
   audit_2026_06_26:
     # P1 — money-path test gaps (logic IS tested per-package; the HTTP HANDLER glue is NOT)
@@ -575,15 +589,15 @@ next:
           pg-tunnel-nl.service; replicator role + slot waw_standby; chameleon-postgres-standby on WAW).
           VERIFIED streaming lag ~0.05s + data parity. RPO≈seconds (was 24h). memory project_waw_standby.
       phase_2_failover:   # ✅ EXECUTED FOR REAL 2026-06-29 (2nd NL outage) — design = ADR 0013
-        - DONE 2026-06-29 — MANUAL failover NL→WAW under a live outage: promote WAW DB +
-          stand up backend on WAW (:8000) + flip MSK + repoint exit ufw. API restored + e2e-verified.
-        - DONE 2026-06-29 — failback: NL rebuilt as a streaming REPLICA of WAW (lag 0.05s, parity).
+        - DONE 2026-06-29 — MANUAL failover NL→WAW under a live outage — promote WAW DB +
+          stand up backend on WAW :8000 + flip MSK + repoint exit ufw. API restored + e2e-verified.
+        - DONE 2026-06-29 — failback — NL rebuilt as a streaming REPLICA of WAW (lag 0.05s, parity).
           WAW is now canonical primary (stable; NL had 2 outages). nl2 exit deactivated (stale roster).
         - DONE 2026-06-29 — codified into infrastructure/failover/{failover.sh,rebuild-replica.sh}
           (idempotent, fenced, verified) + ADR 0013 (MSK-ingress = source of truth, no Patroni).
         - TODO — DRILL failover.sh in a low-traffic window; replication monitored (waw-repl-mon.timer on WAW).
       phase_3_auto:   # the user's goal: "any server down → keeps working" automatically
-        - GRA watchdog: primary down SUSTAINED (N min) / ≥2 vantages + anti-flap lock → runs failover.sh
+        - GRA watchdog — primary down SUSTAINED (N min) / ≥2 vantages + anti-flap lock → runs failover.sh
         - only after failover.sh is drilled (never automate an untested op — the 2026-06-29 lesson)
       phase_4_later:
         - P1 cleanup — WAW backend pipeline-reproducible (deploy.sh waw + WAW nginx for symmetry/admin SPA)
