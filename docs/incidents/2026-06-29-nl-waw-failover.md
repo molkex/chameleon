@@ -55,3 +55,31 @@ The deeper cause we were fixing: single-NL control-plane SPoF (ADR 0004) — now
   any-node-down → automatic). P1 cleanup: `deploy.sh waw` + WAW nginx. CF apex origin failover.
 - Decide canonical primary long-term (currently WAW — NL had 2 outages). MSK is now the
   remaining single ingress SPoF.
+
+---
+
+## Addendum (2026-06-29, +2h): SPB second decoy leg left on dead NL upstream → 502
+
+**Symptom:** MSK RU-auth monitor (`ru-auth-healthcheck.sh`) fired every 5 min:
+`🟠 RU decoy redundancy degraded — one relay down — primary=200 decoy_msk=200 decoy_spb=502`.
+
+**Root cause:** the hand-failover (and `failover.sh` as written) flipped only the **MSK**
+nginx upstreams (api + decoy) → WAW:8000. The **SPB second decoy leg**
+(`/etc/nginx/conf.d/decoy-adfox.conf`, RU-DECOY-2ND) still pointed at `147.45.252.234:80`
+(NL), whose backend is stopped post-failover → 502. Two compounding gaps:
+1. SPB decoy upstream not repointed (SPB is a password-auth box, off the SSH key → omitted).
+2. WAW ufw only allowed MSK (217.198.5.52) → 8000; SPB (185.218.0.43) was never whitelisted,
+   so even after repointing, SPB→WAW:8000 timed out until the ufw rule was added.
+
+Auth was NOT down — CF + MSK decoy both 200. This was loss of the *redundancy* (SPOF restored),
+exactly the state the 2nd decoy leg exists to prevent.
+
+**Fix (live + verified, decoy_spb=200 from MSK vantage):**
+- WAW: `ufw allow from 185.218.0.43 to any port 8000 proto tcp`.
+- SPB: repoint `/etc/nginx/conf.d/decoy-adfox.conf` 147.45.252.234:80 → 217.182.74.70:8000, reload.
+
+**Codified so it can't recur:** `failover.sh` now (a) step 4b opens the new-primary backend
+port to BOTH relays (MSK + SPB) via ufw, and (b) step 5b flips the SPB decoy upstream too
+(best-effort via sshpass + `SPRINTBOX_VPS_PASSWORD`; skips with a warning if unavailable).
+Repo decoy configs (`infrastructure/{msk,spb}-relay/decoy-adfox.conf`) synced to WAW:8000
+(closes part of the MSK/SPB-config-drift DR-gap, roadmap RELAY-CONFIG-DRIFT).

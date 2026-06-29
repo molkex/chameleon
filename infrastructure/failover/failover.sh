@@ -23,9 +23,23 @@ set -uo pipefail
 
 KEY="${SSH_KEY:-$HOME/.ssh/claude-code-ssh-key}"
 MSK_SSH="root@217.198.5.52"
+MSK_IP="217.198.5.52"
 MSK_CONF="/etc/nginx/sites-available/api.madfrog.online"
 MSK_DECOY="/etc/nginx/sites-available/decoy-adfox"
 EXITS=("54.38.243.162" "217.182.74.70")   # GRA, WAW exit user-api boxes (ufw :15380)
+
+# SPB second decoy leg (RU-DECOY-2ND): password-auth box, NOT on the key. Needs
+# SPRINTBOX_VPS_PASSWORD (from ~/.secrets.env) + sshpass; if either is missing the
+# SPB steps SKIP cleanly (best-effort) and warn — MSK decoy alone still serves.
+SPB_SSH="root@185.218.0.43"
+SPB_IP="185.218.0.43"
+SPB_DECOY="/etc/nginx/conf.d/decoy-adfox.conf"
+[ -z "${SPRINTBOX_VPS_PASSWORD:-}" ] && [ -f "$HOME/.secrets.env" ] && . "$HOME/.secrets.env" 2>/dev/null
+spb_exec() {  # best-effort; returns non-zero (and warns) if SPB is unreachable by password
+  [ -n "${SPRINTBOX_VPS_PASSWORD:-}" ] || { echo "  (skip SPB: SPRINTBOX_VPS_PASSWORD not set)"; return 1; }
+  command -v sshpass >/dev/null 2>&1 || { echo "  (skip SPB: sshpass not installed)"; return 1; }
+  sshpass -p "$SPRINTBOX_VPS_PASSWORD" ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=12 "$SPB_SSH" "$1" 2>/dev/null
+}
 
 # ── node registry ────────────────────────────────────────────────────────────
 node_cfg() {
@@ -103,11 +117,25 @@ for ex in "${EXITS[@]}"; do
   rexec "debian@$ex" "sudo ufw allow from $IP to any port 15380 proto tcp; for o in 147.45.252.234 217.182.74.70; do [ \$o = $IP ] || sudo ufw delete allow from \$o to any port 15380 proto tcp 2>/dev/null; done" >/dev/null 2>&1 || true
 done
 
+# 4b. OPEN new-primary backend port to BOTH RU relays (MSK + SPB).
+#     WAW:8000 is ufw-whitelisted per-relay; without this the relay decoy 502s
+#     (exactly the SPB 502 seen post the 2026-06-29 hand-failover). NL:80 is
+#     public so this is a harmless no-op there.
+PORT="${MSK_TARGET##*:}"
+say "allowing RU relays (MSK $MSK_IP, SPB $SPB_IP) → new primary :$PORT"
+rexec "$SSH" "${SUDO}ufw allow from $MSK_IP to any port $PORT proto tcp; ${SUDO}ufw allow from $SPB_IP to any port $PORT proto tcp" >/dev/null 2>&1 || true
+
 # 5. FLIP MSK ingress → target
 say "flipping MSK upstream → $MSK_TARGET"
 rexec "$MSK_SSH" "ts=\$(date +%s); cp $MSK_CONF $MSK_CONF.bak-failover-\$ts; cp $MSK_DECOY $MSK_DECOY.bak-failover-\$ts 2>/dev/null; \
   sed -i -E 's#(147.45.252.234:80|217.182.74.70:8000)#$MSK_TARGET#g' $MSK_CONF $MSK_DECOY; \
   nginx -t && systemctl reload nginx && echo RELOADED" | tail -1
+
+# 5b. FLIP SPB second decoy leg → target (best-effort; password-auth box).
+say "flipping SPB decoy upstream → $MSK_TARGET"
+spb_exec "ts=\$(date +%s); cp $SPB_DECOY $SPB_DECOY.bak-failover-\$ts 2>/dev/null; \
+  sed -i -E 's#(147.45.252.234:80|217.182.74.70:8000)#$MSK_TARGET#g' $SPB_DECOY; \
+  nginx -t && systemctl reload nginx && echo SPB_RELOADED" | tail -1
 
 # 6. VERIFY
 sleep 2
