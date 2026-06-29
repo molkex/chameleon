@@ -574,14 +574,21 @@ next:
         - DONE 2026-06-28 — Postgres streaming replication NL→WAW over an SSH tunnel (autossh
           pg-tunnel-nl.service; replicator role + slot waw_standby; chameleon-postgres-standby on WAW).
           VERIFIED streaming lag ~0.05s + data parity. RPO≈seconds (was 24h). memory project_waw_standby.
-      phase_2_failover:   # NEXT — replication done, automate the cutover
-        - MSK nginx upstream { NL primary; WAW backup } for the RU API path
-        - promote-standby step (pg_promote on WAW + flip MSK upstream + CF origin) — playbooks/nl-failover.md
-        - Failover DRILL (promote WAW, verify, fail back) — quarterly. Replication-lag alert in GRA monitor.
-      phase_3_later:
-        - CF Load Balancing origin failover for the apex (admin/landing) — no more 522
-        - Consider automated promotion (only after manual path is drilled; split-brain fencing)
-      blocked_on: "nothing — phase 1 done; phase 2 (failover automation + drill) is the next chunk"
+      phase_2_failover:   # ✅ EXECUTED FOR REAL 2026-06-29 (2nd NL outage) — design = ADR 0013
+        - DONE 2026-06-29 — MANUAL failover NL→WAW under a live outage: promote WAW DB +
+          stand up backend on WAW (:8000) + flip MSK + repoint exit ufw. API restored + e2e-verified.
+        - DONE 2026-06-29 — failback: NL rebuilt as a streaming REPLICA of WAW (lag 0.05s, parity).
+          WAW is now canonical primary (stable; NL had 2 outages). nl2 exit deactivated (stale roster).
+        - DONE 2026-06-29 — codified into infrastructure/failover/{failover.sh,rebuild-replica.sh}
+          (idempotent, fenced, verified) + ADR 0013 (MSK-ingress = source of truth, no Patroni).
+        - TODO — DRILL failover.sh in a low-traffic window; replication monitored (waw-repl-mon.timer on WAW).
+      phase_3_auto:   # the user's goal: "any server down → keeps working" automatically
+        - GRA watchdog: primary down SUSTAINED (N min) / ≥2 vantages + anti-flap lock → runs failover.sh
+        - only after failover.sh is drilled (never automate an untested op — the 2026-06-29 lesson)
+      phase_4_later:
+        - P1 cleanup — WAW backend pipeline-reproducible (deploy.sh waw + WAW nginx for symmetry/admin SPA)
+        - CF apex origin failover (admin/landing, no more 522) + MSK ingress redundancy (the remaining SPoF)
+      blocked_on: "nothing — failover proven + scripted. Next: drill failover.sh, then phase_3 watchdog."
       acceptance:
         - NL fully down → manual promote + repoint restores API+admin in < 10 min (drilled)
         - Postgres replication lag < 5s steady-state; RPO ≈ seconds (was 24h B2-only)
