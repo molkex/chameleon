@@ -41,7 +41,7 @@ node_cfg() {
     *) echo "unknown node: $1 (use waw|nl)"; exit 2 ;;
   esac
 }
-rexec() { ssh -i "$KEY" -o StrictHostKeyChecking=no -o ConnectTimeout=12 "$1" "$2" 2>/dev/null; }
+rexec() { ssh -i "$KEY" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=12 "$1" "$2" 2>/dev/null; }
 say()  { echo ">>> $*"; }
 die()  { echo "ERROR: $*" >&2; exit 1; }
 

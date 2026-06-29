@@ -15,7 +15,7 @@ set -euo pipefail
 cd "$(dirname "$0")/../../backend"
 source ~/.secrets.env
 W=debian@217.182.74.70; KEY=~/.ssh/claude-code-ssh-key
-RX(){ ssh -i "$KEY" -o StrictHostKeyChecking=no "$W" "$@"; }
+RX(){ ssh -i "$KEY" -o StrictHostKeyChecking=accept-new "$W" "$@"; }
 
 echo ">>> cross-compile binary"
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /tmp/chameleon-linux ./cmd/chameleon
