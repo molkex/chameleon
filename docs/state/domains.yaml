@@ -31,20 +31,26 @@ madfrog.online:
       target_via: direct_dns         # NO CF proxy — DNS-only
       origin: waw:8000 (via msk_relay nginx upstream)   # 2026-06-29 failover: was nl:80
 
+    "grafana":
+      type: A
+      target_via: cloudflare_proxy
+      origin: waw (217.182.74.70)    # 2026-07-01: flipped NL→WAW. chameleon-grafana :3000 behind chameleon-nginx grafana vhost. MON-04 stack on WAW (waw-monitoring-up.sh).
+
   ssl:
     edge_cert: Cloudflare Universal SSL
     origin: CF flexible → WAW:80 plain HTTP (no origin cert needed). Legacy NL Let's Encrypt cert unused for apex now.
 
-# Legacy / backup / parked.
+# Legacy / backup / parked. Apex+www CF-proxied → WAW (2026-07-01); WAW nginx
+# default_server serves the same landing/admin for any Host.
 mdfrog.site:
   status: alias
-  target: nl
-  notes: backup short domain
+  target: waw (217.182.74.70)      # 2026-07-01: was 162.19.242.30 (RETIRED DE) — served stale CF cache; now live WAW
+  notes: backup short domain. Sub-records (nl1/msk1/proxy/margin/de1/ru1) still point at old boxes — separate cleanup.
 
 razblokirator.ru:
   status: legacy_alias
-  target: nl
-  notes: old project name; kept so old QR codes keep working
+  target: waw (217.182.74.70)      # 2026-07-01: was 162.19.242.30 (RETIRED DE); now live WAW
+  notes: old project name; kept so old QR codes keep working. Sub-records still on old boxes — separate cleanup.
 
 # Subdomains still on retired infra.
 # CLEANUP TASK — update DNS to point at NL or remove entirely.

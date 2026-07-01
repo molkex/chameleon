@@ -115,3 +115,21 @@ origins), CLAUDE.md, roadmap HA-WAW-PIPELINE.
 **Still open:** proper `deploy.sh waw` for the backend (interim: `waw-backend-up.sh`);
 grafana/mdfrog.site/razblokirator.ru still point at NL; MSK remains the single
 RU-API ingress SPoF.
+
+### Addendum 2 (2026-07-01, +1h): grafana + legacy landing aliases → WAW
+
+Finished migrating the remaining NL/DE-tied web off dead origins:
+- **grafana.madfrog.online** (was CF origin=NL, timed out): stood up the MON-04
+  stack on WAW — `chameleon-{node-exporter :9100, prometheus :9091, grafana :3000}`
+  (same backend/prometheus.yml + grafana provisioning, node label→waw), fronted by
+  chameleon-nginx's grafana vhost. Prom targets chameleon+node both UP. CF record → WAW.
+- **mdfrog.site + www, razblokirator.ru + www**: apex A-records pointed at
+  `162.19.242.30` (RETIRED DE) and only 200'd via CF Always-Online cache. Flipped
+  → WAW (nginx default_server serves the landing for any Host). Now live-origin 200.
+
+Codified: `infrastructure/failover/waw-monitoring-up.sh`. Docs synced (servers.yaml
+monitoring role, domains.yaml grafana + aliases).
+
+Everything user-facing on the madfrog.online / mdfrog.site / razblokirator.ru zones
+now originates from WAW. Remaining NL-tied: legacy sub-records (nl1/msk1/proxy/…) and
+bot/crew/speedtest — non-critical, separate cleanup.
