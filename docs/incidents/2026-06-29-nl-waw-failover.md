@@ -83,3 +83,35 @@ port to BOTH relays (MSK + SPB) via ufw, and (b) step 5b flips the SPB decoy ups
 (best-effort via sshpass + `SPRINTBOX_VPS_PASSWORD`; skips with a warning if unavailable).
 Repo decoy configs (`infrastructure/{msk,spb}-relay/decoy-adfox.conf`) synced to WAW:8000
 (closes part of the MSK/SPB-config-drift DR-gap, roadmap RELAY-CONFIG-DRIFT).
+
+---
+
+## Addendum (2026-07-01): web layer made independent of NL (CF apex origin → WAW)
+
+**Symptom:** `https://madfrog.online/admin/app/` (and the apex landing) returned
+Cloudflare **522** — origin still NL (147.45.252.234), whose nginx/backend is
+stopped post-failover. The admin UI had no working URL (the api-host bypass
+`api.madfrog.online/admin/app/` 404s — WAW's :8000 backend serves the API only,
+not the SPA static). This was ADR 0013 P1/P4 left open.
+
+**Fix (live + verified):**
+- Built the admin SPA (`clients/admin`, base `/admin/app/`, API relative `/api/v1`)
+  and shipped it + `backend/landing` + `backend/nginx.conf` to WAW `~/chameleon-web`.
+- Ran `chameleon-nginx` (nginx:1.27-alpine, host net :80) proxying
+  `/api,/health,/sub` → `127.0.0.1:8000` (WAW backend), serving landing at `/` and
+  the SPA at `/admin/app/` — the exact same content NL's nginx served.
+- `ufw allow :80` from Cloudflare IPv4 ranges only (origin not exposed wide).
+- Cloudflare apex `madfrog.online` + `www` A-records flipped 147.45.252.234 → 217.182.74.70 (proxied).
+
+Verified through CF: `/`, `/admin/app/`, `/health`, `/api/v1/mobile/healthcheck`,
+`/app/`, AASA all 200; real admin login `POST /api/v1/admin/auth/login` → 200.
+The public site is now independent of NL.
+
+**Codified:** `infrastructure/failover/waw-web-up.sh` reproduces the whole web
+layer (build → ship → run nginx → ufw → optional `FLIP_CF=1` apex origin flip).
+State synced: servers.yaml (WAW web_frontend role), domains.yaml (apex/www/api
+origins), CLAUDE.md, roadmap HA-WAW-PIPELINE.
+
+**Still open:** proper `deploy.sh waw` for the backend (interim: `waw-backend-up.sh`);
+grafana/mdfrog.site/razblokirator.ru still point at NL; MSK remains the single
+RU-API ingress SPoF.

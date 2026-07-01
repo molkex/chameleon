@@ -138,7 +138,7 @@ next:
     # HA completion (the user's goal: any-node-down → auto)
     - {id: HA-DRILL, priority: P1, title: "DRILL failover.sh in a low-traffic window (blocker for auto-trigger)"}
     - {id: HA-WATCHDOG, priority: P2, title: "GRA watchdog → failover.sh on sustained/multi-vantage outage + anti-flap (after HA-DRILL)"}
-    - {id: HA-WAW-PIPELINE, priority: P1, title: "deploy.sh waw + nginx on WAW (symmetry + admin SPA back; CF apex origin → WAW)"}
+    - {id: HA-WAW-PIPELINE, priority: P1, title: "deploy.sh waw for backend symmetry. DONE 2026-07-01: nginx on WAW + admin SPA + landing back, CF apex madfrog.online+www origin → WAW (infrastructure/failover/waw-web-up.sh). REMAINING: proper deploy.sh waw node (backend still via waw-backend-up.sh)."}
     - {id: TESTMAP-DRIFT, priority: P3, status: done_2026-06-29, title: "DONE — admin 10→22, apple 26→33 fixed; lifecycle/promo/push/PlanPricing entries still TODO"}
 
   # ── STRUCTURE/TEST/HYGIENE AUDIT 2026-06-26 (detail: docs/audits/2026-06-26-structure-test-hygiene-audit.md) ──

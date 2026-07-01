@@ -16,11 +16,12 @@ madfrog.online:
     "@":
       type: A
       target_via: cloudflare_proxy
-      origin: nl (147.45.252.234)
+      origin: waw (217.182.74.70)    # ⭐ 2026-07-01: flipped NL→WAW (chameleon-nginx :80). Was nl (147.45.252.234) — NL stopped post-failover → CF 522. waw-web-up.sh reproduces.
       ssl_mode: flexible             # CF terminates, hits origin HTTP
     "www":
-      type: CNAME
-      target: madfrog.online
+      type: A
+      target_via: cloudflare_proxy
+      origin: waw (217.182.74.70)    # 2026-07-01: flipped NL→WAW with apex
 
     # api subdomain — bypasses Cloudflare (NOT proxied) so RU users hit
     # MSK relay directly. CF wouldn't help anyway (RU CF throttling).
@@ -28,11 +29,11 @@ madfrog.online:
       type: A
       target: msk_relay (217.198.5.52)
       target_via: direct_dns         # NO CF proxy — DNS-only
-      origin: nl:80 (via msk_relay nginx upstream)
+      origin: waw:8000 (via msk_relay nginx upstream)   # 2026-06-29 failover: was nl:80
 
   ssl:
     edge_cert: Cloudflare Universal SSL
-    origin_cert_nl: Let's Encrypt for madfrog.online + api.madfrog.online (renewed via certbot, see playbooks/letsencrypt-renew.md when written)
+    origin: CF flexible → WAW:80 plain HTTP (no origin cert needed). Legacy NL Let's Encrypt cert unused for apex now.
 
 # Legacy / backup / parked.
 mdfrog.site:

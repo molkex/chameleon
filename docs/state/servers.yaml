@@ -67,6 +67,7 @@ waw:
   ssh: debian@217.182.74.70   # key auth (claude-code-ssh-key), root via sudo
   role:
     - primary_backend_db      # chameleon-failover :8000 + chameleon-postgres-standby (PROMOTED) + redis. MSK → here.
+    - web_frontend            # ⭐ 2026-07-01: chameleon-nginx :80 serves landing + admin SPA (/admin/app/) + reverse-proxies /api,/health,/sub → 127.0.0.1:8000. Cloudflare apex madfrog.online+www origin → WAW (was NL). Assets in ~/chameleon-web; reproduce via infrastructure/failover/waw-web-up.sh. ufw :80 ← Cloudflare ranges only.
     - vpn_node                # sing-box-fork VLESS Reality :443/tcp + Hysteria2 :443/udp (Poland)
   replication:                # WAW PRIMARY → NL replica (reversed at the 2026-06-29 failover), SSH tunnel
     direction: WAW(primary) → NL(replica)
@@ -78,7 +79,7 @@ waw:
   reality_pubkey: WlpKYeCDkiOhuwdwxvJiN-tEkWMlj0YII44k58iabz8   # own keypair (secrets CHAMELEON_WAW_REALITY_*)
   user_sync: live             # RelayUserSyncer (on WAW) pushes roster to GRA+WAW user_api :15380 (ufw → WAW now)
   todo:
-    - HA: drill failover.sh + GRA watchdog (decisions/0013); WAW nginx + deploy.sh waw (P1 cleanup); admin SPA via CF→WAW
+    - HA: drill failover.sh + GRA watchdog (decisions/0013); proper deploy.sh waw (P1 cleanup). DONE 2026-07-01: WAW nginx + admin SPA via CF→WAW (waw-web-up.sh).
     - optional relay chains waw-via-msk / ru-spb-waw for RU-whitelist users
 
 # Russian-side relay fronting api.madfrog.online for RU users behind GFW,
