@@ -994,6 +994,18 @@ deferred:
 # ============================================================
 done:
   "2026-07-01":
+    - id: MON-ALERT-NOISE
+      title: "Kill Telegram alert spam — monitor code() bug + no-dedup + stale NL target"
+      notes: |
+        MadFrogRobot was spammed every 5 min with garbled "primary=200000 decoy_msk=000000"
+        and flapping "NL origin unreachable". Three fixes: (1) code() `|| echo 000` appended a
+        2nd 000 on non-zero curl exit → never == "200" → permanent false alerts; now returns the
+        recorded status once. (2) ru-auth-healthcheck.sh (MSK) now alerts only on a CONFIRMED
+        state change (flap damper: 2 consecutive not-ok runs) + 30m re-alert + ✅ recovery, instead
+        of every run. (3) GRA monitor repointed off retired NL → madfrog.online/health (CF→WAW):
+        nl-origin-healthcheck.sh → waw-origin-healthcheck.sh, systemd nl-origin-mon.* → waw-origin-mon.*.
+        Deployed + verified quiet. Gap noted: external RU-ingress (api.madfrog.online) probe if MSK
+        relay itself dies.
     - id: WAW-SITE-INDEPENDENCE
       title: "Make the site independent of NL — WAW serves web + monitoring, CF origins flipped"
       notes: |
