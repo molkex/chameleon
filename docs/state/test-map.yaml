@@ -116,11 +116,11 @@ backend:
     gaps: "most of 13 handler files uncovered; buildRemoteNodes (node assembly: GRA exit + MSK relay now included) does live TCP probes + DB — integration-level, untested"
   api/mobile:
     src_files: 16
-    tests: [7 files incl. trial_grant_test.go]
+    tests: [8 files incl. trial_grant_test.go, refresh_grace_test.go]
     tier: unit
     status: partial
     coverage_pct: 6
-    covers: "trial-once gate (SEC-01), selected mobile handlers; hasActiveSubscription predicate (subscription_active_test.go, REFUND-NULL-EXPIRY-GATE 2026-06-17 — NULL expiry = no coverage NOT lifetime, future=active, past=inactive; the ONE predicate the /config gate + VPN roster + trial gate share)"
+    covers: "trial-once gate (SEC-01), selected mobile handlers; hasActiveSubscription predicate (subscription_active_test.go, REFUND-NULL-EXPIRY-GATE 2026-06-17 — NULL expiry = no coverage NOT lifetime, future=active, past=inactive; the ONE predicate the /config gate + VPN roster + trial gate share). RefreshToken grace-window (refresh_grace_test.go, AUTH-REFRESH-MULTILEG 2026-07-01 — miniredis: a duplicate of the same single-use refresh token within 30s replays the SAME rotated pair (200) not 401; genuine reuse after the window still 401s. Server-side complement to the client-side AUTH-REFRESH-ROTATE — fixes the multi-leg-race logout after the WAW failover)."
     gaps: "most handlers uncovered"
   db:
     src_files: 11

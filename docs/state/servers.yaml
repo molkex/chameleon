@@ -14,7 +14,7 @@ spof_warning: |
 
 # 2026-06-29: NL is now a streaming REPLICA of WAW (chameleon STOPPED). Was the primary.
 nl:
-  status: replica   # of WAW; chameleon backend STOPPED, nl2 VPN exit deactivated
+  status: OFFLINE   # ⚠️ 2026-07-01: box unreachable — SSH :22 times out (from local AND MSK), pg_stat_replication on WAW EMPTY (not streaming). Likely another Timeweb outage. Was: replica of WAW. IMPACT: WAW is a LONE primary with NO warm standby until NL returns (or a new replica is built). Rebuild via rebuild-replica.sh when NL comes back.
   ip: 147.45.252.234                  # MAIN IP — inbound (clients connect here :443), SSH, DNS, relays. DO NOT DELETE.
   egress_ip: 72.56.79.25              # added 2026-05-31: user-traffic EGRESS source-bound here (clean US-geo, vs RU on main IP). See incidents/2026-05-31-geo-leak-nl-exit.md
   hosting: Timeweb
@@ -80,7 +80,7 @@ waw:
   reality_pubkey: WlpKYeCDkiOhuwdwxvJiN-tEkWMlj0YII44k58iabz8   # own keypair (secrets CHAMELEON_WAW_REALITY_*)
   user_sync: live             # RelayUserSyncer (on WAW) pushes roster to GRA+WAW user_api :15380 (ufw → WAW now)
   todo:
-    - HA: drill failover.sh + GRA watchdog (decisions/0013); proper deploy.sh waw (P1 cleanup). DONE 2026-07-01: WAW nginx + admin SPA via CF→WAW (waw-web-up.sh).
+    - "HA — drill failover.sh + GRA watchdog (decisions/0013); proper deploy.sh waw (P1 cleanup). DONE 2026-07-01 — WAW nginx + admin SPA via CF→WAW (waw-web-up.sh)."
     - optional relay chains waw-via-msk / ru-spb-waw for RU-whitelist users
 
 # Russian-side relay fronting api.madfrog.online for RU users behind GFW,

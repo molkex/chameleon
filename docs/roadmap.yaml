@@ -993,6 +993,34 @@ deferred:
 # DONE — append-only log. Most recent date first.
 # ============================================================
 done:
+  "2026-07-01":
+    - id: WAW-SITE-INDEPENDENCE
+      title: "Make the site independent of NL — WAW serves web + monitoring, CF origins flipped"
+      notes: |
+        Post-failover the site (CF origin=NL) was 522 and grafana timed out. Stood up
+        chameleon-nginx on WAW (landing + admin SPA + /api,/health,/sub proxy → :8000) and
+        the MON-04 stack (node-exporter/prometheus/grafana). Flipped Cloudflare origins
+        NL/retired-DE → WAW for madfrog.online+www, grafana.madfrog.online, mdfrog.site+www,
+        razblokirator.ru+www. Codified: infrastructure/failover/waw-web-up.sh +
+        waw-monitoring-up.sh. Also fixed SPB 2nd decoy leg (was 502, dead NL:80 → WAW:8000)
+        and codified relay/CF flips into failover.sh. See incidents/2026-06-29-nl-waw-failover.md
+        (addenda 1-2).
+    - id: AUTH-REFRESH-MULTILEG
+      title: "Fix mobile logout loop — grace-window on single-use refresh vs multi-leg race"
+      notes: |
+        Users hit 'Сессия истекла' after the failover: the client fans one refresh over
+        CF+MSK+SPB legs; single-use refresh token → losing legs 401 'reuse' → logout loop.
+        Fix = OAuth2 reuse-leeway grace window (30s Redis cache of the issued pair; duplicate
+        of the same token replays the SAME pair 200; genuine reuse after window still 401).
+        backend/internal/api/mobile/auth.go + refresh_grace_test.go. Deployed to WAW, verified
+        live (grace-window replay in logs). See incidents/2026-07-01-mobile-refresh-multileg-logout.md.
+    - id: NL-OFFLINE-AGAIN
+      title: "⚠️ NL box offline again (SSH+replication down) — WAW now a LONE primary"
+      status: watch
+      notes: |
+        2026-07-01: NL unreachable (SSH :22 timeout from local+MSK, pg_stat_replication on WAW
+        empty). Likely another Timeweb outage. No warm standby until NL returns → rebuild-replica.sh
+        when it does, or provision a fresh replica. Reinforces HA-DRILL + HA-WATCHDOG priority.
   "2026-06-17":
     - id: SHIP-1.0.33
       title: "Cut + upload 1.0.33 (build 114) — ships the full-service audit batch (6 pains)"
