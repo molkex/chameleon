@@ -498,11 +498,16 @@ func (h *Handler) AppleSignIn(c echo.Context) error {
 // RefreshToken handles POST /api/mobile/auth/refresh.
 //
 // Verifies the refresh token and issues a new access+refresh token pair.
-// Refresh tokens are single-use with rotation + reuse detection (OAuth 2.0
-// Security BCP §4.14). A short grace window ("reuse leeway") lets the SAME
-// token be presented a few times within ~30s and get the SAME rotated pair
-// back — the iOS client fans one refresh over several transport legs (CF +
-// MSK/SPB relays), so near-simultaneous duplicates are legitimate, not theft.
+// Refresh tokens rotate on use (OAuth 2.0 Security BCP §4.14) with a short grace
+// window ("reuse leeway"): the SAME token presented a few times within ~30s gets
+// the SAME rotated pair back — the iOS client fans one refresh over several
+// transport legs (CF + MSK/SPB relays), so near-simultaneous duplicates are legit.
+//
+// A reuse PAST the grace window does NOT 401 (COMPAT, see the branch below): a
+// large fraction of the field runs pre-114 builds that don't persist the rotated
+// token and would otherwise be locked out. We re-issue a fresh pair and log the
+// reuse as a soft signal instead. An expired/invalid refresh JWT still 401s — that
+// is the real re-login boundary.
 func (h *Handler) RefreshToken(c echo.Context) error {
 	var req struct {
 		RefreshToken string `json:"refresh_token"`
@@ -533,6 +538,38 @@ func (h *Handler) RefreshToken(c echo.Context) error {
 		graceTTL = 30 * time.Second    // duplicate-leg leeway (OAuth2 reuse leeway)
 	)
 
+	// issue mints a fresh pair, attaches the live subscription expiry (SUBSCRIPTION-
+	// ON-AUTH, so a re-foregrounded app re-applies it without a /config round-trip),
+	// caches it under issuedKey for the grace window, and returns the response.
+	issue := func() (AuthResponse, error) {
+		tokens, terr := h.JWT.CreateTokenPair(claims.UserID, claims.Username, claims.Role)
+		if terr != nil {
+			return AuthResponse{}, terr
+		}
+		var subExpiry *int64
+		if h.DB != nil {
+			if u, lookupErr := h.DB.FindUserByID(ctx, claims.UserID); lookupErr == nil && u != nil {
+				subExpiry = subExpiryUnix(u.SubscriptionExpiry)
+			}
+		}
+		resp := AuthResponse{
+			AccessToken:        tokens.AccessToken,
+			RefreshToken:       tokens.RefreshToken,
+			ExpiresAt:          tokens.ExpiresAt,
+			UserID:             claims.UserID,
+			Username:           claims.Username,
+			SubscriptionExpiry: subExpiry,
+		}
+		// Best-effort publish for grace-window duplicates; a Redis hiccup here only
+		// costs idempotency on a concurrent leg, never a wrong token.
+		if b, mErr := json.Marshal(resp); mErr == nil {
+			if sErr := h.Redis.Set(ctx, issuedKey, b, graceTTL).Err(); sErr != nil {
+				h.Logger.Warn("mobile refresh: cache issued pair", zap.Error(sErr))
+			}
+		}
+		return resp, nil
+	}
+
 	// Claim first-use. SetArgs Mode:"NX" (non-deprecated SetNX) returns redis.Nil
 	// when the marker already exists — i.e. this token was already rotated by an
 	// earlier or concurrent call.
@@ -541,11 +578,11 @@ func (h *Handler) RefreshToken(c echo.Context) error {
 		h.Logger.Error("mobile refresh: redis error", zap.Error(serr))
 		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
 	}
+
 	if errors.Is(serr, redis.Nil) {
-		// Not the winner. If we're still inside the grace window, replay the
-		// exact pair the winner issued so all racing legs converge on one valid
-		// pair instead of one of them getting a session-killing 401. Poll briefly
-		// to cover the sub-ms gap between the winner's SET NX and its issued write.
+		// This token was already rotated. First try to replay the winner's pair so
+		// all legs of the client's multi-leg race converge on one valid pair. Poll
+		// briefly to cover the sub-ms gap between the winner's SET NX and its write.
 		for i := 0; i < 8; i++ {
 			if cached, gerr := h.Redis.Get(ctx, issuedKey).Bytes(); gerr == nil && len(cached) > 0 {
 				var replay AuthResponse
@@ -561,44 +598,36 @@ func (h *Handler) RefreshToken(c echo.Context) error {
 			case <-time.After(50 * time.Millisecond):
 			}
 		}
-		// Past the grace window (or winner never published) → genuine reuse.
-		h.Logger.Warn("mobile refresh: token reuse attempt", zap.Int64("user_id", claims.UserID))
-		return c.JSON(http.StatusUnauthorized, ErrorResponse{Error: "refresh token already used"})
+		// Past the grace window → a genuine reuse of an already-rotated token.
+		//
+		// COMPAT (2026-07-02): do NOT 401. A large fraction of the field runs pre-114
+		// builds that don't persist the rotated refresh token, so they re-present the
+		// same (still cryptographically valid, unexpired) token indefinitely — a hard
+		// 401 traps those paying users in a "Сессия истекла" loop and the app never
+		// re-fetches the subscription (shows "expired"). Since the token is a verified,
+		// unexpired JWT AND our reuse-detection never revoked the token family (it only
+		// blocked the one reused token), enforcing 401 buys almost no theft protection
+		// while breaking real users. So RE-ISSUE a fresh pair and log it as a soft
+		// signal. Tighten to strict once the field has moved past pre-114 (a config
+		// gate can flip this). See incident 2026-07-02-mobile-refresh-multileg-logout.
+		h.Logger.Warn("mobile refresh: reuse past grace — re-issued (soft; pre-114 broken-client compat)",
+			zap.Int64("user_id", claims.UserID))
+		resp, ierr := issue()
+		if ierr != nil {
+			h.Logger.Error("mobile refresh: reissue on reuse", zap.Error(ierr))
+			return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
+		}
+		return c.JSON(http.StatusOK, resp)
 	}
 
 	// Winner: rotate to a fresh pair.
-	tokens, err := h.JWT.CreateTokenPair(claims.UserID, claims.Username, claims.Role)
-	if err != nil {
+	resp, ierr := issue()
+	if ierr != nil {
 		// Roll back the used-marker so a legitimate client retry can still rotate
 		// (otherwise a transient signing error would strand the token forever).
 		h.Redis.Del(ctx, usedKey)
-		h.Logger.Error("mobile refresh: create token pair", zap.Error(err))
+		h.Logger.Error("mobile refresh: create token pair", zap.Error(ierr))
 		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
-	}
-
-	// SUBSCRIPTION-ON-AUTH: carry the current subscription expiry on refresh too,
-	// so a re-foregrounded app re-applies it without waiting on a /config fetch.
-	var subExpiry *int64
-	if h.DB != nil {
-		if u, lookupErr := h.DB.FindUserByID(ctx, claims.UserID); lookupErr == nil && u != nil {
-			subExpiry = subExpiryUnix(u.SubscriptionExpiry)
-		}
-	}
-	resp := AuthResponse{
-		AccessToken:        tokens.AccessToken,
-		RefreshToken:       tokens.RefreshToken,
-		ExpiresAt:          tokens.ExpiresAt,
-		UserID:             claims.UserID,
-		Username:           claims.Username,
-		SubscriptionExpiry: subExpiry,
-	}
-	// Publish the issued pair for grace-window duplicates. Best-effort: a Redis
-	// hiccup here only reverts to the old "concurrent leg gets 401" behaviour —
-	// it can never hand back a wrong token.
-	if b, mErr := json.Marshal(resp); mErr == nil {
-		if sErr := h.Redis.Set(ctx, issuedKey, b, graceTTL).Err(); sErr != nil {
-			h.Logger.Warn("mobile refresh: cache issued pair", zap.Error(sErr))
-		}
 	}
 	return c.JSON(http.StatusOK, resp)
 }

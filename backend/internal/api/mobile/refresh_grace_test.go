@@ -81,9 +81,11 @@ func TestRefreshTokenGraceWindowReplaysSamePair(t *testing.T) {
 	}
 }
 
-// A genuine reuse AFTER the grace window (someone replaying a long-consumed
-// token) must still be rejected — rotation + reuse detection is intact.
-func TestRefreshTokenReuseAfterGraceWindowRejected(t *testing.T) {
+// COMPAT (2026-07-02): a reuse AFTER the grace window is NOT rejected. Pre-114
+// field builds re-present the same still-valid token indefinitely; a 401 traps them
+// in a logout loop. As long as the refresh JWT is valid+unexpired we re-issue a fresh
+// pair (and log the reuse as a soft signal), so the app keeps a working access token.
+func TestRefreshTokenReuseAfterGraceWindowReissues(t *testing.T) {
 	h, mr, rt := refreshRig(t)
 
 	if rec := doRefresh(t, h, rt); rec.Code != http.StatusOK {
@@ -94,10 +96,28 @@ func TestRefreshTokenReuseAfterGraceWindowRejected(t *testing.T) {
 	mr.FastForward(31 * time.Second)
 
 	rec := doRefresh(t, h, rt)
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("reuse after grace: want 401, got %d (%s)", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusOK {
+		t.Fatalf("reuse after grace: want 200 (soft re-issue), got %d (%s)", rec.Code, rec.Body.String())
 	}
-	if !strings.Contains(rec.Body.String(), "already used") {
-		t.Errorf("want 'already used' error, got %s", rec.Body.String())
+	var out AuthResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if out.AccessToken == "" || out.RefreshToken == "" {
+		t.Fatalf("reuse re-issue must return a fresh pair, got %+v", out)
+	}
+}
+
+// The real re-login boundary: an invalid/expired refresh JWT is still rejected with
+// 401 (the compat re-issue only applies to cryptographically valid, unexpired tokens).
+func TestRefreshTokenInvalidTokenRejected(t *testing.T) {
+	h, _, _ := refreshRig(t)
+
+	rec := doRefresh(t, h, "not.a.valid.jwt")
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("invalid token: want 401, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "invalid refresh token") {
+		t.Errorf("want 'invalid refresh token', got %s", rec.Body.String())
 	}
 }
