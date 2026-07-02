@@ -120,7 +120,7 @@ backend:
     tier: unit
     status: partial
     coverage_pct: 6
-    covers: "trial-once gate (SEC-01), selected mobile handlers; hasActiveSubscription predicate (subscription_active_test.go, REFUND-NULL-EXPIRY-GATE 2026-06-17 — NULL expiry = no coverage NOT lifetime, future=active, past=inactive; the ONE predicate the /config gate + VPN roster + trial gate share). RefreshToken grace-window (refresh_grace_test.go, AUTH-REFRESH-MULTILEG 2026-07-01 — miniredis: a duplicate of the same single-use refresh token within 30s replays the SAME rotated pair (200) not 401; genuine reuse after the window still 401s. Server-side complement to the client-side AUTH-REFRESH-ROTATE — fixes the multi-leg-race logout after the WAW failover)."
+    covers: "trial-once gate (SEC-01), selected mobile handlers; hasActiveSubscription predicate (subscription_active_test.go, REFUND-NULL-EXPIRY-GATE 2026-06-17 — NULL expiry = no coverage NOT lifetime, future=active, past=inactive; the ONE predicate the /config gate + VPN roster + trial gate share). RefreshToken grace-window + reuse re-issue (refresh_grace_test.go, AUTH-REFRESH-MULTILEG 2026-07-01 → -REISSUE 2026-07-02 — miniredis: a duplicate of the same refresh token within 30s replays the SAME rotated pair (200); a reuse PAST the window RE-ISSUES a fresh pair (200) instead of 401 — pre-114 field builds don't persist the rotated token and would otherwise loop-logout; only an invalid/expired refresh JWT 401s. Server-side complement to client AUTH-REFRESH-ROTATE — fixes the field logout/expired-subscription after the WAW failover)."
     gaps: "most handlers uncovered"
   db:
     src_files: 11

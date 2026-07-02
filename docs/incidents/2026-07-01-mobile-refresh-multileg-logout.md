@@ -54,3 +54,31 @@ log instead of `token reuse attempt`.
   harmless in prod because refreshes are minutes apart, but not robust).
 - Client (next build): don't hard-logout on a single leg's 401 if another leg 200s;
   keep racing refresh to a single leg where possible.
+
+---
+
+## Addendum (2026-07-02): grace window wasn't enough — pre-114 field builds → re-issue on reuse
+
+The 30s grace window (above) fixed the multi-leg RACE, but users kept reporting
+"Сессия истекла" / subscription showing **expired** the next day. Real cause found:
+the active field is almost entirely **pre-114 builds (90, 113)** that don't persist
+the rotated refresh token (the client-side REFRESH-TOKEN-PERSIST fix only landed in
+build 114). Those clients re-present the same still-valid token indefinitely — hours
+apart, long past the 30s grace — so they hit strict reuse-detection → 401 → logout
+loop → the app never re-fetches `/config`, so an admin-comp'd subscription (e.g. user
+159080, extended to 2027) shows expired. 3+ distinct users stuck in 12h; field-wide
+`/auth/refresh` was ~100% 401.
+
+**Fix:** a reuse past the grace window no longer 401s. If the refresh JWT is
+cryptographically valid and unexpired, RE-ISSUE a fresh pair (rotate again) and log the
+reuse as a soft signal. Rationale: our reuse-detection never revoked the token family
+(it only blocked the one token), so 401 bought almost no theft protection while breaking
+the whole field. An expired/invalid refresh JWT still 401s (the real re-login boundary).
+`backend/internal/api/mobile/auth.go` + refresh_grace_test.go (reuse→200 re-issue,
+invalid→401). Deployed to WAW; verified live: field `/auth/refresh` dropped to 0×401,
+reuse-past-grace returns 200 with `reuse past grace — re-issued (soft)` in the log.
+
+**Follow-ups:** (1) add a config gate `AUTH_STRICT_REFRESH_REUSE` and flip to strict once
+the field moves past pre-114. (2) SHIP build ≥114 to the field (App Store live version in
+docs was stale at 91 — the persist fix never reached most users). (3) add a `jti` to
+refresh tokens so rotation always yields a distinct token.

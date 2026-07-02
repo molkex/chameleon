@@ -993,6 +993,19 @@ deferred:
 # DONE — append-only log. Most recent date first.
 # ============================================================
 done:
+  "2026-07-02":
+    - id: AUTH-REFRESH-REISSUE
+      title: "Unbreak field logout loop — re-issue on refresh reuse (pre-114 build compat)"
+      notes: |
+        Follow-up to AUTH-REFRESH-MULTILEG. Users still saw 'Сессия истекла' + subscription
+        'expired' the next day: the active field is almost all pre-114 builds (90/113) that
+        don't persist the rotated refresh token → they re-present the same valid token forever
+        → strict reuse-detection 401'd them → logout loop → app never re-fetched /config (a comp'd
+        sub e.g. user 159080→2027 showed expired). Field /auth/refresh was ~100% 401. Fix: a reuse
+        past the 30s grace window no longer 401s — if the refresh JWT is valid+unexpired, re-issue
+        a fresh pair (soft-logged); only expired/invalid JWTs 401. Deployed WAW, verified live
+        (field refresh 401s → 0). incident 2026-07-01-mobile-refresh-multileg-logout.md addendum.
+        TODO: config gate AUTH_STRICT_REFRESH_REUSE + ship build ≥114 to field + jti on refresh.
   "2026-07-01":
     - id: MON-ALERT-NOISE
       title: "Kill Telegram alert spam — monitor code() bug + no-dedup + stale NL target"
