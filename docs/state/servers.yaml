@@ -62,41 +62,36 @@ nl:
   domain_apex: madfrog.online        # CF-proxied → here
   domain_api: api.madfrog.online     # via MSK relay (not CF) → here:80
 
-# 2026-07-11: DECOMMISSIONED. France exit had zero real usage in 14d app_events
-# telemetry (57 successful connects logged fieldwide over 14d, only 1 attributed
-# to France — via the RU/SPB bypass leg, not direct). Reversible steps done:
-# vpn_servers rows gra1(720)+relay-fr(721) set is_active=false, sing-box container
-# stopped on the box, SPB's :2099→GRA nginx forward removed (chameleon-stream.conf),
-# external WAW-origin monitor relocated to MSK (infrastructure/monitoring/, was
-# infrastructure/gra-monitor/). NOT yet done (needs the OVH web panel — API key has
-# no write grant, same restriction as ordering): disable auto-renew on
-# vps-57941bff.vps.ovh.net (serviceId 73273364, expires 2026-08-01) so it isn't
-# rebilled; then the VPS can be deleted from the panel. Minor leftover: MSK's
-# /etc/sing-box/config.json still has an inert fr-via-msk inbound on :2099 pointing
-# at GRA (not in this repo by design — chains live off-git) — harmless (GRA is
-# stopped) but could be pruned in a future MSK config pass.
-# 2nd VPN exit (failover for NL) — added 2026-05-30. VPN-only: no backend/DB
-# here yet, current users baked into singbox config (see project_gra_node_bringup
-# memory). Reachable from RU (~50ms), Reality SNI ads.adfox.ru verified live.
+# 2026-07-11: DECOMMISSIONED as a VPN exit (France had zero real usage in 14d
+# app_events telemetry — 57 successful connects fieldwide, only 1 attributed
+# to France, via the RU/SPB bypass leg not direct). vpn_servers rows
+# gra1(720)+relay-fr(721) set is_active=false, SPB's :2099→GRA nginx forward
+# removed. External WAW-origin monitor relocated to MSK (infrastructure/monitoring/,
+# was infrastructure/gra-monitor/).
+#
+# 2026-07-11 (later same day): box FULLY WIPED of Chameleon remnants for reuse
+# on a different (non-Chameleon) project — sing-box container/images/docker
+# volume (chameleon-singbox-config, held the Reality keys) removed, old
+# ~/monitoring/ dir deleted, ufw rules for 443/tcp+udp, 51820/udp (MSK WG),
+# 8081/tcp (NL stats), 15380/tcp (user-api) all removed — only 22+80/tcp
+# (+v6) remain. Docker itself is still installed. NOT done (needs the OVH web
+# panel — API key has no write grant, same restriction as ordering): disable
+# auto-renew on vps-57941bff.vps.ovh.net (serviceId 73273364, expires
+# 2026-08-01, ~$9.99/mo) if the new project doesn't want to keep paying via
+# this same OVH account. Minor leftover: MSK's /etc/sing-box/config.json still
+# has an inert fr-via-msk inbound on :2099 pointing at this now-dead IP (not
+# in this repo by design — chains live off-git) — harmless, could be pruned
+# in a future MSK config pass.
 gra:
-  status: decommissioned_2026-07-11   # was: production
+  status: repurposed_2026-07-11   # was: decommissioned_2026-07-11 (VPN) → production
   ip: 54.38.243.162
   hostname: vps-57941bff.vps.ovh.net
   hosting: OVH
   location: Gravelines, France
   spec: 6 vCPU / 12 GB / 100 GB, ~1 Gbit/s, €9.99/mo
   role:
-    - vpn_node           # sing-box VLESS Reality :443/tcp + Hysteria2 :443/udp
+    - free_for_reuse    # Chameleon-clean as of 2026-07-11; not yet assigned to a project
   ssh: debian@54.38.243.162   # key auth (claude-code-ssh-key), root via sudo
-  vpn_servers_key: gra1       # row in NL Postgres vpn_servers, country_code=FR
-  user_sync: live             # 2026-05-31: NL backend RelayUserSyncer now pushes
-                              # the active VLESS Reality user set to gra1 every 30s
-                              # + on each registration (vpn_servers.user_api_url =
-                              # http://54.38.243.162:15380). User API rebound to
-                              # 0.0.0.0:15380, ufw-restricted to NL (147.45.252.234)
-                              # + bearer (USER_API_SECRET). Hysteria2 leg still
-                              # baked-only (not User-API-managed). See
-                              # incidents/2026-05-31-gra-france-user-sync.md
 
 waw:
   status: production          # ⭐ PRIMARY backend+DB since the 2026-06-29 failover (was warm standby)

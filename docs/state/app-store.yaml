@@ -25,8 +25,15 @@
 # correct). Cut as **build 124** (same 1.0.33 train, not yet submitted to
 # review), archived+uploaded via `ios-archive-upload` CI (tag `ios-build-124`),
 # VALID in ASC, assigned to Internal Testers (verified via include=betaGroups).
-# **1.0.33/124 is now the build to test on-device before App Store submission**
 # — 123 is superseded (still has the pl-flag bug, don't test against it).
+#
+# ⚠️ 2026-07-11 (still later same day): a Fable-model code-quality audit of
+# the whole iOS client (theme-system duplication, AppState.swift god-object,
+# 2 more verified bugs) was implemented + verified the same day — see
+# roadmap.yaml#now.audit_2026_07_11_fable_code_quality for the full list.
+# Cut as **build 125** (same 1.0.33 train), VALID in ASC, assigned to
+# Internal Testers. **1.0.33/125 is now the build to test on-device before
+# App Store submission** — 124 is superseded (same base, missing this batch).
 #
 verified: 2026-07-11 (partial — see warning above; full ASC re-pull still owed)
 
