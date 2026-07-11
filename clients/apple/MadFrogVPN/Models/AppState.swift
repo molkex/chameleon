@@ -1471,138 +1471,17 @@ class AppState {
             TunnelFileLogger.log("toggleVPN: have cached config, running preconnect race + building", category: "ui")
             let config: String? = await configForStartupWithRace() ?? configStore.loadConfig()
             TunnelFileLogger.log("toggleVPN: config built, running preflight probe", category: "ui")
-
-            // Fail-fast preflight: probe each outbound's TCP endpoint before
-            // committing to a 10s watchdog. This catches "all servers dead"
-            // in ~2s and gives the user a specific, actionable error instead
-            // of a generic "server rejected" after 30 seconds of silence.
-            // The preflight probes run through whatever tunnel currently owns the
-            // device. If a FOREIGN VPN is active, our servers look "dead" only
-            // because traffic is being routed through it — aborting here is what
-            // stopped us from ever reaching vpnManager.connect(), which is the call
-            // that triggers iOS/macOS single-tunnel takeover (displaces the other
-            // VPN). So when another VPN is active, ignore the unreliable preflight
-            // and proceed straight to the takeover.
-            let foreignVPNActive = VPNErrorMapper.anotherVPNActive()
-            switch await preflightProbe() {
-            case .ok, .skipped:
-                break
-            case .allDead:
-                if foreignVPNActive {
-                    TunnelFileLogger.log("toggleVPN: preflight allDead but a foreign VPN is active — probes unreliable, proceeding to takeover", category: "ui")
-                } else {
-                    TunnelFileLogger.log("toggleVPN: preflight — all servers unreachable", category: "ui")
-                    errorMessage = L10n.Error.allServersUnreachable
-                    return
-                }
-            case .selectedDead(let name):
-                if foreignVPNActive {
-                    TunnelFileLogger.log("toggleVPN: preflight selectedDead '\(name)' but a foreign VPN is active — proceeding to takeover", category: "ui")
-                } else {
-                    TunnelFileLogger.log("toggleVPN: preflight — selected '\(name)' unreachable", category: "ui")
-                    errorMessage = L10n.Error.selectedUnreachable(name)
-                    return
-                }
-            }
-
-            TunnelFileLogger.log("toggleVPN: preflight OK, calling vpnManager.connect", category: "ui")
-
-            // USR-09 Phase 2 — record connect intent. server tag is the
-            // selected country/leaf urltest the cascade will start from.
-            await eventTracker.log(
-                name: "vpn.connect.start",
-                properties: [
-                    "server": selectedServerTag ?? "",
-                    "routing": routingMode.rawValue,
-                ]
-            )
-
-            do {
-                try await vpnManager.connect(configJSON: config)
-                TunnelFileLogger.log("toggleVPN: vpnManager.connect returned OK", category: "ui")
-            } catch {
-                TunnelFileLogger.log("toggleVPN: vpnManager.connect FAILED: \(error)", category: "ui")
-                if VPNErrorMapper.anotherVPNActive() {
-                    errorMessage = L10n.Error.anotherVPNActive
-                } else {
-                    errorMessage = VPNErrorMapper.humanMessage(error)
-                }
-                await eventTracker.log(
-                    name: "vpn.connect.fail",
-                    properties: [
-                        "stage": "vpnmanager_connect",
-                        "reason": "\(error)",
-                    ]
-                )
-                return
-            }
-
-            // Watchdog: the tunnel must reach .connected within 18s, with
-            // one silent retry on timeout. Build-36: libbox cold-start on
-            // LTE can take 9-15s; the previous 10s watchdog killed connects
-            // ~50ms before success. Preflight already confirmed at least one
-            // outbound is network-reachable, so non-timeout failure modes
-            // (Reality handshake mismatch, bad UUID) still surface fast.
-            let outcome = await awaitConnectionWithSilentRetry(config: config)
-            switch outcome {
-            case .connected:
-                Haptics.notify(.success)
-                // Belt-and-braces: NEVPNStatusDidChange notifications can arrive
-                // while AppState's MainActor task is busy (toggleVPN is itself
-                // running on @MainActor), so the observer-driven handleStatus
-                // call may have hit .connecting and missed the .connected
-                // transition. Force-stamp here so the timer always starts on
-                // first connect (without this, the chip stayed blank until the
-                // user backgrounded + foregrounded the app).
-                handleStatus()
-                await eventTracker.log(
-                    name: "vpn.connect.success",
-                    properties: ["server": selectedServerTag ?? ""]
-                )
-                break
-            case .failed:
-                TunnelFileLogger.log("toggleVPN: watchdog — extension rejected connection", category: "ui")
-                vpnManager.disconnect()
-                errorMessage = VPNErrorMapper.anotherVPNActive()
-                    ? L10n.Error.anotherVPNActive
-                    : L10n.Error.serverRejected
-                await eventTracker.log(
-                    name: "vpn.connect.fail",
-                    properties: ["stage": "watchdog", "reason": "rejected"]
-                )
-                return
-            case .permissionDenied:
-                TunnelFileLogger.log("toggleVPN: watchdog — permission denied", category: "ui")
-                vpnManager.disconnect()
-                errorMessage = VPNErrorMapper.permissionMissing
-                await eventTracker.log(
-                    name: "vpn.connect.fail",
-                    properties: ["stage": "watchdog", "reason": "permission_denied"]
-                )
-                return
-            case .timedOut:
-                vpnManager.disconnect()
-                errorMessage = VPNErrorMapper.watchdogTimeout
-                await eventTracker.log(
-                    name: "vpn.connect.fail",
-                    properties: ["stage": "watchdog", "reason": "timeout"]
-                )
-                return
-            }
-
-            // Delay background refresh — if we fire immediately, URLSession
-            // competes with the tunnel that's still coming up and iOS sometimes
-            // stalls the main queue waiting on network reachability.
-            refreshTask?.cancel()
-            refreshTask = Task {
-                try? await Task.sleep(for: .seconds(3))
-                guard !Task.isCancelled else { return }
-                await silentConfigUpdate()
-            }
+            await connectFlow(config: config, scheduleBackgroundRefresh: true)
             return
         }
 
-        // No cached config: must fetch before we can connect.
+        // No cached config: must fetch before we can connect. This is a user's
+        // first-ever connect (or a fully offline relaunch) — the most important
+        // funnel event, so it MUST go through the same connectFlow as the cached
+        // path (telemetry + anotherVPNActive handling used to be cached-only; a
+        // first connect blocked by a foreign VPN showed a generic "server
+        // rejected" instead of "disable your other VPN", and never emitted a
+        // single vpn.connect.* event — verified 2026-07-11 code review, H2).
         isLoading = true
         defer { isLoading = false }
         await refreshConfig(timeout: .seconds(5))
@@ -1613,43 +1492,144 @@ class AppState {
         }
 
         let config: String? = configForStartup() ?? configStore.loadConfig()
+        await connectFlow(config: config, scheduleBackgroundRefresh: false)
+    }
 
-        // Same fail-fast preflight as the cached-config path above.
+    /// Shared preflight → connect → watchdog path for both the cached-config
+    /// and no-cache branches of `toggleVPN` (see H2 in the 2026-07-11 code
+    /// review — these used to be two independently-maintained copies that had
+    /// drifted). `scheduleBackgroundRefresh` is true only for the cached path:
+    /// the no-cache path just did a synchronous `refreshConfig`, so there's
+    /// nothing stale to refresh again 3 seconds later.
+    private func connectFlow(config: String?, scheduleBackgroundRefresh: Bool) async {
+        // Fail-fast preflight: probe each outbound's TCP endpoint before
+        // committing to a 10s watchdog. This catches "all servers dead"
+        // in ~2s and gives the user a specific, actionable error instead
+        // of a generic "server rejected" after 30 seconds of silence.
+        // The preflight probes run through whatever tunnel currently owns the
+        // device. If a FOREIGN VPN is active, our servers look "dead" only
+        // because traffic is being routed through it — aborting here is what
+        // stopped us from ever reaching vpnManager.connect(), which is the call
+        // that triggers iOS/macOS single-tunnel takeover (displaces the other
+        // VPN). So when another VPN is active, ignore the unreliable preflight
+        // and proceed straight to the takeover.
+        let foreignVPNActive = VPNErrorMapper.anotherVPNActive()
         switch await preflightProbe() {
         case .ok, .skipped:
             break
         case .allDead:
-            errorMessage = L10n.Error.allServersUnreachable
-            return
+            if foreignVPNActive {
+                TunnelFileLogger.log("toggleVPN: preflight allDead but a foreign VPN is active — probes unreliable, proceeding to takeover", category: "ui")
+            } else {
+                TunnelFileLogger.log("toggleVPN: preflight — all servers unreachable", category: "ui")
+                errorMessage = L10n.Error.allServersUnreachable
+                return
+            }
         case .selectedDead(let name):
-            errorMessage = L10n.Error.selectedUnreachable(name)
-            return
+            if foreignVPNActive {
+                TunnelFileLogger.log("toggleVPN: preflight selectedDead '\(name)' but a foreign VPN is active — proceeding to takeover", category: "ui")
+            } else {
+                TunnelFileLogger.log("toggleVPN: preflight — selected '\(name)' unreachable", category: "ui")
+                errorMessage = L10n.Error.selectedUnreachable(name)
+                return
+            }
         }
+
+        TunnelFileLogger.log("toggleVPN: preflight OK, calling vpnManager.connect", category: "ui")
+
+        // USR-09 Phase 2 — record connect intent. server tag is the
+        // selected country/leaf urltest the cascade will start from.
+        await eventTracker.log(
+            name: "vpn.connect.start",
+            properties: [
+                "server": selectedServerTag ?? "",
+                "routing": routingMode.rawValue,
+            ]
+        )
 
         do {
             try await vpnManager.connect(configJSON: config)
+            TunnelFileLogger.log("toggleVPN: vpnManager.connect returned OK", category: "ui")
         } catch {
-            errorMessage = VPNErrorMapper.humanMessage(error)
+            TunnelFileLogger.log("toggleVPN: vpnManager.connect FAILED: \(error)", category: "ui")
+            errorMessage = VPNErrorMapper.anotherVPNActive()
+                ? L10n.Error.anotherVPNActive
+                : VPNErrorMapper.humanMessage(error)
+            await eventTracker.log(
+                name: "vpn.connect.fail",
+                properties: [
+                    "stage": "vpnmanager_connect",
+                    "reason": "\(error)",
+                ]
+            )
             return
         }
 
+        // Watchdog: the tunnel must reach .connected within 18s, with
+        // one silent retry on timeout. Build-36: libbox cold-start on
+        // LTE can take 9-15s; the previous 10s watchdog killed connects
+        // ~50ms before success. Preflight already confirmed at least one
+        // outbound is network-reachable, so non-timeout failure modes
+        // (Reality handshake mismatch, bad UUID) still surface fast.
         let outcome = await awaitConnectionWithSilentRetry(config: config)
         switch outcome {
         case .connected:
             Haptics.notify(.success)
-            return
+            // Belt-and-braces: NEVPNStatusDidChange notifications can arrive
+            // while AppState's MainActor task is busy (toggleVPN is itself
+            // running on @MainActor), so the observer-driven handleStatus
+            // call may have hit .connecting and missed the .connected
+            // transition. Force-stamp here so the timer always starts on
+            // first connect (without this, the chip stayed blank until the
+            // user backgrounded + foregrounded the app).
+            handleStatus()
+            await eventTracker.log(
+                name: "vpn.connect.success",
+                properties: ["server": selectedServerTag ?? ""]
+            )
         case .failed:
+            TunnelFileLogger.log("toggleVPN: watchdog — extension rejected connection", category: "ui")
             vpnManager.disconnect()
             Haptics.notify(.error)
-            errorMessage = L10n.Error.serverRejected
+            errorMessage = VPNErrorMapper.anotherVPNActive()
+                ? L10n.Error.anotherVPNActive
+                : L10n.Error.serverRejected
+            await eventTracker.log(
+                name: "vpn.connect.fail",
+                properties: ["stage": "watchdog", "reason": "rejected"]
+            )
+            return
         case .permissionDenied:
+            TunnelFileLogger.log("toggleVPN: watchdog — permission denied", category: "ui")
             vpnManager.disconnect()
             Haptics.notify(.error)
             errorMessage = VPNErrorMapper.permissionMissing
+            await eventTracker.log(
+                name: "vpn.connect.fail",
+                properties: ["stage": "watchdog", "reason": "permission_denied"]
+            )
+            return
         case .timedOut:
             vpnManager.disconnect()
             Haptics.notify(.error)
             errorMessage = VPNErrorMapper.watchdogTimeout
+            await eventTracker.log(
+                name: "vpn.connect.fail",
+                properties: ["stage": "watchdog", "reason": "timeout"]
+            )
+            return
+        }
+
+        guard scheduleBackgroundRefresh else { return }
+
+        // Delay background refresh — if we fire immediately, URLSession
+        // competes with the tunnel that's still coming up and iOS sometimes
+        // stalls the main queue waiting on network reachability.
+        refreshTask?.cancel()
+        refreshTask = Task {
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
+            await silentConfigUpdate()
         }
     }
 
