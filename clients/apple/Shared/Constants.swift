@@ -22,18 +22,32 @@ enum AppConfig {
     /// nginx on the server still accepts the TLS handshake.
     ///
     /// NOTE: 162.19.242.30 (DE/OVH Frankfurt) was retired 2026-05-25
-    /// and removed from this pool as part of TD-DE-PRUNE. NL is now
-    /// the sole production backend; SPB is the RU relay.
+    /// and removed from this pool as part of TD-DE-PRUNE.
+    ///
+    /// 2026-07-11: NL and SPB REMOVED after live verification found both
+    /// return a fast, empty-body HTTP 400 on this exact path (curl —resolve
+    /// api.madfrog.online:443:<ip> .../api/v1/mobile/config → 400 in
+    /// ~0.3-0.4s from both). NL's chameleon backend was stopped by the
+    /// 2026-06-29 WAW failover (WAW is primary now, NL is a DB-only streaming
+    /// replica) — its nginx no longer proxies this route. SPB is separately
+    /// confirmed application-dead as of today's stability audit (roadmap
+    /// SPB-RECOVER, P0) — TCP-open but nothing real answers behind it.
+    /// Under `.anyBelow500` these fast wrong-status legs could win the race
+    /// (`for try await result in group` takes the FIRST passing result, not
+    /// the best one) BEFORE a slower-but-correct primary/decoy/MSK leg ever
+    /// completed — the exact mechanism behind build 126's "Нет конфигурации"
+    /// on a real device. MSK is the only entry left: verified live (curl)
+    /// to correctly reach the app layer (401 on an unauthed request) in
+    /// ~0.15-0.2s. Re-add NL/SPB here only once they're confirmed serving
+    /// this route again — don't restore from memory of the old topology.
     static let directBackendIPs: [String] = [
-        // RU-NO-VPN-LOGIN (2026-06-17): MSK relay FIRST. It fronts
+        // RU-NO-VPN-LOGIN (2026-06-17): MSK relay. It fronts
         // api.madfrog.online on :443 with a valid Let's Encrypt cert and is
-        // reachable from RU networks WITHOUT a VPN — unlike NL (foreign IP, RU
-        // blocks it) and a DNS-poisoned api.madfrog.online primary. Without this
-        // a RU user with no VPN had no reachable backend path → "all paths
-        // failed" sign-in (verified: MSK:443 health 200, cert valid).
+        // reachable from RU networks WITHOUT a VPN — unlike a DNS-poisoned
+        // api.madfrog.online primary. Without this a RU user with no VPN had
+        // no reachable backend path → "all paths failed" sign-in (verified:
+        // MSK:443 health 200, cert valid).
         "217.198.5.52",   // MSK relay (RU) — api front, valid cert, RU-reachable
-        "147.45.252.234", // NL (Timeweb) — sole production backend (foreign)
-        "185.218.0.43"    // SPB relay (RU) — HTTPS 443 may hijack, HTTP 80 untested
     ]
 
     /// Host portion of baseURL, used as SNI for direct-IP dial.

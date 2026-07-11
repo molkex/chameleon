@@ -182,6 +182,18 @@ enum FallbackWinPolicy {
     case anyBelow500
     /// Auth sign-in: a fallback leg wins ONLY on 2xx or 401.
     case definitiveAuthOnly
+    /// Config fetch (2026-07-11): the same build-53 shape hit `/config` —
+    /// live-verified a stale/dead direct-IP leg (post-failover NL, dead SPB)
+    /// answering a fast empty-body 400 that could win the race over a
+    /// slower-but-correct primary/decoy, surfacing as a spurious "no config"
+    /// on a real device even though a working leg existed. `GetConfig`'s own
+    /// handler only ever emits 2xx (success), 401 (bad/expired JWT — checked
+    /// before user lookup), 403 (deactivated / subscription expired), 404
+    /// (user row missing — drives the ACCT-IDENTITY re-register ladder), or
+    /// 409 (VPN credentials not provisioned yet) — every OTHER 4xx (like the
+    /// dead legs' raw 400) can only come from something that isn't our app
+    /// actually answering, so it must not be allowed to shadow a real leg.
+    case definitiveConfigOnly
 }
 
 class APIClient {
@@ -250,6 +262,12 @@ class APIClient {
             // shadow primary's 200 (build-53). 401 reaching the app means the
             // request truly hit the backend auth check.
             return (200...299).contains(status) || status == 401
+        case .definitiveConfigOnly:
+            // Mirrors GetConfig's actual response surface (see enum doc) —
+            // anything else (the dead legs' raw 400) is transport noise, not
+            // a real backend answer, and must not shadow a working leg.
+            return (200...299).contains(status) || status == 401 || status == 403
+                || status == 404 || status == 409
         }
     }
 
@@ -403,14 +421,17 @@ class APIClient {
                     let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
                     if let http = response as? HTTPURLResponse, http.statusCode >= 500 {
                         AppLogger.network.info("race.primary.done rejected status=\(http.statusCode, privacy: .public) elapsed=\(ms, privacy: .public)ms")
+                        TunnelFileLogger.log("race.primary rejected status=\(http.statusCode) path=\(path) elapsed=\(Int(ms))ms", category: "network")
                         return nil
                     }
                     let status = (response as? HTTPURLResponse)?.statusCode ?? 0
                     AppLogger.network.info("race.primary.done ok status=\(status, privacy: .public) elapsed=\(ms, privacy: .public)ms")
+                    TunnelFileLogger.log("race.primary ok status=\(status) path=\(path) elapsed=\(Int(ms))ms", category: "network")
                     return (data, response, "primary")
                 } catch {
                     let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
                     AppLogger.network.error("race.primary.done error=\(error.localizedDescription, privacy: .public) elapsed=\(ms, privacy: .public)ms")
+                    TunnelFileLogger.log("race.primary error=\(error.localizedDescription) path=\(path) elapsed=\(Int(ms))ms", category: "network")
                     return nil
                 }
             }
@@ -473,6 +494,7 @@ class APIClient {
                             let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
                             if !Self.fallbackLegWins(status: meta.status, policy: winPolicy) {
                                 AppLogger.network.info("race.decoy.done rejected ip=\(decoyIP, privacy: .public) status=\(meta.status, privacy: .public) policy=\(String(describing: winPolicy), privacy: .public) elapsed=\(ms, privacy: .public)ms")
+                                TunnelFileLogger.log("race.decoy rejected ip=\(decoyIP) status=\(meta.status) policy=\(winPolicy) path=\(path) elapsed=\(Int(ms))ms", category: "network")
                                 return nil
                             }
                             let response = HTTPURLResponse(
@@ -480,10 +502,12 @@ class APIClient {
                                 httpVersion: "HTTP/1.1", headerFields: meta.headers
                             )!
                             AppLogger.network.info("race.decoy.done ok ip=\(decoyIP, privacy: .public) status=\(meta.status, privacy: .public) elapsed=\(ms, privacy: .public)ms")
+                            TunnelFileLogger.log("race.decoy ok ip=\(decoyIP) status=\(meta.status) path=\(path) elapsed=\(Int(ms))ms", category: "network")
                             return (bodyData, response, "decoy")
                         } catch {
                             let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
                             AppLogger.network.error("race.decoy.done error ip=\(decoyIP, privacy: .public) error=\(error.localizedDescription, privacy: .public) elapsed=\(ms, privacy: .public)ms")
+                            TunnelFileLogger.log("race.decoy error ip=\(decoyIP) error=\(error.localizedDescription) path=\(path) elapsed=\(Int(ms))ms", category: "network")
                             return nil
                         }
                     }
@@ -514,6 +538,7 @@ class APIClient {
                         let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
                         if !Self.fallbackLegWins(status: meta.status, policy: winPolicy) {
                             AppLogger.network.info("race.direct.done ip=\(ip, privacy: .public) rejected status=\(meta.status, privacy: .public) policy=\(String(describing: winPolicy), privacy: .public) elapsed=\(ms, privacy: .public)ms")
+                            TunnelFileLogger.log("race.direct rejected ip=\(ip) status=\(meta.status) policy=\(winPolicy) path=\(path) elapsed=\(Int(ms))ms", category: "network")
                             return nil
                         }
                         let response = HTTPURLResponse(
@@ -523,10 +548,12 @@ class APIClient {
                             headerFields: meta.headers
                         )!
                         AppLogger.network.info("race.direct.done ip=\(ip, privacy: .public) ok status=\(meta.status, privacy: .public) elapsed=\(ms, privacy: .public)ms")
+                        TunnelFileLogger.log("race.direct ok ip=\(ip) status=\(meta.status) path=\(path) elapsed=\(Int(ms))ms", category: "network")
                         return (bodyData, response, "direct-\(ip)")
                     } catch {
                         let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
                         AppLogger.network.error("race.direct.done ip=\(ip, privacy: .public) error=\(error.localizedDescription, privacy: .public) elapsed=\(ms, privacy: .public)ms")
+                        TunnelFileLogger.log("race.direct error ip=\(ip) error=\(error.localizedDescription) path=\(path) elapsed=\(Int(ms))ms", category: "network")
                         return nil
                     }
                 }
@@ -573,13 +600,16 @@ class APIClient {
                         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
                         if !Self.fallbackLegWins(status: status, policy: winPolicy) {
                             AppLogger.network.info("race.http.done ip=\(ip, privacy: .public) rejected status=\(status, privacy: .public) policy=\(String(describing: winPolicy), privacy: .public) elapsed=\(ms, privacy: .public)ms")
+                            TunnelFileLogger.log("race.http rejected ip=\(ip) status=\(status) policy=\(winPolicy) path=\(path) elapsed=\(Int(ms))ms", category: "network")
                             return nil
                         }
                         AppLogger.network.info("race.http.done ip=\(ip, privacy: .public) ok status=\(status, privacy: .public) elapsed=\(ms, privacy: .public)ms")
+                        TunnelFileLogger.log("race.http ok ip=\(ip) status=\(status) path=\(path) elapsed=\(Int(ms))ms", category: "network")
                         return (data, response, "http-\(ip)")
                     } catch {
                         let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
                         AppLogger.network.error("race.http.done ip=\(ip, privacy: .public) error=\(error.localizedDescription, privacy: .public) elapsed=\(ms, privacy: .public)ms")
+                        TunnelFileLogger.log("race.http error ip=\(ip) error=\(error.localizedDescription) path=\(path) elapsed=\(Int(ms))ms", category: "network")
                         return nil
                     }
                 }
@@ -592,11 +622,13 @@ class APIClient {
                     if sensitive { lastSensitiveAuthLeg = winner.2 }
                     let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
                     AppLogger.network.info("race.winner leg=\(winner.2, privacy: .public) elapsed=\(ms, privacy: .public)ms")
+                    TunnelFileLogger.log("race.winner leg=\(winner.2) path=\(path) elapsed=\(Int(ms))ms", category: "network")
                     return (winner.0, winner.1)
                 }
             }
             let ms = Double(DispatchTime.now().uptimeNanoseconds - raceStart.uptimeNanoseconds) / 1_000_000
             AppLogger.network.error("race.failed elapsed=\(ms, privacy: .public)ms")
+            TunnelFileLogger.log("race.failed path=\(path) elapsed=\(Int(ms))ms — all legs rejected/errored, see race.* lines above", category: "network")
             throw APIError.networkError("all paths failed")
         }
     }
@@ -723,7 +755,10 @@ class APIClient {
         }
 
         do {
-            let (data, response) = try await dataWithFallback(for: applyTelemetry(to: request))
+            let (data, response) = try await dataWithFallback(
+                for: applyTelemetry(to: request),
+                winPolicy: .definitiveConfigOnly
+            )
             guard let http = response as? HTTPURLResponse else {
                 throw APIError.networkError("No response")
             }
