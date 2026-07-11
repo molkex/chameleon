@@ -45,22 +45,32 @@ madfrog.online:
 mdfrog.site:
   status: alias
   target: waw (217.182.74.70)      # 2026-07-01: was 162.19.242.30 (RETIRED DE) — served stale CF cache; now live WAW
-  notes: backup short domain. Sub-records (nl1/msk1/proxy/margin/de1/ru1) still point at old boxes — separate cleanup.
+  notes: backup short domain. msk1.mdfrog.site (pointed at retired legacy bot box
+    85.239.49.28) DELETED 2026-07-11 — see legacy_subdomains below. Other sub-records
+    (nl1/proxy/margin/de1/ru1) still point at old boxes — separate cleanup.
 
 razblokirator.ru:
   status: legacy_alias
   target: waw (217.182.74.70)      # 2026-07-01: was 162.19.242.30 (RETIRED DE); now live WAW
-  notes: old project name; kept so old QR codes keep working. Sub-records still on old boxes — separate cleanup.
+  notes: old project name; kept so old QR codes keep working. msk1.razblokirator.ru
+    (pointed at retired legacy bot box 85.239.49.28) DELETED 2026-07-11 — see
+    legacy_subdomains below. Other sub-records still on old boxes — separate cleanup.
 
-# Subdomains still on retired infra.
-# CLEANUP TASK — update DNS to point at NL or remove entirely.
+# Subdomains that WERE on retired infra (85.239.49.28) — RESOLVED 2026-07-11.
+# All 5 DNS records (bot./crew./speedtest.madfrog.online + msk1.mdfrog.site +
+# msk1.razblokirator.ru) deleted via Cloudflare API after confirming none are
+# load-bearing (grepped the whole repo for references; bot.madfrog.online's own
+# CF comment claimed "FreeKassa webhook when app migration is complete" but the
+# live webhook is POST /api/webhooks/freekassa on the main domain per
+# payment-providers.yaml — this subdomain was never actually wired up to it).
+# The underlying box (legacy Telegram-bot MadFrog product, Marzban/Xray) was
+# retired the same day — confirmed dead via direct user testing (4x /start over
+# 3+ hours, zero replies) before decommission. Full backup taken first:
+# ~/backups/madfrog-bot-legacy-2026-07-11/ (local, outside this repo).
 legacy_subdomains:
-  - "bot.madfrog.online":         # was telegram bot landing
-      points_to: 85.239.49.28      # retired MSK IP (different from msk_relay)
-      action: scrub or repoint
+  - "bot.madfrog.online":         # was telegram bot landing / a never-used FreeKassa webhook plan
+      status: RETIRED_2026-07-11 (was 85.239.49.28)
   - "crew.madfrog.online":
-      points_to: 85.239.49.28
-      action: scrub or repoint
+      status: RETIRED_2026-07-11 (was 85.239.49.28)
   - "speedtest.madfrog.online":
-      points_to: 85.239.49.28
-      action: scrub or repoint
+      status: RETIRED_2026-07-11 (was 85.239.49.28)

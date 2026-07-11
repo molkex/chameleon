@@ -127,6 +127,38 @@ now:
 # NEXT — 1-2 week queue, ready to start
 # ============================================================
 next:
+  # ── STABILITY + COST AUDIT 2026-07-11 (detail: docs/audits/2026-07-11-{production-stability,
+  # network-mesh-stability,cost-optimization-proposal}.md) — two independent passes (client-side
+  # + infra-side) triggered by "app works sometimes, not others" user reports. ──
+  audit_2026_07_11:
+    # infra — network mesh
+    - {id: SPB-RECOVER, priority: P0, build: false,
+       title: "SPB relay (185.218.0.43) is TCP-open but application-dead — recover via SprintHost panel (SSH hangs at banner exchange, unusable). Likely top cause of RU 'sometimes works' — it's a live leg in the sign-in race and 2 VPN whitelist-bypass chains, hangs instead of failing fast.",
+       risk: "RU sign-in / whitelist-bypass users hit full-timeout hangs, not a clean fallback"}
+    - {id: SPB-STALE-UPSTREAM, priority: P1, build: false, note: "do AFTER SPB-RECOVER",
+       title: "SPB's API-fallback/decoy config (infrastructure/spb-relay/api-proxy.conf mirror) still points at NL:80, whose backend/nginx role is INACTIVE post-failover — repoint to WAW"}
+    - {id: MSK-STALE-DE-LEG, priority: P1, build: false,
+       title: "Remove vless-de chain (:2096 → wg-de → retired 162.19.242.30) from MSK relay — silent black hole for any client with this leg still cached. Confirm zero traffic in connection logs first."}
+    - {id: RAZBLOKIRATOR-FIX, priority: P2, build: false,
+       title: "razblokirator.ru: Cloudflare returns 200 headers but body never arrives (4/4 repro). Fix WAW nginx server_name/origin mapping, or 302-redirect to madfrog.online. Costs ~$0 either way (rides WAW/CF for free) — hygiene, not a cost lever."}
+    - {id: BOTBOX-DECISION, priority: P2, status: done_2026-07-11,
+       title: "DONE — 85.239.49.28 (legacy Telegram-bot MadFrog product, Marzban/Xray) confirmed dead by direct user test (4x /start over 3+ hours in the live @MadFrogRobot chat, zero replies) and decommissioned. Backed up first: full DB dump (pg_dumpall) + entire /root/telegram_vpn_bot/ (2036 files, 66MB compressed) pulled to ~/backups/madfrog-bot-legacy-2026-07-11/ with a README. All 10 containers stopped. 5 stale Cloudflare DNS records deleted (bot./crew./speedtest.madfrog.online + msk1.mdfrog.site + msk1.razblokirator.ru) after confirming none load-bearing — bot.madfrog.online's own CF comment claimed a FreeKassa webhook role but the real webhook (POST /api/webhooks/freekassa) never used this subdomain, verified in payment-providers.yaml + a repo-wide grep before deleting. Ops-alert delivery (telegram-alert.sh, runs from WAW/GRA) confirmed unaffected — same channel still receives alerts. FULLY closed 2026-07-11 (later same day) — found working TIMEWEB_API_KEY credentials, confirmed via the Timeweb Cloud API that the box's account (server id 6636843 \"testServer\", 3 other unrelated boxes on the same account: NL, MSK relay, and two non-Chameleon projects, all verified untouched before/after) matched the IP exactly, then DELETE'd the server (204) AND the orphaned floating IP resource left behind after server deletion (204) — the IP does NOT auto-release with the server on this provider, had to be deleted separately via /api/v1/floating-ips/{id}. Verified: server gone from the account's server list, IP gone from the account's floating-ips list, all 4 remaining account servers (including NL and MSK relay) confirmed still present and untouched. Saves the full ~€7.7/mo for real, not just a paused container."}
+    # client — iOS/macOS (from the production-stability audit; verified by direct code read + a
+    # live telemetry re-check, not just the audit's own claims)
+    - {id: CLIENT-ENTITLEMENT-GATE, priority: P0, build: true,
+       title: "SubscriptionManager.isActiveEntitlement treats expirationDate==nil (true for all 4 NonRenewingSubscription products) as active forever; AppState.mayConnect:1352 short-circuits `if isPremium { return true }` BEFORE checking backend subscription_expiry — verified this literally gates VPN connect, not just a display bug",
+       risk: "authorization/revenue: a locally-cached entitlement can outlive the real backend expiry"}
+    - {id: CLIENT-EXT-RACE, priority: P1, build: true,
+       title: "ExtensionProvider.swift: startTunnel dispatches sing-box start on an untracked DispatchQueue.global().async block; stopTunnel runs synchronously with no cancellation/generation guard — a fast connect→disconnect can publish a late 'connected' after stop already fired"}
+    - {id: CLIENT-CONNECT-DEADLINE, priority: P1, build: true,
+       title: "awaitConnectionWithSilentRetry worst case is ~40s (18s + 3s + 1s + 18s) — violates the project's own 30s VPN-connect-timeout rule (CLAUDE.md)"}
+    - {id: CLIENT-INTENT-GATE-BYPASS, priority: P1, build: true,
+       title: "Widget/Shortcuts intents (VPNControlIntents.swift) call VPNControl.perform() directly, bypassing AppState.mayConnect entirely — verified, not just a config path claim"}
+    - {id: CLIENT-VPN-PROFILE-SELECT, priority: P2, build: true,
+       title: "VPNControlIntents use NETunnelProviderManager.loadAllFromPreferences() and take the first result without identifying the intended profile — devices with legacy/duplicate profiles could observe/control the wrong tunnel"}
+    - {id: CLIENT-FALLBACK-STALE-NL, priority: P1, build: true, note: "bumped P2→P1 2026-07-11 — see addendum in production-stability-audit.md: dead-leg config is now the CONFIRMED dominant real-world failure class (5 of 30 fails were guaranteed-fail attempts at a deactivated exit), batch with the other client fixes, don't ship separately",
+       title: "Shared/Constants.swift fallbackBaseURL + directBackendIPs still list 147.45.252.234:80 as a live API fallback target — NL's backend/nginx role is INACTIVE post-failover (2026-06-29), this leg spends race budget on nothing. Also still lists retired DE 162.19.242.30 (pre-existing TODO)."}
+
   # ── POST-FAILOVER AUDIT 2026-06-29 (detail: docs/audits/2026-06-29-failover-state-audit.md) ──
   audit_2026_06_29:
     # security found post-failover (failover-script bugs already FIXED commit 0fc981b)
@@ -134,9 +166,9 @@ next:
     - {id: SEC-SUB-URL, priority: P1, build: false, note: "= H-03", title: "/sub/:token cred-in-URL (server.go:259) — grep nginx logs, delete if dead, else query-param/JWT"}
     - {id: SEC-METRICS-AUTH, priority: P1, build: false, title: "/metrics unauth on :8000 (server.go:185) — exposed now WAW serves :8000 direct. Bind 127.0.0.1 or IP-gate."}
     - {id: SEC-FREEKASSA-ALLOWLIST, priority: P2, build: false, title: "freekassa empty ip_whitelist silently allows all (client.go:147) — log loud warning"}
-    - {id: INFRA-FAILOVER-SHELLCHECK, priority: P1, title: "CI shellcheck/bash -n on infrastructure/failover/*.sh — destructive scripts unvalidated"}
+    - {id: INFRA-FAILOVER-SHELLCHECK, priority: P1, status: done_2026-07-11, title: "DONE — .github/workflows/infra-failover-shellcheck.yml added. Found + fixed 3 real bugs in failover.sh during HA-drill prep: nl target's health check hit nginx's port but step 3 never started chameleon-nginx (would have hung the drill); POSIX [ ] doesn't glob-match so the unknown-primary guard never actually skipped; an un-separated docker-stop string only worked by shell-argument accident. Also removed dead $IP/$P_IP in rebuild-replica.sh. All 5 scripts: bash -n + shellcheck -S warning clean."}
     # HA completion (the user's goal: any-node-down → auto)
-    - {id: HA-DRILL, priority: P1, title: "DRILL failover.sh in a low-traffic window (blocker for auto-trigger)"}
+    - {id: HA-DRILL, priority: P1, status: done_2026-07-11, title: "DONE — full WAW→NL→WAW drill run live, both directions verified (RTO 2m26s total), replica rebuilt+streaming after. Zero data loss (checked). Bonus: found+fixed nl2's dormant-fallback config was dead (same class of bug as the 2026-05-31 GRA incident) and reactivated it as a LIVE exit — verified carrying real traffic within minutes. ⚠️ Also CAUSED a real ~1h outage of the web frontend (madfrog.online 521 via Cloudflare) — the failback never restarted chameleon-nginx on WAW (stale NGINX=\"\" in node_cfg), and my own post-drill verification only checked the API path (bypasses nginx), not the web path. Caught only via a user-forwarded Telegram alert screenshot, not by me. Both the immediate outage and the script bug are fixed; see incidents/2026-07-11-ha-drill.md for the full account, including the process lesson (check BOTH api.madfrog.online AND madfrog.online after any failover, not just one)."}
     - {id: HA-WATCHDOG, priority: P2, title: "GRA watchdog → failover.sh on sustained/multi-vantage outage + anti-flap (after HA-DRILL)"}
     - {id: HA-WAW-PIPELINE, priority: P1, title: "deploy.sh waw for backend symmetry. DONE 2026-07-01: nginx on WAW + admin SPA + landing back, CF apex madfrog.online+www origin → WAW (infrastructure/failover/waw-web-up.sh). REMAINING: proper deploy.sh waw node (backend still via waw-backend-up.sh)."}
     - {id: TESTMAP-DRIFT, priority: P3, status: done_2026-06-29, title: "DONE — admin 10→22, apple 26→33 fixed; lifecycle/promo/push/PlanPricing entries still TODO"}
@@ -887,7 +919,7 @@ next:
     # remote exits + exposing GRA :15380 to NL. Hysteria2 leg still baked-only (follow-up).
     # FR-VIA-MSK RESOLVED 2026-06-01 (user asked for both relay legs) → see done log
     # + incidents/2026-06-01-fr-relay-legs.md. Built fr-via-msk (port 2099) AND ru-spb-fr.
-    - { id: SUBDOMAIN-SCRUB, priority: P2, title: "bot/speedtest.madfrog.online → 85.239.49.28 (the @MadFrogRobot bot host, user-controlled — low takeover risk; crew/apex already on CF, api→MSK). Confirm intentional or repoint." }
+    - { id: SUBDOMAIN-SCRUB, priority: P2, status: done_2026-07-11, title: "DONE — superseded by BOTBOX-DECISION. bot/crew/speedtest.madfrog.online + msk1.mdfrog.site + msk1.razblokirator.ru all deleted (host 85.239.49.28 retired), not repointed." }
 
 # ============================================================
 # LATER — backlog, no current pull

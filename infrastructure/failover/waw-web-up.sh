@@ -18,6 +18,7 @@
 # plain asset refresh never touches DNS. See docs/decisions/0013.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
+# shellcheck source=/dev/null
 source ~/.secrets.env 2>/dev/null || true
 W=debian@217.182.74.70; KEY=~/.ssh/claude-code-ssh-key; WAW_IP=217.182.74.70
 RX(){ ssh -i "$KEY" -o StrictHostKeyChecking=accept-new "$W" "$@"; }

@@ -26,7 +26,10 @@ MSK_SSH="root@217.198.5.52"
 MSK_IP="217.198.5.52"
 MSK_CONF="/etc/nginx/sites-available/api.madfrog.online"
 MSK_DECOY="/etc/nginx/sites-available/decoy-adfox"
-EXITS=("54.38.243.162" "217.182.74.70")   # GRA, WAW exit user-api boxes (ufw :15380)
+EXITS=("54.38.243.162" "217.182.74.70" "147.45.252.234")   # GRA, WAW, NL(nl2) exit
+  # user-api boxes (ufw :15380). nl2 reactivated as a live fallback 2026-07-11 — was
+  # missing here since the 2026-06-29 failover, so a future failover would not have
+  # repointed its user-api ufw to the new primary.
 
 # SPB second decoy leg (RU-DECOY-2ND): password-auth box, NOT on the key. Needs
 # SPRINTBOX_VPS_PASSWORD (from ~/.secrets.env) + sshpass; if either is missing the
@@ -46,12 +49,22 @@ node_cfg() {
   case "$1" in
     waw)
       SSH="debian@217.182.74.70"; SUDO="sudo "; IP="217.182.74.70"
-      PG="chameleon-postgres-standby"; CHAM="chameleon-failover"
-      MSK_TARGET="217.182.74.70:8000" ;;     # WAW backend serves chameleon directly on :8000
+      PG="chameleon-postgres-standby"; CHAM="chameleon-failover"; NGINX="chameleon-nginx"
+      MSK_TARGET="217.182.74.70:8000" ;;     # MSK/API traffic hits chameleon directly on :8000
+        # (nginx isn't in the health-check path), BUT chameleon-nginx is still WAW's WEB
+        # frontend (madfrog.online via Cloudflare, since 2026-07-01) and MUST be started too —
+        # found the hard way 2026-07-11: the fence step stops chameleon-nginx on ANY old
+        # primary, and leaving NGINX="" here meant a WAW failback silently left the web
+        # frontend down (API/VPN fine, madfrog.online 521 via Cloudflare) until an external
+        # monitor caught it ~1 hour later. Verify BOTH api.madfrog.online AND madfrog.online
+        # after any failover — the API health check alone does not cover this.
     nl)
       SSH="root@147.45.252.234"; SUDO=""; IP="147.45.252.234"
-      PG="chameleon-postgres"; CHAM="chameleon"
-      MSK_TARGET="147.45.252.234:80" ;;      # NL backend fronted by nginx on :80
+      PG="chameleon-postgres"; CHAM="chameleon"; NGINX="chameleon-nginx"
+      MSK_TARGET="147.45.252.234:80" ;;      # NL backend fronted by nginx on :80 — the health
+        # check below hits this port, so nginx must be started too, not just chameleon
+        # (found 2026-07-11 during drill prep: this step silently only started chameleon,
+        # so failover.sh nl would hang at step 3 waiting on a health check nginx never served)
     *) echo "unknown node: $1 (use waw|nl)"; exit 2 ;;
   esac
 }
@@ -83,11 +96,20 @@ if [ "${2:-}" != "--yes" ]; then
 fi
 
 # 1. FENCE old primary (best-effort; it may be unreachable — that's fine, MSK starves it)
-if [ "$CUR" != "$TARGET" ] && [ "$CUR" != unknown* ]; then
+if [ "$CUR" != "$TARGET" ] && [[ "$CUR" != unknown* ]]; then
+  # NOTE (fixed 2026-07-11): the old `[ "$CUR" != unknown* ]` used POSIX `[ ]`, which does
+  # NOT glob-match — `unknown*` only matches literally, so an unreadable-MSK "unknown(...)"
+  # state fell through to node_cfg("unknown(...)") below and died with a confusing
+  # "unknown node" error instead of skipping the fence with a clear message. `[[ ]]` (bash)
+  # does pattern-match on the right side of `!=`, which is what was actually intended.
   OLD="$CUR"; node_cfg "$OLD"; OLD_SSH="$SSH"; OLD_SUDO="$SUDO"; OLD_CHAM="$CHAM"
   node_cfg "$TARGET"   # restore target vars
   say "fencing old primary $OLD: stop chameleon (no more writes)"
-  rexec "$OLD_SSH" "${OLD_SUDO}docker stop $OLD_CHAM ${OLD_SUDO}docker stop chameleon-nginx 2>/dev/null" || true
+  # NOTE (fixed 2026-07-11): this used to be one un-separated string —
+  # "docker stop $OLD_CHAM docker stop chameleon-nginx" — which `docker stop` happened to
+  # parse as 4 container-name arguments (silently erroring, harmlessly, on the literal
+  # "docker" and "stop"). Explicit `;` makes it two real commands instead of an accident.
+  rexec "$OLD_SSH" "${OLD_SUDO}docker stop $OLD_CHAM; ${OLD_SUDO}docker stop chameleon-nginx" || true
 fi
 
 # 2. PROMOTE target postgres (if it's a replica)
@@ -101,9 +123,13 @@ INREC=$(rexec "$SSH" "${SUDO}docker exec $PG psql -U chameleon -d chameleon -tAc
 [ "$INREC" = "f" ] || die "$TARGET postgres still in recovery — not writable"
 say "$TARGET postgres is PRIMARY (writable). users=$(rexec "$SSH" "${SUDO}docker exec $PG psql -U chameleon -d chameleon -tAc 'select count(*) from users'")"
 
-# 3. START target chameleon + wait healthy
+# 3. START target chameleon (+ nginx, if this node fronts it with one) + wait healthy
 say "starting $TARGET chameleon ($CHAM)"
 rexec "$SSH" "${SUDO}docker start $CHAM" || die "could not start $CHAM"
+if [ -n "$NGINX" ]; then
+  say "starting $TARGET nginx ($NGINX) — the health check below hits nginx's port, not chameleon's"
+  rexec "$SSH" "${SUDO}docker start $NGINX" || die "could not start $NGINX"
+fi
 for i in $(seq 1 15); do
   hc=$(rexec "$SSH" "curl -s -m4 -o /dev/null -w '%{http_code}' http://127.0.0.1:${MSK_TARGET##*:}/health")
   [ "$hc" = "200" ] && { say "$TARGET chameleon healthy"; break; }

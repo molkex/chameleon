@@ -90,9 +90,9 @@
 ## Домены
 
 - **`madfrog.online`** apex — Cloudflare proxy → NL:80 (SSL=flexible). Публичный landing + admin SPA.
-- **`api.madfrog.online`** — **НЕ через CF**. DNS A-record → MSK relay (217.198.5.52) → nginx upstream → NL:80. Так нужно, чтобы RU users обходили CF throttling.
-- Legacy: `www.madfrog.online`, `mdfrog.site`, `razblokirator.ru` — алиасы → NL.
-- Subdomains `bot.`, `crew.`, `speedtest.` всё ещё на легаси `85.239.49.28` — задача [`docs/state/domains.yaml`](docs/state/domains.yaml).
+- **`api.madfrog.online`** — **НЕ через CF**. DNS A-record → MSK relay (217.198.5.52) → nginx upstream → **WAW:8000** (после фейловера 2026-06-29; был NL:80). Так нужно, чтобы RU users обходили CF throttling.
+- Legacy: `www.madfrog.online`, `mdfrog.site`, `razblokirator.ru` — алиасы → WAW (перенесены 2026-07-01).
+- Subdomains `bot.`, `crew.`, `speedtest.` были на легаси `85.239.49.28` (старый Telegram-бот MadFrog) — бот расследован и списан 2026-07-11 (подтверждён мёртвым руками, забэкаплен, DNS-записи удалены). См. [`docs/state/domains.yaml`](docs/state/domains.yaml).
 
 ## Ключевые файлы
 

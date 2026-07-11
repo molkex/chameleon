@@ -17,8 +17,8 @@ set -uo pipefail
 KEY="${SSH_KEY:-$HOME/.ssh/claude-code-ssh-key}"
 
 node() { case "$1" in
-  waw) SSH="debian@217.182.74.70"; SUDO="sudo "; IP="217.182.74.70"; PG="chameleon-postgres-standby" ;;
-  nl)  SSH="root@147.45.252.234";  SUDO="";      IP="147.45.252.234"; PG="chameleon-postgres" ;;
+  waw) SSH="debian@217.182.74.70"; SUDO="sudo "; PG="chameleon-postgres-standby" ;;
+  nl)  SSH="root@147.45.252.234";  SUDO="";      PG="chameleon-postgres" ;;
   *) echo "unknown node $1"; exit 2 ;; esac ; }
 rx() { ssh -i "$KEY" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 "$1" "$2"; }
 die(){ echo "ERROR: $*" >&2; exit 1; }
@@ -29,7 +29,7 @@ say(){ echo ">>> $*"; }
 [ -n "${CHAMELEON_PG_REPLICATOR_PASSWORD:-}" ] || die "set CHAMELEON_PG_REPLICATOR_PASSWORD (source ~/.secrets.env)"
 REP="${1:?replica node}"; PRI="${2:?primary node}"
 node "$REP"; R_SSH="$SSH"; R_SUDO="$SUDO"; R_PG="$PG"
-node "$PRI"; P_SSH="$SSH"; P_SUDO="$SUDO"; P_IP="$IP"; P_PG="$PG"
+node "$PRI"; P_SSH="$SSH"; P_SUDO="$SUDO"; P_PG="$PG"
 SLOT="${REP}_standby"
 read -r -p "WIPE $REP postgres and rebuild as replica of $PRI? type 'yes': " ok; [ "$ok" = yes ] || die aborted
 

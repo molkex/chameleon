@@ -13,6 +13,7 @@
 # 217.182.74.70:8000. failover.sh encodes that.
 set -euo pipefail
 cd "$(dirname "$0")/../../backend"
+# shellcheck source=/dev/null
 source ~/.secrets.env
 W=debian@217.182.74.70; KEY=~/.ssh/claude-code-ssh-key
 RX(){ ssh -i "$KEY" -o StrictHostKeyChecking=accept-new "$W" "$@"; }
