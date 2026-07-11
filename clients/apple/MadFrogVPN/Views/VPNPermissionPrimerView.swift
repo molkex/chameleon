@@ -8,12 +8,11 @@ import SwiftUI
 /// `saveToPreferences()`. This primer is strictly informational; once the
 /// user taps "Continue", we proceed with the normal connect flow.
 struct VPNPermissionPrimerView: View {
-    @Environment(ThemeManager.self) private var themeManager
     @Environment(\.dismiss) private var dismiss
 
     let onContinue: () -> Void
 
-    private var theme: Theme { themeManager.current }
+    private let theme = Theme.current
 
     var body: some View {
         ZStack {

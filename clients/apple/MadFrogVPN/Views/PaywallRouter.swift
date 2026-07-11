@@ -37,7 +37,6 @@ struct PaywallRouter: View {
             } else {
                 TunnelFileLogger.log("PaywallRouter: Storefront.current returned nil", category: "ui")
             }
-            // Debug override: check UserDefaults for "debug_paywall_force" = "web"|"storekit"
             resolved = true
 
             // USR-09 Phase 2 — fired ONCE at routing time, before any

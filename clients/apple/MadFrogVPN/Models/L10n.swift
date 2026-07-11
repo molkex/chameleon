@@ -13,27 +13,6 @@ enum L10n {
     enum Home {
         static let label               = LKey("home.status.label")
 
-        static let statusProtected     = LKey("home.status.protected")
-        static let statusExposed       = LKey("home.status.exposed")
-        static let statusConnecting    = LKey("home.status.connecting")
-        static let statusReconnecting  = LKey("home.status.reconnecting")
-        static let statusDisconnecting = LKey("home.status.disconnecting")
-        static let statusPermission    = LKey("home.status.permission_denied")
-
-        static let subtitleConnected     = LKey("home.subtitle.connected")
-        static let subtitleDisconnected  = LKey("home.subtitle.disconnected")
-        static let subtitleConnecting    = LKey("home.subtitle.connecting")
-        static let subtitleReconnecting  = LKey("home.subtitle.reconnecting")
-        static let subtitleDisconnecting = LKey("home.subtitle.disconnecting")
-        static let subtitlePermission    = LKey("home.subtitle.permission")
-
-        static let ctaConnect       = LKey("home.cta.connect")
-        static let ctaCancel        = LKey("home.cta.cancel")
-        static let ctaDisconnect    = LKey("home.cta.disconnect")
-        static let ctaPermission    = LKey("home.cta.permission")
-        static let ctaReconnecting  = LKey("home.cta.reconnecting")
-        static let ctaWaiting       = LKey("home.cta.waiting")
-
         static let ctaConnectNow    = LKey("home.cta.connect_now")
         static let ctaGrantAccess   = LKey("home.cta.grant_access")
         static let ctaDisconnectCaps = LKey("home.cta.disconnect_caps")
@@ -51,16 +30,8 @@ enum L10n {
         static let neonPermissionNeeded = LKey("home.neon.permission_needed")
         static let neonDots            = LKey("home.neon.dots")
 
-        static let headerPro       = LKey("home.header.pro")
-        static let headerFree      = LKey("home.header.free")
-        static let headerProMember = LKey("home.header.pro_member")
-
         static let serverActive    = LKey("home.server.active")
         static let serverStandby   = LKey("home.server.standby")
-
-        static let chipServer      = LKey("home.chip.server")
-        static let chipSession     = LKey("home.chip.session")
-        static let chipSessionIdle = LKey("home.chip.session_idle")
 
         static let autoName        = LKey("home.server.auto")
         static let autoLongName    = LKey("home.server.auto_long")
@@ -69,16 +40,9 @@ enum L10n {
         // Subscription strip
         static let subGetPro        = LKey("home.subscription.get_pro")
         static let subProActive     = LKey("home.subscription.pro_active")
-        static let subUnlock        = LKey("home.subscription.unlock")
-        static let subExpired       = LKey("home.subscription.expired")
-        static let subExpiredFull   = LKey("home.subscription.expired_full")
-        static let subUnlockFull    = LKey("home.subscription.unlock_full")
 
         static func subDaysLeft(_ days: Int) -> String {
             String(format: String(localized: "home.subscription.days_left"), days)
-        }
-        static func subProDays(_ days: Int) -> String {
-            String(format: String(localized: "home.subscription.pro_days"), days)
         }
     }
 
@@ -223,16 +187,6 @@ enum L10n {
         static let privacy           = LKey("paywall.privacy")
     }
 
-    enum Theme {
-        static let title       = LKey("theme.title")
-        static let subtitle    = LKey("theme.subtitle")
-        static let done        = LKey("theme.done")
-        static let calmName    = LKey("theme.calm.name")
-        static let calmTagline = LKey("theme.calm.tagline")
-        static let neonName    = LKey("theme.neon.name")
-        static let neonTagline = LKey("theme.neon.tagline")
-    }
-
     enum Servers {
         static let title    = LKey("servers.title")
         static let done     = LKey("servers.done")
@@ -265,13 +219,11 @@ enum L10n {
 
     enum Settings {
         static let title           = LKey("settings.title")
-        static let sectionAppearance = LKey("settings.section.appearance")
         static let sectionRouting    = LKey("settings.section.routing")
         static let sectionAccount    = LKey("settings.section.account")
         static let sectionAbout      = LKey("settings.section.about")
         static let sectionDiagnostics = LKey("settings.section.diagnostics")
         static let contactSupport    = LKey("settings.contact_support")
-        static let theme           = LKey("settings.theme")
         static let routingMode     = LKey("settings.routing_mode")
         static let routingModeSmart        = LKey("settings.routing_mode.smart")
         static let routingModeSmartHint    = LKey("settings.routing_mode.smart.hint")

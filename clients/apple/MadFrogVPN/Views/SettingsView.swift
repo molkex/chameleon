@@ -6,10 +6,8 @@ import SwiftUI
 /// grouped-list fight with dark themes.
 struct SettingsView: View {
     @Environment(AppState.self) private var app
-    @Environment(ThemeManager.self) private var themeManager
     @Environment(\.dismiss) private var dismiss
 
-    @State private var showThemePicker = false
     @State private var showDebugLogs = false
     @State private var preloadedTunnelLines: [String] = []
     @State private var preloadedStderrLines: [String] = []
@@ -32,7 +30,7 @@ struct SettingsView: View {
     @State private var versionTapCount = 0
     @State private var diagnosticsUnlocked = false
 
-    private var theme: Theme { themeManager.current }
+    private let theme = Theme.current
 
     private var diagnosticsVisible: Bool {
         #if DEBUG
@@ -49,16 +47,6 @@ struct SettingsView: View {
 
                 ScrollView {
                     VStack(spacing: 20) {
-                        sectionHeader(L10n.Settings.sectionAppearance)
-                        card {
-                            row(icon: "paintpalette.fill", title: L10n.Settings.theme,
-                                trailing: Text(themeManager.current.displayName)
-                                    .font(theme.font(size: 15))
-                                    .foregroundStyle(theme.textSecondary),
-                                showChevron: true
-                            ) { showThemePicker = true }
-                        }
-
                         sectionHeader(L10n.Settings.sectionRouting)
                         card {
                             VStack(alignment: .leading, spacing: 14) {
@@ -318,9 +306,6 @@ struct SettingsView: View {
                     Button(L10n.Servers.done) { dismiss() }
                         .tint(theme.accent)
                 }
-            }
-            .sheet(isPresented: $showThemePicker) {
-                ThemePickerView(isModal: true).environment(themeManager).macSheetSize()
             }
             .sheet(isPresented: $showDebugLogs) {
                 DebugLogsView(

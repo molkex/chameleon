@@ -8,14 +8,13 @@ import SwiftUI
 /// by design: we rejected classic email+password for MVP.
 struct EmailSignInView: View {
     @Environment(AppState.self) private var app
-    @Environment(ThemeManager.self) private var themeManager
     @Environment(\.dismiss) private var dismiss
 
     @State private var email: String = ""
     @State private var showCheckEmail: Bool = false
     @State private var sentToEmail: String = ""
 
-    private var theme: Theme { themeManager.current }
+    private let theme = Theme.current
 
     private var isValid: Bool {
         let e = email.trimmingCharacters(in: .whitespacesAndNewlines)

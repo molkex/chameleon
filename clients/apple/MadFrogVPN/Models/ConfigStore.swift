@@ -101,11 +101,6 @@ class ConfigStore {
         }
     }
 
-    var subscriptionURL: String? {
-        guard let user = username else { return nil }
-        return "\(AppConstants.baseURL)/sub/\(user)/smart"
-    }
-
     var subscriptionExpire: Date? {
         get { sharedDefaults?.object(forKey: AppConstants.subscriptionExpireKey) as? Date }
         set { sharedDefaults?.set(newValue, forKey: AppConstants.subscriptionExpireKey) }
@@ -113,13 +108,6 @@ class ConfigStore {
 
     var lastUpdate: Date? {
         sharedDefaults?.object(forKey: AppConstants.lastUpdateKey) as? Date
-    }
-
-    // MARK: - VPN Mode Preference
-
-    var vpnMode: String {
-        get { sharedDefaults?.string(forKey: "vpnMode") ?? "smart" }
-        set { sharedDefaults?.set(newValue, forKey: "vpnMode") }
     }
 
     // MARK: - Selected Server Preference

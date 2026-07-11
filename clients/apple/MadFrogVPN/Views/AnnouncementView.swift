@@ -1,17 +1,16 @@
 import SwiftUI
 
 /// INAPP-ANNOUNCEMENTS — the centered card shown over the home when there's an
-/// active, not-yet-dismissed announcement. Theme-aware (neon/calm). Dismiss via
-/// the ✕, the primary button, or a tap on the dimmed backdrop; dismissal is
-/// remembered so it never reappears.
+/// active, not-yet-dismissed announcement. Dismiss via the ✕, the primary
+/// button, or a tap on the dimmed backdrop; dismissal is remembered so it
+/// never reappears.
 struct AnnouncementView: View {
     @Environment(AppState.self) private var app
-    @Environment(ThemeManager.self) private var themeManager
     @Environment(\.openURL) private var openURL
 
     let announcement: Announcement
 
-    private var theme: Theme { themeManager.current }
+    private let theme = Theme.current
 
     var body: some View {
         ZStack {

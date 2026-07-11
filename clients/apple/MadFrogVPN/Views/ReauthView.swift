@@ -17,13 +17,12 @@ import SwiftUI
 /// the next failed refresh.
 struct ReauthView: View {
     @Environment(AppState.self) private var app
-    @Environment(ThemeManager.self) private var themeManager
     @Environment(\.dismiss) private var dismiss
 
     @State private var showEmail = false
     @State private var busy = false
 
-    private var theme: Theme { themeManager.current }
+    private let theme = Theme.current
 
     var body: some View {
         ZStack {
@@ -107,7 +106,6 @@ struct ReauthView: View {
         .sheet(isPresented: $showEmail) {
             EmailSignInView()
                 .environment(app)
-                .environment(themeManager)
                 .macSheetSize()
                 .macCloseButton { showEmail = false }
         }

@@ -12,7 +12,6 @@ import UIKit
 /// keeps SBP/card payments compliant in the App Store (same pattern InConnect uses).
 struct WebPaywallView: View {
     @Environment(AppState.self) private var app
-    @Environment(ThemeManager.self) private var themeManager
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
 
@@ -26,7 +25,7 @@ struct WebPaywallView: View {
     @State private var pendingPaymentID: String?
     @State private var showSuccess = false
 
-    private var theme: Theme { themeManager.current }
+    private let theme = Theme.current
 
     var body: some View {
         NavigationStack {

@@ -1,39 +1,23 @@
 import SwiftUI
 import NetworkExtension
 
-/// Dispatcher: picks the layout that matches the currently selected theme.
-/// Each variant is a completely separate composition (layout, typography,
-/// geometry) — not just a recolor of the same structure.
 struct MainView: View {
     @Environment(AppState.self) private var app
-    @Environment(ThemeManager.self) private var themeManager
 
     @State private var showServers = false
     @State private var showSettings = false
     @State private var showPaywall = false
-    @State private var showThemePicker = false
     @State private var cachedBuildInfoLine: String = ""
 
     var body: some View {
         ZStack {
-            switch themeManager.current.id {
-            case "neon":
-                MainViewNeon(
-                    app: app,
-                    showServers: $showServers,
-                    showSettings: $showSettings,
-                    showPaywall: $showPaywall,
-                    cachedBuildInfoLine: cachedBuildInfoLine
-                )
-            default:
-                MainViewCalm(
-                    app: app,
-                    showServers: $showServers,
-                    showSettings: $showSettings,
-                    showPaywall: $showPaywall,
-                    cachedBuildInfoLine: cachedBuildInfoLine
-                )
-            }
+            MainViewNeon(
+                app: app,
+                showServers: $showServers,
+                showSettings: $showSettings,
+                showPaywall: $showPaywall,
+                cachedBuildInfoLine: cachedBuildInfoLine
+            )
 
             if let error = app.errorMessage {
                 VStack {
@@ -118,32 +102,26 @@ struct MainView: View {
                 .macCloseButton { showServers = false }
         }
         .sheet(isPresented: $showSettings) {
-            SettingsView().environment(app).environment(themeManager)
+            SettingsView().environment(app)
                 .macSheetSize()
                 .macCloseButton { showSettings = false }
         }
         .sheet(isPresented: $showPaywall) {
-            PaywallRouter().environment(app).environment(themeManager)
+            PaywallRouter().environment(app)
                 .macSheetSize()
                 .macCloseButton { showPaywall = false }
         }
         // EXPIRED-PAYWALL-ON-CONNECT: a gated connect attempt asks AppState to
         // present the paywall (same PaywallRouter as the manual chip).
         .sheet(isPresented: Bindable(app).requestPaywall) {
-            PaywallRouter().environment(app).environment(themeManager)
+            PaywallRouter().environment(app)
                 .macSheetSize()
                 .macCloseButton { app.requestPaywall = false }
-        }
-        .sheet(isPresented: $showThemePicker) {
-            ThemePickerView(isModal: true).environment(themeManager)
-                .macSheetSize()
-                .macCloseButton { showThemePicker = false }
         }
         .sheet(isPresented: Bindable(app).showPermissionPrimer) {
             VPNPermissionPrimerView {
                 Task { await app.proceedAfterPrimer() }
             }
-            .environment(themeManager)
             .macSheetSize()
         }
         // ACCT-IDENTITY: non-destructive session-recovery sheet. Auto-presents
@@ -152,7 +130,6 @@ struct MainView: View {
         .sheet(isPresented: Bindable(app).needsReauth) {
             ReauthView()
                 .environment(app)
-                .environment(themeManager)
                 .macSheetSize()
         }
     }

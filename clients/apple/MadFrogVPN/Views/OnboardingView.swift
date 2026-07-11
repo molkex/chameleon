@@ -17,8 +17,7 @@ fileprivate func hapticLight() {
 /// text link. Feature pills live above the CTAs to reassure the user.
 struct OnboardingView: View {
     @Environment(AppState.self) private var app
-    @Environment(ThemeManager.self) private var themeManager
-    private var theme: Theme { themeManager.current }
+    private let theme = Theme.current
 
     @State private var showTerms = false
     @State private var showPrivacy = false
@@ -152,7 +151,6 @@ struct OnboardingView: View {
         .sheet(isPresented: $showEmailSignIn) {
             EmailSignInView()
                 .environment(app)
-                .environment(themeManager)
                 .macSheetSize()
         }
     }

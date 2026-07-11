@@ -445,12 +445,19 @@ struct MainViewNeon: View {
     }
 
     private var subscriptionStripRightText: String {
-        if let expire = app.subscriptionExpire {
-            let days = Calendar.current.dateComponents([.day], from: .now, to: expire).day ?? 0
-            if days < 0 { return String(localized: "home.subscription.expired") }
-            return L10n.Home.subDaysLeft(days)
+        guard let expire = app.subscriptionExpire else {
+            return String(localized: "home.subscription.unlock")
         }
-        return String(localized: "home.subscription.unlock")
+        // Gate on the actual Date, not a rounded day-count: an expiry a few hours in
+        // the past still rounds to `days == 0` (Calendar truncates toward zero), which
+        // showed "PRO • осталось 0 дней" for an already-expired subscription — while
+        // the connect gate (isSubscriptionActive) correctly already saw it as expired.
+        // Verified 2026-07-11 code review.
+        guard expire > .now else {
+            return String(localized: "home.subscription.expired")
+        }
+        let days = Calendar.current.dateComponents([.day], from: .now, to: expire).day ?? 0
+        return L10n.Home.subDaysLeft(days)
     }
 }
 

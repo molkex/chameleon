@@ -9,10 +9,9 @@ import WebKit
 /// its fetch()/EventSource calls to /api/v1/mobile/support/* are SAME-ORIGIN —
 /// no CORS, no need to allowlist a file:// / null origin on the backend. After
 /// the page loads, `window.initChat({...})` injects the user's access token,
-/// the current theme (neon/calm), and the UI language.
+/// the theme name, and the UI language.
 struct SupportChatView: View {
     @Environment(AppState.self) private var app
-    @Environment(ThemeManager.self) private var themeManager
     @Environment(\.dismiss) private var dismiss
 
     // nil = still fetching a fresh access token. The webview can't refresh on
@@ -31,7 +30,7 @@ struct SupportChatView: View {
                 if let token {
                     SupportChatWebView(
                         accessToken: token,
-                        theme: themeManager.current.id, // "neon" | "calm"
+                        theme: Theme.current.id,
                         lang: Locale.current.language.languageCode?.identifier == "ru" ? "ru" : "en"
                     )
                     .ignoresSafeArea(edges: .bottom)

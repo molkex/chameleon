@@ -3,7 +3,6 @@ import StoreKit
 
 struct PaywallView: View {
     @Environment(AppState.self) private var app
-    @Environment(ThemeManager.self) private var themeManager
     @Environment(\.dismiss) private var dismiss
 
     @State private var selectedProductID: String = SubscriptionManager.product90
@@ -12,7 +11,7 @@ struct PaywallView: View {
     @State private var showPrivacy = false
 
     private var sub: SubscriptionManager { app.subscriptionManager }
-    private var theme: Theme { themeManager.current }
+    private let theme = Theme.current
 
     var body: some View {
         NavigationStack {

@@ -8,7 +8,6 @@ import UIKit
 @main
 struct MadFrogVPNApp: App {
     @State private var appState = AppState()
-    @State private var themeManager = ThemeManager()
     @Environment(\.scenePhase) private var scenePhase
     #if os(iOS)
     // SUPPORT-CHAT P4 — owns the UIApplicationDelegate callbacks for APNs
@@ -67,12 +66,11 @@ struct MadFrogVPNApp: App {
                         // root so it opens regardless of which screen is on top.
                         // Reset the flag on dismiss. SwiftUI propagates the
                         // .environment objects below into the sheet, but inject
-                        // them explicitly so SupportChatView always has app +
-                        // themeManager even when presented from the root.
+                        // it explicitly so SupportChatView always has app even
+                        // when presented from the root.
                         .sheet(isPresented: Bindable(appState).pendingSupportChatOpen) {
                             SupportChatView()
                                 .environment(appState)
-                                .environment(themeManager)
                         }
                         // INAPP-ANNOUNCEMENTS: a centered, dismissible card over
                         // the home when there's an active announcement.
@@ -80,7 +78,6 @@ struct MadFrogVPNApp: App {
                             if let announcement = appState.activeAnnouncement {
                                 AnnouncementView(announcement: announcement)
                                     .environment(appState)
-                                    .environment(themeManager)
                                     .zIndex(1)
                             }
                         }
@@ -90,7 +87,6 @@ struct MadFrogVPNApp: App {
                 }
             }
             .environment(appState)
-            .environment(themeManager)
             .task { await appState.initialize() }
             .task(id: appState.isAuthenticated) {
                 // Fetch the active announcement once the user is authenticated
@@ -118,16 +114,6 @@ struct MadFrogVPNApp: App {
                 // disconnect alert lands with a "Reconnect" action button.
                 // Idempotent; safe to re-run on every launch.
                 appState.disconnectNotifier.registerCategory()
-            }
-            .task {
-                // Wire best-effort server sync: local is source of truth,
-                // so errors are swallowed and the UI is never blocked.
-                themeManager.remoteSync = { [weak appState] themeID in
-                    guard let token = appState?.configStore.accessToken else { return }
-                    Task.detached {
-                        try? await appState?.apiClient.setTheme(themeID, accessToken: token)
-                    }
-                }
             }
             .onReceive(NotificationCenter.default.publisher(for: .vpnReconnectRequested)) { _ in
                 // LAUNCH-08: action button → AppNotificationDelegate posted

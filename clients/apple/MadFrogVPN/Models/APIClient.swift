@@ -1169,23 +1169,6 @@ class APIClient {
         }
     }
 
-    func setTheme(_ themeID: String, accessToken: String) async throws {
-        guard let url = URL(string: "\(AppConstants.baseURL)/api/v1/mobile/user/theme") else {
-            throw APIError.networkError("Invalid URL")
-        }
-        var request = URLRequest(url: url)
-        request.httpMethod = "PATCH"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-        request.httpBody = try JSONSerialization.data(withJSONObject: ["theme": themeID])
-        request.timeoutInterval = 10
-
-        let (_, response) = try await session.data(for: applyTelemetry(to: request))
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            throw APIError.serverError((response as? HTTPURLResponse)?.statusCode ?? 0)
-        }
-    }
-
     // MARK: - FreeKassa Payments
 
     /// A plan returned by GET /api/mobile/plans.

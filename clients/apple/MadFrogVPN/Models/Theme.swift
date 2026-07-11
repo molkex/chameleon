@@ -1,10 +1,9 @@
 import SwiftUI
 
-/// Visual theme for the app. Two variants: `.calm` (charcoal + warm yellow,
-/// soft rounded cards) and `.neon` (deep blue + neon green + magenta, bold).
-///
-/// The device is the source of truth — `ThemeManager` persists the selection
-/// to UserDefaults and best-effort syncs it to the backend for analytics.
+/// Visual theme tokens for the app. MadFrog (neon: deep blue + neon green +
+/// magenta) is the only theme — a second variant (`.calm`) existed through
+/// build 123 and was removed 2026-07-11 (~700 lines of duplicated home-screen
+/// logic across two near-identical views for a picker almost nobody used).
 struct Theme: Equatable {
     let id: String
     let displayName: String
@@ -45,27 +44,6 @@ struct Theme: Equatable {
 }
 
 extension Theme {
-    /// Calm — charcoal background, warm lime-yellow accent, rounded cards,
-    /// plenty of whitespace. Reference: soil-monitor app (dark + #E8FF4B).
-    static let calm = Theme(
-        id: "calm",
-        displayName: "Classic",
-        tagline: "Minimal. Comfortable. Quiet.",
-        background: Color(red: 0.055, green: 0.055, blue: 0.055),       // #0E0E0E
-        surface: Color(red: 0.102, green: 0.102, blue: 0.102),          // #1A1A1A
-        surfaceElevated: Color(red: 0.14, green: 0.14, blue: 0.14),     // #242424
-        accent: Color(red: 0.91, green: 1.0, blue: 0.294),              // #E8FF4B
-        accentSecondary: Color(red: 0.98, green: 0.98, blue: 0.98),     // near-white
-        textPrimary: Color(red: 0.98, green: 0.98, blue: 0.98),         // #FAFAFA
-        textSecondary: Color(red: 0.541, green: 0.541, blue: 0.541),    // #8A8A8A
-        success: Color(red: 0.91, green: 1.0, blue: 0.294),
-        danger: Color(red: 1.0, green: 0.42, blue: 0.42),
-        cornerRadius: 16,
-        cardCornerRadius: 26,
-        displayFontName: nil,   // SF Pro Rounded fallback for now
-        bodyFontName: nil
-    )
-
     /// Neon Swamp — dark blue, neon green + magenta, bold street-art energy.
     static let neon = Theme(
         id: "neon",
@@ -86,9 +64,7 @@ extension Theme {
         bodyFontName: nil
     )
 
-    static let all: [Theme] = [.calm, .neon]
-
-    static func byID(_ id: String) -> Theme {
-        all.first { $0.id == id } ?? .neon
-    }
+    /// The app's one and only theme. Kept as a name (rather than inlining
+    /// `.neon` everywhere) so a future re-theme is a one-line change.
+    static let current = neon
 }

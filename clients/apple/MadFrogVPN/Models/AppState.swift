@@ -137,8 +137,6 @@ class AppState {
     /// has a fresh measurement for the remembered leaf, we skip the full
     /// probe round.
     @ObservationIgnored
-    private let legRaceProbe = LegRaceProbe()  // build-39: kept for tests; new code uses pathPicker
-    @ObservationIgnored
     private let lastWorkingLegStore = LastWorkingLegStore()
     /// Cached fingerprint of the current network — refreshed at every
     /// connect attempt and at health-probe success.
@@ -1691,8 +1689,17 @@ class AppState {
         guard !items.isEmpty else { return .skipped }
 
         let selectedTag = configStore.selectedServerTag
+        // The default one-tap UX pins a COUNTRY tag (e.g. "🇳🇱 Нидерланды"), not a
+        // leaf — `items` are leaves, so a direct tag match only ever succeeds for a
+        // power-mode leaf pin. Without this, `targets` came back empty for a country
+        // pin and preflight silently no-op'd via `.skipped` for essentially every
+        // real user (verified 2026-07-11 code review). Resolve a country pin to its
+        // member leaves before falling through.
+        let pinnedCountry = selectedTag.flatMap { tag in servers.flatMap(\.countries).first { $0.tag == tag } }
         let targets: [ServerItem]
-        if let tag = selectedTag {
+        if let country = pinnedCountry {
+            targets = items.filter { country.serverTags.contains($0.tag) }
+        } else if let tag = selectedTag {
             targets = items.filter { $0.tag == tag }
         } else {
             targets = items
@@ -1730,8 +1737,12 @@ class AppState {
 
         if anyAlive { return .ok }
 
-        if selectedTag != nil, let dead = targets.first {
-            return .selectedDead(name: dead.tag)
+        if selectedTag != nil, targets.first != nil {
+            // Prefer the country's display name (e.g. "Нидерланды") over the raw
+            // leaf tag (e.g. "nl-direct-nl2") — a country pin is the default UX,
+            // so most users hitting this have never seen a leaf tag anywhere else.
+            let name = pinnedCountry?.name ?? selectedTag ?? "?"
+            return .selectedDead(name: name)
         }
         return .allDead
     }
@@ -2074,49 +2085,6 @@ class AppState {
             }
             TunnelFileLogger.log("applyServerSelectionIfLive: cmdClient still not connected after 5s, giving up", category: "ui")
         }
-    }
-
-    /// Legacy single-selector lookup. Still used by cold-start paths
-    /// (`vpnManager.connect` load from disk) where we only need the Proxy
-    /// selector's default updated, not the full multi-step chain.
-    private func buildConfigWithSelector(_ serverTag: String) -> (config: String, selectorTag: String)? {
-        guard let config = configStore.loadConfig(),
-              let data = config.data(using: .utf8),
-              var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              var outbounds = json["outbounds"] as? [[String: Any]]
-        else {
-            AppLogger.app.error("buildConfigWithSelector: failed to load/parse config")
-            return nil
-        }
-
-        var modifiedSelectorTag: String?
-        for i in outbounds.indices {
-            if outbounds[i]["type"] as? String == "selector" {
-                let selectorTag = outbounds[i]["tag"] as? String ?? "unknown"
-                let members = outbounds[i]["outbounds"] as? [String] ?? []
-                if members.contains(serverTag) {
-                    outbounds[i]["default"] = serverTag
-                    modifiedSelectorTag = selectorTag
-                    AppLogger.app.info("buildConfigWithSelector: selector '\(selectorTag)' → '\(serverTag)'")
-                }
-            }
-        }
-
-        guard let selectorTag = modifiedSelectorTag else {
-            AppLogger.app.error("buildConfigWithSelector: no selector contains '\(serverTag)'")
-            return nil
-        }
-
-        json["outbounds"] = outbounds
-
-        guard let updatedData = try? JSONSerialization.data(withJSONObject: json),
-              let updatedConfig = String(data: updatedData, encoding: .utf8)
-        else {
-            AppLogger.app.error("buildConfigWithSelector: failed to serialize updated config")
-            return nil
-        }
-
-        return (updatedConfig, selectorTag)
     }
 
     // MARK: - Routing mode
