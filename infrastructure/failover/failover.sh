@@ -26,10 +26,13 @@ MSK_SSH="root@217.198.5.52"
 MSK_IP="217.198.5.52"
 MSK_CONF="/etc/nginx/sites-available/api.madfrog.online"
 MSK_DECOY="/etc/nginx/sites-available/decoy-adfox"
-EXITS=("54.38.243.162" "217.182.74.70" "147.45.252.234")   # GRA, WAW, NL(nl2) exit
-  # user-api boxes (ufw :15380). nl2 reactivated as a live fallback 2026-07-11 — was
-  # missing here since the 2026-06-29 failover, so a future failover would not have
-  # repointed its user-api ufw to the new primary.
+EXITS=("217.182.74.70" "147.45.252.234")   # WAW, NL(nl2) exit user-api boxes (ufw :15380).
+  # GRA (54.38.243.162) removed 2026-07-11 — France exit decommissioned (zero real
+  # usage in 14d telemetry), sing-box stopped, DB rows deactivated. VPS itself pending
+  # manual auto-renew-off in the OVH panel (API key has no write grant), expires
+  # 2026-08-01. nl2 reactivated as a live fallback 2026-07-11 — was missing here since
+  # the 2026-06-29 failover, so a future failover would not have repointed its
+  # user-api ufw to the new primary.
 
 # SPB second decoy leg (RU-DECOY-2ND): password-auth box, NOT on the key. Needs
 # SPRINTBOX_VPS_PASSWORD (from ~/.secrets.env) + sshpass; if either is missing the

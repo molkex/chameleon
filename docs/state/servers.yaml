@@ -62,11 +62,24 @@ nl:
   domain_apex: madfrog.online        # CF-proxied → here
   domain_api: api.madfrog.online     # via MSK relay (not CF) → here:80
 
+# 2026-07-11: DECOMMISSIONED. France exit had zero real usage in 14d app_events
+# telemetry (57 successful connects logged fieldwide over 14d, only 1 attributed
+# to France — via the RU/SPB bypass leg, not direct). Reversible steps done:
+# vpn_servers rows gra1(720)+relay-fr(721) set is_active=false, sing-box container
+# stopped on the box, SPB's :2099→GRA nginx forward removed (chameleon-stream.conf),
+# external WAW-origin monitor relocated to MSK (infrastructure/monitoring/, was
+# infrastructure/gra-monitor/). NOT yet done (needs the OVH web panel — API key has
+# no write grant, same restriction as ordering): disable auto-renew on
+# vps-57941bff.vps.ovh.net (serviceId 73273364, expires 2026-08-01) so it isn't
+# rebilled; then the VPS can be deleted from the panel. Minor leftover: MSK's
+# /etc/sing-box/config.json still has an inert fr-via-msk inbound on :2099 pointing
+# at GRA (not in this repo by design — chains live off-git) — harmless (GRA is
+# stopped) but could be pruned in a future MSK config pass.
 # 2nd VPN exit (failover for NL) — added 2026-05-30. VPN-only: no backend/DB
 # here yet, current users baked into singbox config (see project_gra_node_bringup
 # memory). Reachable from RU (~50ms), Reality SNI ads.adfox.ru verified live.
 gra:
-  status: production
+  status: decommissioned_2026-07-11   # was: production
   ip: 54.38.243.162
   hostname: vps-57941bff.vps.ovh.net
   hosting: OVH
@@ -127,7 +140,9 @@ msk_relay:
   # incidents/2026-06-01-fr-relay-legs.md.
   chains:
     2097: nl2:443    # nl-via-msk  (inbound vless-nl → wg-nl → NL)
-    2099: gra1:443   # fr-via-msk  (inbound vless-fr → wg-fr → GRA/France) [2026-06-01]
+    2099: gra1:443   # fr-via-msk — ⚠️ INERT since 2026-07-11 (GRA decommissioned, sing-box
+      # stopped on the far end). Inbound still configured in MSK's /etc/sing-box/config.json
+      # (not in repo); harmless, not yet pruned. [chain added 2026-06-01]
     2096: STALE — vless-de → wg-de → 162.19.242.30 (RETIRED DE)   # ⚠️ found live 2026-07-11,
       # NOT pruned when DE retired 2026-05-25. Silent black hole for any client with this leg
       # still cached. TODO: confirm zero traffic in connection logs, then remove.
@@ -150,7 +165,7 @@ spb_relay:
     443:  nl:443
     2096: nl:443
     2098: nl:443        # ru-spb-nl  (SPB→NL whitelist-bypass)
-    2099: gra1:443      # ru-spb-fr  (SPB→FR whitelist-bypass) [2026-06-01]
+    # 2099→gra1:443 (ru-spb-fr) REMOVED 2026-07-11 — GRA decommissioned, port freed.
     80:   nl:80         # Host=api.madfrog.online — ⚠️ STALE even once SPB itself recovers: NL's
                          # nginx/backend role is INACTIVE post-failover (see nl.role above), so
                          # this fallback target needs to become WAW, not just "SPB is back up".

@@ -66,16 +66,20 @@ infra:                            # TOPOLOGY FLIPPED 2026-06-29 (failover) — 0
   api_ingress: MSK 217.198.5.52   # single ingress = source of truth; upstream → WAW:8000. €5.6/mo (530₽), verified.
   vpn_exits:
     - {country: PL, key: waw1, host: 217.182.74.70}     # primary box doubles as a VPN exit (Poland)
-    - {country: FR, key: gra1, host: 54.38.243.162}     # live since 2026-05-30; decommission pending (roadmap, sequenced after HA-drill)
     - {country: NL, key: nl2,  host: 147.45.252.234, active: true}  # REACTIVATED 2026-07-11 as a live HA-drill fallback exit (was deactivated 2026-06-29) — verified carrying real production traffic within minutes
   relays:                          # RU-side, for users behind RKN whitelists
-    - {key: msk, host: 217.198.5.52, role: relay,            chains:   [nl-via-msk, fr-via-msk]}
-    - {key: spb, host: 185.218.0.43, role: whitelist_bypass, forwards: [ru-spb-nl, ru-spb-fr],
+    - {key: msk, host: 217.198.5.52, role: relay,            chains:   [nl-via-msk]}   # fr-via-msk :2099 now INERT (GRA gone), not yet pruned from MSK's config.json
+    - {key: spb, host: 185.218.0.43, role: whitelist_bypass, forwards: [ru-spb-nl],
        status: DEGRADED — TCP-open but application-dead (2026-07-11), see roadmap SPB-RECOVER (P0),
        cost: 140 RUB/mo}
   retired: [DE 162.19.242.30]      # 2026-05-25 — do NOT reference in new code/scripts. Live stale
     # leg found on MSK relay :2096 (vless-de) 2026-07-11, not yet pruned — roadmap MSK-STALE-DE-LEG.
   retired_adjacent: [85.239.49.28 (Moscow, legacy Telegram-bot MadFrog product — DECOMMISSIONED 2026-07-11, see roadmap BOTBOX-DECISION)]
+  # GRA (France, key gra1) DECOMMISSIONED 2026-07-11 — zero real usage in 14d telemetry.
+  # vpn_servers rows deactivated, sing-box stopped, SPB/MSK France legs removed/inert,
+  # external WAW-origin monitor relocated GRA→MSK (infrastructure/monitoring/). VPS itself
+  # still billing (OVH API has no write grant — auto-renew-off needs the web panel;
+  # expires 2026-08-01). See roadmap GRA-DECOMMISSION.
 
 # ── Stack ───────────────────────────────────────────────────────────────────
 stack:
@@ -90,9 +94,7 @@ health:
   auth:      green   # ACCT-IDENTITY fixed 2026-06-01 (Keychain identity, no anon-demote)
   payments:  green   # SEC-04 refund-revoke live; trial-once (SEC-01) live
   vpn_pl:    green   # WAW (Poland) exit live + primary box
-  vpn_fr:    amber   # GRA direct still gets mass REALITY-handshake rejects from RU residential IPs
-    # (~15k/48h, 2026-07-11) — same IPs succeed via MSK relay. Likely RKN tampering with direct
-    # handshakes, not a config bug, but not independently confirmed. Via-MSK path is green.
+  vpn_fr:    retired_2026-07-11   # GRA decommissioned (zero real usage in 14d telemetry) — see infra.vpn_exits note
   telemetry: green   # TRAFFIC-MULTIEXIT live 2026-06-04
   redundancy: green   # 2026-07-11: NL recovered (was OFFLINE 07-01→07-10, Timeweb reboot-flap),
     # streaming confirmed both sides. HA-DRILL DONE 2026-07-11 — full WAW→NL→WAW cycle run live,
