@@ -23,11 +23,10 @@ struct SettingsView: View {
     @State private var trustedSSIDs: [String] = []
     @State private var showAddSSIDAlert = false
     @State private var pendingSSIDInput: String = ""
-    /// Hidden Diagnostics unlock — 5 taps on the version row reveals
-    /// DebugLogs in Release builds (it is always visible in DEBUG).
-    /// Production testers can dump logs without us shipping the section
-    /// to every end user.
-    @State private var versionTapCount = 0
+    /// Hidden Diagnostics unlock — 5 taps on the version row (via
+    /// `.tapCountUnlock`) reveals DebugLogs in Release builds (it is always
+    /// visible in DEBUG). Production testers can dump logs without us
+    /// shipping the section to every end user.
     @State private var diagnosticsUnlocked = false
 
     private let theme = Theme.current
@@ -256,15 +255,11 @@ struct SettingsView: View {
                                 }
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 14)
-                                .contentShape(Rectangle())
-                                .onTapGesture {
+                                .tapCountUnlock {
                                     // Hidden Diagnostics unlock — 5 taps on version
                                     // reveals DebugLogs section in Release builds.
-                                    versionTapCount += 1
-                                    if versionTapCount >= 5 {
-                                        diagnosticsUnlocked = true
-                                        Haptics.notify(.success)
-                                    }
+                                    diagnosticsUnlocked = true
+                                    Haptics.notify(.success)
                                 }
                             }
                         }

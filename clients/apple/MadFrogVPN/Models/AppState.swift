@@ -203,8 +203,6 @@ class AppState {
     /// Darwin cross-process observer installed once for tunnel-stall wakeup.
     @ObservationIgnored nonisolated(unsafe) private var darwinStallObserverInstalled = false
 
-    private var hasInitialized = false
-
     deinit {
         if let statusObserver {
             NotificationCenter.default.removeObserver(statusObserver)
@@ -282,7 +280,6 @@ class AppState {
 
         // Mark as initialized BEFORE network calls — prevents black screen when offline.
         // UI can now render immediately with cached data while config refreshes in background.
-        hasInitialized = true
         isInitialized = true
 
         // USR-09 Phase 2 — start the event tracker. Restores any persisted
@@ -421,7 +418,7 @@ class AppState {
 
     /// Called when app returns to foreground. Refreshes config in background.
     func handleForeground() async {
-        guard hasInitialized, configStore.username != nil else { return }
+        guard isInitialized, configStore.username != nil else { return }
         AppLogger.app.info("handleForeground: refreshing config in background")
         refreshTask?.cancel()
         refreshTask = Task { await silentConfigUpdate() }

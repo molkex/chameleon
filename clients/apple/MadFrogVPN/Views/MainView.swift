@@ -20,71 +20,28 @@ struct MainView: View {
             )
 
             if let error = app.errorMessage {
-                VStack {
-                    HStack(spacing: 8) {
-                        Text(error)
-                            .font(.caption)
-                            .foregroundStyle(.white)
-                            .accessibilityAddTraits(.updatesFrequently)
-                        Button {
+                ToastView(icon: nil, text: error, tint: .red) { app.errorMessage = nil }
+                    .task(id: error) {
+                        // Auto-dismiss after 5 seconds. Cancelled if a new error
+                        // replaces this one (the .task id changes), so the timer
+                        // restarts cleanly per message.
+                        try? await Task.sleep(for: .seconds(5))
+                        if app.errorMessage == error {
                             app.errorMessage = nil
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(.white.opacity(0.85))
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(Text("error.dismiss", comment: "VoiceOver label for the error toast close button"))
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(.red.opacity(0.85), in: Capsule())
-                    Spacer()
-                }
-                .padding(.top, 60)
-                .transition(.move(edge: .top).combined(with: .opacity))
-                .task(id: error) {
-                    // Auto-dismiss after 5 seconds. Cancelled if a new error
-                    // replaces this one (the .task id changes), so the timer
-                    // restarts cleanly per message.
-                    try? await Task.sleep(for: .seconds(5))
-                    if app.errorMessage == error {
-                        app.errorMessage = nil
-                    }
-                }
             }
 
             // Recovery toast — softer styling than errorMessage (blue/info,
             // not red/alarm). Surfaces TrafficHealthMonitor fallback events.
             if let toast = app.fallbackToastMessage {
-                VStack {
-                    HStack(spacing: 8) {
-                        Image(systemName: "arrow.triangle.2.circlepath")
-                            .foregroundStyle(.white)
-                        Text(toast)
-                            .font(.caption)
-                            .foregroundStyle(.white)
-                            .accessibilityAddTraits(.updatesFrequently)
-                        Button {
+                ToastView(icon: "arrow.triangle.2.circlepath", text: toast, tint: .blue) { app.fallbackToastMessage = nil }
+                    .task(id: toast) {
+                        try? await Task.sleep(for: .seconds(5))
+                        if app.fallbackToastMessage == toast {
                             app.fallbackToastMessage = nil
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(.white.opacity(0.85))
                         }
-                        .buttonStyle(.plain)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(Color.blue.opacity(0.85), in: Capsule())
-                    Spacer()
-                }
-                .padding(.top, 60)
-                .transition(.move(edge: .top).combined(with: .opacity))
-                .task(id: toast) {
-                    try? await Task.sleep(for: .seconds(5))
-                    if app.fallbackToastMessage == toast {
-                        app.fallbackToastMessage = nil
-                    }
-                }
             }
         }
         .animation(.easeInOut(duration: 0.3), value: app.errorMessage != nil)
@@ -207,6 +164,24 @@ enum VPNStateHelper {
         let s = state(app)
         return s == .connecting || s == .reconnecting
     }
+    /// Resolves `app.selectedServerTag` to its `CountryGroup`, checked in
+    /// order: a country-urltest pin itself, then the leaf's containing
+    /// country. Single source of truth for the home pill's name/flag —
+    /// extracted 2026-07-11 (M2, Fable code review) from 3 independent
+    /// copies of this same tag-resolution loop.
+    private static func resolveSelectedCountry(_ app: AppState) -> CountryGroup? {
+        guard let tag = app.selectedServerTag else { return nil }
+        for group in app.servers {
+            if let country = group.countries.first(where: { $0.tag == tag }) {
+                return country
+            }
+            if let country = group.countries.first(where: { $0.serverTags.contains(tag) }) {
+                return country
+            }
+        }
+        return nil
+    }
+
     /// Pretty country-level name for the home screen pill/chip.
     /// Build-32 UX: surface only the country, never the leaf protocol.
     /// Power-mode users see the leg as a subtitle (`currentLegName` below).
@@ -214,18 +189,11 @@ enum VPNStateHelper {
         guard let tag = app.selectedServerTag else {
             return String(localized: "home.server.auto")
         }
-        for group in app.servers {
-            // Tag points at a country urltest directly: show its label.
-            if let country = group.countries.first(where: { $0.tag == tag }) {
-                return "\(country.flagEmoji) \(country.name)".trimmingCharacters(in: .whitespaces)
-            }
-            // Tag is a leaf: promote display to its containing country.
-            if let country = group.countries.first(where: { $0.serverTags.contains(tag) }) {
-                return "\(country.flagEmoji) \(country.name)".trimmingCharacters(in: .whitespaces)
-            }
-            // Selector tag itself.
-            if group.tag == tag { return group.tag }
+        if let country = resolveSelectedCountry(app) {
+            return "\(country.flagEmoji) \(country.name)".trimmingCharacters(in: .whitespaces)
         }
+        // Selector tag itself.
+        for group in app.servers where group.tag == tag { return group.tag }
         return tag
     }
 
@@ -236,15 +204,10 @@ enum VPNStateHelper {
         guard let tag = app.selectedServerTag else {
             return String(localized: "home.server.auto")
         }
-        for group in app.servers {
-            if let country = group.countries.first(where: { $0.tag == tag }) {
-                return country.name
-            }
-            if let country = group.countries.first(where: { $0.serverTags.contains(tag) }) {
-                return country.name
-            }
-            if group.tag == tag { return group.tag }
+        if let country = resolveSelectedCountry(app) {
+            return country.name
         }
+        for group in app.servers where group.tag == tag { return group.tag }
         return tag
     }
 
@@ -256,15 +219,10 @@ enum VPNStateHelper {
     /// → the leaf's containing country → the leaf's own flag → 🌍 (Auto/unknown).
     static func selectedServerFlag(_ app: AppState) -> String {
         guard let tag = app.selectedServerTag else { return "🌍" }
+        if let country = resolveSelectedCountry(app), !country.flagEmoji.isEmpty {
+            return country.flagEmoji
+        }
         for group in app.servers {
-            if let country = group.countries.first(where: { $0.tag == tag }),
-               !country.flagEmoji.isEmpty {
-                return country.flagEmoji
-            }
-            if let country = group.countries.first(where: { $0.serverTags.contains(tag) }),
-               !country.flagEmoji.isEmpty {
-                return country.flagEmoji
-            }
             if let item = group.items.first(where: { $0.tag == tag }) {
                 return item.flagEmoji
             }
@@ -353,10 +311,6 @@ struct ServerListView: View {
     @Environment(AppState.self) private var app
     @Environment(\.dismiss) private var dismiss
 
-    /// Number of taps on the nav title since the view appeared. Resets on
-    /// dismiss. 5 consecutive taps unlock power mode (per-protocol leaves).
-    @State private var titleTapCount = 0
-
     private var selectorGroup: ServerGroup? {
         app.servers.first { $0.type == "selector" && $0.selectable }
     }
@@ -414,7 +368,6 @@ struct ServerListView: View {
             .iosInlineNavTitle()
             .onAppear {
                 TunnelFileLogger.log("ServerListView: appeared, groups=\(app.servers.count), powerMode=\(app.powerModeUnlocked)", category: "ui")
-                titleTapCount = 0
             }
             .onDisappear { TunnelFileLogger.log("ServerListView: disappeared", category: "ui") }
             .task {
@@ -432,14 +385,11 @@ struct ServerListView: View {
                 ToolbarItem(placement: .principal) {
                     Text(L10n.Servers.title)
                         .font(.headline)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            titleTapCount += 1
-                            if titleTapCount >= 5 && !app.powerModeUnlocked {
-                                app.powerModeUnlocked = true
-                                Haptics.notify(.success)
-                                TunnelFileLogger.log("power mode: UNLOCKED via 5-tap on nav title", category: "ui")
-                            }
+                        .tapCountUnlock {
+                            guard !app.powerModeUnlocked else { return }
+                            app.powerModeUnlocked = true
+                            Haptics.notify(.success)
+                            TunnelFileLogger.log("power mode: UNLOCKED via 5-tap on nav title", category: "ui")
                         }
                 }
                 ToolbarItem(placement: PlatformToolbarPlacement.trailing.resolved) {
@@ -833,6 +783,46 @@ private struct PingControl: View {
         }
         .buttonStyle(.borderless)
         .accessibilityLabel(Text("servers.ping.refresh.a11y", comment: "VoiceOver: re-measure latency"))
+    }
+}
+
+/// Top-of-screen dismissible toast — shared shell for the error (red) and
+/// fallback-recovery (blue) banners, which used to be two ~30-line copies
+/// differing only in icon/color and which AppState property they clear.
+/// Extracted 2026-07-11 (M3, Fable code review). Auto-dismiss timing stays
+/// at the call site (`.task(id:)`) since it needs to compare against the
+/// specific published property that produced this toast.
+private struct ToastView: View {
+    let icon: String?
+    let text: String
+    let tint: Color
+    let onDismiss: () -> Void
+
+    var body: some View {
+        VStack {
+            HStack(spacing: 8) {
+                if let icon {
+                    Image(systemName: icon)
+                        .foregroundStyle(.white)
+                }
+                Text(text)
+                    .font(.caption)
+                    .foregroundStyle(.white)
+                    .accessibilityAddTraits(.updatesFrequently)
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.white.opacity(0.85))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text("error.dismiss", comment: "VoiceOver label for the error toast close button"))
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(tint.opacity(0.85), in: Capsule())
+            Spacer()
+        }
+        .padding(.top, 60)
+        .transition(.move(edge: .top).combined(with: .opacity))
     }
 }
 

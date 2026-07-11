@@ -61,6 +61,7 @@
 		2FFAC2F2C40C2DBD341A86FD /* WebPaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F6C0D910C8814F24440E9B4 /* WebPaywallView.swift */; };
 		31808699E7420DED7122D735 /* MainViewNeon.swift in Sources */ = {isa = PBXBuildFile; fileRef = F64AFDF15C8A5F646A1C431B /* MainViewNeon.swift */; };
 		33422A6321F8D75EA134DBD7 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 9559017B879500FA2F899634 /* PrivacyInfo.xcprivacy */; };
+		348B8FA56D467E0B7D88D551 /* TapCountUnlock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6152C7F5B9CE065FB6615A70 /* TapCountUnlock.swift */; };
 		348F2960A052562610557B1A /* ConfigStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FC0F827BBF3A30F2EDE9AB3 /* ConfigStore.swift */; };
 		354BC28159DBF91924401A75 /* Products.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 44EE43ED9CEC25421113C6A9 /* Products.storekit */; };
 		367879BE1B6C1A25A1F9846D /* CountryFlagTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C4CD0A25B056DBC6DD6A6D8 /* CountryFlagTests.swift */; };
@@ -97,6 +98,7 @@
 		5A8A995059761260CFE9F257 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7195CF498E5531209F7FAD2C /* SettingsView.swift */; };
 		5CD7449941DEE7DDF53F8C06 /* PlatformDevice.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C61B1AA0AC6A405D189C34B /* PlatformDevice.swift */; };
 		5E36E43A7AA47ECD03D80336 /* VPNControlIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DAE6BD983F80C55AB4D1F5F /* VPNControlIntents.swift */; };
+		5E675C88BD9272E7552A4995 /* TapCountUnlock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6152C7F5B9CE065FB6615A70 /* TapCountUnlock.swift */; };
 		5E6D263F0FF461BEFA5FECE7 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6378A272B7EFCCF1FBCDFBFE /* KeychainHelper.swift */; };
 		619DD02BB06B93A67C9E2EEE /* VPNControlIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DAE6BD983F80C55AB4D1F5F /* VPNControlIntents.swift */; };
 		62946247597840D24A0C03C3 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31BA223EF19A5BDE5145B520 /* Logger.swift */; };
@@ -152,6 +154,7 @@
 		882104E7A1040997AE2683E8 /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FF7E993E8B445FBA2EBEC98C /* IOKit.framework */; };
 		88554DBB410CBE11723FF7F3 /* StringUtilsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B07C7F761E8467D5C74E4CD /* StringUtilsTests.swift */; };
 		887AAF1C5B7E19B1B1172EFE /* RefreshTokenRotationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65E6ED5771620E43BA0D0756 /* RefreshTokenRotationTests.swift */; };
+		894A0AC35140ACEB26473B55 /* TapCountUnlock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6152C7F5B9CE065FB6615A70 /* TapCountUnlock.swift */; };
 		8AEFE40F991011124CAE96AC /* TrafficHealthMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0F1E53A2387E8AB9E727CD9 /* TrafficHealthMonitor.swift */; };
 		8B0B22B50382DB9506F96734 /* Libbox.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C18C942EF28864C26636822B /* Libbox.xcframework */; };
 		8B11CB1B6D34C2153800D41C /* PaywallBenefits.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA378FA8FE418C37FF500260 /* PaywallBenefits.swift */; };
@@ -225,6 +228,7 @@
 		D05105F5750E89121A262ED5 /* ConfigStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FC0F827BBF3A30F2EDE9AB3 /* ConfigStore.swift */; };
 		D15236DEDA6726380031CE01 /* VPNErrorMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = E683952FD2B39BA18604AB73 /* VPNErrorMapper.swift */; };
 		D4C081AEDAB5824F5BC356B2 /* SupportChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6D8E54A1A778779BA507B09 /* SupportChatView.swift */; };
+		D6C70ECF40FB4A57BE6BD572 /* TapCountUnlock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6152C7F5B9CE065FB6615A70 /* TapCountUnlock.swift */; };
 		D717B77A40D44CEB055D6DE9 /* CoreText.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 98143383638BB4DB362C29BE /* CoreText.framework */; };
 		D80ED4D3D36A076CC16B66A6 /* CountryFlag.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8005A0F02E6E8BBC2A49BFB /* CountryFlag.swift */; };
 		D8F45BBB3E644482A3AD64F0 /* CoreLocation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 872DE7900BBC5982BA0688E8 /* CoreLocation.framework */; };
@@ -385,6 +389,7 @@
 		5DD9BD8C985A9147E4CEAB1C /* LegalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegalView.swift; sourceTree = "<group>"; };
 		5E1F8BD9DF2E0E500B1EBED2 /* index.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = index.html; sourceTree = "<group>"; };
 		60E77ADEA1CE787C940AA0BE /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		6152C7F5B9CE065FB6615A70 /* TapCountUnlock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TapCountUnlock.swift; sourceTree = "<group>"; };
 		6378A272B7EFCCF1FBCDFBFE /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
 		63D44CCDFB75CAF34F8A4F3C /* MadFrogVPNMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MadFrogVPNMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		65E6ED5771620E43BA0D0756 /* RefreshTokenRotationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshTokenRotationTests.swift; sourceTree = "<group>"; };
@@ -677,6 +682,7 @@
 				056A5CFAAD6E085B3A0ACF9A /* RunBlocking.swift */,
 				CA787F2B75CC3F09AB7889F6 /* StallSignals.swift */,
 				D231623164FE9FECAD770789 /* StringUtils.swift */,
+				6152C7F5B9CE065FB6615A70 /* TapCountUnlock.swift */,
 				DBF8B42392C0D194798D2667 /* TunnelFileLogger.swift */,
 				9DAE6BD983F80C55AB4D1F5F /* VPNControlIntents.swift */,
 				6DF255FC3085B56FF435958B /* WidgetVPNSnapshot.swift */,
@@ -1119,6 +1125,7 @@
 				55972B317CA20A3BB89BD209 /* StringUtils.swift in Sources */,
 				ED2932322BA67C98F3937409 /* SubscriptionManager.swift in Sources */,
 				1119A5D2AA29A3208C3F67E0 /* SupportChatView.swift in Sources */,
+				D6C70ECF40FB4A57BE6BD572 /* TapCountUnlock.swift in Sources */,
 				942A96B073B8A5480C18FD7B /* Theme.swift in Sources */,
 				8AEFE40F991011124CAE96AC /* TrafficHealthMonitor.swift in Sources */,
 				C6AF80BEEEDDF6223C295DD5 /* TunnelFileLogger.swift in Sources */,
@@ -1154,6 +1161,7 @@
 				DE887C6682FB3DEA7FE8E77F /* SingBoxConfigPatcher.swift in Sources */,
 				82C2D25DE9A833185C42CF6E /* StallSignals.swift in Sources */,
 				27118EF86F80BE16990516DF /* StringUtils.swift in Sources */,
+				894A0AC35140ACEB26473B55 /* TapCountUnlock.swift in Sources */,
 				EFA86C5445E58B8E7F2BA366 /* TunnelFileLogger.swift in Sources */,
 				1ECE818E32C061BDDF6B9B58 /* TunnelStallProbe.swift in Sources */,
 				619DD02BB06B93A67C9E2EEE /* VPNControlIntents.swift in Sources */,
@@ -1216,6 +1224,7 @@
 				1F68F876A67C5D653E37D340 /* StringUtils.swift in Sources */,
 				5284A2E0344730B0592F5215 /* SubscriptionManager.swift in Sources */,
 				D4C081AEDAB5824F5BC356B2 /* SupportChatView.swift in Sources */,
+				348B8FA56D467E0B7D88D551 /* TapCountUnlock.swift in Sources */,
 				B988B34E1D31DA0B7F335675 /* Theme.swift in Sources */,
 				8F75A2437F55A299C19D3960 /* TrafficHealthMonitor.swift in Sources */,
 				EE90271EC8C8EF0A80F23C19 /* TunnelFileLogger.swift in Sources */,
@@ -1304,6 +1313,7 @@
 				8707A01FC388AEEF2BBB77E8 /* SingBoxConfigPatcher.swift in Sources */,
 				B6C5C1FBD726109F23CFD627 /* StallSignals.swift in Sources */,
 				4CF54096E6FFB7697C033D25 /* StringUtils.swift in Sources */,
+				5E675C88BD9272E7552A4995 /* TapCountUnlock.swift in Sources */,
 				CBB2232BC6F0A99DF2328F4E /* TunnelFileLogger.swift in Sources */,
 				2B7F76187D6350C135133CFF /* TunnelStallProbe.swift in Sources */,
 				0DDB5DC948A26D0AFA8D43A7 /* VPNControlIntents.swift in Sources */,
