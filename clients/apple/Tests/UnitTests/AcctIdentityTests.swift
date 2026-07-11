@@ -71,6 +71,27 @@ final class AcctIdentityTests: XCTestCase {
         XCTAssertFalse(AppState.isUsableConfigPayload("null"))
     }
 
+    /// 2026-07-11 field bug: a payload mangled somewhere on a device's network
+    /// path (not by our backend — a direct fetch confirmed the server always
+    /// returns clean JSON) can still happen to contain the literal substring
+    /// `"outbounds"` without being valid JSON at all. The old substring-only
+    /// check accepted this, permanently poisoning the on-disk config cache —
+    /// every subsequent connect then failed inside the tunnel with sing-box's
+    /// own `decode config` JSON errors, with no user-visible signal pointing
+    /// at the real cause.
+    func testMangledPayloadContainingOutboundsSubstringIsNotUsable() {
+        XCTAssertFalse(AppState.isUsableConfigPayload(#"garbled "outbounds": [{"type":"vless"}] trailing junk"#))
+    }
+
+    func testEmptyOutboundsArrayIsNotUsable() {
+        XCTAssertFalse(AppState.isUsableConfigPayload(#"{"outbounds":[]}"#))
+    }
+
+    func testOutboundsMissingTypeOrTagIsNotUsable() {
+        XCTAssertFalse(AppState.isUsableConfigPayload(#"{"outbounds":[{"tag":"nl"}]}"#))
+        XCTAssertFalse(AppState.isUsableConfigPayload(#"{"outbounds":[{"type":"vless"}]}"#))
+    }
+
     // MARK: - ConfigStore identity persistence
 
     func testConfigStorePersistsAndClearsIdentity() throws {

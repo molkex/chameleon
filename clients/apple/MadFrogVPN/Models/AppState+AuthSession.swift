@@ -268,8 +268,26 @@ extension AppState {
     /// and `clear()`-ed the WHOLE identity (authProvider/appleUserID) — demoting
     /// a paying Apple/Google/email user to a brand-new anonymous trial. Pure +
     /// static so it's unit-testable without constructing AppState.
+    ///
+    /// A real structural check, not a substring match (2026-07-11): a garbled
+    /// or partially-corrupted response — e.g. mangled by something else on the
+    /// device's network path — can still happen to contain the literal text
+    /// `"outbounds"` without being valid JSON at all. That was caught live: a
+    /// device cached exactly such a payload, then every subsequent connect
+    /// failed inside the tunnel with sing-box's own `decode config` JSON
+    /// errors, and the server picker silently showed zero countries — no
+    /// user-visible error pointed at the real cause. Parsing it for real (and
+    /// requiring every outbound to carry `type`+`tag`, which every real
+    /// sing-box outbound does) closes that hole without changing any
+    /// user-visible behavior: an unusable payload still just falls through to
+    /// "keep the existing cached config" exactly as before.
     static func isUsableConfigPayload(_ payload: String) -> Bool {
-        payload.contains("\"outbounds\"")
+        guard let data = payload.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let outbounds = json["outbounds"] as? [[String: Any]],
+              !outbounds.isEmpty
+        else { return false }
+        return outbounds.allSatisfy { $0["type"] is String && $0["tag"] is String }
     }
 
     /// Mark the identity session as needing re-auth WITHOUT touching stored
