@@ -472,15 +472,11 @@ class AppState {
             let result = try await apiClient.registerDevice()
             AppLogger.app.info("signInAnonymous: registered as \(result.username)")
             TunnelFileLogger.log("signInAnonymous: registerDevice OK, username=\(result.username) isNew=\(result.isNew ?? false)", category: "auth")
-            configStore.accessToken = result.accessToken
-            configStore.refreshToken = result.refreshToken
-            configStore.username = result.username
-            configStore.authProvider = nil // explicit: anonymous device account
-            applyAuthSubscription(result.subscriptionExpiry)
-            try await fetchAndSaveConfig()
-            subscriptionExpire = configStore.subscriptionExpire
-            UserDefaults(suiteName: AppConstants.appGroupID)?.set(true, forKey: AppConstants.onboardingCompletedKey)
-            isAuthenticated = true
+            try await completeSignIn(
+                result: result,
+                authProvider: nil, // explicit: anonymous device account
+                clearsReauth: false
+            )
             TunnelFileLogger.log("signInAnonymous: SUCCESS", category: "auth")
         } catch {
             AppLogger.app.error("signInAnonymous: FAILED: \(error.localizedDescription)")
@@ -554,6 +550,50 @@ class AppState {
         configStore.subscriptionExpire = date
         subscriptionExpire = date
         AppLogger.app.info("applyAuthSubscription: \(date)")
+    }
+
+    /// Shared "auth succeeded, persist everything" step for all 4 sign-in
+    /// entry points (anonymous, Google, magic link, Apple). Extracted
+    /// 2026-07-11 (H4, Fable code review) — each provider used to repeat this
+    /// ~8-step persist block independently, and the exact failure mode that
+    /// class of duplication invites (a partially-persisted sign-in during a
+    /// network blip) was the shape of the ACCT-IDENTITY P0: the server
+    /// accepted auth but the client only wrote some of accessToken/
+    /// refreshToken/username/authProvider. One atomic function makes that bug
+    /// structurally harder to reintroduce, and makes a 5th provider a 5-line add.
+    ///
+    /// `tolerateNoActiveSubscription` preserves signInWithApple's one real
+    /// behavioral difference: a returning user whose trial has lapsed gets a
+    /// 403 from `/config`, which must NOT fail the sign-in itself (auth
+    /// already succeeded) — App Review build 52 hit exactly this path.
+    private func completeSignIn(
+        result: AuthResult,
+        authProvider: String?,
+        appleUserID: String? = nil,
+        clearsReauth: Bool,
+        tolerateNoActiveSubscription: Bool = false
+    ) async throws {
+        configStore.accessToken = result.accessToken
+        configStore.refreshToken = result.refreshToken
+        configStore.username = result.username
+        configStore.authProvider = authProvider
+        if let appleUserID {
+            configStore.appleUserID = appleUserID
+        }
+        applyAuthSubscription(result.subscriptionExpiry)
+        if clearsReauth {
+            needsReauth = false
+        }
+        do {
+            try await fetchAndSaveConfig()
+            subscriptionExpire = configStore.subscriptionExpire
+        } catch APIError.serverError(403) where tolerateNoActiveSubscription {
+            AppLogger.app.info("completeSignIn: /config 403 — no active subscription, completing sign-in")
+            TunnelFileLogger.log("completeSignIn: /config 403 (no active sub), proceeding", category: "auth")
+            subscriptionExpire = nil
+        }
+        UserDefaults(suiteName: AppConstants.appGroupID)?.set(true, forKey: AppConstants.onboardingCompletedKey)
+        isAuthenticated = true
     }
 
     private func doFetchAndSave(username: String) async throws {
@@ -1088,16 +1128,7 @@ class AppState {
             let result = try await apiClient.signInWithGoogle(idToken: idToken)
             AppLogger.app.info("signInWithGoogle: username=\(result.username), isNew=\(result.isNew ?? false)")
             TunnelFileLogger.log("signInWithGoogle: API OK, username=\(result.username) isNew=\(result.isNew ?? false)", category: "auth")
-            configStore.accessToken = result.accessToken
-            configStore.refreshToken = result.refreshToken
-            configStore.username = result.username
-            configStore.authProvider = "google"
-            applyAuthSubscription(result.subscriptionExpiry)
-            needsReauth = false
-            try await fetchAndSaveConfig()
-            subscriptionExpire = configStore.subscriptionExpire
-            UserDefaults(suiteName: AppConstants.appGroupID)?.set(true, forKey: AppConstants.onboardingCompletedKey)
-            isAuthenticated = true
+            try await completeSignIn(result: result, authProvider: "google", clearsReauth: true)
             TunnelFileLogger.log("signInWithGoogle: SUCCESS", category: "auth")
             await logAuthLeg(provider: "google", ok: true)
         } catch {
@@ -1161,16 +1192,7 @@ class AppState {
             let result = try await apiClient.verifyMagicLink(token: token)
             AppLogger.app.info("consumeMagicToken: username=\(result.username), isNew=\(result.isNew ?? false)")
             TunnelFileLogger.log("consumeMagicToken: API OK, username=\(result.username) isNew=\(result.isNew ?? false)", category: "auth")
-            configStore.accessToken = result.accessToken
-            configStore.refreshToken = result.refreshToken
-            configStore.username = result.username
-            configStore.authProvider = "email"
-            applyAuthSubscription(result.subscriptionExpiry)
-            needsReauth = false
-            try await fetchAndSaveConfig()
-            subscriptionExpire = configStore.subscriptionExpire
-            UserDefaults(suiteName: AppConstants.appGroupID)?.set(true, forKey: AppConstants.onboardingCompletedKey)
-            isAuthenticated = true
+            try await completeSignIn(result: result, authProvider: "email", clearsReauth: true)
             TunnelFileLogger.log("consumeMagicToken: SUCCESS", category: "auth")
             await logAuthLeg(provider: "email", ok: true)
         } catch {
@@ -1202,32 +1224,20 @@ class AppState {
             let result = try await apiClient.signInWithApple(identityToken: token)
             AppLogger.app.info("signInWithApple: username=\(result.username), isNew=\(result.isNew ?? false)")
             TunnelFileLogger.log("signInWithApple: API OK, username=\(result.username) isNew=\(result.isNew ?? false)", category: "auth")
-            configStore.accessToken = result.accessToken
-            configStore.refreshToken = result.refreshToken
-            configStore.username = result.username
             // ACCT-IDENTITY: persist the durable identity so a later session
             // failure re-auths Apple (reclaim by `sub`) instead of demoting to
             // anon. credential.user IS the Apple `sub`, stable across reinstall.
-            configStore.authProvider = "apple"
-            configStore.appleUserID = credential.user
-            applyAuthSubscription(result.subscriptionExpiry)
-            needsReauth = false
-            // /config 403 on a returning user whose trial has lapsed must NOT
-            // be a hard failure — auth itself succeeded. Treat it as "signed
-            // in, no active subscription" so the user lands inside the app
-            // and can purchase / restore from the paywall instead of seeing
-            // "Sign in failed" with no recourse. App Review build 52 hit
-            // exactly this path on May 12 2026.
-            do {
-                try await fetchAndSaveConfig()
-                subscriptionExpire = configStore.subscriptionExpire
-            } catch APIError.serverError(403) {
-                AppLogger.app.info("signInWithApple: /config 403 — no active subscription, completing sign-in")
-                TunnelFileLogger.log("signInWithApple: /config 403 (no active sub), proceeding", category: "auth")
-                subscriptionExpire = nil
-            }
-            UserDefaults(suiteName: AppConstants.appGroupID)?.set(true, forKey: AppConstants.onboardingCompletedKey)
-            isAuthenticated = true
+            // tolerateNoActiveSubscription: a returning user whose trial has
+            // lapsed gets a 403 from /config — that must NOT fail the sign-in
+            // itself (auth already succeeded). App Review build 52 hit exactly
+            // this path on May 12 2026.
+            try await completeSignIn(
+                result: result,
+                authProvider: "apple",
+                appleUserID: credential.user,
+                clearsReauth: true,
+                tolerateNoActiveSubscription: true
+            )
             TunnelFileLogger.log("signInWithApple: SUCCESS", category: "auth")
             await logAuthLeg(provider: "apple", ok: true)
         } catch let apiErr as APIError {
