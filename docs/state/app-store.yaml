@@ -69,6 +69,26 @@
 # test on-device** — 126 is superseded (its own config-cache-validation fix is
 # still included, just missing this one).
 #
+# ⚠️ 2026-07-12: the new race telemetry from 127 (finally!) showed the race
+# DID succeed on the real device — decoy leg (SPB), real HTTP 200 in
+# ~250-600ms — yet the config still never cached and connect still failed.
+# One layer deeper: nginx serves `/api/v1/mobile/config` with
+# `Transfer-Encoding: chunked` and no Content-Length (live-verified,
+# curl -D-), and `DirectConnection` (the raw HTTP/1.1 client BOTH the decoy
+# and direct-IP race legs use — URLSession can't override SNI for a resolved
+# IP) never decoded chunked bodies: it took every byte after the header
+# terminator verbatim, splicing literal hex chunk-size lines into the JSON —
+# exactly the two `decode config` errors seen on-device the whole time
+# ("invalid character 'd'..." from an a-f hex chunk-size, "cannot unmarshal
+# number..." from an all-decimal one). Primary (URLSession) was never
+# affected — Foundation de-chunks transparently. Fixed: added
+# `DirectConnection.dechunk(_:)`, applied on `Transfer-Encoding: chunked`;
+# pinned with unit tests. Cut as **build 128** (same 1.0.33 train), VALID in
+# ASC, assigned to Internal Testers (verified via include=betaGroups).
+# **1.0.33/128 is now the build to test on-device** — very likely THE actual
+# fix for the whole night's "не подключилось" — 125/126/127 all superseded
+# (their own fixes are independently correct and still included).
+#
 verified: 2026-07-11 (partial — see warning above; full ASC re-pull still owed)
 
 app:
