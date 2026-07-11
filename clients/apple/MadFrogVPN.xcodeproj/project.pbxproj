@@ -241,6 +241,7 @@
 		D97A174070AB6DAB1427C705 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = 6DE85057769F0E0E7AFED241 /* Sentry */; };
 		DC0D50F4CD6F2EA988B3BEDF /* MadFrogVPNApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2782F0253DCD456F2722BCC /* MadFrogVPNApp.swift */; };
 		DC3B389E28AAD08DC66E734C /* AppKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BD660F09A2FD36D53775C288 /* AppKit.framework */; };
+		DC43CC1038D8FFF8B72389D8 /* DirectConnectionChunkedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5520C298E1DD695E29207F5E /* DirectConnectionChunkedTests.swift */; };
 		DE6A3A0722A49FA8B22297D0 /* NetworkExtension.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 21AE788D6595D4029A9B4AD5 /* NetworkExtension.framework */; };
 		DE887C6682FB3DEA7FE8E77F /* SingBoxConfigPatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BFE7E8B5C268A8B4E1F44C8 /* SingBoxConfigPatcher.swift */; };
 		DF38699B83BD4DA7C37DCAF1 /* RealTrafficStallDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC879DEDEBE9302A8936940 /* RealTrafficStallDetector.swift */; };
@@ -394,6 +395,7 @@
 		4C8A48D145CDB3A7F3433A0A /* AppStateConnectGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateConnectGateTests.swift; sourceTree = "<group>"; };
 		52344FF5242831B7B85784C2 /* UserNotifications.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UserNotifications.framework; path = System/Library/Frameworks/UserNotifications.framework; sourceTree = SDKROOT; };
 		52F25CA4945E63F7C3CB0355 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		5520C298E1DD695E29207F5E /* DirectConnectionChunkedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectConnectionChunkedTests.swift; sourceTree = "<group>"; };
 		5B0DF204F6C9DA8DCF48C6FE /* PacketTunnelMac.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PacketTunnelMac.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		5DD9BD8C985A9147E4CEAB1C /* LegalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegalView.swift; sourceTree = "<group>"; };
 		5E1F8BD9DF2E0E500B1EBED2 /* index.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = index.html; sourceTree = "<group>"; };
@@ -602,6 +604,7 @@
 				7C4CD0A25B056DBC6DD6A6D8 /* CountryFlagTests.swift */,
 				3595C7BAAADF16334B8FD4BD /* CountryPickStickyTests.swift */,
 				A68B252ED056950D8E56A513 /* CrashReporterSanitizeTests.swift */,
+				5520C298E1DD695E29207F5E /* DirectConnectionChunkedTests.swift */,
 				309988BC023B66A61A71333A /* DisconnectNotifierTests.swift */,
 				F45C35BECFE7F5EFD0C26FA7 /* EventTrackerTests.swift */,
 				FF66055FD7D08B8EB5770BAF /* KeychainHelperTests.swift */,
@@ -1281,6 +1284,7 @@
 				367879BE1B6C1A25A1F9846D /* CountryFlagTests.swift in Sources */,
 				F55AB5D5563CAACBBC5CFF89 /* CountryPickStickyTests.swift in Sources */,
 				09184E05C76A88DC8AF609D8 /* CrashReporterSanitizeTests.swift in Sources */,
+				DC43CC1038D8FFF8B72389D8 /* DirectConnectionChunkedTests.swift in Sources */,
 				C58057A931009CE17264DA4D /* DisconnectNotifierTests.swift in Sources */,
 				4C6EA208EAE28CCEBC970A86 /* EventTrackerTests.swift in Sources */,
 				C9076459425BD8F9966B4CEE /* KeychainHelperTests.swift in Sources */,

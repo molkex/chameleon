@@ -385,7 +385,7 @@ enum DirectConnection {
             throw URLError(.badServerResponse)
         }
         let headerData = raw.subdata(in: 0..<splitRange.lowerBound)
-        let body = raw.subdata(in: splitRange.upperBound..<raw.count)
+        var body = raw.subdata(in: splitRange.upperBound..<raw.count)
         guard let headerText = String(data: headerData, encoding: .utf8) else {
             throw URLError(.badServerResponse)
         }
@@ -405,7 +405,54 @@ enum DirectConnection {
             let value = parts[1].trimmingCharacters(in: .whitespaces)
             headers[name] = value
         }
+        // 2026-07-11 field bug: nginx serves /api/v1/mobile/config (and
+        // presumably other dynamically-sized JSON responses) with
+        // `Transfer-Encoding: chunked` and NO `Content-Length` — confirmed
+        // live (curl -D-). This raw HTTP/1.1 client took everything after the
+        // header terminator as the body VERBATIM, so every response routed
+        // through a DirectConnection leg (decoy or direct-IP) had literal hex
+        // chunk-size lines ("d34\r\n", "0\r\n\r\n", ...) spliced into the
+        // JSON. That is EXACTLY the shape of the two errors sing-box reported
+        // on-device: "invalid character 'd' looking for beginning of value:
+        // row 1, column 1" (a chunk-size line starting with a hex a-f digit)
+        // and "cannot unmarshal number into Go value of type option._Options"
+        // (a chunk-size line that happens to be all decimal digits, which the
+        // JSON decoder reads as a bare top-level number). The primary leg
+        // (URLSession) was never affected — Foundation de-chunks
+        // transparently — which is why the race kept "succeeding" (decoy won
+        // with a real 200) while the cached config stayed corrupt/empty.
+        if let te = headers.first(where: { $0.key.caseInsensitiveCompare("Transfer-Encoding") == .orderedSame })?.value,
+           te.lowercased().contains("chunked") {
+            body = dechunk(body)
+        }
         let meta = HTTPResponseMeta(status: code, headers: headers, body: body)
         return (body, meta)
+    }
+
+    /// Decodes an HTTP/1.1 chunked-transfer-encoded body into its plain
+    /// bytes. Each chunk is `<hex-size>[;ext]\r\n<size bytes>\r\n`; a
+    /// zero-size chunk (optionally followed by trailer headers) ends the
+    /// stream. Malformed/truncated input just stops decoding at the point it
+    /// can no longer parse a chunk header — returns whatever was
+    /// successfully decoded so far rather than throwing, since a partial
+    /// body is strictly more useful for diagnosing the failure than none.
+    static func dechunk(_ data: Data) -> Data {
+        var result = Data()
+        var index = data.startIndex
+        let crlf = Data("\r\n".utf8)
+        while index < data.endIndex {
+            guard let lineEnd = data.range(of: crlf, in: index..<data.endIndex) else { break }
+            let sizeLine = data.subdata(in: index..<lineEnd.lowerBound)
+            guard let sizeText = String(data: sizeLine, encoding: .utf8) else { break }
+            let hex = sizeText.split(separator: ";", maxSplits: 1).first.map(String.init) ?? sizeText
+            guard let size = Int(hex.trimmingCharacters(in: .whitespaces), radix: 16) else { break }
+            if size == 0 { break }  // terminating chunk — ignore any trailer headers after it
+            let chunkStart = lineEnd.upperBound
+            guard let chunkEnd = data.index(chunkStart, offsetBy: size, limitedBy: data.endIndex) else { break }
+            result.append(data.subdata(in: chunkStart..<chunkEnd))
+            guard let next = data.index(chunkEnd, offsetBy: 2, limitedBy: data.endIndex) else { break }
+            index = next
+        }
+        return result
     }
 }
