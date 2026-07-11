@@ -25,7 +25,7 @@ settings:
     # in MadFrogVPN/Info.plist (was previously auto-derived by
     # Xcode 26 SDK, which the App Review tooling appears to be
     # unhappy with).
-    CURRENT_PROJECT_VERSION: "124"
+    CURRENT_PROJECT_VERSION: "125"
     DEVELOPMENT_TEAM: "99W3C374T2"
     TARGETED_DEVICE_FAMILY: "1"
 
