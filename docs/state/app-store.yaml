@@ -35,6 +35,22 @@
 # Internal Testers. **1.0.33/125 is now the build to test on-device before
 # App Store submission** — 124 is superseded (same base, missing this batch).
 #
+# ⚠️ 2026-07-11 (even later same day): on-device test of 125 on a real iPhone
+# surfaced a real bug — a device's local config cache got poisoned by a
+# garbled/non-JSON response somewhere on its network path (backend confirmed
+# healthy via a direct live fetch), and every subsequent connect then failed
+# inside the tunnel with sing-box's own `decode config` JSON errors, with the
+# server picker silently showing zero countries. Root cause:
+# `AppState.isUsableConfigPayload` only did a `contains("\"outbounds\"")`
+# substring check, which garbled-but-JSON-shaped garbage could still satisfy.
+# Fixed (real JSON parse + per-outbound type/tag check), no user-visible
+# behavior change. Cut as **build 126** (same 1.0.33 train), VALID in ASC,
+# assigned to Internal Testers (verified via include=betaGroups). **1.0.33/126
+# is now the build to test on-device** — 125 is superseded (same base, missing
+# this fix; the poisoned cache on the device that hit this bug needs a
+# reinstall or a clean-network refresh to actually clear, independent of the
+# code fix).
+#
 verified: 2026-07-11 (partial — see warning above; full ASC re-pull still owed)
 
 app:
