@@ -163,6 +163,7 @@ open_decisions:                  # waiting on the user
 
 # ── Shipped (detail: roadmap.yaml#done + incidents/*) ──
 recent:                          # full detail: roadmap.yaml#done + incidents/ + audits/
+  - "2026-07-11 — iOS code-quality audit (Fable) + full same-day implementation: deleted the Calm theme system (~700 lines), fixed 2 real bugs (preflight skipped for country pins; expired-today showed as active), unified toggleVPN's 2 drifted connect paths + all 4 sign-in methods' persist step, purged dead code, split AppState.swift 2704→1713 lines into AuthSession/FallbackCoordinator/SupportDiagnostics (roadmap#now.audit_2026_07_11_fable_code_quality)"
   - "2026-07-11 — Stability + cost reality-check (2 independent audits, client+infra); NL recovered from its 07-01 outage; corrected an 8x-wrong NL cost figure and a stale app-store.yaml version; feature work paused pending P0/P1 stability items (audits/2026-07-11-*)"
   - "2026-07-02 — Refresh-token reuse-past-grace re-issue (pre-114 field compat) — unblocked the whole field's 401 loop (incidents/2026-07-01-mobile-refresh-multileg-logout.md addendum)"
   - "2026-07-01 — Mobile multi-leg refresh race grace-window fix (incidents/2026-07-01-mobile-refresh-multileg-logout.md); web/monitoring moved WAW→primary, NL→retired origin"

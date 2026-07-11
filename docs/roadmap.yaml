@@ -13,6 +13,28 @@ verified: 2026-06-02T00:30:00Z
 # NOW — active blockers, picked up in current session/sprint
 # ============================================================
 now:
+  # ── iOS CODE-QUALITY AUDIT 2026-07-11 (Fable model, "куда девалась простота
+  # кода") — done same day. Founder felt the client had become "каша";
+  # detailed audit + full implementation in one pass, verified via iOS+macOS
+  # build + Simulator smoke tests (idb, against build 124's exact source). ──
+  audit_2026_07_11_fable_code_quality:
+    - {id: FABLE-THEME-DELETE, priority: P2, status: done_2026-07-11,
+       title: "DONE — deleted the Calm theme system down to Neon-only (MainViewCalm.swift, ThemePickerView.swift, ThemeManager.swift, Theme.calm/.all/.byID, Settings Appearance section, APIClient.setTheme). ~700 lines were near-duplicate home-screen logic across 2 themes almost nobody switched off the neon default. Kept Theme as a token struct (Theme.current = .neon) since 12 other views still consume it."}
+    - {id: FABLE-H1-PREFLIGHT-COUNTRY, priority: P1, status: done_2026-07-11,
+       title: "DONE — verified bug: AppState.preflightProbe matched selectedServerTag against LEAF tags only; the default one-tap UX pins a COUNTRY tag, so the fail-fast reachability probe silently no-op'd (.skipped) for essentially every real user. Now resolves a country pin to its member leaves first; the unreachable-server error also shows the country display name instead of a raw leaf tag."}
+    - {id: FABLE-H3-EXPIRED-TODAY, priority: P2, status: done_2026-07-11,
+       title: "DONE — subscriptionStripRightText rounded days-until-expiry toward zero (Calendar dateComponents), so an expiry a few hours in the past showed \"PRO • осталось 0 дней\" while isSubscriptionActive (a proper Date comparison) already saw it as expired. Now gates on `expire > .now` first."}
+    - {id: FABLE-H2-CONNECTFLOW, priority: P1, status: done_2026-07-11,
+       title: "DONE — toggleVPN's cached-config and no-cache paths were two independently-drifted copies of preflight→connect→watchdog; the no-cache path (first-ever connect) was missing vpn.connect.* telemetry entirely and didn't check anotherVPNActive() on failure. Extracted one connectFlow(config:scheduleBackgroundRefresh:) both paths call."}
+    - {id: FABLE-H4-COMPLETESIGNIN, priority: P1, status: done_2026-07-11,
+       title: "DONE — signInAnonymous/signInWithGoogle/consumeMagicToken/signInWithApple each repeated the same ~8-step persist block independently (the exact failure shape of the ACCT-IDENTITY P0: a partially-persisted sign-in during a network blip). Extracted completeSignIn(result:authProvider:appleUserID:clearsReauth:tolerateNoActiveSubscription:) — all 4 already return the same AuthResult type."}
+    - {id: FABLE-H5-DEADCODE, priority: P3, status: done_2026-07-11,
+       title: "DONE — purged LegRaceProbe.swift (unused field, no test referenced it despite the comment claiming so), AppState.buildConfigWithSelector, ConfigStore.vpnMode/subscriptionURL, a phantom \"debug_paywall_force\" comment in PaywallRouter that was never implemented."}
+    - {id: FABLE-M2M3L1-DEDUP, priority: P3, status: done_2026-07-11,
+       title: "DONE — VPNStateHelper's 3 independent copies of \"resolve selectedServerTag to its country\" → 1 resolveSelectedCountry(_:) helper. MainView's red error toast + blue fallback toast (2×~30 duplicated lines) → shared ToastView. The \"5 taps unlocks a hidden feature\" gesture (server-picker power mode, Settings diagnostics) → reusable .tapCountUnlock() modifier (Shared/TapCountUnlock.swift). Merged AppState.hasInitialized/isInitialized (only ever set together, never diverged)."}
+    - {id: FABLE-M1-APPSTATE-SPLIT, priority: P2, status: done_2026-07-11,
+       title: "DONE — AppState.swift (2704 lines, mixing auth/connect/fallback/push/announcements/diagnostics) split via same-class extensions into AppState+AuthSession.swift (495 lines: sign-in/refresh/re-auth ladder), AppState+FallbackCoordinator.swift (406 lines: traffic-health monitor + same-country fallback cascade), AppState+SupportDiagnostics.swift (132 lines: send-log-to-support). AppState.swift itself: 2704→1713 lines (-37%). Several private stored properties/helpers had to relax to internal (module-default) since Swift's `private` is file-scoped — real encapsulation (outside the app target) unchanged."}
+
   # ACCT-IDENTITY (P0) + SEC-01/03/04 + VPN-TG-MEDIA + FR-RELAY-LEGS → done 2026-06-01.
   # TRAFFIC-MULTIEXIT → DONE + deployed + verified 2026-06-04 (see done log).
   #
