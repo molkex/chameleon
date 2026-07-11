@@ -3,8 +3,20 @@
 # Re-verify via ASC API before claiming anything changed. Don't trust
 # this file blindly — see playbooks/asc-api-checks.md for a 5-line
 # bash snippet to re-fetch state.
-
-verified: 2026-06-01
+#
+# ⚠️ 2026-07-11: the `versions:` block below is STALE (last real ASC pull was
+# ~2026-06-04) and was drifting badly — it still showed 1.0.28/91 as the live
+# public build. Cross-validated 2026-07-11 via (a) a separate audit's direct
+# ASC API check and (b) production telemetry (app_events.app_version values
+# actually seen from real devices: "1.0.27 (90)", "1.0.32 (113)",
+# "1.0.33 (123)") that **the real live public build is 1.0.32 (113)**, with
+# 1.0.33 (123) on TestFlight. `current` below is corrected to match; the
+# detailed ASC version/build UUIDs under it were NOT re-fetched this session
+# (didn't want to invent IDs) — treat those specific IDs as unverified until
+# a fresh ASC API pull. See docs/audits/2026-07-11-production-stability-audit.md
+# and docs/state/project.yaml (2026-06-29, closer to current than this file was).
+#
+verified: 2026-07-11 (partial — see warning above; full ASC re-pull still owed)
 
 app:
   bundle_id: com.madfrog.vpn
@@ -34,19 +46,18 @@ apns:
 # Live App Store version. `READY_FOR_SALE` = users can install via App Store.
 versions:
   current:
-    version: "1.0.28"
-    build: 91
-    asc_version_id: d9d28448-318b-4432-b2df-a2cf2062738e
-    asc_build_id: 6a033dc3-b94b-4559-bc69-cd3a8a3b60ca
-    appStoreState: READY_FOR_SALE     # verified live ASC API 2026-05-31
-    releaseType: AFTER_APPROVAL
-    build_uploaded: 2026-05-29T10:32:37Z
-    ships:
-      - Sentry EU crash reporting (LAUNCH-03)
-      - WebPaywall + PaywallRouter EventTracker instrumentation (PAYWALL-TRACKING)
-      - IOS-UDP-VALIDATE, IOS-PICKER-FR (France/US display), LAUNCH-12 uTLS rotation
-    known_issues:   # user-reported 2026-05-31, tracked in roadmap.yaml
-      - UI-FLAG-HOME (🌍 instead of flag on home card)
+    version: "1.0.32"    # ⚠️ corrected 2026-07-11 — was showing 1.0.28/91 (a full generation
+    build: 113            # stale). See the file-level warning above for sourcing.
+    appStoreState: READY_FOR_SALE     # per separate audit's direct ASC API check, 2026-07-11
+    asc_version_id: NOT RE-FETCHED — was d9d28448-... for the OLD 1.0.28 entry, do not reuse
+    asc_build_id: NOT RE-FETCHED — was 6a033dc3-... for the OLD 1.0.28 entry, do not reuse
+    contents_note: |
+      Corresponds to the AUTH-RKN-DIRECT-IP sign-in fix per project.yaml's 2026-06-29
+      snapshot (submitted 2026-06-09). Exact `ships:` list not re-verified this session —
+      cross-check project.yaml#product.app_store.in_review (2026-06-29 wording, itself
+      describing this same 113 build before it went live) before trusting specifics below.
+    known_issues:   # STALE — carried over from the old 1.0.28 entry, not re-verified for 113
+      - "UI-FLAG-HOME (flag emoji fallback on home card) — likely fixed since 38cc596 (data-driven country flags), see project.yaml recent-log"
       - SETTINGS-L10N (AUTO-CONNECT section in English)
 
   # Latest TestFlight build. 1.0.30 (102) carries the macOS keychain re-sign

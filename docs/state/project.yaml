@@ -19,19 +19,30 @@
 # Test coverage + how-to-verify each layer: state/test-map.yaml (decision 0009).
 
 meta:
-  updated: 2026-06-29
+  updated: 2026-07-11
   branch: main
-  direction: on_track          # see `assessment` at the bottom — redundancy now actively being built
+  direction: paused_for_stability_and_revenue   # see `assessment` — redundancy risk resolved
+    # (NL recovered), but a 2026-07-11 stability+cost audit found the real constraint is
+    # revenue (~€45/quarter) vs minimum infra (~€27.8/mo) plus several real client bugs.
+    # User decision: stabilize before more feature work.
 
 # ── Product ────────────────────────────────────────────────────────────────
 product:
   name: MadFrog VPN
   what: Native iOS+macOS VPN with own Go backend; VLESS Reality + sing-box.
   app_store:                   # canonical: state/app-store.yaml
-    live:        {version: "1.0.30", build: 102, state: READY_FOR_SALE}   # APPROVED 2026-06-04 (KEYCHAIN-MACOS)
-    approved:    {version: "1.0.31", build: 112, state: PENDING_DEVELOPER_RELEASE_AUTO}  # APPROVED by ~2026-06-09, auto-release ON → goes live on its own. support chat + push + announcements + store-country
-    in_review:   {version: "1.0.32", build: 113, state: WAITING_FOR_REVIEW}  # SUBMITTED 2026-06-09 — AUTH-RKN-DIRECT-IP login fix (sign-in races cert-validated direct IPs NL/SPB); AFTER_APPROVAL auto-release. reviewSubmission a17265e3
+    live:        {version: "1.0.32", build: 113, state: READY_FOR_SALE}   # ⚠️ corrected 2026-07-11 —
+      # cross-validated via a separate audit's direct ASC API check + production telemetry
+      # (app_events.app_version really seen from devices: "1.0.27 (90)", "1.0.32 (113)",
+      # "1.0.33 (123)"). 1.0.30/1.0.31 presumably auto-released and superseded in between —
+      # not independently re-verified, ASC re-pull still owed (see app-store.yaml warning).
+      # NOTE: telemetry also shows 1.0.32(113) has a rough 44% connect-SUCCESS rate over the
+      # last 7 days (57 starts/25 success/30 fail, concentrated in 6 of its 10 active devices,
+      # not spread evenly) — see audits/2026-07-11-production-stability-audit.md.
     testflight:  {version: "1.0.33", build: 123, state: IN_BETA_TESTING}  # b123 2026-06-21 — STALL detector now counts relay-dropped DNS failures ("use of closed network connection" to MSK :2097/:2099), found in a REAL on-device b122 log of a ~1-min "sites won't load": DNS-via-relay died 49× and the detector (matching only i/o-timeout) never fired -> no recovery. b123 fixes that so re-elect/nudge recovery triggers. NOTE: cert-cap hit during build (local dev builds maxed Apple Development certs) -> revoked 7 stale API certs -> rebuild signed OK -> assigned Internal Testers (verified). b122 prior — RU-DECOY-2ND (2nd clean-SNI decoy leg on SPB:8443 kills the RU sign-in SPOF) + per-leg auth telemetry. Built via CI (tag ios-build-122) off main, assigned to Internal Testers (verified). Verify on-device: RU sign-in works repeatedly; admin /events shows auth.attempt {leg}. b121 prior — RU-DECOY-FIRST. b120 fixed the FIRST sign-in (decoy clean-SNI leg) but the 2nd hung: the primary still emitted an api.madfrog.online ClientHello each attempt (MSK logged it 499), tripping RKN TSPU which then RST'd everything incl. decoy. b121 HOLDS the poisoning legs (primary+direct-IP) 2s behind the decoy — a sub-second decoy win cancels them while asleep, so ZERO filtered-SNI ClientHellos leave the device → TSPU never escalates → repeat sign-ins work. b114-120 superseded.
+      # per-leg auth telemetry (app_events.properties->>'leg') exists but under-fires: only 3
+      # events in 90 days field-wide (2 decoy, 1 primary) — see spb_relay.value_unproven in
+      # servers.yaml before trusting any leg-usage claim.
     next_step: |
       (1) VERIFY 1.0.33/114 on TestFlight (iPhone) — the audit batch is on-device-unverified: инста loads
       on Auto, no forced re-login, RU sign-in works, expired→paywall on connect, France pick sticks, chat
@@ -44,17 +55,27 @@ product:
 
 # ── Infra (canonical: state/servers.yaml) ───────────────────────────────────
 infra:                            # TOPOLOGY FLIPPED 2026-06-29 (failover) — 0004 superseded by 0012/0013
-  primary_backend_db: WAW 217.182.74.70   # PRIMARY since 2026-06-29 (chameleon-failover :8000 + postgres + redis)
-  replica_backend_db: NL 147.45.252.234   # streaming replica of WAW (chameleon STOPPED, lag ~0.05s)
-  api_ingress: MSK 217.198.5.52   # single ingress = source of truth; upstream → WAW:8000
+  primary_backend_db: WAW 217.182.74.70   # PRIMARY since 2026-06-29 — CANNOT be cut/replaced without
+    # standing up a new primary first; it's the whole live service, not a standby (confusable with
+    # its PRE-failover role). €12.24/mo, verified.
+  replica_backend_db: NL 147.45.252.234   # streaming replica of WAW. Went OFFLINE 2026-07-01
+    # (Timeweb reboot-flap), RECOVERED 2026-07-10, streaming confirmed both sides, stable 26h+ as of
+    # 2026-07-11. ALSO cannot be cut regardless of the replica question — hosts a live production
+    # ss-ws router with 452 established connections (2026-07-11 check), unrelated to this app but
+    # explicitly do-not-touch. Verified cost 1,590 ₽/mo (~€17) — corrects a prior 8x-wrong memory note.
+  api_ingress: MSK 217.198.5.52   # single ingress = source of truth; upstream → WAW:8000. €5.6/mo (530₽), verified.
   vpn_exits:
     - {country: PL, key: waw1, host: 217.182.74.70}     # primary box doubles as a VPN exit (Poland)
-    - {country: FR, key: gra1, host: 54.38.243.162}     # live since 2026-05-30
-    - {country: NL, key: nl2,  host: 147.45.252.234, active: false}  # deactivated 2026-06-29 (stale roster, NL is replica-only)
+    - {country: FR, key: gra1, host: 54.38.243.162}     # live since 2026-05-30; decommission pending (roadmap, sequenced after HA-drill)
+    - {country: NL, key: nl2,  host: 147.45.252.234, active: true}  # REACTIVATED 2026-07-11 as a live HA-drill fallback exit (was deactivated 2026-06-29) — verified carrying real production traffic within minutes
   relays:                          # RU-side, for users behind RKN whitelists
     - {key: msk, host: 217.198.5.52, role: relay,            chains:   [nl-via-msk, fr-via-msk]}
-    - {key: spb, host: 185.218.0.43, role: whitelist_bypass, forwards: [ru-spb-nl, ru-spb-fr]}
-  retired: [DE 162.19.242.30]      # 2026-05-25 — do NOT reference in new code/scripts
+    - {key: spb, host: 185.218.0.43, role: whitelist_bypass, forwards: [ru-spb-nl, ru-spb-fr],
+       status: DEGRADED — TCP-open but application-dead (2026-07-11), see roadmap SPB-RECOVER (P0),
+       cost: 140 RUB/mo}
+  retired: [DE 162.19.242.30]      # 2026-05-25 — do NOT reference in new code/scripts. Live stale
+    # leg found on MSK relay :2096 (vless-de) 2026-07-11, not yet pruned — roadmap MSK-STALE-DE-LEG.
+  retired_adjacent: [85.239.49.28 (Moscow, legacy Telegram-bot MadFrog product — DECOMMISSIONED 2026-07-11, see roadmap BOTBOX-DECISION)]
 
 # ── Stack ───────────────────────────────────────────────────────────────────
 stack:
@@ -69,45 +90,81 @@ health:
   auth:      green   # ACCT-IDENTITY fixed 2026-06-01 (Keychain identity, no anon-demote)
   payments:  green   # SEC-04 refund-revoke live; trial-once (SEC-01) live
   vpn_pl:    green   # WAW (Poland) exit live + primary box
-  vpn_fr:    green   # GRA direct + via SPB + via MSK, all verified exit 54.38.243.162
+  vpn_fr:    amber   # GRA direct still gets mass REALITY-handshake rejects from RU residential IPs
+    # (~15k/48h, 2026-07-11) — same IPs succeed via MSK relay. Likely RKN tampering with direct
+    # handshakes, not a config bug, but not independently confirmed. Via-MSK path is green.
   telemetry: green   # TRAFFIC-MULTIEXIT live 2026-06-04
-  redundancy: amber-improving  # 2026-06-29: WAW primary ↔ NL replica streaming (RPO≈s). Failover PROVEN (live 2026-06-29) + scripted (failover.sh). Remaining: drill + auto-watchdog + WAW nginx/admin. MSK = single ingress SPoF.
+  redundancy: green   # 2026-07-11: NL recovered (was OFFLINE 07-01→07-10, Timeweb reboot-flap),
+    # streaming confirmed both sides. HA-DRILL DONE 2026-07-11 — full WAW→NL→WAW cycle run live,
+    # RTO 2m26s, zero data loss, replica rebuilt+streaming after. Both directions now proven
+    # (06-29 was NL→WAW live-fire, today was WAW→NL rehearsed). nl2 also reactivated as a live
+    # fallback exit (was dormant) — see incidents/2026-07-11-ha-drill.md.
+    # Remaining: HA-WATCHDOG (auto-trigger) deliberately still manual-only by design at this
+    # scale. MSK = single ingress SPoF (unchanged, now the top structural risk).
+  ru_relay_path: red   # NEW 2026-07-11 — SPB relay is TCP-open but application-dead (RU sign-in
+    # decoy leg + 2 whitelist-bypass VPN chains). Top suspect for "works sometimes" for RU users.
+  client_stability: red   # NEW 2026-07-11 — production build 1.0.32(113) telemetry: ~44% VPN
+    # connect success (57/25/30 over 7d), concentrated in 6 stuck devices. Plus 4 real client-code
+    # bugs found + verified (entitlement gate, NE start/stop race, 30s-deadline violation, intent
+    # gate bypass) — see roadmap audit_2026_07_11.
+  revenue_vs_spend: red   # NEW 2026-07-11 — ~€45/quarter revenue (100% RU FreeKassa, $0 verified
+    # Apple IAP in 90d) vs ~€53-54/mo total infra spend. Minimum-to-run (WAW+GRA+MSK relay) alone
+    # is €27.8/mo. Not a "cut servers" problem — there's almost nothing left to cut (checked: WAW
+    # uncuttable, NL uncuttable due to live router, only the dormant bot box + SPB/razblokirator
+    # hygiene are real levers, ~€9/mo total). See audits/2026-07-11-cost-optimization-proposal.md.
 
 # ── Right now (canonical: roadmap.yaml) ─────────────────────────────────────
 now:
-  № ── RESUME HERE next session (2026-06-29 end-of-session handoff) ──
-  - ✅✅ FAILOVER EXECUTED LIVE 2026-06-29 (2nd NL outage) — WAW is now PRIMARY backend+DB; NL
-    rebuilt as a streaming REPLICA of WAW (lag ~0.05s, parity). Service stayed up on WAW
-    (API + VPN), zero data loss. Codified into infrastructure/failover/{failover.sh,
-    rebuild-replica.sh,waw-backend-up.sh} + decisions/0013 (MSK-ingress = source of truth).
-    nl2 exit deactivated; NL health-check cron disabled; deploy.sh nl guarded; WAW repl-monitor live.
-    memory project_waw_standby has the full wiring + gotchas (docker-gateway/ufw).
-  - ⏭️ HA REMAINING (the user's goal — "any server down → auto") — (1) DRILL failover.sh in a
-    low-traffic window (blocker for auto); (2) then GRA WATCHDOG auto-trigger (sustained/multi-
-    vantage/anti-flap); (3) P1 cleanup — deploy.sh waw + nginx on WAW (admin SPA back) — admin
-    via CF still → NL (down). decisions/0013 phases; infrastructure/failover/README.
-  - 🔒 AUDIT 2026-06-29 (5-agent) — code GREEN (17/17 Go, 22 admin). NEW security to fix —
-    H-02 subscription_token leaks to peers in CLUSTER sync (cluster/models.go), H-03 /sub token
-    cred-in-URL, /metrics unauth on :8000, freekassa empty-allowlist. Failover-script bugs FIXED
-    (changeme default, 0.0.0.0 bind, StrictHostKeyChecking). audits/2026-06-29-*.md.
-  - 📊 App Store — 1.0.30/102 live; 1.0.31 auto-release; 1.0.32/113 in review; 1.0.33/123 TestFlight.
-    iOS data-driven country flags (🇵🇱 + emoji fallback) committed (38cc596), rides next build.
-  - 🟢 GRA auto-renew ON (was manual, near-miss 30.06) + external off-Timeweb monitor LIVE on GRA
-    (infrastructure/gra-monitor — closes the "health-check ran on NL" blind spot).
-  - STRUCTURE/TEST/HYGIENE AUDIT (2026-06-26) — audits/2026-06-26-structure-test-hygiene-audit.md.
-    Tests GREEN. Tracked in roadmap#next.audit_2026_06_26 — 3 P1 money-path test gaps
-    (payment webhook / Apple verify / config handler) + 3 P1 security (H-01 cert-pin, H-02
-    subscription_token→GRA leak, H-03 /sub/:token) + structure reorg remainder.
-  - PRODUCT-MATURITY-LOOP (living, audits/2026-06-21) — b123 on TestFlight; monetization-one-shot
-    headline still the strategic gap (A1-lifecycle engine shipped DISABLED).
-  - App Store trains — 1.0.30/102 live; 1.0.31 approved auto-release; 1.0.32/113 in review; 1.0.33/123 TestFlight.
+  № ── RESUME HERE next session (2026-07-11 end-of-session handoff) ──
+  - ⏸️ FEATURE WORK PAUSED — user decision 2026-07-11 — stop chasing marginal cost cuts and new
+    features until the P0/P1 items below land. Trigger was "app works sometimes, not others" —
+    two independent audits (client-side + infra-side) confirmed it's real and multi-causal, not
+    one broken thing. Full detail — audits/2026-07-11-{production-stability,network-mesh-stability,
+    cost-optimization-proposal}.md. Tracked items — roadmap.yaml#next.audit_2026_07_11.
+  - 🔴 TOP PRIORITY — SPB-RECOVER (P0) — the RU-decoy/whitelist-bypass relay (185.218.0.43) is
+    TCP-open but application-dead (hangs, doesn't fail fast) — top suspect for RU "works
+    sometimes." Needs SprintHost panel access (SSH itself hangs).
+  - 🔴 TOP PRIORITY — CLIENT-ENTITLEMENT-GATE (P0) — verified, AppState.mayConnect:1352 accepts
+    `isPremium` before checking backend subscription_expiry, and non-renewing IAP products'
+    `expirationDate==nil` reads as active forever. Revenue/authorization risk, not cosmetic.
+  - 🟡 3 more verified client bugs (P1, see roadmap) — NetworkExtension start/stop race with no
+    cancellation guard (ExtensionProvider.swift), ~40s worst-case connect timeout vs the
+    project's own 30s rule, Widget/Shortcuts bypass the subscription gate entirely.
+  - ✅ REDUNDANCY RESOLVED — NL (which went OFFLINE 2026-07-01) recovered 2026-07-10, streaming
+    replica confirmed both sides, stable 26h+. WAW is no longer a lone primary. NL also
+    confirmed NOT cuttable for cost — hosts a live production router (452 established
+    connections, 2026-07-11 check), unrelated to this app but do-not-touch regardless.
+  - 💰 REVENUE REALITY CHECK (new, 2026-07-11) — 394 users total, only 10 active subscriptions,
+    only 2 devices used the VPN tunnel in the last 7 days. Revenue — ~€45/quarter, 100% via RU
+    FreeKassa, $0 verified Apple IAP in 90 days. Minimum infra to run at all (WAW+GRA+MSK
+    relay) is €27.8/mo — there was almost no "fat" left to cut (checked WAW/NL/bot-box
+    specifically; ~€9/mo in real levers found). ✅ Both realized same day — legacy Telegram
+    bot box confirmed dead by direct user test and fully decommissioned (server + floating
+    IP deleted via Timeweb API, not just paused) — €7.7/mo; SPB/razblokirator are hygiene,
+    cost ~nothing either way.
+  - 📊 App Store — live is 1.0.32/113 (corrected 2026-07-11, was showing stale 1.0.30/102 in
+    this file), 1.0.33/123 still on TestFlight. Production 1.0.32(113) telemetry — ~44% VPN
+    connect success over 7d, concentrated in 6 stuck devices (not a uniform 50/50 across users).
+  - ✅ HA-DRILL DONE (2026-07-11) — WAW→NL→WAW run live, RTO 2m26s, zero data loss, 3 real bugs
+    found+fixed in failover.sh along the way (nl target's nginx-start gap, a POSIX glob bug, an
+    un-separated docker-stop string), CI shellcheck added. nl2 also reactivated as a live
+    fallback exit. See incidents/2026-07-11-ha-drill.md. GRA watchdog (auto-trigger) stays
+    deliberately out of scope — manual promotion is the right call at this scale.
+  - 🔒 Security items from the 2026-06-29/06-26 audits (H-02 token leak, H-03 /sub cred-in-URL,
+    /metrics unauth, cert-pin) — still open, unchanged, see roadmap#next.audit_2026_06_29/26.
 open_decisions:                  # waiting on the user
-  - SUBDOMAIN-SCRUB — bot/speedtest.madfrog.online → 85.239.49.28 (intentional? repoint?)
+  - SPB-VALUE — once SPB-RECOVER lands, is the RU whitelist-bypass path worth keeping fixed
+    long-term? Existing leg-selection telemetry under-fires (3 events/90d field-wide) — plan is
+    to fix the telemetry, run a few weeks, then decide on real leg-win-rate data.
   - SUPPORT-CHAT hosting — MVP shipped BUNDLED (not chat.madfrog.online). Keep bundled or
     move to hosted later? (one-line URL switch in SupportChatView.)
 
 # ── Shipped (detail: roadmap.yaml#done + incidents/*) ──
 recent:                          # full detail: roadmap.yaml#done + incidents/ + audits/
+  - "2026-07-11 — Stability + cost reality-check (2 independent audits, client+infra); NL recovered from its 07-01 outage; corrected an 8x-wrong NL cost figure and a stale app-store.yaml version; feature work paused pending P0/P1 stability items (audits/2026-07-11-*)"
+  - "2026-07-02 — Refresh-token reuse-past-grace re-issue (pre-114 field compat) — unblocked the whole field's 401 loop (incidents/2026-07-01-mobile-refresh-multileg-logout.md addendum)"
+  - "2026-07-01 — Mobile multi-leg refresh race grace-window fix (incidents/2026-07-01-mobile-refresh-multileg-logout.md); web/monitoring moved WAW→primary, NL→retired origin"
+  - "2026-06-29 — 2nd NL outage → LIVE FAILOVER, WAW promoted to primary+DB, NL rebuilt as streaming replica (decisions/0013, audits/2026-06-29)"
   - "2026-06-26 — NL outage (Timeweb ams-1 DDoS) + WAW warm-standby/Poland-exit server-side provisioned + structure/test/hygiene audit (audits/2026-06-26)"
   - "2026-06-21 — PRODUCT-MATURITY-LOOP (living, audits/2026-06-21); b123 TestFlight; A1 lifecycle-engine shipped DISABLED"
   - "2026-06-17 — FULL-SERVICE-AUDIT (35-agent, audits/2026-06-17); through-line: core healthy, РФ-network edge cases collapse UX"
@@ -126,19 +183,34 @@ ops:
 
 # ── Are we going the right way? ─────────────────────────────────────────────
 assessment: |
-  MOSTLY on track, with one loud lesson. The 2026-06-26 Timeweb ams-1 outage
-  took the WHOLE control plane down for hours with zero failover — the exact
-  single-NL SPoF that ADR 0004 "accepted". That risk is no longer acceptable and
-  is now being ACTIVELY closed: ADR 0012 (warm standby) + a real second host
-  (OVH Warsaw) provisioned this session, an external off-Timeweb monitor live,
-  GRA auto-renew fixed. Remaining redundancy work (Postgres replication, MSK
-  upstream failover, the "Poland for all users" exit activation) is gated on NL
-  coming back. Core product is healthy: auth identity (ADR 0010), SEC-01..04,
-  France as a real 2nd exit, multi-exit telemetry. The honest watch-items now:
-  (1) finish NL-RED-01 — redundancy is half-built, do not stop; (2) the
-  2026-06-26 audit found the money-in HTTP HANDLERS (FreeKassa webhook, Apple
-  verify, config) have zero handler-level tests despite the logic being tested —
-  3 P1 items tracked; (3) 3 P1 security findings (cert-pin, token-leak-to-exit,
-  /sub credential-in-URL) tracked. Tests are GREEN; docs split (0006) is correct,
-  this session de-bloated + de-staled the state docs. Direction: forward, but
-  redundancy + money-path test coverage are the two things to not let slip.
+  PAUSED, deliberately, and for good reason. The redundancy saga from June is
+  resolved — NL had a THIRD outage-and-recovery cycle (2026-07-01 → 07-10, same
+  Timeweb reboot-flap signature as 06-26) and WAW carried the whole service
+  through it as primary without incident. That risk is now "watch it, don't
+  panic about it" rather than "fix it."
+
+  What actually forced the pause: two independent 2026-07-11 audits (client-code
+  + live infra, cross-checked against each other and against real production
+  telemetry, not just claims) found the "app works sometimes" complaint is real
+  and traces to several concrete, verified causes — a dead RU relay (SPB), a
+  genuine revenue-authorization bug (non-renewing entitlements read as
+  permanent, and that DOES gate the connect flow), a NetworkExtension lifecycle
+  race, and a connect-timeout that quietly violates the project's own 30s rule.
+  None of these are hypothetical — each was confirmed by reading the actual code
+  or running the actual query, not inferred from a doc.
+
+  Underneath all of it sits the real strategic fact: revenue (~€45/quarter, 100%
+  from RU FreeKassa, zero verified Apple IAP in 90 days) is far below even the
+  minimum infra to run the product at all (~€27.8/mo for WAW+GRA+MSK relay
+  alone). This is NOT a "too many servers" problem — checked WAW (can't touch,
+  it's the whole service), NL (can't touch, live production router unrelated to
+  this app sits on the same box), and only found ~€9/mo in real, low-risk
+  savings (a dormant Telegram-bot box — confirmed dead and fully decommissioned
+  same day, server+IP deleted via Timeweb API, plus SPB/razblokirator hygiene
+  that cost ~nothing regardless). Growth also stalled
+  hard after a one-time May signup spike (317 → 53 → 14/month).
+
+  Direction: fix the P0/P1 stability items first (roadmap#next.audit_2026_07_11)
+  — a service this size doesn't get to have both instability AND stalled
+  growth AND unresolved revenue economics at the same time. Stability is the
+  one of those three that's actually tractable right now.
