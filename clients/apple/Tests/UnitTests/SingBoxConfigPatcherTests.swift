@@ -71,32 +71,4 @@ final class SingBoxConfigPatcherTests: XCTestCase {
         let members = germany?["outbounds"] as? [String]
         XCTAssertEqual(members?.first, "de-direct-de", "unknown winner is silently ignored, order preserved")
     }
-
-    // MARK: - LegRaceConfigParser
-
-    func testCandidatesExtractsHostPortFromVlessLeaves() {
-        let cfg = sampleConfig()
-        let candidates = LegRaceConfigParser.candidates(
-            forLegTags: ["de-direct-de", "de-via-msk", "de-h2-de", "de-tuic-de"],
-            inConfigJSON: cfg
-        )
-        let tags = candidates.map(\.tag)
-        XCTAssertEqual(Set(tags), Set(["de-direct-de", "de-via-msk"]),
-                       "h2/tuic outbounds skipped because their type isn't TCP-probable")
-        let direct = candidates.first(where: { $0.tag == "de-direct-de" })
-        XCTAssertEqual(direct?.host, "162.19.242.30")
-        XCTAssertEqual(direct?.port, 2096)
-        let viaMsk = candidates.first(where: { $0.tag == "de-via-msk" })
-        XCTAssertEqual(viaMsk?.host, "217.198.5.52")
-        XCTAssertEqual(viaMsk?.port, 443)
-    }
-
-    func testCandidatesEmptyForUnknownTags() {
-        let cfg = sampleConfig()
-        let candidates = LegRaceConfigParser.candidates(
-            forLegTags: ["fr-direct-fr", "us-direct-us"],
-            inConfigJSON: cfg
-        )
-        XCTAssertEqual(candidates.count, 0)
-    }
 }

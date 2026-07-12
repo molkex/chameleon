@@ -104,4 +104,22 @@ enum StallSignals {
                                 minDomains: Int) -> Bool {
         distinctFailingDomains >= minDomains && successfulUserDials == 0
     }
+
+    /// Proxied DoH resolver IPs — the `dns-remote` server in
+    /// backend/internal/vpn/clientconfig.go (Server:"1.1.1.1", Detour:"Proxy").
+    /// Connections to these IPs are the resolver's OWN machinery, NOT user
+    /// traffic. Counting them as successful user dials masked the 2026-07-12
+    /// "open-but-dead" stall: DoH-to-1.1.1.1 hung, yet each dial logged as
+    /// `outbound connection to 1.1.1.1:443` = a fake success that kept
+    /// dnsStallReached()'s `successfulUserDials == 0` gate from ever holding.
+    /// 1.0.0.1 is Cloudflare's secondary, included defensively. If the config's
+    /// dns-remote resolver ever changes, update this set (a reciprocal comment
+    /// lives in clientconfig.go).
+    static let dnsResolverIPs: Set<String> = ["1.1.1.1", "1.0.0.1"]
+
+    /// True when `destination` (a bare host/IP, no port) is one of the proxied
+    /// DoH resolver IPs whose connections must not count as user-dial successes.
+    static func isDNSResolverDestination(_ destination: String) -> Bool {
+        dnsResolverIPs.contains(destination)
+    }
 }

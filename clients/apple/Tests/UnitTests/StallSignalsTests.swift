@@ -78,4 +78,40 @@ final class StallSignalsTests: XCTestCase {
         // Data is still flowing somewhere — DNS is at least partially alive.
         XCTAssertFalse(StallSignals.dnsStallReached(distinctFailingDomains: 12, successfulUserDials: 3, minDomains: 8))
     }
+
+    // MARK: - STALL-OPEN-BUT-DEAD (2026-07-12)
+
+    // Field log 2026-07-12: pl-direct-waw1 hung all DoH-over-proxy resolution
+    // to 1.1.1.1 (backend/internal/vpn/clientconfig.go's dns-remote server),
+    // yet sing-box logged every DoH connection attempt as
+    // `outbound connection to 1.1.1.1:443` — a successful USER dial as far as
+    // parseDialSuccess was concerned. That kept successfulUserDials > 0, which
+    // held the dnsStallReached() gate open forever (85 "successes" / 0
+    // timeouts in the 30s window) even though every real site's DNS was
+    // timing out. isDNSResolverDestination is the seam that excludes these
+    // resolver-machinery connections from counting as user traffic.
+    func testIsDNSResolverDestination() {
+        XCTAssertTrue(StallSignals.isDNSResolverDestination("1.1.1.1"))
+        XCTAssertTrue(StallSignals.isDNSResolverDestination("1.0.0.1"))
+        XCTAssertFalse(StallSignals.isDNSResolverDestination("8.8.8.8"))
+        XCTAssertFalse(StallSignals.isDNSResolverDestination("142.250.120.154"))
+        XCTAssertFalse(StallSignals.isDNSResolverDestination(""))
+    }
+
+    // Encodes the incident under the NEW minDNSFailDomains=5 threshold (lowered
+    // from 8 because the 2026-07-12 incident had only 6 distinct failing
+    // domains in the window). With the resolver-IP exclusion in place,
+    // successfulUserDials==0 becomes the primary protection — it only holds
+    // when zero real destinations dialled successfully, which by itself is a
+    // strong "resolver path is dead" signal.
+    func testDNSStallDecisionWithLoweredThresholdCatchesIncident() {
+        // The incident, replayed: 6 distinct failing domains, no real
+        // successful dials (DoH-to-resolver dials no longer count) — now fires.
+        XCTAssertTrue(StallSignals.dnsStallReached(distinctFailingDomains: 6, successfulUserDials: 0, minDomains: 5))
+        // Below the new floor — still a safety net against single/few-domain blips.
+        XCTAssertFalse(StallSignals.dnsStallReached(distinctFailingDomains: 4, successfulUserDials: 0, minDomains: 5))
+        // Any genuine real-destination success suppresses the trigger, even
+        // with a wide spread of failing domains.
+        XCTAssertFalse(StallSignals.dnsStallReached(distinctFailingDomains: 6, successfulUserDials: 2, minDomains: 5))
+    }
 }

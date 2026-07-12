@@ -185,9 +185,6 @@ next:
        title: "VPNControlIntents use NETunnelProviderManager.loadAllFromPreferences() and take the first result without identifying the intended profile — devices with legacy/duplicate profiles could observe/control the wrong tunnel"}
     - {id: CLIENT-FALLBACK-STALE-NL, priority: P1, build: true, note: "bumped P2→P1 2026-07-11 — see addendum in production-stability-audit.md: dead-leg config is now the CONFIRMED dominant real-world failure class (5 of 30 fails were guaranteed-fail attempts at a deactivated exit), batch with the other client fixes, don't ship separately",
        title: "Shared/Constants.swift fallbackBaseURL + directBackendIPs still list 147.45.252.234:80 as a live API fallback target — NL's backend/nginx role is INACTIVE post-failover (2026-06-29), this leg spends race budget on nothing. Also still lists retired DE 162.19.242.30 (pre-existing TODO)."}
-    - {id: STALL-OPEN-BUT-DEAD, priority: P2, build: true,
-       title: "RealTrafficStallDetector is blind to 'connection opens but no data flows' failures. On 2026-07-12 the pl-direct-waw1 leg hung all DNS-over-HTTPS to 1.1.1.1; sing-box logs each DoH connection as `outbound connection to 1.1.1.1:443` which the detector counts as a SUCCESSFUL dial → dial-stall rate never reaches 0.75, and the DNS-stall trigger requires successfulUserDials==0 (never true because of those 'successes') plus >=8 distinct failing domains (only ~6 seen). Net: 85 'successful' dials / 0 timeout dials in the 30s window → detector saw a healthy tunnel and never switched to pl-via-msk. Possible fixes: don't count DoH-resolver connections to the DNS server IP as user-dial successes; or track bytes-transferred per connection to detect open-but-dead; or lower minDNSFailDomains / relax the successfulDials==0 coupling.",
-       files: [clients/apple/PacketTunnel/RealTrafficStallDetector.swift, clients/apple/Shared/StallSignals.swift]}
 
   # ── POST-FAILOVER AUDIT 2026-06-29 (detail: docs/audits/2026-06-29-failover-state-audit.md) ──
   audit_2026_06_29:
@@ -1056,6 +1053,30 @@ deferred:
 # ============================================================
 done:
   "2026-07-12":
+    - id: STALL-OPEN-BUT-DEAD
+      title: "RealTrafficStallDetector blind to 'connection opens but no data flows' — DoH-to-1.1.1.1 counted as fake user-dial successes"
+      notes: |
+        Client-side fix (not yet cut into a TestFlight build). Root cause: DNS-over-HTTPS runs
+        through the tunnel to the proxied resolver 1.1.1.1 (backend/internal/vpn/clientconfig.go
+        dns-remote server, Detour:"Proxy"); sing-box logs every DoH connection as `outbound
+        connection to 1.1.1.1:443`, and parseDialSuccess counted these as SUCCESSFUL user dials.
+        That kept successfulUserDials > 0 forever, which held open both the dial-stall ratio
+        denominator AND the DNS-stall trigger's `successfulUserDials == 0` gate (dnsStallReached)
+        — 85 "successful"/0 timeout dials in the 30s window while every real site's DNS was
+        timing out. Fix: (1) added StallSignals.dnsResolverIPs = ["1.1.1.1","1.0.0.1"] +
+        isDNSResolverDestination(_:) as a pure seam, and parseDialSuccess in
+        RealTrafficStallDetector.swift now returns nil for dials to those IPs so they no longer
+        count as user-traffic successes; (2) lowered Config.minDNSFailDomains 8→5 — the incident
+        had only 6 distinct failing domains, below the old floor, and with the resolver-IP
+        exclusion in place `successfulUserDials == 0` is now the primary protection (a strong
+        signal on its own), so 5 is a safe floor that still catches the incident while avoiding
+        single-domain-blip false positives. Files: clients/apple/Shared/StallSignals.swift,
+        clients/apple/PacketTunnel/RealTrafficStallDetector.swift,
+        clients/apple/Tests/UnitTests/StallSignalsTests.swift (new
+        testIsDNSResolverDestination + testDNSStallDecisionWithLoweredThresholdCatchesIncident),
+        backend/internal/vpn/clientconfig.go (reciprocal comment, no behavior change). See also
+        the same-day structural fix PL-RELAY-ONLY below, which addresses the same incident from
+        the routing side (stop offering the trap leg at all).
     - id: PL-RELAY-ONLY
       title: "Make Poland relay-only — stop emitting pl-direct-waw1 (urltest kept electing the trap leg)"
       notes: |

@@ -118,7 +118,20 @@ final class RealTrafficStallDetector {
         /// can't (the bricked-Instagram case: nothing resolves → there are no
         /// "open connection to" dials to count). Paired with successfulDials==0
         /// in StallSignals.dnsStallReached so it won't fire while data flows.
-        var minDNSFailDomains: Int = 8
+        ///
+        /// 2026-07-12 (STALL-OPEN-BUT-DEAD): lowered 8 → 5. The 2026-07-12
+        /// incident (pl-direct-waw1 hung DoH to 1.1.1.1) had only 6 distinct
+        /// failing domains in the 30s window — below the old threshold of 8,
+        /// so this gate alone would have suppressed the fire even with the
+        /// resolver-IP exclusion above. Now that DoH-to-resolver connections no
+        /// longer inflate successfulUserDials (see StallSignals.isDNSResolverDestination),
+        /// `successfulUserDials == 0` is the primary protection — it only holds
+        /// when ZERO real destinations dialled successfully in the window,
+        /// which is a strong "genuinely dead resolver path" signal on its own.
+        /// Requiring >=5 distinct failing domains on top is a safe floor that
+        /// still catches the incident (6 domains) while avoiding a false
+        /// positive from a single flaky/blocked domain.
+        var minDNSFailDomains: Int = 5
 
         /// OOM-SELF-HEAL (2026-06-17): oom-killer "resetting network" events in
         /// the window before we self-heal. 1 = react to the first reset; the
@@ -362,6 +375,14 @@ final class RealTrafficStallDetector {
             } else {
                 destination = String(hostPort)
             }
+        }
+
+        // STALL-OPEN-BUT-DEAD (2026-07-12): connections to the proxied DoH
+        // resolver IP are the resolver's own machinery, not user traffic.
+        // Counting them as successes masked a real DNS outage (DoH-to-1.1.1.1
+        // hung but each dial logged as a success). See StallSignals.
+        if StallSignals.isDNSResolverDestination(destination) {
+            return nil
         }
 
         return DialAttempt(timestamp: now, outbound: outbound, destination: destination, isTimeout: false)

@@ -523,6 +523,10 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 				// the local/Yandex path → Google/Gemini/OpenAI saw a Russian
 				// resolver even on an NL exit IP). .ru/banks still use dns-direct
 				// (Yandex, no detour) via the DNS rules below.
+				// NOTE: iOS RealTrafficStallDetector excludes this resolver IP
+				// from user-dial-success counting (StallSignals.dnsResolverIPs,
+				// STALL-OPEN-BUT-DEAD 2026-07-12) — if this IP ever changes,
+				// that client-side set must change too.
 				{Tag: "dns-remote", Type: "https", Server: "1.1.1.1", Detour: "Proxy"},
 				{Tag: "dns-direct", Type: "https", Server: "77.88.8.8"},
 				// dns-fakeip removed 2026-06-21 (PRODUCT-MATURITY-LOOP): dead server —
