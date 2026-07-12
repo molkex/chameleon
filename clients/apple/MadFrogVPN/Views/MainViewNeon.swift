@@ -38,11 +38,18 @@ struct MainViewNeon: View {
                 // BIG uppercase status
                 bigStatus
 
-                // Timer with glowing dot
-                if VPNStateHelper.isConnected(app), let connectedAt = app.vpnConnectedAt {
-                    timerRow(since: connectedAt)
-                        .padding(.top, 18)
+                // Timer with glowing dot. The row's height is reserved in every
+                // state so the big status above it doesn't jump up when the timer
+                // appears on connect (it sits between two Spacers — growing the
+                // content mid-stack rebalanced both and shifted the hero up).
+                Group {
+                    if VPNStateHelper.isConnected(app), let connectedAt = app.vpnConnectedAt {
+                        timerRow(since: connectedAt)
+                    }
                 }
+                .frame(height: 26, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, 18)
 
                 Spacer()
 

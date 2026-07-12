@@ -1,0 +1,41 @@
+name: infra-failover-shellcheck
+
+# The failover scripts promote a live database and flip production ingress —
+# they were unvalidated by CI (roadmap INFRA-FAILOVER-SHELLCHECK). A 2026-07-11
+# HA-drill prep pass found real bugs shellcheck would have caught (a POSIX `[ ]`
+# glob that never matched, an un-separated docker-stop command string that only
+# worked by accident). Guard against that regressing silently.
+
+on:
+  pull_request:
+    paths:
+      - 'infrastructure/failover/**'
+      - '.github/workflows/infra-failover-shellcheck.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'infrastructure/failover/**'
+      - '.github/workflows/infra-failover-shellcheck.yml'
+
+jobs:
+  shellcheck:
+    name: bash -n + shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: bash -n (syntax)
+        run: |
+          set -e
+          for f in infrastructure/failover/*.sh; do
+            echo "-- $f --"
+            bash -n "$f"
+          done
+
+      - name: shellcheck (warnings and above)
+        run: |
+          set -e
+          for f in infrastructure/failover/*.sh; do
+            echo "-- $f --"
+            shellcheck -S warning "$f"
+          done
