@@ -170,21 +170,8 @@ next:
     - {id: WAW-SINGBOX-VOLUME, priority: P2, build: false,
        title: "chameleon-failover container does NOT mount the chameleon-singbox-config docker volume, so SingboxEngine.writeConfigLocked()'s file-write fallback (the only path that updates hysteria2-in's user list) writes into a disconnected FS → Hysteria2 baked user list on WAW silently goes stale for any add/remove. Worked around 2026-07-12 by hand-patching the live JSON + `docker restart singbox`. Real fix: mount the volume into chameleon-failover, or move config generation to a process that shares the volume.",
        ref: "docs/state/servers.yaml waw.known_bug"}
-    # client — iOS/macOS (from the production-stability audit; verified by direct code read + a
-    # live telemetry re-check, not just the audit's own claims)
-    - {id: CLIENT-ENTITLEMENT-GATE, priority: P0, build: true,
-       title: "SubscriptionManager.isActiveEntitlement treats expirationDate==nil (true for all 4 NonRenewingSubscription products) as active forever; AppState.mayConnect:1352 short-circuits `if isPremium { return true }` BEFORE checking backend subscription_expiry — verified this literally gates VPN connect, not just a display bug",
-       risk: "authorization/revenue: a locally-cached entitlement can outlive the real backend expiry"}
-    - {id: CLIENT-EXT-RACE, priority: P1, build: true,
-       title: "ExtensionProvider.swift: startTunnel dispatches sing-box start on an untracked DispatchQueue.global().async block; stopTunnel runs synchronously with no cancellation/generation guard — a fast connect→disconnect can publish a late 'connected' after stop already fired"}
-    - {id: CLIENT-CONNECT-DEADLINE, priority: P1, build: true,
-       title: "awaitConnectionWithSilentRetry worst case is ~40s (18s + 3s + 1s + 18s) — violates the project's own 30s VPN-connect-timeout rule (CLAUDE.md)"}
-    - {id: CLIENT-INTENT-GATE-BYPASS, priority: P1, build: true,
-       title: "Widget/Shortcuts intents (VPNControlIntents.swift) call VPNControl.perform() directly, bypassing AppState.mayConnect entirely — verified, not just a config path claim"}
-    - {id: CLIENT-VPN-PROFILE-SELECT, priority: P2, build: true,
-       title: "VPNControlIntents use NETunnelProviderManager.loadAllFromPreferences() and take the first result without identifying the intended profile — devices with legacy/duplicate profiles could observe/control the wrong tunnel"}
-    - {id: CLIENT-FALLBACK-STALE-NL, priority: P1, build: true, note: "bumped P2→P1 2026-07-11 — see addendum in production-stability-audit.md: dead-leg config is now the CONFIRMED dominant real-world failure class (5 of 30 fails were guaranteed-fail attempts at a deactivated exit), batch with the other client fixes, don't ship separately",
-       title: "Shared/Constants.swift fallbackBaseURL + directBackendIPs still list 147.45.252.234:80 as a live API fallback target — NL's backend/nginx role is INACTIVE post-failover (2026-06-29), this leg spends race budget on nothing. Also still lists retired DE 162.19.242.30 (pre-existing TODO)."}
+    # client — iOS/macOS (from the production-stability audit): ALL 6 build:true
+    # items landed in build 130 (2026-07-12) — see done["2026-07-12"].BUILD-130-CLIENT-FIXES.
 
   # ── POST-FAILOVER AUDIT 2026-06-29 (detail: docs/audits/2026-06-29-failover-state-audit.md) ──
   audit_2026_06_29:
@@ -1053,6 +1040,33 @@ deferred:
 # ============================================================
 done:
   "2026-07-12":
+    - id: BUILD-130-CLIENT-FIXES
+      title: "Build 130 — all 6 build:true client stability fixes from the 2026-07-11 audit, shipped together"
+      notes: |
+        Full-fix batch (user: 'хотел бы полноценно исправить'). All verified by a
+        clean `xcodebuild build` of the app scheme (widget + tunnel + tests all
+        compile, 0 errors — VPNControlIntents compiles in MadFrogWidget too):
+        - CLIENT-ENTITLEMENT-GATE (P0): AppState.mayConnect no longer short-circuits
+          on isPremium (permanently true for NonRenewingSubscription products whose
+          StoreKit expiry is nil). Now gates on backend subscription_expiry when
+          known (churned user = past date -> blocked); isPremium only a fresh-purchase
+          fallback when expiry is nil. Strands nobody (a connect needs a backend
+          config, which carries X-Expire). isActiveEntitlement left as-is. +tests.
+        - CLIENT-EXT-RACE (P1): new Shared/TunnelStartGuard (NSLock generation
+          counter). startTunnel mints a token; stopTunnel invalidates; a late start
+          completion checks isCurrent() and, if stale, tears down sing-box instead of
+          publishing a zombie 'connected'. completionHandler still called once/path. +tests.
+        - CLIENT-CONNECT-DEADLINE (P1): awaitConnectionWithSilentRetry 40s->29s
+          (named constants 13+2+1+13) — satisfies the 30s rule. +test.
+        - CLIENT-INTENT-GATE-BYPASS (P1): Widget/Shortcuts CONNECT intents now gate via
+          VPNIntentSubscriptionGate (mirrors mayConnect; AppState isn't in the widget
+          target). Disconnect stays ungated. +tests.
+        - CLIENT-VPN-PROFILE-SELECT (P2): intents select the manager whose
+          providerBundleIdentifier == AppConstants.tunnelBundleID, no blind index-0.
+        - CLIENT-FALLBACK-STALE-NL (P1): removed dead NL 147.45.252.234 + retired DE
+          162.19.242.30 from Constants (fallbackBaseURL->MSK), DebugLogsView probes,
+          and the Info.plist ATS exception. +test.
+        Ships to TestFlight as build 130 (CURRENT_PROJECT_VERSION bump).
     - id: STALL-OPEN-BUT-DEAD
       title: "RealTrafficStallDetector blind to 'connection opens but no data flows' — DoH-to-1.1.1.1 counted as fake user-dial successes"
       notes: |

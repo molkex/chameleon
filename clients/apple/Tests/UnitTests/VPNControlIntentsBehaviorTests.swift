@@ -1,8 +1,9 @@
+import NetworkExtension
 import XCTest
 @testable import MadFrogVPN
 
 /// Regression guard for the AppIntents control surface in
-/// `Shared/VPNControlIntents.swift`. Three things are pinned:
+/// `Shared/VPNControlIntents.swift`. Four things are pinned:
 ///
 ///   1. The `vpnControlPlan` decision matrix — the pure entry-point that
 ///      decides `.start` / `.stop` / `.needsApp` from the inputs.
@@ -14,6 +15,9 @@ import XCTest
 ///      optimistic (kernel teardown is essentially immediate). Both are
 ///      asserted here so a future refactor that flips the policy fails
 ///      the suite loudly.
+///   4. **CLIENT-VPN-PROFILE-SELECT** — `selectOurManager` must pick the
+///      manager whose `providerBundleIdentifier` matches ours, not just
+///      the first entry in `loadAllFromPreferences()`'s result.
 @MainActor
 final class VPNControlIntentsBehaviorTests: XCTestCase {
 
@@ -148,5 +152,70 @@ final class VPNControlIntentsBehaviorTests: XCTestCase {
         WidgetVPNSnapshot.write(connected: true, to: defaults)
         XCTAssertGreaterThan(defaults.double(forKey: AppConstants.vpnConnectedAtKey), longAgo + 1,
                              "after a real disconnect, the next connect stamps a fresh timestamp")
+    }
+
+    // MARK: - CLIENT-VPN-PROFILE-SELECT: selectOurManager
+
+    private func makeManager(providerBundleID: String?) -> NETunnelProviderManager {
+        let manager = NETunnelProviderManager()
+        if let providerBundleID {
+            let proto = NETunnelProviderProtocol()
+            proto.providerBundleIdentifier = providerBundleID
+            proto.serverAddress = "test"
+            manager.protocolConfiguration = proto
+        }
+        return manager
+    }
+
+    func testSelectOurManagerPicksMatchingBundleID() {
+        let ours = makeManager(providerBundleID: "com.madfrog.vpn.tunnel")
+        let legacy = makeManager(providerBundleID: "com.example.legacy.tunnel")
+        let selected = selectOurManager(from: [legacy, ours], bundleID: "com.madfrog.vpn.tunnel")
+        XCTAssertTrue(selected === ours,
+                      "must pick the manager matching our tunnel's bundle id, not index 0")
+    }
+
+    func testSelectOurManagerReturnsNilWhenNoneMatch() {
+        let legacy1 = makeManager(providerBundleID: "com.example.legacy.tunnel")
+        let legacy2 = makeManager(providerBundleID: nil)
+        let selected = selectOurManager(from: [legacy1, legacy2], bundleID: "com.madfrog.vpn.tunnel")
+        XCTAssertNil(selected, "no legacy/foreign profile must ever be silently adopted as ours")
+    }
+
+    func testSelectOurManagerOnEmptyListReturnsNil() {
+        XCTAssertNil(selectOurManager(from: [], bundleID: "com.madfrog.vpn.tunnel"))
+    }
+
+    // MARK: - CLIENT-INTENT-GATE-BYPASS: VPNIntentSubscriptionGate.mayConnect
+
+    // Mirrors AppStateConnectGateTests — this is a deliberate duplicate of
+    // AppState.mayConnect (see VPNControlIntents.swift's header comment on
+    // why the widget target can't import AppState), so the same matrix is
+    // pinned here to catch the two definitions drifting apart.
+    private let gateNow = Date(timeIntervalSince1970: 1_700_000_000)
+    private var gateFuture: Date { gateNow.addingTimeInterval(86_400) }
+    private var gatePast: Date { gateNow.addingTimeInterval(-86_400) }
+
+    func testGateFutureExpiryMayConnect() {
+        XCTAssertTrue(VPNIntentSubscriptionGate.mayConnect(subscriptionExpire: gateFuture, isPremium: false, now: gateNow))
+    }
+
+    func testGatePastExpiryBlocked() {
+        XCTAssertFalse(VPNIntentSubscriptionGate.mayConnect(subscriptionExpire: gatePast, isPremium: false, now: gateNow))
+    }
+
+    func testGateNilExpiryNoPremiumBlocked() {
+        XCTAssertFalse(VPNIntentSubscriptionGate.mayConnect(subscriptionExpire: nil, isPremium: false, now: gateNow))
+    }
+
+    func testGatePastExpiryBlocksEvenWithPremiumFlag() {
+        // Same NonRenewingSubscription caveat as AppState.mayConnect: a
+        // stale/permanent isPremium flag must never override a past backend
+        // expiry.
+        XCTAssertFalse(VPNIntentSubscriptionGate.mayConnect(subscriptionExpire: gatePast, isPremium: true, now: gateNow))
+    }
+
+    func testGateNilExpiryWithPremiumIsFreshPurchaseFallback() {
+        XCTAssertTrue(VPNIntentSubscriptionGate.mayConnect(subscriptionExpire: nil, isPremium: true, now: gateNow))
     }
 }

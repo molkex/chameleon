@@ -19,6 +19,11 @@ open class ExtensionProvider: NEPacketTunnelProvider {
     private var platformInterface: ExtensionPlatformInterface?
     private var isGrpcRunning = false
     private var memoryWatchdog: DispatchSourceTimer?
+
+    /// CLIENT-EXT-RACE (P1) guard: invalidates a late `startTunnel`
+    /// completion that races a fast `stopTunnel` (see TunnelStartGuard doc).
+    private let startGuard = TunnelStartGuard()
+
     /// Build-39 stall detector. Lives only while sing-box is running.
     /// Catches the dead-leaf scenario the main-app TrafficHealthMonitor
     /// can't reach when the user is in Safari and MadFrog is suspended.
@@ -152,6 +157,14 @@ open class ExtensionProvider: NEPacketTunnelProvider {
 
     override open func startTunnel(options: [String: NSObject]?,
                                    completionHandler: @escaping (Error?) -> Void) {
+        // CLIENT-EXT-RACE (P1): claim a generation token for this start
+        // attempt before doing anything else. The background block below
+        // re-checks this token right before publishing a 'connected' side
+        // effect; if stopTunnel() invalidates it first (fast connect→
+        // disconnect), the late start tears itself down instead of
+        // resurrecting a stale 'connected' signal. See TunnelStartGuard.
+        let startToken = startGuard.beginGeneration()
+
         // iOS NE extension 50 MB hard cap — jetsam SIGKILLs us past that. Pin Go
         // runtime so GC runs aggressively before we hit the wall.
         // GOMEMLIMIT is a soft target (Go 1.19+); GOGC=25 makes GC run 4× more
@@ -222,6 +235,22 @@ open class ExtensionProvider: NEPacketTunnelProvider {
                 try self.startSingBox(config: sanitizedConfig)
                 TunnelFileLogger.logSync("sing-box started successfully (memory: \(self.currentMemoryFootprintMB())MB/\(self.availableMemoryMB())MB avail)", category: "memory")
                 AppLogger.tunnel.info("sing-box started successfully")
+
+                // CLIENT-EXT-RACE (P1): if stopTunnel already fired while we
+                // were starting, this success is stale — the tunnel has
+                // already been commanded to stop. Tear down what we just
+                // brought up and report failure instead of publishing a
+                // 'connected' widget/watchdog/completionHandler signal after
+                // the user already disconnected.
+                guard self.startGuard.isCurrent(startToken) else {
+                    TunnelFileLogger.logSync("startTunnel: stale generation after start success — stopTunnel raced us, tearing down zombie start")
+                    self.stopSingBox()
+                    self.setGrpcState(false)
+                    completionHandler(NSError(domain: "Chameleon", code: 3,
+                                              userInfo: [NSLocalizedDescriptionKey: "Tunnel was stopped before start completed"]))
+                    return
+                }
+
                 self.startMemoryWatchdog()
                 self.startStallProbe()
                 self.publishWidgetState(connected: true)
@@ -238,7 +267,17 @@ open class ExtensionProvider: NEPacketTunnelProvider {
                 // if no listener was bound.
                 self.stopSingBox()
                 self.setGrpcState(false)
-                self.publishWidgetState(connected: false)
+                // CLIENT-EXT-RACE (P1): teardown above is unconditional
+                // (idempotent, and this is a failure/disconnected signal —
+                // never a stale 'connected' one), but skip re-publishing the
+                // widget as disconnected if stopTunnel already did it, purely
+                // to keep the log/diagnostic trail honest about which path
+                // ran.
+                if self.startGuard.isCurrent(startToken) {
+                    self.publishWidgetState(connected: false)
+                } else {
+                    TunnelFileLogger.log("startTunnel: stale generation after start failure — stopTunnel already handled teardown/widget state")
+                }
                 completionHandler(error)
             }
         }
@@ -246,6 +285,12 @@ open class ExtensionProvider: NEPacketTunnelProvider {
 
     override open func stopTunnel(with reason: NEProviderStopReason,
                                   completionHandler: @escaping () -> Void) {
+        // CLIENT-EXT-RACE (P1): invalidate any in-flight startTunnel first,
+        // before anything else runs. Closes the race window as tightly as
+        // possible — a start whose token was captured before this line will
+        // see isCurrent() == false and refuse to publish 'connected'.
+        startGuard.invalidate()
+
         // Sync flush — reason=2 (providerFailed) typically means jetsam is
         // about to SIGKILL us, queue won't drain in time.
         TunnelFileLogger.logSync("Stopping tunnel, reason: \(reason.rawValue)")

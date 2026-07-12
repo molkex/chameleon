@@ -111,6 +111,22 @@ final class APIClientWinPolicyTests: XCTestCase {
                        "SPB — confirmed application-dead (roadmap SPB-RECOVER, P0), don't re-add without re-verifying")
     }
 
+    /// CLIENT-FALLBACK-STALE-NL (2026-07-12): the hedged race must not waste a
+    /// budget slot on guaranteed-fail legs. NL (backend stopped 2026-06-29 WAW
+    /// failover) and DE (retired 2026-05-25) must never reappear in any API
+    /// backend fallback/direct-IP list, and the confirmed-live MSK relay must
+    /// stay present.
+    func testAPIBackendLists_excludeDeadNLAndDELegs() {
+        XCTAssertFalse(AppConfig.fallbackBaseURL.contains("147.45.252.234"),
+                       "NL — backend stopped by the 2026-06-29 WAW failover, don't repoint fallbackBaseURL at it without re-verifying")
+        XCTAssertFalse(AppConfig.fallbackBaseURL.contains("162.19.242.30"),
+                       "DE — retired 2026-05-25, fully decommissioned, must never reappear")
+        XCTAssertFalse(AppConfig.directBackendIPs.contains("162.19.242.30"),
+                       "DE — retired 2026-05-25, fully decommissioned, must never reappear")
+        XCTAssertTrue(AppConfig.directBackendIPs.contains("217.198.5.52"),
+                      "MSK relay — confirmed live 2026-07-11 stability audit, must stay in the direct-IP pool")
+    }
+
     // MARK: - RU-DECOY-SNI gate (clean-SNI MSK leg)
 
     /// Sign-in / refresh (sensitive) must ALWAYS get the decoy leg — it's the

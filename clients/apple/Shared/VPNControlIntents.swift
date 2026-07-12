@@ -1,6 +1,7 @@
 import AppIntents
 import Foundation
 import NetworkExtension
+import StoreKit
 #if os(iOS)
 import WidgetKit
 #endif
@@ -42,6 +43,129 @@ func vpnControlPlan(desiredOn: Bool, hasManager: Bool) -> VPNControlPlan {
     return desiredOn ? .start : .stop
 }
 
+// MARK: - Own-tunnel profile selection (CLIENT-VPN-PROFILE-SELECT)
+
+/// `loadAllFromPreferences()` returns EVERY `NETunnelProviderManager` saved
+/// on the device — including legacy/duplicate profiles left over from a
+/// reinstall, a different NE-owning app, or a stale migration. Blindly
+/// taking the first result could then observe/control the WRONG tunnel.
+/// Pure predicate over an already-loaded list (rather than doing the
+/// filtering inline) so it's unit-testable without any live NE calls: a
+/// test can build a bare `NETunnelProviderManager()`, stamp a
+/// `protocolConfiguration`, and assert the match.
+///
+/// `bundleID` is the exact discriminator `VPNManager.createManager()` sets
+/// when it first saves OUR profile — see
+/// `MadFrogVPN/Models/VPNManager.swift`: `proto.providerBundleIdentifier =
+/// AppConstants.tunnelBundleID`. Matching on that (not index 0, not
+/// `localizedDescription`, which a user could rename) is the one field the
+/// app itself uses to identify its own tunnel.
+func selectOurManager(from managers: [NETunnelProviderManager],
+                      bundleID: String) -> NETunnelProviderManager? {
+    managers.first {
+        ($0.protocolConfiguration as? NETunnelProviderProtocol)?.providerBundleIdentifier == bundleID
+    }
+}
+
+/// Load every saved manager and narrow to the one (if any) that's ours.
+/// Every intent entry point below goes through this instead of calling
+/// `loadAllFromPreferences()` directly, so "index 0" can never happen
+/// again by accident.
+private func loadOurManagers() async throws -> [NETunnelProviderManager] {
+    let all = try await NETunnelProviderManager.loadAllFromPreferences()
+    guard let ours = selectOurManager(from: all, bundleID: AppConstants.tunnelBundleID) else {
+        return []
+    }
+    return [ours]
+}
+
+// MARK: - Subscription gate (CLIENT-INTENT-GATE-BYPASS)
+
+/// Headless mirror of `AppState.mayConnect(subscriptionExpire:isPremium:now:)`
+/// / `AppState.ensureSubscriptionForConnect`. This is a deliberate
+/// *duplicate*, not a call into `AppState` — `AppState.swift` lives in
+/// `MadFrogVPN/Models` and is intentionally NOT part of the `MadFrogWidget`
+/// target's sources (see project.yml: the widget stays lean and does not
+/// link the rest of `Shared`'s Libbox/StoreKit-heavy app graph), so this
+/// file — compiled into BOTH the app and the widget extension — cannot
+/// reference `AppState` without breaking the widget build. Any change to
+/// `AppState.mayConnect`'s semantics must be mirrored here.
+///
+/// Unlike `AppState.ensureSubscriptionForConnect`, there is no cross-device
+/// reclaim network round-trip (no `APIClient`/`AppState` available inside a
+/// headless intent) — just the pure decision plus the local StoreKit
+/// fallback for the brief post-purchase window before the backend expiry
+/// has synced.
+enum VPNIntentSubscriptionGate {
+    /// Pure decision — identical logic to `AppState.mayConnect`. Backend
+    /// `subscription_expiry` is authoritative whenever known; `isPremium`
+    /// is consulted only when it's nil (fresh purchase, not yet synced).
+    static func mayConnect(subscriptionExpire: Date?, isPremium: Bool, now: Date) -> Bool {
+        if let expiry = subscriptionExpire { return expiry > now }
+        return isPremium
+    }
+
+    /// The backend-synced expiry, read straight out of the App Group.
+    /// Mirrors `ConfigStore.subscriptionExpire`'s storage contract exactly
+    /// (same suite, same key) — `ConfigStore` itself isn't linked into the
+    /// widget target because it imports Libbox.
+    static var persistedSubscriptionExpire: Date? {
+        UserDefaults(suiteName: AppConstants.appGroupID)?
+            .object(forKey: AppConstants.subscriptionExpireKey) as? Date
+    }
+
+    /// Mirrors `SubscriptionManager.allProductIDs` — duplicated (not
+    /// imported) for the same lean-widget-target reason as above. Keep in
+    /// sync with `MadFrogVPN/Models/SubscriptionManager.swift` if a product
+    /// ID is ever added or removed.
+    private static let productIDs: Set<String> = [
+        "com.madfrog.vpn.sub.30days",
+        "com.madfrog.vpn.sub.90days",
+        "com.madfrog.vpn.sub.180days",
+        "com.madfrog.vpn.sub.365days",
+    ]
+
+    /// Local StoreKit fallback, mirroring
+    /// `SubscriptionManager.updatePremiumStatus` /
+    /// `SubscriptionManager.isActiveEntitlement`. Bounded by `timeout` —
+    /// per CLAUDE.md every async operation needs one — so a slow/hung
+    /// StoreKit call can never leave a headless intent hanging.
+    static func hasLocalActiveEntitlement(now: Date = Date(), timeout: Duration = .seconds(3)) async -> Bool {
+        let raceResult = try? await withThrowingTaskGroup(of: Bool.self) { group -> Bool in
+            group.addTask {
+                for await entitlementResult in Transaction.currentEntitlements {
+                    guard case .verified(let transaction) = entitlementResult,
+                          productIDs.contains(transaction.productID),
+                          transaction.revocationDate == nil
+                    else { continue }
+                    if let expiry = transaction.expirationDate, expiry <= now { continue }
+                    return true
+                }
+                return false
+            }
+            group.addTask {
+                try await Task.sleep(for: timeout)
+                return false
+            }
+            let first = try await group.next() ?? false
+            group.cancelAll()
+            return first
+        }
+        return raceResult ?? false
+    }
+
+    /// The full headless connect-gate: true if the CONNECT action may
+    /// proceed. Checked before every `.start` in `VPNControl.perform`.
+    static func mayPerformConnect(now: Date = Date()) async -> Bool {
+        let expiry = persistedSubscriptionExpire
+        if mayConnect(subscriptionExpire: expiry, isPremium: false, now: now) {
+            return true
+        }
+        let isPremium = await hasLocalActiveEntitlement(now: now)
+        return mayConnect(subscriptionExpire: expiry, isPremium: isPremium, now: now)
+    }
+}
+
 // MARK: - Errors
 
 enum VPNControlError: Error, CustomLocalizedStringResourceConvertible {
@@ -49,6 +173,11 @@ enum VPNControlError: Error, CustomLocalizedStringResourceConvertible {
     case profileNotInstalled
     /// Manager exists but its connection isn't a tunnel-provider session.
     case noSession
+    /// CLIENT-INTENT-GATE-BYPASS: the same subscription gate the in-app
+    /// Connect button applies (`AppState.mayConnect`) failed. The app shows
+    /// a paywall in this case; a headless intent can't present UI, so it
+    /// fails with a localized message telling the user to open the app.
+    case subscriptionInactive
 
     var localizedStringResource: LocalizedStringResource {
         let isRU = Locale.current.language.languageCode?.identifier == "ru"
@@ -61,6 +190,10 @@ enum VPNControlError: Error, CustomLocalizedStringResourceConvertible {
             return isRU
                 ? "VPN-сессия недоступна. Откройте MadFrog VPN."
                 : "VPN session unavailable. Open MadFrog VPN."
+        case .subscriptionInactive:
+            return isRU
+                ? "Подписка неактивна — откройте приложение."
+                : "Subscription inactive — open MadFrog VPN."
         }
     }
 }
@@ -99,7 +232,16 @@ enum VPNControl {
             throw VPNControlError.profileNotInstalled
 
         case .start:
-            // managers is non-empty here (vpnControlPlan guaranteed it).
+            // CLIENT-INTENT-GATE-BYPASS: mirror the in-app connect gate
+            // (AppState.mayConnect) before starting the tunnel. Without
+            // this, an expired user's widget tap / Shortcut bypassed the
+            // paywall entirely and connected anyway.
+            guard await VPNIntentSubscriptionGate.mayPerformConnect() else {
+                throw VPNControlError.subscriptionInactive
+            }
+            // managers is non-empty here (vpnControlPlan guaranteed it),
+            // and — CLIENT-VPN-PROFILE-SELECT — is always OUR tunnel's
+            // manager, never an arbitrary index 0 (see loadOurManagers()).
             let manager = managers[0]
             if !manager.isEnabled {
                 manager.isEnabled = true
@@ -177,7 +319,7 @@ struct ToggleVPNIntent: SetValueIntent {
     }
 
     func perform() async throws -> some IntentResult {
-        let managers = try await NETunnelProviderManager.loadAllFromPreferences()
+        let managers = try await loadOurManagers()
         let plan = vpnControlPlan(desiredOn: value, hasManager: !managers.isEmpty)
         try await VPNControl.perform(plan, managers: managers)
         return .result()
@@ -200,7 +342,7 @@ struct ConnectVPNIntent: AppIntent {
     init() {}
 
     func perform() async throws -> some IntentResult {
-        let managers = try await NETunnelProviderManager.loadAllFromPreferences()
+        let managers = try await loadOurManagers()
         let plan = vpnControlPlan(desiredOn: true, hasManager: !managers.isEmpty)
         try await VPNControl.perform(plan, managers: managers)
         return .result()
@@ -217,7 +359,7 @@ struct DisconnectVPNIntent: AppIntent {
     init() {}
 
     func perform() async throws -> some IntentResult {
-        let managers = try await NETunnelProviderManager.loadAllFromPreferences()
+        let managers = try await loadOurManagers()
         let plan = vpnControlPlan(desiredOn: false, hasManager: !managers.isEmpty)
         try await VPNControl.perform(plan, managers: managers)
         return .result()

@@ -10,8 +10,14 @@ enum AppConfig {
     static let baseURL = "https://api.madfrog.online"
 
     /// Fallback base URL (direct IP via HTTP, bypasses Cloudflare/RKN).
-    /// Points at NL (sole production backend as of 2026-05-25; DE retired).
-    static let fallbackBaseURL = "http://147.45.252.234"
+    /// 2026-07-12 (CLIENT-FALLBACK-STALE-NL): NL removed — its chameleon
+    /// backend was stopped by the 2026-06-29 WAW failover (NL is now a
+    /// DB-only streaming replica; its :80 API no longer answers). Grep-
+    /// verified 2026-07-12: this constant has no call sites today. Points
+    /// at the MSK relay instead — the only direct-IP leg confirmed live by
+    /// the 2026-07-11 stability audit — so it isn't dead weight if it's
+    /// ever wired back up.
+    static let fallbackBaseURL = "http://217.198.5.52"
 
     /// Russian relay (SPB) — highest priority fallback for users in Russia
     static let russianRelayURL = "http://185.218.0.43"
@@ -21,8 +27,9 @@ enum AppConfig {
     /// parallel NWConnection attempts carrying SNI = baseURL host, so
     /// nginx on the server still accepts the TLS handshake.
     ///
-    /// NOTE: 162.19.242.30 (DE/OVH Frankfurt) was retired 2026-05-25
-    /// and removed from this pool as part of TD-DE-PRUNE.
+    /// NOTE: the DE/OVH Frankfurt exit was retired 2026-05-25 and removed
+    /// from this pool as part of TD-DE-PRUNE (DE is fully decommissioned —
+    /// its old IP is intentionally not repeated here, see servers.yaml).
     ///
     /// 2026-07-11: NL and SPB REMOVED after live verification found both
     /// return a fast, empty-body HTTP 400 on this exact path (curl —resolve

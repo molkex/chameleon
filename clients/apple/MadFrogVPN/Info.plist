@@ -53,18 +53,10 @@
 		<false/>
 		<key>NSExceptionDomains</key>
 		<dict>
-			<!-- TD-DE-PRUNE 2026-05-28: 162.19.242.30 (DE/OVH Frankfurt)
-			     ATS exception removed — DE retired 2026-05-25 and is no
-			     longer in AppConfig.directBackendIPs. -->
-			<key>147.45.252.234</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<true/>
-				<key>NSExceptionRequiresForwardSecrecy</key>
-				<false/>
-				<key>NSExceptionMinimumTLSVersion</key>
-				<string>TLSv1.2</string>
-			</dict>
+			<!-- DE (162.19.242.30, retired 2026-05-25) and NL (147.45.252.234,
+			     demoted to a dead DB replica post-failover 2026-07-12) ATS
+			     exceptions removed — neither is in AppConfig.directBackendIPs
+			     and no URLSession path contacts them over HTTP anymore. -->
 			<key>185.218.0.43</key>
 			<dict>
 				<key>NSExceptionAllowsInsecureHTTPLoads</key>

@@ -416,8 +416,6 @@ struct DebugLogsView: View {
             ("SPB Relay → NL (VLESS)",  "185.218.0.43", 2098),
             ("SPB Relay HTTP",          "185.218.0.43", 80),
             ("SPB Relay HTTPS",         "185.218.0.43", 443),
-            // Direct servers
-            ("NL Direct (VLESS)",       "147.45.252.234", 2096),
             // General internet
             ("Cloudflare DNS",          "1.1.1.1",       443),
             ("Google DNS",              "8.8.8.8",        53),
@@ -425,7 +423,9 @@ struct DebugLogsView: View {
         ]
 
         let udpEndpoints: [(name: String, host: String, port: UInt16)] = [
-            ("NL Hysteria2 (UDP)",      "147.45.252.234", 8443),
+            // 2026-07-12: NL (147.45.252.234) is a dead DB replica post-failover;
+            // probe WAW's live hysteria2-in instead.
+            ("WAW Hysteria2 (UDP)",     "217.182.74.70", 443),
         ]
 
         // --- TCP Tests ---
@@ -458,8 +458,9 @@ struct DebugLogsView: View {
             ("Google generate_204",  "https://www.gstatic.com/generate_204"),
             ("Cloudflare trace",     "https://1.1.1.1/cdn-cgi/trace"),
             ("Backend health",       "https://madfrog.online/health"),
-            // TD-DE-PRUNE 2026-05-28: DE retired; direct-IP probe now hits NL.
-            ("Backend health (direct IP)", "http://147.45.252.234/health"),
+            // 2026-07-12: direct-IP probe repointed off dead NL (147.45.252.234,
+            // now a replica) to the live MSK-relay API front.
+            ("Backend health (MSK relay)", "https://api.madfrog.online/health"),
         ]
 
         for test in httpTests {

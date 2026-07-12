@@ -746,13 +746,31 @@ class AppState {
         await toggleVPN()
     }
 
-    /// The pure connect-gate decision: may this user start the tunnel? Active
-    /// backend coverage (future expiry) OR a live StoreKit entitlement. Static +
-    /// pure so it's unit-testable without a live AppState. NULL/absent expiry =
-    /// no coverage (mirrors the backend's hasActiveSubscription canon).
+    /// The pure connect-gate decision: may this user start the tunnel? The
+    /// backend `subscription_expiry` is authoritative whenever it's known —
+    /// all 4 products are NonRenewingSubscription, so StoreKit reports a nil
+    /// expirationDate for them and `isPremium` (isActiveEntitlement) stays
+    /// true forever after any purchase. It cannot encode "still within the
+    /// paid window" — only the backend expiry can, and a churned user's
+    /// backend expiry is a PAST date (not nil). `isPremium` is used only as a
+    /// fresh-purchase fallback when the backend hasn't synced an expiry yet
+    /// (nil): a connect always needs a backend config anyway, and that config
+    /// response carries subscription_expiry (X-Expire), so whenever a connect
+    /// is possible the expiry is known — this fallback only rescues the brief
+    /// window right after purchase, before the sync lands. Static + pure so
+    /// it's unit-testable without a live AppState.
     nonisolated static func mayConnect(subscriptionExpire: Date?, isPremium: Bool, now: Date) -> Bool {
-        if isPremium { return true }
-        return subscriptionExpire.map { $0 > now } ?? false
+        // Backend subscription_expiry is authoritative for our time-limited
+        // (NonRenewingSubscription) products: StoreKit reports nil expiry for
+        // them, so `isPremium` stays true forever after purchase and cannot
+        // encode "still within the paid window". A churned user's backend expiry
+        // is a PAST date (not nil), so gating on it correctly blocks them.
+        // This strands nobody: a connect needs a backend config anyway, and the
+        // config response carries subscription_expiry (X-Expire), so whenever a
+        // connect is possible the expiry is known. isPremium only rescues the
+        // brief window after a fresh purchase before the backend expiry syncs.
+        if let expiry = subscriptionExpire { return expiry > now }
+        return isPremium
     }
 
     /// The ONE client-side "is the subscription active?" signal for UI (PRO
@@ -801,28 +819,41 @@ class AppState {
         await toggleVPN()
     }
 
-    /// Build-36: wait up to 18s for the tunnel; on `.timedOut`, silently
-    /// disconnects, sleeps 1s, reconnects, and waits 18s again. Only the
-    /// second timeout surfaces. Buys a near-100% success rate against the
-    /// build-35 watchdog regression where libbox cold-start on LTE could
-    /// take 9-15s and the 10s watchdog killed connects ~50ms before success.
-    /// Worst-case latency before a real error: ~40s.
+    /// CLIENT-CONNECT-DEADLINE (2026-07-12): project rule (CLAUDE.md) requires
+    /// a VPN connect to fail within 30s total if it never reaches `.connected`.
+    /// Build-36's original budget (18s + 3s disconnect-wait + 1s sleep + 18s =
+    /// 40s worst case) violated that. Rebalanced to two ~13s connect attempts
+    /// with a slimmer gap: 13s + 2s + 1s + 13s = 29s worst case, <= 30s.
+    /// Still: wait up to `connectAttemptTimeout` for the tunnel; on
+    /// `.timedOut`, silently disconnects, sleeps `retrySleep`, reconnects, and
+    /// waits `connectAttemptTimeout` again. Only the second timeout surfaces.
+    /// 13s still comfortably covers the build-35 watchdog regression's
+    /// observed libbox cold-start range on LTE (9-15s reported; the low end of
+    /// that range is now the tighter margin, not the near-100% buffer build-36
+    /// had at 18s — acceptable tradeoff to satisfy the hard 30s rule).
+    // Internal (not private) so AppStateConnectDeadlineTests can assert the
+    // total worst-case budget stays <= 30s without invoking the live retry
+    // path (which needs a real VPNManager/NE round-trip).
+    static let connectAttemptTimeout: Duration = .seconds(13)
+    static let disconnectWaitTimeout: Duration = .seconds(2)
+    static let retrySleep: Duration = .seconds(1)
+
     private func awaitConnectionWithSilentRetry(config: String?) async -> VPNManager.ConnectOutcome {
-        let first = await vpnManager.waitUntilConnected(timeout: .seconds(18))
+        let first = await vpnManager.waitUntilConnected(timeout: Self.connectAttemptTimeout)
         guard case .timedOut = first else { return first }
-        TunnelFileLogger.log("toggleVPN: watchdog 18s timeout — silent retry", category: "ui")
+        TunnelFileLogger.log("toggleVPN: watchdog \(Self.connectAttemptTimeout) timeout — silent retry", category: "ui")
         vpnManager.disconnect()
-        await vpnManager.waitUntilDisconnected(timeout: .seconds(3))
-        try? await Task.sleep(for: .seconds(1))
+        await vpnManager.waitUntilDisconnected(timeout: Self.disconnectWaitTimeout)
+        try? await Task.sleep(for: Self.retrySleep)
         do {
             try await vpnManager.connect(configJSON: config)
         } catch {
             TunnelFileLogger.log("toggleVPN: silent retry connect FAILED: \(error)", category: "ui")
             return .failed
         }
-        let second = await vpnManager.waitUntilConnected(timeout: .seconds(18))
+        let second = await vpnManager.waitUntilConnected(timeout: Self.connectAttemptTimeout)
         if case .timedOut = second {
-            TunnelFileLogger.log("toggleVPN: watchdog 18s timeout — second time, giving up", category: "ui")
+            TunnelFileLogger.log("toggleVPN: watchdog \(Self.connectAttemptTimeout) timeout — second time, giving up", category: "ui")
         }
         return second
     }
