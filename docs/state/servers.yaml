@@ -116,7 +116,18 @@ waw:
   user_sync: live             # RelayUserSyncer (on WAW) pushes roster to GRA+WAW user_api :15380 (ufw → WAW now)
   todo:
     - "HA — drill failover.sh + GRA watchdog (decisions/0013); proper deploy.sh waw (P1 cleanup). DONE 2026-07-01 — WAW nginx + admin SPA via CF→WAW (waw-web-up.sh)."
-    - optional relay chains waw-via-msk / ru-spb-waw for RU-whitelist users
+    - "pl-via-msk relay chain — DONE 2026-07-12, see msk_relay.chains below. ru-spb-waw still open (SPB itself is DEGRADED, see spb_relay)."
+  known_bug:
+    - "WAW's chameleon-failover container does NOT mount chameleon-singbox-config — SingboxEngine.writeConfigLocked()'s
+      fallback file-write (used to bake Hysteria2's user list — the User API RPC only live-updates the vless-reality-tcp
+      inbound, not hysteria2-in) silently writes into the container's own ephemeral filesystem, never reaching the
+      volume the real singbox container mounts. Found 2026-07-12 while adding a relay credential: hysteria2-in's baked
+      user list was stuck at an old 287-entry snapshot despite periodic \"VPN users reloaded active_users:13\" log
+      lines claiming success. Practical impact: hysteria2-in's user list can only be refreshed by someone manually
+      docker-cp'ing a regenerated config + `docker restart singbox` — it does NOT self-heal, so it silently drifts
+      stale over time (a churned-out user keeps UDP-fallback access; a fresh user doesn't get it until the next manual
+      restart). vless-reality-tcp (the primary path) is unaffected — it updates live via User API. Not yet filed as a
+      roadmap item — do that before the next session closes this thread."
 
 # Russian-side relay fronting api.madfrog.online for RU users behind GFW,
 # AND a VPN relay: nginx fronts the API, sing-box runs the relay chains.
@@ -135,6 +146,25 @@ msk_relay:
   # incidents/2026-06-01-fr-relay-legs.md.
   chains:
     2097: nl2:443    # nl-via-msk  (inbound vless-nl → wg-nl → NL)
+    2100: waw1:443   # pl-via-msk — added 2026-07-12. Different transport than the other chains
+      # ON PURPOSE: inbound vless-pl (Reality, same key material as the vless-de/nl/fr siblings)
+      # → OUTBOUND hy2-waw (Hysteria2/QUIC, NOT WireGuard) → WAW's existing hysteria2-in inbound
+      # (:443/udp, the same one client UDP-fallback legs already use — reused rather than
+      # standing up a new WireGuard server on WAW). Root cause this chain fixes: a real device's
+      # direct path to WAW (217.182.74.70:443) was reproducibly unreachable (`dial tcp
+      # 217.182.74.70:443: i/o timeout`, confirmed across 2 sessions hours apart) while WAW
+      # itself was independently confirmed healthy (accepting connections from other vantages,
+      # <50ms from SPB) — i.e. degraded specifically on that device's path, with WAW being the
+      # ONLY exit that had zero relay fallback (NL already had nl-via-msk). urltest now races
+      # pl-direct-waw1 vs pl-via-msk automatically inside the "🇵🇱 Польша" group — no client
+      # change needed. E2E-verified from a real client (SOCKS5 through vless-pl → hy2-waw →
+      # WAW → api.ipify.org returned 217.182.74.70, google.com 200 OK). Relay credential: a
+      # dedicated non-expiring `users` row (vpn_username='relay-msk-waw', id 159383, never a
+      # real device) — its UUID had to be manually baked into WAW's hysteria2-in user list (see
+      # known_bug above) since the normal auto-refresh path is broken. relay_exit_peers row id 4
+      # (msk/waw1/2100/vless-pl) — its wg_* columns are unused N/A placeholders for this row;
+      # those columns aren't consumed by any Go code path (grepped), they're WireGuard-specific
+      # descriptive metadata from the schema's original design, harmless to leave inert here.
     2099: gra1:443   # fr-via-msk — ⚠️ INERT since 2026-07-11 (GRA decommissioned, sing-box
       # stopped on the far end). Inbound still configured in MSK's /etc/sing-box/config.json
       # (not in repo); harmless, not yet pruned. [chain added 2026-06-01]

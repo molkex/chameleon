@@ -1049,6 +1049,22 @@ deferred:
 # DONE — append-only log. Most recent date first.
 # ============================================================
 done:
+  "2026-07-12":
+    - id: PL-VIA-MSK-RELAY
+      title: "Add pl-via-msk relay chain — WAW's only exit with zero RU-relay fallback"
+      notes: |
+        Real device reproducibly couldn't reach WAW direct (`dial tcp 217.182.74.70:443: i/o
+        timeout`, 2 sessions hours apart) while WAW was independently confirmed healthy from
+        other vantages. Root cause: WAW was the only VPN exit with NO relay-chain fallback via
+        MSK (NL already had nl-via-msk). Added inbound vless-pl (:2100 on MSK, same Reality key
+        material as siblings) → outbound hy2-waw (Hysteria2/QUIC, not WireGuard — reuses WAW's
+        existing hysteria2-in :443/udp instead of standing up a new WG server) → WAW. E2E
+        verified real client traffic (SOCKS5 proxy test, api.ipify.org returned WAW's IP,
+        google.com 200). urltest now auto-picks pl-direct-waw1 vs pl-via-msk. Along the way
+        found and worked around a separate bug: WAW's chameleon-failover container doesn't
+        mount the singbox config volume, so hysteria2-in's user list never self-refreshes (see
+        servers.yaml waw.known_bug) — the new relay's credential had to be baked in manually.
+        See docs/state/servers.yaml msk_relay.chains[2100] for full detail.
   "2026-07-02":
     - id: AUTH-REFRESH-REISSUE
       title: "Unbreak field logout loop — re-issue on refresh reuse (pre-114 build compat)"
