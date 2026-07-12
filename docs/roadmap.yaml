@@ -172,6 +172,8 @@ next:
        ref: "docs/state/servers.yaml waw.known_bug"}
     # client — iOS/macOS (from the production-stability audit): ALL 6 build:true
     # items landed in build 130 (2026-07-12) — see done["2026-07-12"].BUILD-130-CLIENT-FIXES.
+    - {id: CI-CERT-CHURN, priority: P1, build: false,
+       title: "CI ios-archive-upload uses `xcodebuild -allowProvisioningUpdates`, which creates a NEW iOS DEVELOPMENT certificate on every run (ephemeral runner can't reuse a cert whose private key it lacks). Builds 125-129 each added one; build 130 hit the account cert ceiling → 'maximum number of certificates' → ARCHIVE FAILED for all targets (not a code issue). Worked around 2026-07-12 by revoking 8 of 10 orphaned 'Created via API' dev certs via ASC API. RECURS every ~10 builds. Real fix: store ONE Apple Distribution cert (p12) + provisioning profiles in GitHub secrets and import into a temp keychain in CI (fastlane match or manual security import), drop -allowProvisioningUpdates auto-creation. Ref: .github/workflows/ios-archive-upload.yml."}
 
   # ── POST-FAILOVER AUDIT 2026-06-29 (detail: docs/audits/2026-06-29-failover-state-audit.md) ──
   audit_2026_06_29:
