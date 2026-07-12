@@ -1056,6 +1056,20 @@ deferred:
 # ============================================================
 done:
   "2026-07-12":
+    - id: PL-RELAY-ONLY
+      title: "Make Poland relay-only — stop emitting pl-direct-waw1 (urltest kept electing the trap leg)"
+      notes: |
+        Follow-up to PL-VIA-MSK-RELAY. Field log 2026-07-12 15:47 ("Польша не грузит сайты"):
+        the device was pinned to pl-direct-waw1; sing-box urltest PREFERS it because its short
+        gstatic probe passes with lower RTT than the Moscow-hop relay — but sustained traffic
+        hangs (DNS-over-HTTPS to 1.1.1.1 stalls → nothing resolves). The client stall detector
+        never switched: DoH dials to 1.1.1.1 are logged as `outbound connection to 1.1.1.1:443`
+        = counted as SUCCESSFUL dials (85 success / 0 timeout in the 30s window), so it saw a
+        healthy tunnel (filed as STALL-OPEN-BUT-DEAD). Structural fix: relayOnlyExitKeys in
+        clientconfig.go skips the direct (+h2/tuic) leg for waw1 so nothing can land on it;
+        Poland is relay-only via pl-via-msk. Relay confirmed alive E2E (110 device probes + MSK
+        :2100 up + WAW singbox up). Deployed to WAW backend + verified live: a freshly-generated
+        client config contains pl-via-msk and NOT pl-direct-waw1. Commit efe9eb8.
     - id: PL-VIA-MSK-RELAY
       title: "Add pl-via-msk relay chain — WAW's only exit with zero RU-relay fallback"
       notes: |
