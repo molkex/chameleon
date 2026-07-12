@@ -626,6 +626,98 @@ func startsWith(s, prefix string) bool {
 	return s[:len(prefix)] == prefix
 }
 
+// TestRelayOnlyExitSkipsDirectLeg locks the 2026-07-12 "Польша не грузит
+// сайты" fix: waw1 (Poland, relay-only per relayOnlyExitKeys) must NEVER
+// emit a direct VLESS leg (nor h2/tuic), because its direct :443 path passes
+// short urltest probes but hangs on sustained DNS-over-HTTPS traffic. The
+// relay chain (pl-via-msk) is unaffected and must still be emitted, and the
+// "🇵🇱 Польша" country urltest group must still exist and be non-empty,
+// sourced from the via-* leaf alone.
+func TestRelayOnlyExitSkipsDirectLeg(t *testing.T) {
+	engine, user, servers, chains := fixture()
+	servers = append(servers, ServerEntry{
+		Key:              "waw1",
+		Name:             "Poland",
+		Host:             "217.182.74.70",
+		Port:             443,
+		Hysteria2Port:    443,
+		TUICPort:         8443,
+		RealityPublicKey: "YFdu6tIo4524vI0q3eSXLJdySAwBJ2toXbr_NSKYQQs",
+		Role:             "exit",
+		CountryCode:      "PL",
+		Category:         "standard",
+	})
+	chains = append(chains, ChainedEntry{
+		RelayKey:        "msk",
+		RelayHost:       "217.198.5.52",
+		RelayListenPort: 2098,
+		RelayRealityPub: "I84vSWkXXJGJU3KreRsR1ztmy1u6PyeYXCKMrYXX_zY",
+		RelaySNI:        "music.yandex.ru",
+		ExitKey:         "waw1",
+		ExitCountryCode: "PL",
+	})
+
+	raw, err := generateClientConfig(engine, user, servers, chains)
+	if err != nil {
+		t.Fatalf("generateClientConfig: %v", err)
+	}
+	s := string(raw)
+
+	// The relay chain MUST still be present.
+	if !strings.Contains(s, "pl-via-msk") {
+		t.Error("pl-via-msk missing — relay-chain loop must be unaffected by relayOnlyExitKeys")
+	}
+
+	// The direct leg and its h2/tuic siblings MUST NOT be present.
+	for _, tag := range []string{"pl-direct-waw1", "pl-h2-waw1", "pl-tuic-waw1"} {
+		if strings.Contains(s, tag) {
+			t.Errorf("%s emitted — waw1 is relay-only, direct/h2/tuic legs must be skipped", tag)
+		}
+	}
+
+	var cfg map[string]any
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	// The country urltest group must still exist and reference pl-via-msk —
+	// a relay-only country must NOT end up with an empty/missing group.
+	plGroup := outboundByTag(cfg, "🇵🇱 Польша")
+	if plGroup == nil {
+		t.Fatal("🇵🇱 Польша country group not emitted despite a live relay chain")
+	}
+	if plGroup["type"] != "urltest" {
+		t.Errorf("🇵🇱 Польша type=%v, want urltest", plGroup["type"])
+	}
+	plMembers := outboundMembers(cfg, "🇵🇱 Польша")
+	if len(plMembers) == 0 {
+		t.Fatal("🇵🇱 Польша country group is empty")
+	}
+	if !slices.Contains(plMembers, "pl-via-msk") {
+		t.Errorf("🇵🇱 Польша members = %v, want to contain pl-via-msk", plMembers)
+	}
+	for _, m := range plMembers {
+		if m == "pl-direct-waw1" || strings.HasPrefix(m, "pl-h2-") || strings.HasPrefix(m, "pl-tuic-") {
+			t.Errorf("🇵🇱 Польша must not contain direct/h2/tuic member, got %q", m)
+		}
+	}
+
+	// The Proxy selector must also expose pl-via-msk and the country group,
+	// but never the direct/h2/tuic tags.
+	proxyMembers := outboundMembers(cfg, "Proxy")
+	if !slices.Contains(proxyMembers, "pl-via-msk") {
+		t.Errorf("Proxy missing pl-via-msk; got %v", proxyMembers)
+	}
+	if !slices.Contains(proxyMembers, "🇵🇱 Польша") {
+		t.Errorf("Proxy missing 🇵🇱 Польша group; got %v", proxyMembers)
+	}
+	for _, tag := range []string{"pl-direct-waw1", "pl-h2-waw1", "pl-tuic-waw1"} {
+		if slices.Contains(proxyMembers, tag) {
+			t.Errorf("Proxy must not list %q (waw1 is relay-only)", tag)
+		}
+	}
+}
+
 // ---------------------------------------------------------------------------
 // LAUNCH-12 — uTLS fingerprint rotation
 // ---------------------------------------------------------------------------

@@ -113,6 +113,11 @@ waw:
   backend: chameleon-failover on :8000 (--network host, --env-file ~/failover/*.env, config node_id=waw1). Rebuild via infrastructure/failover/waw-backend-up.sh
   vpn_servers_key: waw1       # vpn_servers row, country_code=PL, is_active=true
   reality_pubkey: WlpKYeCDkiOhuwdwxvJiN-tEkWMlj0YII44k58iabz8   # own keypair (secrets CHAMELEON_WAW_REALITY_*)
+  client_config_note: >-      # 2026-07-12
+    pl-direct-waw1 is no longer emitted into client configs (backend/internal/vpn/clientconfig.go
+    relayOnlyExitKeys). Reason: from RU the direct :443 path passes short urltest probes but
+    hangs on sustained traffic (DNS-over-HTTPS to 1.1.1.1 stalls), so urltest kept electing it
+    over the working relay. Poland is now relay-only via pl-via-msk (see msk_relay.chains below).
   user_sync: live             # RelayUserSyncer (on WAW) pushes roster to GRA+WAW user_api :15380 (ufw → WAW now)
   todo:
     - "HA — drill failover.sh + GRA watchdog (decisions/0013); proper deploy.sh waw (P1 cleanup). DONE 2026-07-01 — WAW nginx + admin SPA via CF→WAW (waw-web-up.sh)."
@@ -155,9 +160,11 @@ msk_relay:
       # 217.182.74.70:443: i/o timeout`, confirmed across 2 sessions hours apart) while WAW
       # itself was independently confirmed healthy (accepting connections from other vantages,
       # <50ms from SPB) — i.e. degraded specifically on that device's path, with WAW being the
-      # ONLY exit that had zero relay fallback (NL already had nl-via-msk). urltest now races
-      # pl-direct-waw1 vs pl-via-msk automatically inside the "🇵🇱 Польша" group — no client
-      # change needed. E2E-verified from a real client (SOCKS5 through vless-pl → hy2-waw →
+      # ONLY exit that had zero relay fallback (NL already had nl-via-msk). UPDATE 2026-07-12:
+      # urltest was found to actively PREFER pl-direct-waw1 (passes short probes) even though it
+      # hangs on sustained traffic — so the direct leg is no longer generated at all
+      # (relayOnlyExitKeys, see client_config_note above); "🇵🇱 Польша" is now relay-only,
+      # pl-via-msk exclusively. E2E-verified from a real client (SOCKS5 through vless-pl → hy2-waw →
       # WAW → api.ipify.org returned 217.182.74.70, google.com 200 OK). Relay credential: a
       # dedicated non-expiring `users` row (vpn_username='relay-msk-waw', id 159383, never a
       # real device) — its UUID had to be manually baked into WAW's hysteria2-in user list (see

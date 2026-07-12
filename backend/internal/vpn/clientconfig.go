@@ -18,6 +18,18 @@ const (
 	whitelistBypassGroupTag = "🇷🇺 Россия (обход белых списков)"
 )
 
+// relayOnlyExitKeys lists exit `Key`s whose DIRECT legs are intentionally
+// NOT emitted into client configs: from RU their direct :443 path passes
+// short urltest probes but hangs on sustained traffic (DNS-over-HTTPS to
+// 1.1.1.1 stalls → sites won't load). Such exits are reachable only via
+// their relay chain (e.g. pl-via-msk). Incident: 2026-07-12 "Польша не
+// грузит сайты" — urltest kept electing pl-direct-waw1 over the working
+// relay. Remove a key here only if that exit's direct path becomes usable
+// from RU again.
+var relayOnlyExitKeys = map[string]bool{
+	"waw1": true,
+}
+
 // legSortKey returns a comparable string that orders leaf tags within a
 // country urltest: direct first, then chain (via-*), then h2/tuic. Keeps
 // log ordering stable + predictable; urltest itself picks lowest RTT.
@@ -161,6 +173,13 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 		if cc == "" {
 			// A standard exit without country_code can't be rendered under
 			// a country group. Skip loudly — admin must fix the DB row.
+			continue
+		}
+
+		// relayOnlyExitKeys: this exit's direct :443 leg (and any h2/tuic
+		// legs) must never be generated — see var doc above. The relay-chain
+		// loop below is untouched, so e.g. pl-via-msk still gets emitted.
+		if relayOnlyExitKeys[srv.Key] {
 			continue
 		}
 
