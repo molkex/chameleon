@@ -20,14 +20,22 @@ struct MainViewNeon: View {
             // Multi-layer radial glow background
             backgroundLayer
 
-            // Frog mascot watermark (decorative) — our logo frog instead of the emoji
-            Image("FrogWatermark")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 460)
-                .opacity(0.18)
-                .rotationEffect(.degrees(-8))
-                .offset(x: 60, y: 190)
+            // Frog mascot watermark (decorative) — our logo frog instead of the emoji.
+            // Wrapped in a flexible full-bleed Color.clear layer so the image's
+            // intrinsic size can NEVER drive the ZStack width. A bare fixed-width
+            // Image here (460pt > screen) expanded the ZStack and pushed the big
+            // status text off both screen edges. Width also kept < screen width
+            // as a second safety net.
+            Color.clear
+                .overlay(alignment: .center) {
+                    Image("FrogWatermark")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 360)
+                        .opacity(0.18)
+                        .rotationEffect(.degrees(-8))
+                        .offset(x: 30, y: 180)
+                }
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
 
