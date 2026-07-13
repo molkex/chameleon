@@ -2,7 +2,7 @@ import SwiftUI
 import NetworkExtension
 
 /// Neon Swamp — dark blue background, radial neon glows, 68pt uppercase
-/// status type, huge 🐸 watermark, chunky CTA button with glow.
+/// status type, frog mascot watermark, chunky CTA button with glow.
 ///
 /// Layout is intentionally different from `MainViewCalm` — this is not a
 /// recolor. Bold street-art energy, Mullvad × Cash App × Arc Search vibe.
@@ -20,13 +20,16 @@ struct MainViewNeon: View {
             // Multi-layer radial glow background
             backgroundLayer
 
-            // Huge frog watermark (decorative)
-            Text("🐸")
-                .font(.system(size: 260))
-                .opacity(0.10)
-                .rotationEffect(.degrees(-12))
-                .offset(x: 80, y: 140)
+            // Frog mascot watermark (decorative) — our logo frog instead of the emoji
+            Image("FrogWatermark")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 460)
+                .opacity(0.18)
+                .rotationEffect(.degrees(-8))
+                .offset(x: 60, y: 190)
                 .allowsHitTesting(false)
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 0) {
                 // Top bar: logo + PRO pill + icons
