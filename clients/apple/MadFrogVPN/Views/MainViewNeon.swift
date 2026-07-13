@@ -181,6 +181,15 @@ struct MainViewNeon: View {
                 .minimumScaleFactor(0.7)
                 .lineLimit(1)
         }
+        // Reserve a constant height for the two lines, top-aligned, so the hero
+        // never shifts vertically between states. minimumScaleFactor shrinks the
+        // FONT (and thus line height) of wider words — "ОТКЛЮЧЕНЫ"/"ПОДКЛЮЧАЕМ"
+        // scale down more than "ЗАЩИЩЕНЫ" — which changed the block's height and,
+        // because it's centred between two Spacers, made the whole hero jump on
+        // connect/disconnect. A fixed height (≈ two un-scaled 60pt lines) means
+        // scaling only ever makes a line *shorter* inside its slot, never taller.
+        .frame(height: 146, alignment: .topLeading)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var statusTopLine: LocalizedStringKey {
@@ -244,15 +253,31 @@ struct MainViewNeon: View {
                 // Vector country flag (non-emoji), centered in the square at
                 // its natural 3:2 proportion — not stretched to fill.
                 ZStack {
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(.white.opacity(0.06))
-                    CountryFlag(code: VPNStateHelper.selectedServerCountryCode(app),
-                                emoji: VPNStateHelper.selectedServerFlag(app), width: 30)
+                    if app.selectedServerTag == nil {
+                        // Auto: an accent globe that fills the badge. Was a thin
+                        // grey outline globe crammed into a 3:2 flag rectangle —
+                        // it read as a malformed "flag" and its line weight/colour
+                        // clashed with the solid country flags and the neon-green
+                        // UI. Now a bold accent glyph on an accent-tinted plate,
+                        // matching the AUTO chip to its right.
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(theme.accent.opacity(0.14))
+                        Image(systemName: "globe")
+                            .font(.system(size: 23, weight: .bold))
+                            .foregroundStyle(theme.accent)
+                    } else {
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(.white.opacity(0.06))
+                        CountryFlag(code: VPNStateHelper.selectedServerCountryCode(app),
+                                    emoji: VPNStateHelper.selectedServerFlag(app), width: 30)
+                    }
                 }
                 .frame(width: 44, height: 44)
                 .overlay(
                     RoundedRectangle(cornerRadius: 10)
-                        .stroke(.white.opacity(0.15), lineWidth: 1)
+                        .stroke(app.selectedServerTag == nil
+                                ? theme.accent.opacity(0.45)
+                                : .white.opacity(0.15), lineWidth: 1)
                 )
 
                 VStack(alignment: .leading, spacing: 2) {
