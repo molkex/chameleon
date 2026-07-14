@@ -228,6 +228,12 @@ enum L10n {
         static let sectionAccount    = LKey("settings.section.account")
         static let sectionAbout      = LKey("settings.section.about")
         static let sectionDiagnostics = LKey("settings.section.diagnostics")
+        // VPN-KILLSWITCH (truth audit) — see VPNManager.applyKillSwitchSettings.
+        static let sectionSecurity   = LKey("settings.section.security")
+        static let killSwitch        = LKey("settings.kill_switch")
+        static let killSwitchHint    = LKey("settings.kill_switch.hint")
+        static let killSwitchNoticeReconnect = LKey("settings.kill_switch.notice_reconnect")
+        static let killSwitchSaveFailed      = LKey("settings.kill_switch.save_failed")
         static let contactSupport    = LKey("settings.contact_support")
         static let routingMode     = LKey("settings.routing_mode")
         static let routingModeRuDirect     = LKey("settings.routing_mode.ru_direct")

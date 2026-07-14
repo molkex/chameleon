@@ -218,6 +218,81 @@ class VPNManager {
         return rules
     }
 
+    // MARK: - VPN-KILLSWITCH (truth audit 2026-07-14)
+
+    /// Errors thrown by `applyKillSwitch`, mirroring `OnDemandError`'s shape:
+    /// `noManager` when the user hasn't approved the VPN profile yet (the
+    /// Settings toggle still persists their preference — `createManager()`
+    /// reads the same App Group default the first time a profile is made),
+    /// `saveFailed` wraps the underlying NEVPNError.
+    enum KillSwitchError: Error {
+        case noManager
+        case saveFailed(Error)
+    }
+
+    /// Push the kill-switch preference onto the already-saved VPN profile.
+    /// No-op-by-throwing when no `NETunnelProviderManager` exists yet — same
+    /// contract as `applyAutoConnectRules`.
+    ///
+    /// IMPORTANT (what this does and doesn't guarantee — see research doc):
+    /// `NEVPNProtocol` properties are read by the system when a tunnel
+    /// SESSION starts, not live-patched into one that's already running. If
+    /// the tunnel is currently connected, saving here does NOT retroactively
+    /// tighten the live session — it takes effect on the next connect. The
+    /// caller (`AppState.setKillSwitchEnabled`) surfaces that honestly
+    /// instead of implying an instant guarantee this call can't deliver.
+    func applyKillSwitch(enabled: Bool) async throws {
+        guard let m = manager, let proto = m.protocolConfiguration as? NETunnelProviderProtocol else {
+            throw KillSwitchError.noManager
+        }
+        Self.applyKillSwitchSettings(to: proto, enabled: enabled)
+        m.protocolConfiguration = proto
+        do {
+            try await m.saveToPreferences()
+            try await m.loadFromPreferences()
+            Self.logger.info("applyKillSwitch: enabled=\(enabled)")
+        } catch {
+            throw KillSwitchError.saveFailed(error)
+        }
+    }
+
+    /// Pure setter over the NEVPNProtocol leak-prevention triplet. Public +
+    /// `nonisolated static` (mirrors `buildOnDemandRules`) so unit tests can
+    /// exercise it directly against a bare `NETunnelProviderProtocol()` —
+    /// constructing a full `NETunnelProviderManager` isn't possible outside
+    /// a real device/simulator VPN session.
+    ///
+    /// Research (Apple docs + developer forum threads, 2026-07-14):
+    ///   - `includeAllNetworks`: "if this value is true and the tunnel is
+    ///     unavailable, the system drops all network traffic." This is the
+    ///     actual kill-switch primitive iOS/macOS give a non-MDM app — there
+    ///     is no lower-level system firewall API available to a regular
+    ///     App Store app. A TRUE always-on kill switch (no gap, ever) is an
+    ///     Apple Configurator / MDM-supervised-device feature only.
+    ///   - `excludeLocalNetworks`: without it, `includeAllNetworks` also
+    ///     swallows LAN-destined traffic (AirDrop, AirPlay, local printers,
+    ///     smart-home control) into the tunnel, breaking those features for
+    ///     no leak-prevention benefit (that traffic was never internet-bound).
+    ///     Turning it on carves local subnets back out.
+    ///   - `enforceRoutes`: makes the tunnel's route rules (including the
+    ///     `excludeLocalNetworks` carve-out above) take precedence over any
+    ///     locally-defined route, so the split isn't quietly overridden.
+    ///   - Known caveats we are NOT hiding from the user: (1) the window
+    ///     before the very first successful connect, and briefly after
+    ///     toggling this on, is not protected — see the take-effect-on-
+    ///     next-connect note on `applyKillSwitch`; (2) network changes
+    ///     (Wi-Fi↔cellular) can leave the device with zero connectivity
+    ///     until the tunnel reasserts, which is the feature working as
+    ///     designed, not a bug, but it reads as "no internet" to the user;
+    ///     (3) on macOS, Apple's own guidance warns `includeAllNetworks`
+    ///     can block the OS from reaching the App Store/TestFlight to
+    ///     update the app itself while the tunnel is down.
+    nonisolated static func applyKillSwitchSettings(to proto: NETunnelProviderProtocol, enabled: Bool) {
+        proto.includeAllNetworks = enabled
+        proto.excludeLocalNetworks = enabled
+        proto.enforceRoutes = enabled
+    }
+
     func disconnect() {
         userInitiatedDisconnect = true
         // Disable On Demand so iOS doesn't auto-reconnect after explicit disconnect
@@ -382,6 +457,14 @@ class VPNManager {
         proto.providerBundleIdentifier = AppConstants.tunnelBundleID
         proto.serverAddress = AppConfig.vpnProfileDescription
         proto.providerConfiguration = [:]
+        // VPN-KILLSWITCH: read the persisted preference directly off the App
+        // Group default (not via ConfigStore — VPNManager takes no ConfigStore
+        // reference today, and this mirrors how the PacketTunnel extension
+        // reads the same key). Whatever the user last set in Settings before
+        // their first-ever connect is what the freshly-created profile ships with.
+        let killSwitchEnabled = UserDefaults(suiteName: AppConstants.appGroupID)?
+            .bool(forKey: AppConstants.killSwitchEnabledKey) ?? false
+        Self.applyKillSwitchSettings(to: proto, enabled: killSwitchEnabled)
         m.protocolConfiguration = proto
         m.localizedDescription = AppConfig.vpnProfileDescription
         m.isEnabled = true

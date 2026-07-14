@@ -157,8 +157,18 @@ extension ExtensionPlatformInterface: LibboxPlatformInterfaceProtocol {
         return true
     }
 
+    /// VPN-KILLSWITCH (truth audit 2026-07-14): this used to hardcode
+    /// `false`, which meant `NEVPNProtocol.includeAllNetworks` on the saved
+    /// profile was cosmetic — libbox's own platform layer told the system
+    /// "no" regardless of what the profile said. Read the App Group default
+    /// directly: this extension process has no visibility into the host
+    /// app's in-memory ConfigStore, and libbox calls this once per tunnel
+    /// start, so a fresh read here is exactly "whatever the user's Settings
+    /// toggle says as of THIS connect" — see VPNManager.applyKillSwitchSettings
+    /// for what includeAllNetworks does and does not guarantee.
     func includeAllNetworks() -> Bool {
-        return false
+        UserDefaults(suiteName: AppConstants.appGroupID)?
+            .bool(forKey: AppConstants.killSwitchEnabledKey) ?? false
     }
 
     func readWIFIState() -> LibboxWIFIState? {

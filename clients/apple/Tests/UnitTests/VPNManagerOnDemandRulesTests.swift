@@ -98,4 +98,45 @@ final class VPNManagerOnDemandRulesTests: XCTestCase {
         XCTAssertEqual(ignore?.ssidMatch, ["Home", "Office"],
                        "blank entries dropped, surrounding whitespace trimmed")
     }
+
+    // MARK: - applyKillSwitchSettings (VPN-KILLSWITCH, truth audit 2026-07-14)
+    //
+    // `NETunnelProviderManager` can't be constructed in a unit-test
+    // environment (see file header), but `NETunnelProviderProtocol` — the
+    // object these three properties actually live on — can be built bare,
+    // same trick `createManager()` itself uses. Pins the "kill switch ON"
+    // contract: all three leak-prevention properties move together, none
+    // left behind at the old (leaky) default.
+
+    func testKillSwitchEnabledSetsAllThreeLeakPreventionProperties() {
+        let proto = NETunnelProviderProtocol()
+        VPNManager.applyKillSwitchSettings(to: proto, enabled: true)
+        XCTAssertTrue(proto.includeAllNetworks,
+                      "includeAllNetworks is the actual kill-switch primitive — must be on")
+        XCTAssertTrue(proto.excludeLocalNetworks,
+                      "without this, includeAllNetworks also swallows LAN traffic (AirDrop/AirPlay/local devices)")
+        XCTAssertTrue(proto.enforceRoutes,
+                      "without this, the excludeLocalNetworks carve-out isn't guaranteed to win over local routes")
+    }
+
+    func testKillSwitchDisabledClearsAllThreeBackToDefault() {
+        let proto = NETunnelProviderProtocol()
+        // Start from ON so this proves `false` actively flips them back,
+        // not just that a fresh NETunnelProviderProtocol() defaults to false.
+        VPNManager.applyKillSwitchSettings(to: proto, enabled: true)
+        VPNManager.applyKillSwitchSettings(to: proto, enabled: false)
+        XCTAssertFalse(proto.includeAllNetworks)
+        XCTAssertFalse(proto.excludeLocalNetworks)
+        XCTAssertFalse(proto.enforceRoutes)
+    }
+
+    func testFreshProtocolDefaultsMatchKillSwitchOffState() {
+        // A brand-new profile (kill switch never touched) must already read
+        // as "off" — i.e. today's pre-fix behaviour for every existing user
+        // who hasn't opted in.
+        let proto = NETunnelProviderProtocol()
+        XCTAssertFalse(proto.includeAllNetworks)
+        XCTAssertFalse(proto.excludeLocalNetworks)
+        XCTAssertFalse(proto.enforceRoutes)
+    }
 }

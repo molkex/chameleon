@@ -43,6 +43,23 @@ open class ExtensionProvider: NEPacketTunnelProvider {
         UserDefaults(suiteName: AppConstants.appGroupID)
     }
 
+    /// AUTO-RECOVER-GATE (truth audit 2026-07-14): fresh read of the user's
+    /// "Авто-восстановление" preference — NOT cached, and NOT read once at
+    /// `startStallProbe()` time. The user can flip this in Settings while the
+    /// tunnel is already up, and `RealTrafficStallDetector.onStall` fires
+    /// asynchronously whenever it likes; caching the value at start would
+    /// mean the toggle silently stopped doing anything the moment the
+    /// detector was constructed. `ConfigStore` isn't linked into this target
+    /// (see project.yml — PacketTunnel only pulls in `Shared/`), so this
+    /// mirrors `ConfigStore.autoRecoverEnabled`'s own default-ON-when-absent
+    /// semantics directly against the same App Group key.
+    private var autoRecoverEnabled: Bool {
+        guard let raw = sharedDefaults?.object(forKey: AppConstants.autoRecoverEnabledKey) else {
+            return true
+        }
+        return (raw as? Bool) ?? true
+    }
+
     /// Extension is the single source of truth for the widget's
     /// connected/disconnected state: the main app's handleStatus() also
     /// maintains vpnConnectedAtKey but isn't running when the VPN is
@@ -324,6 +341,18 @@ open class ExtensionProvider: NEPacketTunnelProvider {
         // main app on its own — only RealTrafficStallDetector does).
         let detector = RealTrafficStallDetector(onStall: { [weak self] reason, now in
             guard let self else { return }
+            // AUTO-RECOVER-GATE: the toggle must actually govern recovery —
+            // previously this fired unconditionally regardless of the
+            // "Авто-восстановление" setting. Read fresh (not cached) so a
+            // mid-session flip takes effect on the very next stall, and skip
+            // EVERYTHING below when off: no re-probe nudge, no cross-process
+            // signal to the main app, no "Переключаемся…" banner. Promising a
+            // switch that will never happen is exactly the placebo bug this
+            // fixes.
+            guard self.autoRecoverEnabled else {
+                TunnelFileLogger.log("RealTrafficStallDetector: onStall reason=\(reason) suppressed — auto-recover is OFF", category: "real-stall")
+                return
+            }
             self.sharedDefaults?.set(now.timeIntervalSince1970,
                                      forKey: AppConstants.tunnelStallRequestedAtKey)
             TunnelFileLogger.log("RealTrafficStallDetector: signalled main app via shared defaults reason=\(reason)", category: "real-stall")

@@ -117,6 +117,50 @@ struct SettingsView: View {
                             .padding(16)
                         }
 
+                        // VPN-KILLSWITCH (truth audit): NEVPNProtocol.includeAllNetworks
+                        // is the closest thing iOS/macOS gives a non-MDM app to a real
+                        // kill switch — Apple's docs say the system drops all traffic
+                        // when the tunnel is unavailable. Paired with excludeLocalNetworks
+                        // (so AirDrop/AirPlay/local devices keep working) and enforceRoutes
+                        // (so that carve-out actually holds). See VPNManager.applyKillSwitchSettings.
+                        sectionHeader(L10n.Settings.sectionSecurity)
+                        card {
+                            VStack(alignment: .leading, spacing: 14) {
+                                HStack(spacing: 14) {
+                                    iconCircle("lock.shield")
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(L10n.Settings.killSwitch)
+                                            .font(theme.font(size: 16, weight: .medium))
+                                            .foregroundStyle(theme.textPrimary)
+                                        Text(L10n.Settings.killSwitchHint)
+                                            .font(theme.font(size: 12))
+                                            .foregroundStyle(theme.textSecondary)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                    Spacer()
+                                    Toggle("", isOn: Binding(
+                                        get: { app.configStore.killSwitchEnabled },
+                                        set: { newValue in
+                                            Task { await app.setKillSwitchEnabled(newValue) }
+                                        }
+                                    ))
+                                    .labelsHidden()
+                                    .tint(theme.accent)
+                                }
+
+                                // Honest "when does this actually take effect" notice —
+                                // includeAllNetworks is read by the system when a tunnel
+                                // SESSION starts, not live-patched into one already running.
+                                if let notice = app.killSwitchNotice {
+                                    Text(notice)
+                                        .font(theme.font(size: 12))
+                                        .foregroundStyle(theme.textSecondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                            .padding(16)
+                        }
+
                         // LAUNCH-07 — Auto-connect on untrusted Wi-Fi via
                         // NEOnDemandRule. Localized in SETTINGS-L10N (2026-06-01).
                         sectionHeader(L10n.Settings.autoConnectSection)
@@ -145,6 +189,11 @@ struct SettingsView: View {
                                     .tint(theme.accent)
                                 }
 
+                                // FIX-CELLULAR-IOS-ONLY (truth audit): the cellular
+                                // Connect rule is iOS-only in VPNManager.buildOnDemandRules
+                                // (macOS has no NWInterface.InterfaceType.cellular) — on
+                                // macOS this row used to toggle state and do nothing.
+                                #if os(iOS)
                                 Divider().background(theme.textSecondary.opacity(0.15))
 
                                 HStack(spacing: 14) {
@@ -171,6 +220,7 @@ struct SettingsView: View {
                                     .disabled(!autoConnectOn)
                                     .opacity(autoConnectOn ? 1 : 0.5)
                                 }
+                                #endif
 
                                 Divider().background(theme.textSecondary.opacity(0.15))
 

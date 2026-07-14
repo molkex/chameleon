@@ -133,6 +133,21 @@ class ConfigStore {
         set { sharedDefaults?.set(newValue, forKey: AppConstants.autoRecoverEnabledKey) }
     }
 
+    // MARK: - Kill Switch (VPN-KILLSWITCH)
+
+    /// Whether the saved VPN profile should block all network traffic on
+    /// this device whenever the tunnel is unavailable
+    /// (`NEVPNProtocol.includeAllNetworks`, paired with `excludeLocalNetworks`
+    /// + `enforceRoutes` — see `VPNManager.applyKillSwitchSettings` for exactly
+    /// what that combination does and does not guarantee). Default OFF: it can
+    /// break local-network features and, by design, blocks the device's
+    /// regular internet if the user disconnects the VPN on purpose — this
+    /// must be an explicit opt-in, never a silent default.
+    var killSwitchEnabled: Bool {
+        get { sharedDefaults?.bool(forKey: AppConstants.killSwitchEnabledKey) ?? false }
+        set { sharedDefaults?.set(newValue, forKey: AppConstants.killSwitchEnabledKey) }
+    }
+
     // MARK: - LAUNCH-07 Auto-connect on Untrusted Wi-Fi
 
     /// User-visible "Connect on untrusted Wi-Fi" toggle. Default OFF so we

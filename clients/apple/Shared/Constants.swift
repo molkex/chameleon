@@ -193,6 +193,17 @@ enum AppConstants {
     // Default ON. User can disable from Settings → Diagnostics.
     static let autoRecoverEnabledKey = "autoRecoverEnabled"
 
+    // VPN-KILLSWITCH (truth audit 2026-07-14): whether the saved VPN profile
+    // should carry NEVPNProtocol.includeAllNetworks/excludeLocalNetworks/
+    // enforceRoutes (see VPNManager.applyKillSwitchSettings). Default OFF —
+    // this can break local-network features and blocks ALL internet on the
+    // device whenever the tunnel is down, so it must be opt-in. Stored in
+    // App Group UserDefaults: both the main app (VPNManager.createManager,
+    // applyKillSwitch) and the PacketTunnel extension
+    // (ExtensionPlatformInterface.includeAllNetworks()) read this same key —
+    // the extension has no visibility into the host app's in-memory state.
+    static let killSwitchEnabledKey = "killSwitch.enabled"
+
     /// Build-39: PacketTunnel extension writes a Date.timeIntervalSince1970
     /// here when its TunnelStallProbe detects a stall (2 consecutive captive-
     /// portal probe misses). Main app reads this on every foreground

@@ -91,6 +91,14 @@ extension AppState {
     /// newer than the last one we serviced, run `performFallbackForCurrentLeg`
     /// and stamp the serviced timestamp so we don't re-fire.
     func handleExtensionStallSignalIfAny() async {
+        // AUTO-RECOVER-GATE (truth audit 2026-07-14): this used to service
+        // the extension's stall signal unconditionally — the toggle only
+        // gated the separate (already-neutered) main-app monitor. Guard here
+        // too, in addition to the extension no longer emitting the signal
+        // when the preference is off (belt-and-suspenders: the extension and
+        // main app are separate processes and can disagree transiently on
+        // App Group read timing).
+        guard configStore.autoRecoverEnabled else { return }
         guard let defaults = UserDefaults(suiteName: AppConstants.appGroupID) else { return }
         let requestedAt = defaults.double(forKey: AppConstants.tunnelStallRequestedAtKey)
         guard requestedAt > 0 else { return }
@@ -175,6 +183,12 @@ extension AppState {
     ///
     /// Manual user pick clears the cascade state and resets the chain.
     func performFallbackForCurrentLeg() async {
+        // AUTO-RECOVER-GATE: second gate on the same preference (the only
+        // caller today is `handleExtensionStallSignalIfAny`, already guarded
+        // above) — kept here too since this is the actual entry point that
+        // does the switching, and future callers must not have to remember
+        // to re-check the toggle themselves.
+        guard configStore.autoRecoverEnabled else { return }
         guard vpnManager.isConnected else { return }
         let pinned = configStore.selectedServerTag
         let shape = ServerTagShape(pinned)

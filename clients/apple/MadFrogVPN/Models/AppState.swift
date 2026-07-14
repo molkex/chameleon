@@ -1551,6 +1551,44 @@ class AppState {
         }
     }
 
+    // MARK: - VPN-KILLSWITCH (truth audit 2026-07-14)
+
+    /// User-facing notice shown under the Kill Switch toggle in Settings —
+    /// either "this takes effect on your next connect" (informational, shown
+    /// whenever the toggle is flipped while already connected — see
+    /// `VPNManager.applyKillSwitch` for why a live session isn't retroactively
+    /// tightened) or a save-failure message. `nil` clears the notice.
+    var killSwitchNotice: String?
+
+    /// Persist the user's Kill Switch preference and push it onto the saved
+    /// VPN profile. Mirrors `setAutoConnectOnUntrustedWiFi`: silently no-ops
+    /// (logs only) when no profile exists yet — `VPNManager.createManager()`
+    /// reads the same App Group default the first time a profile is created,
+    /// so the preference isn't lost, just deferred.
+    func setKillSwitchEnabled(_ enabled: Bool) async {
+        configStore.killSwitchEnabled = enabled
+        killSwitchNotice = nil
+        do {
+            try await vpnManager.applyKillSwitch(enabled: enabled)
+            // includeAllNetworks/excludeLocalNetworks/enforceRoutes are read
+            // by the system when a tunnel SESSION starts — saving them onto
+            // an already-saved profile does not retroactively tighten a
+            // session that's already running. Say so instead of letting the
+            // toggle imply a guarantee it can't deliver right now.
+            if vpnManager.isConnected {
+                killSwitchNotice = "settings.kill_switch.notice_reconnect".localized
+            }
+        } catch VPNManager.KillSwitchError.noManager {
+            AppLogger.app.info("setKillSwitchEnabled: no manager yet (will apply on first connect)")
+        } catch VPNManager.KillSwitchError.saveFailed(let err) {
+            AppLogger.app.error("setKillSwitchEnabled: saveFailed \(err.localizedDescription)")
+            killSwitchNotice = "settings.kill_switch.save_failed".localized + ": \(err.localizedDescription)"
+        } catch {
+            AppLogger.app.error("setKillSwitchEnabled: \(error.localizedDescription)")
+            killSwitchNotice = "settings.kill_switch.save_failed".localized
+        }
+    }
+
     // MARK: - LAUNCH-07 Auto-connect (NEOnDemandRule) wiring
 
     /// Last user-facing error from an `applyAutoConnect…` call. Surfaced as

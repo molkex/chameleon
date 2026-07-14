@@ -239,6 +239,7 @@
 "settings.section.account"       = "Account";
 "settings.section.about"         = "About";
 "settings.section.diagnostics"   = "Diagnostics";
+"settings.section.security"      = "Security";
 "settings.theme"                 = "Theme";
 "settings.logout"                = "Log out";
 "settings.logout_confirm.title"  = "Log out?";
@@ -252,14 +253,20 @@
 "settings.version"               = "Version";
 "settings.debug_logs"            = "Debug logs";
 "settings.auto_recover"          = "Auto-recover";
-"settings.auto_recover.hint"     = "If the chosen server stops responding, automatically pick a working one so traffic keeps flowing.";
+"settings.auto_recover.hint"     = "If the chosen server stops responding, we try another server in the same country. If the whole country is down, you'll get a notice instead of a silent jump abroad.";
+
+/* ===== Kill Switch (VPN-KILLSWITCH, truth audit 2026-07-14) ===== */
+"settings.kill_switch"                  = "Kill Switch";
+"settings.kill_switch.hint"             = "While the tunnel is down, the device has no internet at all — so nothing can slip past the VPN. Local network features (AirDrop, printers, smart home) keep working. This is the most iOS grants a regular app, not an absolute guarantee. Off by default: with it on, disconnecting the VPN yourself also cuts your internet.";
+"settings.kill_switch.notice_reconnect" = "Applies the next time the VPN connects. Disconnect and reconnect to apply immediately.";
+"settings.kill_switch.save_failed"      = "Failed to save Kill Switch setting";
 
 /* ===== Auto-connect (SETTINGS-L10N) ===== */
 "settings.auto_connect.section"      = "Auto-connect";
 "settings.auto_connect.wifi"         = "Connect on untrusted Wi-Fi";
 "settings.auto_connect.wifi.hint"    = "VPN turns on automatically whenever you join a Wi-Fi network that isn't in your Trusted list below.";
 "settings.auto_connect.cellular"     = "Also connect on cellular";
-"settings.auto_connect.cellular.hint" = "Off by default. Turn on if you're in a censored region and want the VPN up on LTE/5G too.";
+"settings.auto_connect.cellular.hint" = "Off by default. Turn on if you're in a censored region and want the VPN up on LTE/5G too. Requires \"Connect on untrusted Wi-Fi\" above to be on — this is an add-on to it, not a standalone rule.";
 "settings.trusted.networks"          = "Trusted networks";
 "settings.trusted.networks.hint"     = "Add the names of Wi-Fi networks you trust (home, office). The VPN won't auto-connect on these.";
 "settings.trusted.empty"             = "No trusted networks yet.";
