@@ -126,9 +126,14 @@ enum ConfigSanitizer {
         //    poll actual usage, reset only when WE are really over. The backend
         //    now emits this too; doing it here as well means a stale cached
         //    config gets the fix without waiting for a fresh fetch.
+        // OOM-THRESHOLD-COLLISION (2026-07-15): 48MB, not 45MB. The timer
+        // measures whole-process phys_footprint, and libbox soft-caps the Go
+        // heap at 45 MiB — a 45 MiB trip point sits BELOW the normal operating
+        // footprint and ResetNetwork()-loops on every bulk transfer. 48 is the
+        // backstop between the GC ceiling (45) and jetsam (~50). See clientconfig.go.
         var services = (config["services"] as? [[String: Any]]) ?? []
         if !services.contains(where: { $0["type"] as? String == "oom-killer" }) {
-            services.append(["type": "oom-killer", "memory_limit": "45MB"])
+            services.append(["type": "oom-killer", "memory_limit": "48MB", "max_interval": "60s"])
         }
         config["services"] = services
 

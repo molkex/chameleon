@@ -568,7 +568,7 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 		Outbounds: allOutbounds,
 		// See clientService: without this, libbox's default oom-killer resets the
 		// whole network on any DEVICE-WIDE memory-pressure signal.
-		Services: []clientService{{Type: "oom-killer", MemoryLimit: "45MB"}},
+		Services: []clientService{{Type: "oom-killer", MemoryLimit: "48MB", MaxInterval: "60s"}},
 		Route: clientRoute{
 			Final: "Default Route",
 			RuleSet: []clientRuleSet{
@@ -653,17 +653,37 @@ type clientConfig struct {
 // in one exported device log, every ~20 ms.
 //
 // Declaring the service ourselves WITH `memory_limit` selects the timer mode
-// instead: it polls our actual usage and only resets when WE are genuinely over
-// the limit. The 45 MB figure matches what libbox already hands to Go's
-// SetMemoryLimit, and sits just under the ~50 MiB NE jetsam ceiling.
+// instead: it polls our actual usage and resets only when WE cross the limit.
+//
+// ⚠️ 2026-07-15 (OOM-THRESHOLD-COLLISION): the first cut of this used
+// memory_limit "45MB" and made things WORSE — the user reported disconnects got
+// FASTER on 1.0.34. Root cause, verified in the fork source:
+//   - the timer compares `memory.Total()` = task_info phys_footprint (the WHOLE
+//     process: Go heap + all native CFNetwork/TLS/tun buffers), not the Go heap
+//     (sing/common/memory/memory_darwin.go). libbox ALSO soft-caps the Go heap
+//     at 45 MiB. So a 45 MiB trip point sits BELOW normal operating footprint —
+//     any bulk transfer (Telegram media) pushes phys_footprint past 45 and trips.
+//   - the trip is ResetNetwork(): it closes EVERY connection + flushes the DNS
+//     cache (route/router.go). Telegram retries, memory climbs, it trips again.
+//   - worse, the timer arms on the first critical pressure event and CANNOT
+//     disarm: the dispatch source subscribes to WARN|CRITICAL only, so the
+//     `normal`→stop() branch is dead code (service/oomkiller/service.go). Once
+//     armed it re-fires every max_interval (default 10s) forever.
+// Fix: put the trip point ABOVE the normal envelope and just below jetsam, and
+// slow the re-fire. Correct ordering is GC-soft-cap (45) < backstop (48) <
+// jetsam (50, the NE hard limit since iOS 15). 48MB means a legitimate transfer
+// (~45-47 MiB footprint) never trips it; it only catches a real runaway right
+// before the kernel would kill us. max_interval 60s caps a pathological plateau
+// at 1 reset/min instead of 6.
 //
 // ⚠️ Unit: sing-box's memory-unit table (sing/common/byteformats) maps "mb" to
-// MiByte — so "45MB" IS 45 MiB. "45MiB" is NOT accepted and makes sing-box
+// MiByte — so "48MB" IS 48 MiB. "48MiB" is NOT accepted and makes sing-box
 // refuse the whole config ("unsupported unit: MiB"). Verified with `sing-box
 // check` against the fork image before shipping.
 type clientService struct {
 	Type        string `json:"type"`
 	MemoryLimit string `json:"memory_limit,omitempty"`
+	MaxInterval string `json:"max_interval,omitempty"`
 }
 
 type clientLog struct {

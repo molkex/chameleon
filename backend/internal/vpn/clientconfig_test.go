@@ -989,6 +989,14 @@ func TestOOMKillerServiceHasExplicitMemoryLimit(t *testing.T) {
 		if limit == "" {
 			t.Error("oom-killer service has no memory_limit — that is exactly the pressure-monitor mode we are avoiding")
 		}
+		// OOM-THRESHOLD-COLLISION (2026-07-15): the limit must sit ABOVE the Go
+		// soft cap (45 MiB) that libbox imposes, or the timer — which measures
+		// whole-process phys_footprint, not the Go heap — trips on every bulk
+		// transfer and ResetNetwork()-loops. 48 MiB is the backstop between the
+		// GC ceiling and the ~50 MiB jetsam limit. Must NOT regress back to 45.
+		if limit == "45MB" {
+			t.Error("memory_limit is back to 45MB — that collides with the Go soft cap and re-introduces the reset loop (OOM-THRESHOLD-COLLISION)")
+		}
 	}
 	if !found {
 		t.Error("oom-killer service not emitted")
