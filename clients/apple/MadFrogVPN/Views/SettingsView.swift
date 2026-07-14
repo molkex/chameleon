@@ -1,4 +1,7 @@
 import SwiftUI
+#if os(macOS)
+import ServiceManagement
+#endif
 
 /// Top-level settings. Themed to match the app look (not system Form). Each
 /// logical section is a single rounded card on the theme.background with
@@ -23,6 +26,12 @@ struct SettingsView: View {
     @State private var trustedSSIDs: [String] = []
     @State private var showAddSSIDAlert = false
     @State private var pendingSSIDInput: String = ""
+    // LAUNCH-AT-LOGIN — macOS only. Mirrors SMAppService.mainApp.status; the
+    // system (not a stored default) is the source of truth since the user
+    // can flip this behind our back in System Settings > Login Items.
+    #if os(macOS)
+    @State private var launchAtLoginOn: Bool = false
+    #endif
     /// Hidden Diagnostics unlock — 5 taps on the version row (via
     /// `.tapCountUnlock`) reveals DebugLogs in Release builds (it is always
     /// visible in DEBUG). Production testers can dump logs without us
@@ -242,6 +251,30 @@ struct SettingsView: View {
                                 row(icon: "bubble.left.and.bubble.right",
                                     title: L10n.Settings.contactSupport,
                                     showChevron: true) { showSupportChat = true }
+                                #if os(macOS)
+                                divider
+                                HStack(spacing: 14) {
+                                    iconCircle("power")
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(L10n.Settings.launchAtLogin)
+                                            .font(theme.font(size: 16, weight: .medium))
+                                            .foregroundStyle(theme.textPrimary)
+                                        Text(L10n.Settings.launchAtLoginHint)
+                                            .font(theme.font(size: 12))
+                                            .foregroundStyle(theme.textSecondary)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                    Spacer()
+                                    Toggle("", isOn: Binding(
+                                        get: { launchAtLoginOn },
+                                        set: { newValue in setLaunchAtLogin(newValue) }
+                                    ))
+                                    .labelsHidden()
+                                    .tint(theme.accent)
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 14)
+                                #endif
                                 divider
                                 HStack(spacing: 14) {
                                     iconCircle("info.circle")
@@ -357,9 +390,35 @@ struct SettingsView: View {
                 autoConnectOn = app.configStore.autoConnectOnUntrustedWiFi
                 autoConnectCellular = app.configStore.autoConnectOnCellular
                 trustedSSIDs = app.configStore.trustedWiFiSSIDs
+                #if os(macOS)
+                // The system, not a stored bool, is the source of truth — the
+                // user may have disabled this in System Settings > Login Items
+                // since we last read it.
+                launchAtLoginOn = SMAppService.mainApp.status == .enabled
+                #endif
             }
         }
     }
+
+    #if os(macOS)
+    // LAUNCH-AT-LOGIN — SMAppService.register()/unregister() throw (e.g. the
+    // user revoked Login Items access in System Settings). On failure, revert
+    // the toggle to whatever the system actually reports rather than showing
+    // a state we didn't manage to apply.
+    private func setLaunchAtLogin(_ enabled: Bool) {
+        do {
+            if enabled {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+            launchAtLoginOn = enabled
+        } catch {
+            TunnelFileLogger.log("launch-at-login \(enabled ? "register" : "unregister") failed: \(error.localizedDescription)", category: "ui")
+            launchAtLoginOn = SMAppService.mainApp.status == .enabled
+        }
+    }
+    #endif
 
     // MARK: - Theming helpers
 

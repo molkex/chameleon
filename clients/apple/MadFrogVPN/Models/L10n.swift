@@ -44,6 +44,11 @@ enum L10n {
         static func subDaysLeft(_ days: Int) -> String {
             String(format: String(localized: "home.subscription.days_left"), days)
         }
+
+        // HOME-STATS (2026-07-14): live ↑/↓ totals + egress IP strip.
+        static let statsUploadA11y   = LKey("home.stats.upload_a11y")
+        static let statsDownloadA11y = LKey("home.stats.download_a11y")
+        static let statsIpA11y       = LKey("home.stats.ip_a11y")
     }
 
     enum Onboarding {
@@ -225,8 +230,6 @@ enum L10n {
         static let sectionDiagnostics = LKey("settings.section.diagnostics")
         static let contactSupport    = LKey("settings.contact_support")
         static let routingMode     = LKey("settings.routing_mode")
-        static let routingModeSmart        = LKey("settings.routing_mode.smart")
-        static let routingModeSmartHint    = LKey("settings.routing_mode.smart.hint")
         static let routingModeRuDirect     = LKey("settings.routing_mode.ru_direct")
         static let routingModeRuDirectHint = LKey("settings.routing_mode.ru_direct.hint")
         static let routingModeFullVPN      = LKey("settings.routing_mode.full_vpn")
@@ -259,6 +262,9 @@ enum L10n {
         static let trustedAddConfirm       = LKey("settings.trusted.add.confirm")
         static let trustedAddCancel        = LKey("settings.trusted.add.cancel")
         static let autoConnectSaveFailed   = LKey("settings.auto_connect.save_failed")
+        // LAUNCH-AT-LOGIN — macOS only, backed by SMAppService.mainApp.
+        static let launchAtLogin     = LKey("settings.launch_at_login")
+        static let launchAtLoginHint = LKey("settings.launch_at_login.hint")
     }
 
     enum Recovery {

@@ -62,6 +62,11 @@
 "home.server.auto_long"          = "Авто (быстрейший)";
 "home.server.auto_subtitle"      = "Лучший пинг";
 
+"home.stats.upload_a11y"         = "Отправлено";
+"home.stats.download_a11y"       = "Получено";
+"home.stats.ip_a11y"             = "Ваш IP-адрес";
+"home.stats.ip_fmt"              = "Ваш IP: %@";
+
 /* ===== Онбординг ===== */
 "onboarding.title"               = "MadFrog VPN";
 "onboarding.subtitle"            = "Приватно. Быстро. Безопасно.";
@@ -227,12 +232,10 @@
 "settings.section.appearance"    = "Оформление";
 "settings.section.routing"       = "Маршрутизация";
 "settings.routing_mode"          = "Режим";
-"settings.routing_mode.smart"          = "Умный";
-"settings.routing_mode.smart.hint"     = "Через VPN идут только недоступные сайты. Остальное — напрямую. Максимальная экономия трафика.";
-"settings.routing_mode.ru_direct"      = "Сплит-туннель";
-"settings.routing_mode.ru_direct.hint" = "Локальные ресурсы — напрямую, остальные — через VPN. Классический split tunneling.";
+"settings.routing_mode.ru_direct"      = "Россия напрямую";
+"settings.routing_mode.ru_direct.hint" = "Российские сайты идут напрямую — так быстрее. Всё остальное, включая Telegram и зарубежные сервисы, — через VPN. На российских сайтах поэтому виден ваш настоящий IP — это ожидаемо, не сбой.";
 "settings.routing_mode.full_vpn"       = "Всё через VPN";
-"settings.routing_mode.full_vpn.hint"  = "Весь трафик через VPN (кроме платёжных и официальных сервисов). Для поездок и публичных Wi-Fi.";
+"settings.routing_mode.full_vpn.hint"  = "Весь трафик через VPN, включая российские сайты. Для поездок и чужого Wi-Fi.";
 "settings.section.account"       = "Аккаунт";
 "settings.section.about"         = "О программе";
 "settings.section.diagnostics"   = "Диагностика";
@@ -266,6 +269,8 @@
 "settings.trusted.add.confirm"       = "Добавить";
 "settings.trusted.add.cancel"        = "Отмена";
 "settings.auto_connect.save_failed"  = "Не удалось сохранить настройки автоподключения";
+"settings.launch_at_login"           = "Запускать при входе в систему";
+"settings.launch_at_login.hint"      = "MadFrog запустится автоматически при входе в macOS и будет ждать в строке меню.";
 
 /* ===== Recovery toasts ===== */
 "recovery.switched_to_auto"      = "%@ недоступна — переключено на Авто";

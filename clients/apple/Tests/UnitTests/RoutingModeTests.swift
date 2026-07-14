@@ -12,24 +12,25 @@ final class RoutingModeTests: XCTestCase {
 
     func testRawValueMappingFallsBackToDefaultForGarbage() {
         // RawRepresentable returns nil for unknown values; the call site is
-        // expected to use `?? .default` (RoutingMode.default = .fullVPN).
+        // expected to use `?? .default` (RoutingMode.default = .ruDirect).
         XCTAssertNil(RoutingMode(rawValue: "garbage"))
         XCTAssertNil(RoutingMode(rawValue: ""))
         XCTAssertNil(RoutingMode(rawValue: "RU-DIRECT")) // case-sensitive
         XCTAssertNil(RoutingMode(rawValue: "ruDirect"))  // missing hyphen
 
         let resolved = RoutingMode(rawValue: "garbage") ?? .default
-        XCTAssertEqual(resolved, .fullVPN, "default mode must be .fullVPN")
+        XCTAssertEqual(resolved, .ruDirect, "default mode must be .ruDirect")
     }
 
     /// `smart` was retired 2026-07-14 (OOM-REFILTER). Users with it persisted in
-    /// app-group defaults must migrate to a mode that still proxies by default —
-    /// never silently fall back to routing everything outside the tunnel.
-    func testRetiredSmartModeMigratesToFullVPN() {
+    /// app-group defaults must migrate to a mode that still proxies unmatched
+    /// traffic by default — never silently fall back to routing everything
+    /// outside the tunnel.
+    func testRetiredSmartModeMigratesToRUDirect() {
         XCTAssertNil(RoutingMode(rawValue: "smart"), "`smart` must no longer decode")
 
         let migrated = RoutingMode(rawValue: "smart") ?? .default
-        XCTAssertEqual(migrated, .fullVPN)
+        XCTAssertEqual(migrated, .ruDirect)
         XCTAssertEqual(
             migrated.selectorTargets.first { $0.selector == "Default Route" }?.target,
             "Proxy",

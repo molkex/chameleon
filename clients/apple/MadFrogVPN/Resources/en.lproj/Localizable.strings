@@ -62,6 +62,11 @@
 "home.server.auto_long"          = "Auto (fastest)";
 "home.server.auto_subtitle"      = "Lowest ping";
 
+"home.stats.upload_a11y"         = "Uploaded";
+"home.stats.download_a11y"       = "Downloaded";
+"home.stats.ip_a11y"             = "Your IP address";
+"home.stats.ip_fmt"              = "Your IP: %@";
+
 /* ===== Onboarding ===== */
 "onboarding.title"               = "MadFrog VPN";
 "onboarding.subtitle"            = "Private. Fast. Secure.";
@@ -227,12 +232,10 @@
 "settings.section.appearance"    = "Appearance";
 "settings.section.routing"       = "Routing";
 "settings.routing_mode"          = "Mode";
-"settings.routing_mode.smart"          = "Smart";
-"settings.routing_mode.smart.hint"     = "Only unreachable sites route through the VPN. Everything else stays on the native connection. Maximum bandwidth savings.";
-"settings.routing_mode.ru_direct"      = "Split tunnel";
-"settings.routing_mode.ru_direct.hint" = "Local resources go direct, the rest of the world goes through the VPN. Classic split tunneling.";
+"settings.routing_mode.ru_direct"      = "Russia Direct";
+"settings.routing_mode.ru_direct.hint" = "Russian sites go direct — it's faster, and there's nothing to gain from routing them abroad. Everything else, including Telegram and other foreign services, still goes through the VPN. Because of this, Russian sites will see your real IP — that's expected, not a VPN failure.";
 "settings.routing_mode.full_vpn"       = "Full VPN";
-"settings.routing_mode.full_vpn.hint"  = "All traffic through the VPN (except payment and official services). For travel and public Wi-Fi.";
+"settings.routing_mode.full_vpn.hint"  = "All traffic goes through the VPN, including Russian sites. Best for travel and unfamiliar Wi-Fi.";
 "settings.section.account"       = "Account";
 "settings.section.about"         = "About";
 "settings.section.diagnostics"   = "Diagnostics";
@@ -266,6 +269,8 @@
 "settings.trusted.add.confirm"       = "Add";
 "settings.trusted.add.cancel"        = "Cancel";
 "settings.auto_connect.save_failed"  = "Failed to save auto-connect settings";
+"settings.launch_at_login"           = "Launch at Login";
+"settings.launch_at_login.hint"      = "MadFrog starts automatically when you sign in to macOS and waits in the menu bar.";
 
 /* ===== Recovery toasts ===== */
 "recovery.switched_to_auto"      = "%@ unreachable — switched to Auto";
