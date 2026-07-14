@@ -188,6 +188,17 @@ spb_relay:
     # from outside and from MSK) — consistent with the hosting DDoS-proxy answering for a hung
     # box. SSH also hangs at banner exchange. Recovery needs the SprintHost control panel, not
     # SSH. See audits/2026-07-11-network-mesh-stability-audit.md.
+    #
+    # ⭐ 2026-07-14: the SPB legs are no longer SHIPPED TO USERS. A feature audit found that
+    # the picker still offered "🇷🇺 Россия (обход белых списков)" — a selector (not a urltest,
+    # so no failover) whose every leg rides this dead box. A user could pick it and get a
+    # silent black hole, and the fallback cascade is designed NOT to escalate out of the
+    # group. Fixed with data, not code:
+    #   UPDATE vpn_servers SET is_active=false WHERE category='whitelist_bypass';
+    # (rows 1 relay-de, 2 relay-nl, 721 relay-fr). generateClientConfig only sees
+    # ListActiveServers(), so the group vanished from every generated config immediately —
+    # no client build needed. Re-enable ONLY after SPB is verified to pass real data, not
+    # just handshakes (that is the trap that let it look alive for weeks).
   ip: 185.218.0.43
   hosting: SprintHost (provider confirmed 2026-07-11; account registered under info@razblokirator.ru)
   cost_monthly: 140 RUB   # verified 2026-07-11 (user-provided)
