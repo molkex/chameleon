@@ -195,7 +195,14 @@ apple:
     L10n:              {status: untested, tests: [], gaps: "localization lookups untested (StringUtils RU plural IS covered)"}
     auth_coordinators: {status: untested, tests: [], gaps: "AppleAuthCoordinator, GoogleAuthCoordinator → TEST-IOS-AUTH (covered indirectly by backend)"}
   shared_well_covered:
-    - ConfigSanitizer (ConfigSanitizerTests)
+    - >-
+      ConfigSanitizer (ConfigSanitizerTests) — since 2026-07-14 also pins OOM-REFILTER:
+      injects the oom-killer service with an explicit memory_limit (libbox's default
+      oom-killer runs in pressure-monitor mode and resets the network on DEVICE-WIDE
+      memory pressure — 62,756 resets in one device log), never duplicates a
+      backend-supplied one, bakes the persisted RoutingMode into the selector defaults
+      before engine start (kills the host-app apply race), and never selects a
+      non-member outbound.
     - SingBoxConfigPatcher, LastWorkingLegStore, LeafRankingStore, RoutingMode
     - StringUtils (RU pluralisation), KeychainHelper (XCTSkip in sim; now also covers legacy→data-protection-keychain migration — KEYCHAIN-MACOS fix 2026-06-03)
     - VPNControlIntents, CountryFlag, CrashReporter (sanitize), DisconnectNotifier

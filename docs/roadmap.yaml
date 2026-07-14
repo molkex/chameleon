@@ -776,6 +776,91 @@ next:
         test-DB harness. Medium effort. Engine ships DISABLED so no prod risk yet.
 
   client_reliability:
+    # --- from the 2026-07-14 simplification audit (Fable), after OOM-REFILTER landed.
+    # Theme: the NE has ~50 MiB and far too many moving parts competing for it.
+    # Ordered by reliability-per-effort. None of these are started.
+    - id: SIMP-01
+      title: "geoip-ru.srs is a blocking+FATAL fetch from GitHub raw on EVERY tunnel start"
+      priority: P0
+      notes: |
+        clientconfig.go route.rule_set: type "remote", url raw.githubusercontent.com,
+        download_detour "direct". Remote rule-set initial fetch is blocking and FATAL
+        (fork route/rule/rule_set_remote.go:110 → "initial rule-set: ..." kills the whole
+        start), and there is NO cache (ConfigSanitizer strips experimental.cache_file).
+        raw.githubusercontent.com is RKN-blocked in RU and the detour is `direct`, i.e.
+        outside the tunnel. So every RU user's tunnel bring-up depends on GitHub being
+        reachable from their ISP without a VPN. It works only by luck.
+        FIX (recommended): ship the 50 KB .srs inside the PacketTunnel bundle and have
+        ConfigSanitizer rewrite the rule-set to {type:"local", path:<bundle>}. Zero
+        network dependency at start. (Do NOT serve it from api.madfrog.online — that SNI
+        is itself RKN-filtered.)
+    - id: SIMP-02
+      title: "TunnelStallProbe: 32 KB GET every 15s inside the NE, result used by nobody"
+      priority: P0
+      notes: |
+        Passive-diagnostic-only since build 44 (the streak is logged, no fallback is
+        triggered), yet it still pulls 32 KB from api.madfrog.online every 15s (~7.5
+        MB/h per connected user, same load on the backend), keeps the LTE radio hot, and
+        creates a NEW URLSession per probe without finishTasksAndInvalidate — sessions
+        accumulate inside a 50 MiB process. The only live part is nudgeUrltestGroups()
+        (forced urltest re-probe on a RealTrafficStallDetector signal). Delete the probe
+        loop, keep the nudge.
+    - id: SIMP-03
+      title: "Dead SPB relay still reachable from the UI and dialled on every sign-in"
+      priority: P0
+      notes: |
+        SPB (185.218.0.43) is application-dead per the 2026-07-11 audit (TCP opens, no
+        data — the worst kind: probes pass). Still shipped: (a) the `ru-spb-*` leaves +
+        the "🇷🇺 Россия (обход белых списков)" SELECTOR (not a urltest — no failover, a
+        user who picks it gets guaranteed silence). Fix without touching code:
+        `UPDATE vpn_servers SET is_active=false WHERE key IN ('relay-nl','relay-de')`.
+        (b) AppConfig.decoyRelays' SPB leg — every sign-in/refresh additionally dials a
+        dead host. (c) AppConfig.russianRelayURL exists only to add SPB to the
+        InsecureDelegate trustedHosts — i.e. "trust any cert from a host that isn't
+        there". (d) AppConfig.fallbackBaseURL is documented as having no call sites.
+    - id: SIMP-04
+      title: "urltest: 10s interval × interrupt=true — a jitter-driven connection killer"
+      priority: P1
+      notes: |
+        clientconfig.go hardcodes interval 10s with `tolerance: 0` and a comment saying
+        "any latency improvement triggers reselect". Both are wrong: `omitempty` means 0
+        is never serialised, and the fork forces tolerance=50ms when unset
+        (protocol/group/urltest.go:233). Effect: ~26k full Reality-TLS dials/day/user,
+        the radio never sleeps, and ordinary LTE jitter >50ms between nl-direct and
+        nl-via-msk re-elects with interrupt_exist_connections=true — tearing live user
+        connections. config.production.yaml:50 documents exactly this flapping and sets
+        urltest_interval: "5m" — a knob NOTHING reads (build 39 hardcoded 10s past it).
+        The fork already invalidates a leg on real first-write failure, so "died under
+        load" is caught by actual traffic, not by polling. Propose: interval 60–180s,
+        explicit tolerance 100–150ms, keep interrupt.
+    - id: SIMP-05
+      title: "Four overlapping server-health/selection systems in the client"
+      priority: P1
+      notes: |
+        Live simultaneously: (a) sing-box urltest, (b) RealTrafficStallDetector in the NE,
+        (c) TrafficHealthMonitor + AppState+FallbackCoordinator (406 LoC cascade) in the
+        app, (d) PathPicker + LeafRankingStore + LastWorkingLegStore + NetworkFingerprint
+        (~700 LoC, build-38/39 legacy whose own header comment — "all leaf selection is
+        done by PathPicker, the extension receives ONE leaf" — is no longer true; the
+        config is urltest-based again). Each can switch servers → historical "8×
+        closeConnections storm", apply races. Keep (a)+(b)+preflight; retire the cascade
+        behind a flag first, then cut (d). ~1.5–2k LoC and two background probe loops.
+    - id: SIMP-06
+      title: "Dead knobs and lying comments (each one misleads the next reader)"
+      priority: P2
+      notes: |
+        - ExtensionProvider sets GOMEMLIMIT/GOGC via setenv "before the Go runtime
+          starts" — but the runtime is up at framework load, and LibboxSetMemoryLimit(true)
+          then overwrites both (SetGCPercent(10), SetMemoryLimit(45MiB)). The 2026-06-21
+          "lowered 42→38MiB" change never did anything.
+        - EngineConfig.UrltestInterval, DNSRemote, DNSDirect: read and discarded.
+        - IndependentCache:true and Log.Level:"info" are always overwritten by
+          ConfigSanitizer — emit the final value from the backend instead.
+        - AppConstants.clashAPIPort (9091): no clash_api in the config at all.
+        - clientFakeIP / clientMultiplex structs: never populated.
+        - Hysteria2/TUIC client legs are inert in prod (hysteria2_port:0, udp_cert_path:"")
+          → the "UDP fallback" does not exist in client configs today. Keep the code, but
+          stop describing it as a live fallback.
     - id: CFG-01
       title: macOS config-fetch silently no-ops (username nil) + no staleness guard
       priority: P2   # was P1 — root cause (a) fixed
@@ -1041,6 +1126,45 @@ deferred:
 # DONE — append-only log. Most recent date first.
 # ============================================================
 done:
+  "2026-07-14":
+    - id: OOM-REFILTER
+      title: "NE oom reset-loop fixed — refilter rule-set dropped, route default flipped to Proxy, oom-killer pinned to timer mode"
+      incident: docs/incidents/2026-07-14-ne-oom-refilter-reset-loop.md
+      notes: |
+        Owner reported "VPN отключается сам" + "телеграм бесконечно грузит, медиа не
+        всё грузит" + "работает через раз". An exported device log (103k lines) showed
+        sing-box's oom-killer firing 62,756 times: "memory pressure: critical, usage:
+        46 MiB, resetting network" — the tunnel reset its network every ~20ms. That one
+        loop explains all three symptoms. Two independent causes, both fixed:
+
+        1. `refilter` (RKN blocklist) = 4.8 MB .srs, re-downloaded and parsed into RAM
+           on EVERY tunnel start (ConfigSanitizer strips experimental.cache_file, so
+           nothing caches). sing-box started 24–36 MiB deep into the NE's ~50 MiB
+           budget. REMOVED — and with Default Route now = Proxy, everything it used to
+           catch is proxied anyway, so it bought nothing.
+        2. The oom-killer ran in libbox's DEFAULT pressure-monitor mode, which calls
+           router.ResetNetwork() on every DEVICE-WIDE critical memory-pressure signal,
+           never checking our own usage (fork daemon/instance.go:90 +
+           service/oomkiller/service.go). Any memory hog elsewhere on the phone tore
+           down our tunnel, in a loop. Now emitting
+           `services:[{type:"oom-killer",memory_limit:"45MB"}]` → timer mode.
+           ⚠️ Unit trap: sing-box maps "mb"→MiByte; "45MiB" is REJECTED and fails the
+           whole config. Caught by `sing-box check`, not by tests.
+
+        Also: `smart` mode retired (it was the root design error — "proxy nothing except
+        what RKN blocks" can't catch bare-IP flows like Telegram's MTProto, nor
+        far-side geo-blocks like Gemini/Flow). Default Route selector now has ONE member
+        (Proxy) — that omission is the failsafe that stops SHIPPED smart-mode clients
+        from routing everything outside the tunnel (Selector.SelectOutbound returns false
+        for a non-member and keeps the current pick). Mode-apply race fixed: the
+        extension now bakes the persisted mode into the selector defaults before start,
+        instead of relying on the host app's post-connect 5s best-effort retry.
+
+        Verified: go test ./internal/vpn (5 new tests), real `sing-box check` against the
+        fork image on NL, iOS + macOS BUILD SUCCEEDED, TEST BUILD SUCCEEDED (4 new
+        ConfigSanitizer tests, 1 rewritten RoutingMode suite).
+      remaining: "a client build must ship for the ConfigSanitizer half + the UI change"
+
   "2026-07-12":
     - id: BUILD-130-CLIENT-FIXES
       title: "Build 130 — all 6 build:true client stability fixes from the 2026-07-11 audit, shipped together"

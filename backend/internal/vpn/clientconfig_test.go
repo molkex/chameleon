@@ -858,3 +858,139 @@ func TestGenerateClientConfigUsesSelectedFingerprint(t *testing.T) {
 		t.Fatal("fixture produced no VLESS leaves — test ineffective")
 	}
 }
+
+// --- OOM-REFILTER (2026-07-14) ---
+//
+// Device logs showed sing-box's oom-killer firing 62,756 times in a loop
+// ("memory pressure: critical, usage: 46 MiB, resetting network") inside the
+// NE's ~50 MiB ceiling. The culprit was the 4.8 MB `refilter` RKN rule-set,
+// re-downloaded and parsed into RAM on every tunnel start (ConfigSanitizer
+// strips experimental.cache_file, so nothing is cached). That reset loop was
+// the real cause of self-disconnects and Telegram media stalls.
+//
+// The fix removes refilter and makes the Proxy the default route, so the
+// traffic the list used to catch is proxied anyway. These tests pin both
+// halves — a regression on either silently reintroduces the OOM loop or,
+// worse, routes everything outside the tunnel.
+
+func TestRefilterRuleSetNotEmitted(t *testing.T) {
+	cfg := parseGenerated(t)
+	route, _ := cfg["route"].(map[string]any)
+	if route == nil {
+		t.Fatal("route block missing")
+	}
+
+	sets, _ := route["rule_set"].([]any)
+	for _, s := range sets {
+		m, _ := s.(map[string]any)
+		tag, _ := m["tag"].(string)
+		if tag == "refilter" {
+			t.Error("refilter rule-set is back — 4.8 MB in the memory-tight NE, oom-kills the tunnel")
+		}
+		if url, _ := m["url"].(string); strings.Contains(url, "rkn-singbox") {
+			t.Errorf("RKN rule-set URL is back: %s", url)
+		}
+	}
+
+	rules, _ := route["rules"].([]any)
+	for _, r := range rules {
+		m, _ := r.(map[string]any)
+		if rs, _ := m["rule_set"].(string); rs == "refilter" {
+			t.Error("route rule still references the removed refilter rule-set — config won't start")
+		}
+	}
+}
+
+// Every rule_set a rule references must actually be declared, or sing-box fails
+// to start the tunnel outright.
+func TestEveryReferencedRuleSetIsDeclared(t *testing.T) {
+	cfg := parseGenerated(t)
+	route, _ := cfg["route"].(map[string]any)
+
+	declared := map[string]bool{}
+	sets, _ := route["rule_set"].([]any)
+	for _, s := range sets {
+		m, _ := s.(map[string]any)
+		if tag, _ := m["tag"].(string); tag != "" {
+			declared[tag] = true
+		}
+	}
+
+	rules, _ := route["rules"].([]any)
+	for _, r := range rules {
+		m, _ := r.(map[string]any)
+		rs, _ := m["rule_set"].(string)
+		if rs != "" && !declared[rs] {
+			t.Errorf("route rule references undeclared rule_set %q", rs)
+		}
+	}
+}
+
+// The failsafe for shipped clients. Old app versions still PUT
+// "Default Route" = "direct" when the user has the retired `smart` mode
+// persisted. sing-box's Selector.SelectOutbound() returns false for a
+// non-member tag and keeps the current pick, so omitting "direct" from the
+// members is what stops those clients from routing everything OUTSIDE the
+// tunnel now that refilter is gone. Do not add "direct" back while any
+// smart-capable client is in the wild.
+func TestDefaultRouteSelectorProxiesOnly(t *testing.T) {
+	cfg := parseGenerated(t)
+	sel := outboundByTag(cfg, "Default Route")
+	if sel == nil {
+		t.Fatal("Default Route selector not found")
+	}
+
+	if def, _ := sel["default"].(string); def != "Proxy" {
+		t.Errorf("Default Route.default = %q, want \"Proxy\" — a VPN must fail toward the tunnel", def)
+	}
+
+	members, _ := sel["outbounds"].([]any)
+	if len(members) != 1 {
+		t.Errorf("Default Route has %d members, want exactly 1 (\"Proxy\")", len(members))
+	}
+	for _, m := range members {
+		if tag, _ := m.(string); tag == "direct" {
+			t.Error(`Default Route lists "direct" — a shipped smart-mode client would then route everything outside the tunnel`)
+		}
+	}
+}
+
+// The route's final fallback must be the Proxy selector, not direct.
+func TestRouteFinalIsDefaultRoute(t *testing.T) {
+	cfg := parseGenerated(t)
+	route, _ := cfg["route"].(map[string]any)
+	if final, _ := route["final"].(string); final != "Default Route" {
+		t.Errorf("route.final = %q, want \"Default Route\"", final)
+	}
+}
+
+// OOM-PRESSURE-RESET (2026-07-14). If the config declares no oom-killer service,
+// libbox appends a default one with no options — "pressure monitor" mode, which
+// calls router.ResetNetwork() on every DEVICE-WIDE critical memory-pressure
+// signal, no matter what OUR usage is. That is what produced 62,756 network
+// resets (~one per 20 ms) in the exported device log. An explicit memory_limit
+// selects timer mode: poll our real usage, reset only when we are truly over.
+func TestOOMKillerServiceHasExplicitMemoryLimit(t *testing.T) {
+	cfg := parseGenerated(t)
+
+	services, _ := cfg["services"].([]any)
+	if len(services) == 0 {
+		t.Fatal("no services block — libbox will append a default oom-killer in pressure mode, which resets the network on device-wide memory pressure")
+	}
+
+	var found bool
+	for _, s := range services {
+		m, _ := s.(map[string]any)
+		if typ, _ := m["type"].(string); typ != "oom-killer" {
+			continue
+		}
+		found = true
+		limit, _ := m["memory_limit"].(string)
+		if limit == "" {
+			t.Error("oom-killer service has no memory_limit — that is exactly the pressure-monitor mode we are avoiding")
+		}
+	}
+	if !found {
+		t.Error("oom-killer service not emitted")
+	}
+}

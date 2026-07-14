@@ -442,15 +442,30 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 		InterruptExistConnections: boolPtr(true),
 	}
 
-	// --- Mode selectors (unchanged semantics from pre-relay architecture) ---
-	// Three-way routing mode is implemented via three selectors. The iOS app
-	// flips all three together via Clash API to switch modes without
-	// reconnecting. See ExtensionProvider.applyRoutingMode().
+	// --- Mode selectors ---
+	// Routing mode is implemented via selectors the app flips over the Clash
+	// API; no reconnect needed. See RoutingMode.selectorTargets (iOS).
 	//
-	//   Mode       | RU Traffic | Blocked Traffic | Default Route
-	//   smart      | direct     | Proxy           | direct         ← default
-	//   ru-direct  | direct     | Proxy           | Proxy
-	//   full-vpn   | Proxy      | Proxy           | Proxy
+	//   Mode       | RU Traffic | Default Route
+	//   ru-direct  | direct     | Proxy          ← default
+	//   full-vpn   | Proxy      | Proxy
+	//
+	// 2026-07-14 (OOM-REFILTER): the old `smart` mode (Default Route = direct,
+	// only the RKN `refilter` list proxied) is gone. Its 4.8 MB rule-set was
+	// re-downloaded and held in RAM on every tunnel start, and the NE's ~50 MiB
+	// ceiling made sing-box's oom-killer loop "resetting network" every ~20ms —
+	// the real cause of self-disconnects and Telegram media stalls. Dropping
+	// refilter frees that memory, but leaves smart with nothing to proxy, so
+	// the mode is retired: default now fails toward the Proxy, not toward
+	// direct — the right failsafe for a VPN.
+	//
+	// BACKWARD COMPAT: shipped clients still PUT "Default Route" = "direct"
+	// when the user has `smart` persisted. Selector.SelectOutbound() returns
+	// false for a non-member tag and keeps the current pick (sing-box
+	// protocol/group/selector.go:122), so omitting "direct" from this
+	// selector's members makes those clients safely stay on Proxy instead of
+	// silently routing everything outside the tunnel. Do NOT add "direct" back
+	// here until no smart-capable client version is in the wild.
 	ruTrafficOutbound := clientOutbound{
 		Type:                      "selector",
 		Tag:                       "RU Traffic",
@@ -458,6 +473,8 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 		Default:                   "direct",
 		InterruptExistConnections: boolPtr(true),
 	}
+	// Kept as a no-op member so old clients' third PUT still succeeds; no route
+	// rule references it any more (the refilter rule that did is gone).
 	blockedTrafficOutbound := clientOutbound{
 		Type:                      "selector",
 		Tag:                       "Blocked Traffic",
@@ -468,8 +485,8 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 	defaultRouteOutbound := clientOutbound{
 		Type:                      "selector",
 		Tag:                       "Default Route",
-		Outbounds:                 []string{"direct", "Proxy"},
-		Default:                   "direct",
+		Outbounds:                 []string{"Proxy"},
+		Default:                   "Proxy",
 		InterruptExistConnections: boolPtr(true),
 	}
 
@@ -549,6 +566,9 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 			Stack:     "system",
 		}},
 		Outbounds: allOutbounds,
+		// See clientService: without this, libbox's default oom-killer resets the
+		// whole network on any DEVICE-WIDE memory-pressure signal.
+		Services: []clientService{{Type: "oom-killer", MemoryLimit: "45MB"}},
 		Route: clientRoute{
 			Final: "Default Route",
 			RuleSet: []clientRuleSet{
@@ -560,14 +580,13 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 					DownloadDetour: "direct",
 					UpdateInterval: "168h",
 				},
-				{
-					Tag:            "refilter",
-					Type:           "remote",
-					Format:         "binary",
-					URL:            "https://raw.githubusercontent.com/teidesu/rkn-singbox/ruleset/rkn-ruleset.srs",
-					DownloadDetour: "direct",
-					UpdateInterval: "168h",
-				},
+				// refilter (RKN blocklist) REMOVED 2026-07-14 — see the mode-selector
+				// comment above. A 4.8 MB .srs re-fetched and parsed into RAM on every
+				// tunnel start (ConfigSanitizer strips experimental.cache_file, so there
+				// is no cache) against the NE's ~50 MiB ceiling. Device logs showed
+				// 62,756 × "oom-killer: memory pressure: critical, usage: 46 MiB,
+				// resetting network". With Default Route = Proxy everything the list
+				// used to catch is proxied anyway, so it bought nothing.
 			},
 			Rules: []clientRouteRule{
 				{Action: "sniff"},
@@ -576,7 +595,6 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 				{Network: "udp", Port: 443, Action: "reject", NoDrop: boolPtr(true)},
 				{IPIsPrivate: boolPtr(true), Outbound: "direct"},
 				{DomainSuffix: ruAlwaysDirectDomains, Outbound: "direct"},
-				{RuleSet: "refilter", Outbound: "Blocked Traffic"},
 				{DomainSuffix: []string{".ru"}, Outbound: "RU Traffic"},
 				{RuleSet: "geoip-ru", Outbound: "RU Traffic"},
 			},
@@ -610,6 +628,7 @@ type clientConfig struct {
 	Inbounds      []clientInbound     `json:"inbounds"`
 	Outbounds     []clientOutbound    `json:"outbounds"`
 	Route         clientRoute         `json:"route"`
+	Services      []clientService     `json:"services,omitempty"`
 	Experimental  *clientExperimental `json:"experimental,omitempty"`
 	ConfigVersion int64               `json:"config_version,omitempty"`
 	// Marker is a human-readable identifier of THIS revision of the
@@ -618,6 +637,33 @@ type clientConfig struct {
 	// keeps it a "private" extension that sing-box itself ignores
 	// gracefully (unknown JSON keys are skipped at parse).
 	Marker string `json:"_marker,omitempty"`
+}
+
+// clientService — sing-box `services` entry. We emit exactly one: the
+// oom-killer, configured with an explicit memory limit.
+//
+// OOM-PRESSURE-RESET (2026-07-14): libbox appends a DEFAULT oom-killer service
+// on iOS whenever the config declares none (sing-box-fork daemon/instance.go:90).
+// That default carries NO options, which puts the service in "pressure monitor"
+// mode: on every DISPATCH_MEMORYPRESSURE_CRITICAL it calls router.ResetNetwork()
+// unconditionally, without ever looking at our own usage
+// (service/oomkiller/service.go — the `adaptiveTimer == nil` branch). iOS raises
+// that signal for DEVICE-WIDE pressure, so an unrelated memory hog elsewhere on
+// the phone made OUR tunnel tear down every connection, in a loop — 62,756 times
+// in one exported device log, every ~20 ms.
+//
+// Declaring the service ourselves WITH `memory_limit` selects the timer mode
+// instead: it polls our actual usage and only resets when WE are genuinely over
+// the limit. The 45 MB figure matches what libbox already hands to Go's
+// SetMemoryLimit, and sits just under the ~50 MiB NE jetsam ceiling.
+//
+// ⚠️ Unit: sing-box's memory-unit table (sing/common/byteformats) maps "mb" to
+// MiByte — so "45MB" IS 45 MiB. "45MiB" is NOT accepted and makes sing-box
+// refuse the whole config ("unsupported unit: MiB"). Verified with `sing-box
+// check` against the fork image before shipping.
+type clientService struct {
+	Type        string `json:"type"`
+	MemoryLimit string `json:"memory_limit,omitempty"`
 }
 
 type clientLog struct {

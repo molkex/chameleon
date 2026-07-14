@@ -57,11 +57,11 @@ struct SettingsView: View {
                                     Spacer()
                                 }
 
-                                // Segmented pill — 3 options in one row. Custom
-                                // rendering so it adopts the theme accent and
-                                // matches the rest of Settings.
+                                // Segmented pill — one row. Custom rendering so it
+                                // adopts the theme accent and matches the rest of
+                                // Settings. (`smart` retired 2026-07-14 — see
+                                // RoutingMode.)
                                 HStack(spacing: 0) {
-                                    routingSegment(.smart,    label: L10n.Settings.routingModeSmart)
                                     routingSegment(.ruDirect, label: L10n.Settings.routingModeRuDirect)
                                     routingSegment(.fullVPN,  label: L10n.Settings.routingModeFullVPN)
                                 }
@@ -484,7 +484,6 @@ struct SettingsView: View {
 
     private var routingModeHint: LocalizedStringKey {
         switch app.routingMode {
-        case .smart:    return L10n.Settings.routingModeSmartHint
         case .ruDirect: return L10n.Settings.routingModeRuDirectHint
         case .fullVPN:  return L10n.Settings.routingModeFullVPNHint
         }

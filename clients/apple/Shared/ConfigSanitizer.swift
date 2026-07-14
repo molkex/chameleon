@@ -77,6 +77,61 @@ enum ConfigSanitizer {
             config["route"] = route
         }
 
+        // 6. Bake the user's persisted routing mode into the selector defaults.
+        //
+        //    The extension used to start in whatever mode the backend baked in,
+        //    and only the HOST APP applied the real mode afterwards, over the
+        //    Clash command socket, on a best-effort retry that gives up after 5s
+        //    (AppState.applyRoutingMode). So any tunnel start without a live
+        //    foreground app — on-demand, after reboot, from the widget, or when
+        //    the app had been jetsammed — silently ran the baked-in mode instead
+        //    of the user's. Doing it here kills the race structurally: the config
+        //    the engine starts with is already correct, no timing involved.
+        //
+        //    Only rewrites `default` when the target is an actual member of that
+        //    selector, so a stale client can never select an outbound the current
+        //    backend no longer emits.
+        let mode = RoutingMode(
+            rawValue: UserDefaults(suiteName: AppConstants.appGroupID)?
+                .string(forKey: AppConstants.routingModeKey) ?? ""
+        ) ?? .default
+        if var outbounds = config["outbounds"] as? [[String: Any]] {
+            let targets = Dictionary(
+                uniqueKeysWithValues: mode.selectorTargets.map { ($0.selector, $0.target) }
+            )
+            for i in outbounds.indices {
+                guard outbounds[i]["type"] as? String == "selector",
+                      let tag = outbounds[i]["tag"] as? String,
+                      let target = targets[tag],
+                      let members = outbounds[i]["outbounds"] as? [String],
+                      members.contains(target)
+                else { continue }
+                outbounds[i]["default"] = target
+            }
+            config["outbounds"] = outbounds
+        }
+
+        // 7. Pin the oom-killer into TIMER mode.
+        //
+        //    libbox appends a DEFAULT oom-killer service on iOS whenever the
+        //    config declares none (sing-box-fork daemon/instance.go:90). That
+        //    default has no options, which puts it in "pressure monitor" mode:
+        //    every DISPATCH_MEMORYPRESSURE_CRITICAL calls router.ResetNetwork()
+        //    unconditionally, without checking our own usage. iOS raises that
+        //    signal for DEVICE-WIDE pressure — so an unrelated memory hog on the
+        //    phone tore down every connection in OUR tunnel, in a loop (62,756
+        //    resets in one exported device log, ~one per 20 ms).
+        //
+        //    Declaring it with an explicit `memory_limit` selects timer mode:
+        //    poll actual usage, reset only when WE are really over. The backend
+        //    now emits this too; doing it here as well means a stale cached
+        //    config gets the fix without waiting for a fresh fetch.
+        var services = (config["services"] as? [[String: Any]]) ?? []
+        if !services.contains(where: { $0["type"] as? String == "oom-killer" }) {
+            services.append(["type": "oom-killer", "memory_limit": "45MB"])
+        }
+        config["services"] = services
+
         guard let sanitized = try? JSONSerialization.data(withJSONObject: config, options: []),
               let result = String(data: sanitized, encoding: .utf8) else {
             return configJSON

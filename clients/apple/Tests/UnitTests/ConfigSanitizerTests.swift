@@ -197,6 +197,90 @@ final class ConfigSanitizerTests: XCTestCase {
         XCTAssertNotNil(experimental?["v2ray_api"])
     }
 
+    // MARK: - OOM-PRESSURE-RESET (2026-07-14)
+
+    /// libbox appends a DEFAULT oom-killer service on iOS when the config declares
+    /// none, and that default runs in "pressure monitor" mode: it calls
+    /// router.ResetNetwork() on every DEVICE-WIDE critical memory-pressure signal,
+    /// never checking our own usage. That produced 62,756 network resets (~one per
+    /// 20 ms) in an exported device log. An explicit memory_limit selects timer
+    /// mode instead. The sanitizer injects it so even a stale cached config is safe.
+    func testInjectsOOMKillerServiceWithMemoryLimit() throws {
+        let input = #"{"log":{},"outbounds":[]}"#
+        let dict = try parseJSON(ConfigSanitizer.sanitizeForIOS(input))
+
+        let services = dict["services"] as? [[String: Any]]
+        XCTAssertNotNil(services, "services block must exist, else libbox adds a pressure-mode oom-killer")
+
+        let oom = services?.first { $0["type"] as? String == "oom-killer" }
+        XCTAssertNotNil(oom, "oom-killer service must be injected")
+        // NB: sing-box maps the "mb" unit to MiByte — "45MB" IS 45 MiB, and "45MiB"
+        // is rejected outright ("unsupported unit: MiB"), which fails the whole config.
+        XCTAssertEqual(oom?["memory_limit"] as? String, "45MB")
+    }
+
+    /// Never clobber an oom-killer the backend already configured.
+    func testKeepsExistingOOMKillerService() throws {
+        let input = #"{"log":{},"outbounds":[],"services":[{"type":"oom-killer","memory_limit":"40MB"}]}"#
+        let dict = try parseJSON(ConfigSanitizer.sanitizeForIOS(input))
+
+        let services = dict["services"] as? [[String: Any]] ?? []
+        XCTAssertEqual(services.count, 1, "must not append a duplicate oom-killer")
+        XCTAssertEqual(services.first?["memory_limit"] as? String, "40MB")
+    }
+
+    // MARK: - Routing mode baked in before start (2026-07-14)
+
+    /// The extension used to start in whatever mode the backend baked in; only the
+    /// host app applied the real mode afterwards, on a retry that gives up after 5s.
+    /// Any start without a live foreground app ran the wrong mode. The sanitizer now
+    /// rewrites the selector defaults up front, so there is no window to lose.
+    func testBakesPersistedRoutingModeIntoSelectorDefaults() throws {
+        let defaults = UserDefaults(suiteName: AppConstants.appGroupID)
+        let previous = defaults?.string(forKey: AppConstants.routingModeKey)
+        defer {
+            if let previous { defaults?.set(previous, forKey: AppConstants.routingModeKey) }
+            else { defaults?.removeObject(forKey: AppConstants.routingModeKey) }
+        }
+        defaults?.set(RoutingMode.fullVPN.rawValue, forKey: AppConstants.routingModeKey)
+
+        let input = """
+        {"log":{},"outbounds":[
+          {"type":"selector","tag":"RU Traffic","outbounds":["direct","Proxy"],"default":"direct"},
+          {"type":"selector","tag":"Default Route","outbounds":["Proxy"],"default":"Proxy"}
+        ]}
+        """
+        let dict = try parseJSON(ConfigSanitizer.sanitizeForIOS(input))
+        let outbounds = dict["outbounds"] as? [[String: Any]] ?? []
+
+        let ru = outbounds.first { $0["tag"] as? String == "RU Traffic" }
+        XCTAssertEqual(ru?["default"] as? String, "Proxy", "full-vpn must send RU traffic through the tunnel too")
+    }
+
+    /// A selector must never be pointed at an outbound it does not contain — that
+    /// would be a config sing-box refuses, or worse, a silent mis-route.
+    func testNeverSelectsANonMemberOutbound() throws {
+        let defaults = UserDefaults(suiteName: AppConstants.appGroupID)
+        let previous = defaults?.string(forKey: AppConstants.routingModeKey)
+        defer {
+            if let previous { defaults?.set(previous, forKey: AppConstants.routingModeKey) }
+            else { defaults?.removeObject(forKey: AppConstants.routingModeKey) }
+        }
+        defaults?.set(RoutingMode.ruDirect.rawValue, forKey: AppConstants.routingModeKey)
+
+        // "RU Traffic" here lists only Proxy — ru-direct wants "direct", which is absent.
+        let input = """
+        {"log":{},"outbounds":[
+          {"type":"selector","tag":"RU Traffic","outbounds":["Proxy"],"default":"Proxy"}
+        ]}
+        """
+        let dict = try parseJSON(ConfigSanitizer.sanitizeForIOS(input))
+        let outbounds = dict["outbounds"] as? [[String: Any]] ?? []
+        let ru = outbounds.first { $0["tag"] as? String == "RU Traffic" }
+
+        XCTAssertEqual(ru?["default"] as? String, "Proxy", "must leave the default alone when the target is not a member")
+    }
+
     // MARK: - Helpers
 
     private func parseJSON(_ s: String) throws -> [String: Any] {
