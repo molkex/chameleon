@@ -229,3 +229,43 @@ NOT self-inflicted network resets. Apple gives NE providers no memory-warning
 callback; the sanctioned strategy is self-imposed buffer bounds. Long-term we
 should aim to keep the footprint low enough that the killer never fires, and
 treat it as a last-resort backstop we never actually see.
+
+---
+
+## 2026-07-15 (evening) — the timer-mode oom-killer itself is the problem; disable it (512MB)
+
+The 48MB backstop wasn't enough. The user reported **instant** disconnects on 1.0.34.
+Backend `app_events` telemetry gave the definitive diagnosis (no device log needed —
+with no VPN the RU user couldn't reach support):
+
+- Every `vpn.connect.start` → `vpn.connect.success`: the tunnel **reaches connected**.
+  Not a parse failure, not a broken build.
+- Connects come in bursts (22:18:34 → 22:19:19 → 22:21:07): connect, drop seconds
+  later, reconnect. A **post-connect reset loop**.
+- `routing: "full-vpn"` — all traffic through the tunnel, so the NE footprint runs hot
+  and the timer-mode oom-killer (measuring whole-process phys_footprint) trips during
+  use and `ResetNetwork()`s the live tunnel. full-vpn amplifies it → "instantly".
+
+**Decision: stop trying to place a backstop below jetsam on this client.** The fork's
+Feb-2026 oomkiller never disarms, and any trip point at/below the operating footprint
+loops. The *only* reason to emit the service at all is to select timer mode and thereby
+**disable** libbox's default pressure-monitor mode (the original 62k-reset bug). So set
+`memory_limit` ABOVE the ~50 MiB jetsam ceiling (`512MB`): timer mode selected,
+pressure-mode disabled, timer never fires. If the NE genuinely runs away, iOS
+jetsams+restarts it — the honest backstop the mature-client playbook uses (Tailscale,
+WireGuard-iOS, Apple DTS thread 44942), instead of self-inflicted network resets.
+
+`max_interval` was also removed here (an earlier suspicion that it broke the client
+parse was **refuted** — `strings` on Libbox.xcframework shows `max_interval`,
+`memory_limit`, etc. are all present in the shipped v1.13.5 build; the field parsed
+fine. It was dropped only because at 512MB the timer never fires, so it's moot).
+
+Deployed to WAW, validated with `sing-box check`, verified in the running binary.
+Telemetry proves the app fetches config + logs events over the network, so the 512MB
+config reaches the device on the next connect.
+
+**The real fix stays a 1.0.35 client build:** rebase `service/oomkiller` onto current
+upstream (disarm + hysteresis), drop the Go soft cap to ~37 MiB, plug the
+TunnelStallProbe URLSession leak. Only then is a real backstop below jetsam safe. The
+whole episode is the cautionary tale for invariant I-1 in ADR 0014 (never tune NE
+memory blind — measure on-device before/after).
