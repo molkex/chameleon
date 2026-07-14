@@ -1127,6 +1127,24 @@ deferred:
 # ============================================================
 done:
   "2026-07-14":
+    - id: BUILD-134
+      title: "1.0.34 (build 134) → TestFlight — OOM fix + kill switch + RU-direct default + home stats"
+      notes: |
+        NEW TRAIN, not just a build bump: 1.0.33 is READY_FOR_SALE, and a released
+        version closes its train — a new build under the same MARKETING_VERSION is
+        rejected (err 90186). Hence 1.0.34.
+        ASC build id 6eb8460c-0207-4c32-a89e-f86be7ba0d05, VALID, assigned to
+        Internal Testers (verified via include=betaGroups — the other endpoints lie).
+        Backend half (refilter removal + oom-killer services block) was DEPLOYED to
+        WAW the same day and verified in the running binary: `rkn-singbox` and
+        `refilter` strings absent, `oom-killer`/`45MB` present. That half needs no
+        client build — the config is server-generated.
+      on_device_verification_needed: |
+        iOS unit tests cannot RUN in this project (app-group host crash in an
+        unsigned sim) — the device IS the gate. Check: (1) does the VPN still
+        self-disconnect; (2) does Telegram media load; (3) Flow works on the PL exit
+        but NOT on NL (that's the Timeweb IP, unfixable by config); (4) the new
+        traffic/IP strip doesn't break the home layout.
     - id: OOM-REFILTER
       title: "NE oom reset-loop fixed — refilter rule-set dropped, route default flipped to Proxy, oom-killer pinned to timer mode"
       incident: docs/incidents/2026-07-14-ne-oom-refilter-reset-loop.md
