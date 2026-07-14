@@ -164,3 +164,68 @@ smart-capable client version is still in the wild.** Pinned by
   Flow's geo pipeline (GCP-side) still reads them as RU/KZ, even though YouTube's
   own `GL` signal for the same IP says `NL`. Fix is exit selection, not config.
   See `docs/state/servers.yaml`.
+
+---
+
+## 2026-07-15 — SEQUEL: the timer-mode fix collided with the Go soft cap (my regression)
+
+Shipping `memory_limit: "45MB"` (1.0.34) made it WORSE — the user reported
+disconnects got *faster*. Root cause, verified in the fork source (Fable review,
+cross-checked):
+
+- The oom-killer timer compares **`memory.Total()` = task_info `phys_footprint`**
+  — the WHOLE process (Go heap + all native CFNetwork / TLS / tun memory), the
+  same counter jetsam enforces — not the Go heap
+  (`sing/common/memory/memory_darwin.go`).
+- libbox *separately* soft-caps the Go heap at 45 MiB (`SetMemoryLimit`,
+  `experimental/libbox/memory.go`). Setting the oom-killer trip point ALSO at 45
+  MiB put it **below** the normal operating footprint: native memory alone is
+  ~5–12 MiB, so the effective Go-side trip was ~33–40 MiB. Any bulk transfer
+  (Telegram media) crossed 45 and tripped it.
+- The trip is `ResetNetwork()` — closes **every** connection + flushes the DNS
+  cache (`route/router.go`). Telegram retries → memory climbs → trips again. A
+  self-sustaining, load-following reset loop.
+- It also can't self-recover: the timer arms on the first critical pressure event
+  and never disarms — the dispatch source subscribes to `WARN|CRITICAL` only, so
+  the `normal`→`stop()` branch is unreachable dead code
+  (`service/oomkiller/service.go`).
+
+**Fix (backend, no build): `memory_limit "48MB", max_interval "60s"`.** The
+correct ordering is Go soft cap (45) < backstop (48) < jetsam (50, the NE hard
+limit since iOS 15). 48 MiB never trips on a legitimate ~45–47 MiB transfer; it
+only catches a real runaway just before the kernel would kill us. `max_interval`
+caps a pathological plateau at 1 reset/min instead of the default 6. Deployed to
+WAW, verified in the running binary, validated with `sing-box check`.
+
+**Unit trap remains:** the trip metric is phys_footprint, not the Go heap — any
+future memory_limit MUST stay above the Go soft cap or this recurs. Pinned by
+`TestOOMKillerServiceHasExplicitMemoryLimit` (now also rejects a regression to
+45MB).
+
+### Still needs a client build (1.0.35) — deeper fixes
+
+- **Rebase `service/oomkiller` onto current upstream sing-box** (post-2026-06-28).
+  Our fork ships a Feb-2026 prototype; upstream since fixed the never-disarm bug
+  and added arm/resume hysteresis, interval backoff, and rate-based early trigger.
+- **Lower the Go soft limit below the trip point** (~37 MiB) and delete the inert
+  `setenv GOMEMLIMIT/GOGC` block in `ExtensionProvider.swift` (it runs after the
+  Go runtime is already up and is overridden by `LibboxSetMemoryLimit` — the
+  "GOMEMLIMIT=38MiB" log line describes a config that is NOT in effect).
+- **Plug the `TunnelStallProbe` URLSession leak** (`TunnelStallProbe.swift`): a
+  new ephemeral `URLSession` per probe every 15 s, never invalidated — unbounded
+  NATIVE-memory growth (invisible to Go GC, fully counted in phys_footprint), the
+  prime suspect for "fine at first, disconnects later." One shared session, or
+  `finishTasksAndInvalidate()`.
+- Bundle `geoip-ru.srs` locally / stop stripping `cache_file` — removes the
+  per-start download+parse spike and the censored-network dependency.
+
+### Industry note (why this pattern is fragile)
+
+The "oom-killer that resets the network on pressure" is an upstream sing-box
+crutch that only landed April 2026 and is still undocumented. The mature-client
+playbook (Tailscale, WireGuard-iOS, and Apple DTS guidance, thread 44942) is
+**footprint discipline + flow control, with jetsam as the honest backstop** —
+NOT self-inflicted network resets. Apple gives NE providers no memory-warning
+callback; the sanctioned strategy is self-imposed buffer bounds. Long-term we
+should aim to keep the footprint low enough that the killer never fires, and
+treat it as a last-resort backstop we never actually see.
