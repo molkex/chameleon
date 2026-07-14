@@ -987,15 +987,19 @@ func TestOOMKillerServiceHasExplicitMemoryLimit(t *testing.T) {
 		found = true
 		limit, _ := m["memory_limit"].(string)
 		if limit == "" {
-			t.Error("oom-killer service has no memory_limit — that is exactly the pressure-monitor mode we are avoiding")
+			t.Error("oom-killer service has no memory_limit — that leaves libbox in pressure-monitor mode, the original 62k-reset bug")
 		}
-		// OOM-THRESHOLD-COLLISION (2026-07-15): the limit must sit ABOVE the Go
-		// soft cap (45 MiB) that libbox imposes, or the timer — which measures
-		// whole-process phys_footprint, not the Go heap — trips on every bulk
-		// transfer and ResetNetwork()-loops. 48 MiB is the backstop between the
-		// GC ceiling and the ~50 MiB jetsam limit. Must NOT regress back to 45.
-		if limit == "45MB" {
-			t.Error("memory_limit is back to 45MB — that collides with the Go soft cap and re-introduces the reset loop (OOM-THRESHOLD-COLLISION)")
+		// OOM saga (2026-07-15): the ONLY reason we emit this service is to select
+		// timer mode and thereby DISABLE pressure-monitor mode. We do NOT want the
+		// timer to fire — the fork's Feb-2026 oomkiller never disarms, and a
+		// self-inflicted ResetNetwork is the wrong tool. The limit must therefore
+		// sit ABOVE the ~50 MiB jetsam ceiling so the timer never trips; jetsam is
+		// the honest backstop. "45MB"/"48MB" were below/at the operating footprint
+		// and caused reset loops / connect-time trips — must not regress to those.
+		for _, bad := range []string{"45MB", "48MB"} {
+			if limit == bad {
+				t.Errorf("memory_limit is %s — below the jetsam ceiling, the timer can trip and ResetNetwork-loop; must be >50MiB so it never fires", bad)
+			}
 		}
 	}
 	if !found {

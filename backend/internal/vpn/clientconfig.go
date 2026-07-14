@@ -568,7 +568,7 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 		Outbounds: allOutbounds,
 		// See clientService: without this, libbox's default oom-killer resets the
 		// whole network on any DEVICE-WIDE memory-pressure signal.
-		Services: []clientService{{Type: "oom-killer", MemoryLimit: "48MB"}},
+		Services: []clientService{{Type: "oom-killer", MemoryLimit: "512MB"}},
 		Route: clientRoute{
 			Final: "Default Route",
 			RuleSet: []clientRuleSet{
@@ -652,34 +652,47 @@ type clientConfig struct {
 // the phone made OUR tunnel tear down every connection, in a loop — 62,756 times
 // in one exported device log, every ~20 ms.
 //
-// Declaring the service ourselves WITH `memory_limit` selects the timer mode
-// instead: it polls our actual usage and resets only when WE cross the limit.
+// Declaring the service ourselves WITH `memory_limit` selects the timer mode,
+// which — crucially — DISABLES libbox's default "pressure monitor" mode, the one
+// that reset the network on every DEVICE-WIDE memory-pressure signal (the
+// original 62,756-reset bug). Any positive memory_limit makes `hasTimerMode`
+// true (service/oomkiller/service.go), so the pressure-mode ResetNetwork branch
+// never runs.
 //
-// ⚠️ 2026-07-15 (OOM-THRESHOLD-COLLISION): the first cut of this used
-// memory_limit "45MB" and made things WORSE — the user reported disconnects got
-// FASTER on 1.0.34. Root cause, verified in the fork source:
-//   - the timer compares `memory.Total()` = task_info phys_footprint (the WHOLE
-//     process: Go heap + all native CFNetwork/TLS/tun buffers), not the Go heap
-//     (sing/common/memory/memory_darwin.go). libbox ALSO soft-caps the Go heap
-//     at 45 MiB. So a 45 MiB trip point sits BELOW normal operating footprint —
-//     any bulk transfer (Telegram media) pushes phys_footprint past 45 and trips.
-//   - the trip is ResetNetwork(): it closes EVERY connection + flushes the DNS
-//     cache (route/router.go). Telegram retries, memory climbs, it trips again.
-//   - worse, the timer arms on the first critical pressure event and CANNOT
-//     disarm: the dispatch source subscribes to WARN|CRITICAL only, so the
-//     `normal`→stop() branch is dead code (service/oomkiller/service.go). Once
-//     armed it re-fires every max_interval (default 10s) forever.
-// Fix: put the trip point ABOVE the normal envelope and just below jetsam, and
-// slow the re-fire. Correct ordering is GC-soft-cap (45) < backstop (48) <
-// jetsam (50, the NE hard limit since iOS 15). 48MB means a legitimate transfer
-// (~45-47 MiB footprint) never trips it; it only catches a real runaway right
-// before the kernel would kill us. max_interval 60s caps a pathological plateau
-// at 1 reset/min instead of 6.
+// ⚠️ 2026-07-15 — the saga, and why the limit is now DELIBERATELY HUGE:
+//   - "45MB" (first cut) made it WORSE: the timer compares `memory.Total()` =
+//     task_info phys_footprint (the WHOLE process — Go heap + all native
+//     CFNetwork/TLS/tun buffers), not the Go heap. libbox soft-caps the Go heap
+//     at 45 MiB, so a 45 MiB trip point sits BELOW normal footprint — every bulk
+//     transfer tripped it, and the trip is ResetNetwork() (closes all conns +
+//     flushes DNS). Self-sustaining loop.
+//   - "48MB" was meant as a backstop just under jetsam (50). But then the user
+//     reported INSTANT disconnects on 1.0.34: the most likely mechanism is the
+//     timer tripping during the memory-heavy CONNECT phase itself (urltest
+//     cold-start heap spikes >44 MiB, per the topology comment above, + the
+//     geoip-ru download/parse) — ResetNetwork mid-handshake means the tunnel
+//     never establishes. We could not confirm on-device (no log: with no VPN the
+//     RU user can't even reach support).
+//   - The timer ALSO arms on the first critical pressure event and never disarms
+//     (the WARN|CRITICAL-only dispatch mask makes the `normal`→stop() branch dead
+//     code) — so once armed it keeps re-checking.
+//
+// So: the *whole point* of emitting this service is to disable pressure-mode.
+// We do NOT want the timer to actually fire — the fork ships a Feb-2026 oomkiller
+// prototype with the never-disarm bug, and a self-inflicted ResetNetwork is the
+// wrong tool (the mature-client playbook — Tailscale, WireGuard-iOS, Apple DTS
+// thread 44942 — is footprint discipline + jetsam as the honest backstop, NOT
+// network resets). So the limit is set ABOVE the ~50 MiB jetsam ceiling: timer
+// mode selected (pressure-mode disabled), but the timer can never trip. If the NE
+// genuinely runs away, iOS jetsams+restarts it — cleaner than a reset loop.
+//
+// The real fix (client build 1.0.35): rebase oomkiller onto current upstream
+// (disarm + hysteresis), drop the Go soft cap to ~37 MiB, plug the URLSession
+// leak — THEN a real backstop below jetsam is safe. Until then: never self-trip.
 //
 // ⚠️ Unit: sing-box's memory-unit table (sing/common/byteformats) maps "mb" to
-// MiByte — so "48MB" IS 48 MiB. "48MiB" is NOT accepted and makes sing-box
-// refuse the whole config ("unsupported unit: MiB"). Verified with `sing-box
-// check` against the fork image before shipping.
+// MiByte, and "512MiB" is REJECTED ("unsupported unit: MiB") — use "512MB".
+// Verified with `sing-box check` against the fork image before shipping.
 type clientService struct {
 	Type        string `json:"type"`
 	MemoryLimit string `json:"memory_limit,omitempty"`
