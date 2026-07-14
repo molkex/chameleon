@@ -568,7 +568,7 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 		Outbounds: allOutbounds,
 		// See clientService: without this, libbox's default oom-killer resets the
 		// whole network on any DEVICE-WIDE memory-pressure signal.
-		Services: []clientService{{Type: "oom-killer", MemoryLimit: "48MB", MaxInterval: "60s"}},
+		Services: []clientService{{Type: "oom-killer", MemoryLimit: "48MB"}},
 		Route: clientRoute{
 			Final: "Default Route",
 			RuleSet: []clientRuleSet{
