@@ -1173,8 +1173,11 @@ done:
         GOMAXPROCS(1) moved to LIBBOX-REBUILD (Go-side only, no Swift/Cgo path exists).
         358 unit tests pass (2 new isBelowWarnSingboxLine cases), full app+extension
         BUILD SUCCEEDED. Build 1.0.34(136).
-      next: "Verify on-device via the WDA rig (whoer.net storm → no new diskwrites_resource/
-        cpu_resource crash reports), then LIBBOX-REBUILD."
+      next: "DONE — verified on-device 2026-07-15 night: whoer.net storm for 5+ min, PID stable
+        (no restart), phys 29-30MB/avail 19-20MB, zero new crash reports (pymobiledevice3 crash
+        pull confirmed no 07-15 files). One new non-fatal signal: kernel wakes_resource warning
+        (778 wakes/s vs 150/s limit) ~57s in, did not kill the process. GOMAXPROCS(1) in
+        LIBBOX-REBUILD should help; not blocking. Next: LIBBOX-REBUILD."
 
     - id: OOM-JETSAM-INVESTIGATION
       title: "Root-caused the 'VPN disconnects under load / whoer.net kills it': iOS resource-kills the NE (CPU 97%, disk, memory) — logging is the amplifier"

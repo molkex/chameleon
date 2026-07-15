@@ -502,3 +502,36 @@ LIBBOX-REBUILD's already-planned memory-cap work, and not yet root-caused.
 
 **Still needed:** on-device WDA-rig verification (whoer.net storm → no new `diskwrites_resource`/
 `cpu_resource` crash reports), then LIBBOX-REBUILD.
+
+---
+
+## 2026-07-15 (night) — on-device verification: build 136 HOLDS through the whoer.net storm
+
+Drove the user's iPhone over USB (WDA rig, see `reference_autonomous_iphone_control`) right after
+they updated to 1.0.34(136): connected the VPN (Poland/waw1 exit), loaded `whoer.net/ru` in
+Safari — the exact leak-test page that killed build 135 in ~4 s — and watched.
+
+**Result: PacketTunnel PID stayed the SAME (2970) for the full ~5.25 min test window** (21
+consecutive 15 s memory-watchdog lines, no gap, no restart). `whoer.net` fully loaded and
+correctly showed the tunnel's Poland IP (217.182.74.70) — no leak, no failed load. Memory stayed
+flat: **phys 29-30 MB, avail 19-20 MB** — comparable to build 135's on-device baseline, well
+under the ~50 MB ceiling. Zero `resetting network`, zero `memory pressure: critical`. **Zero new
+crash reports of any kind** (`pymobiledevice3 crash pull -m PacketTunnel` — the newest file on
+the device is still `cpu_resource-2026-07-14-215042.ips`, from the *previous* day's testing,
+nothing from 07-15).
+
+**One new, previously-unseen kernel warning surfaced (not a kill):** ~57 s into the storm,
+`kernel[0]: process PacketTunnel[2970] caught waking the CPU 45001 times over ~57 seconds,
+averaging 778 wakes/second and violating a limit of 45000 wakes over 300 seconds.` This is the
+EXC_RESOURCE **wakeups** limit (a 4th vector, distinct from CPU-time/diskwrites/memory) — the
+process is waking the CPU too often (dispatch timers, socket I/O events, etc.), not burning CPU
+time or writing to disk. It did **not** result in a kill this time — the PID survived unchanged
+for 4+ more minutes after the warning — but it's a live signal worth taking seriously:
+`GOMAXPROCS(1)` (already queued for LIBBOX-REBUILD, per Fable's 2026-07-15 note above) directly
+addresses wakeup/scheduling overhead and should help here too. Not urgent enough to block
+LIBBOX-REBUILD, but worth citing a before/after wakeups count from `sysdiagnose` or the same
+kernel log line when that ships.
+
+**Conclusion:** NE-LOG-SINK-FIX is a real, verified fix for the diskwrites_resource + cpu_resource
+kill vectors that were killing the extension in ~4 s. LIBBOX-REBUILD remains queued for the
+memory-baseline win and now also has a second justification (the wakeups warning).
