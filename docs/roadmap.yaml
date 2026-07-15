@@ -776,6 +776,23 @@ next:
         test-DB harness. Medium effort. Engine ships DISABLED so no prod risk yet.
 
   client_reliability:
+    - id: NE-LOG-SINK-FIX
+      title: "Client build (NO libbox rebuild): filter file-log sinks to >=WARN + cap stderr.log — kills 2 of 3 iOS resource-kill vectors"
+      priority: P0
+      why: |
+        Fable+Sonnet (2026-07-15) found log.level=error is a DEVICE NO-OP: sing-box's platform
+        writer (observable.go:140) delivers every line at every level unconditionally, and
+        ExtensionProvider sets debug=true, so every packet/pressure line hits os_log + TWO
+        file sinks + a stat() per line. That's the diskwrites_resource kill (28 MB stderr.log,
+        the only uncapped sink) and most of the 97% storm CPU. Fixable in a CLIENT build.
+      plan: |
+        ExtensionPlatformInterface.swift (~372,389 + writeDebugMessage): skip both file sinks
+        for non-WARN lines, but keep realStallDetector.ingest() FIRST (it reads the raw
+        pre-filter stream). TunnelFileLogger.swift: cap stderr.log like the others (2/4 MB) and
+        replace the String(contentsOf:) full-file-read truncation with seek+truncate
+        (truncationKeepOffset helper exists). Add runtime.GOMAXPROCS(1) in the NE entrypoint.
+        Verify on-device (WDA rig): whoer.net storm → no diskwrites/cpu_resource crash reports.
+        Full detail in incident 2026-07-14-ne-oom-refilter-reset-loop.md.
     - id: LIBBOX-REBUILD
       title: "Rebuild Libbox.xcframework: lower the Go memory cap + silence oom-killer logging — the only thing that gives the NE real headroom"
       priority: P0

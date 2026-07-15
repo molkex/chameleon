@@ -381,3 +381,71 @@ Consensus all along: the only thing that moves the baseline is a **Libbox.xcfram
 
 Fable + Sonnet were consulted 2026-07-15 for the ranked rebuild plan — fold their answers in
 here next session before starting the rebuild.
+
+---
+
+## 2026-07-15 (evening) — Fable + Sonnet consulted; the log=error fix is a DEVICE-SIDE NO-OP, and the real plan
+
+### The load-bearing correction (Fable, verified in fork source)
+
+**`log.level: "error"` cannot silence ANY on-device logging** — it is not a stale config,
+it is a structural bypass in sing-box's log pipeline:
+- `sing-box-fork/log/observable.go:114` — the level early-out only fires when there is NO
+  platform writer.
+- `log/observable.go:140-142` — when a platform writer exists (always, on iOS:
+  `daemon/instance.go:109`), EVERY line at EVERY level is formatted and delivered
+  unconditionally; `l.level` gates only the internal writer.
+- `ExtensionProvider.swift:454` sets `setupOptions.debug = true` → every line crosses the
+  gomobile bridge to `ExtensionPlatformInterface.swift:393` `writeDebugMessage` → os_log
+  mirror + TWO file sinks + a `stat()` per line.
+So today's backend `Log.Level "error"` change (and ConfigSanitizer's long-standing Release
+`level="error"`) are **device no-ops**. The 97%-CPU and disk-write kills were reachable
+*despite* error level all along. **Only `emergencyNoUrltest` actually cut CPU today.**
+
+### Consensus plan (Fable + Sonnet agree)
+
+**Client build — NO libbox rebuild needed (kills 2 of 3 kill-vectors):**
+- **Raise the file-sink filter to ≥ WARN** in `ExtensionPlatformInterface.swift` (~lines
+  372, 389; `writeDebugMessage` skips both file sinks for non-WARN lines) — but keep
+  `realStallDetector?.ingest(...)` FIRST so RealTrafficStallDetector stays fed (it reads the
+  raw pre-filter stream). Eliminates the `diskwrites_resource` kill + most storm CPU.
+- **Cap `stderr.log`** in `TunnelFileLogger.swift` — it is the ONLY uncapped file sink
+  (tunnel-debug 2 MB, singbox.log 4 MB, stderr.log = unbounded → the 28 MB culprit). And
+  replace the truncation path's `String(contentsOf:)` full-file-read with a seek+truncate
+  (there's already a `truncationKeepOffset` helper) — it currently reads the whole file into
+  the ~50 MiB budget on every rollover.
+- **`runtime.GOMAXPROCS(1)`** in the NE entrypoint (Tailscale precedent) — cuts per-P
+  allocator overhead in a memory-starved extension.
+
+**Libbox rebuild (the baseline lever):**
+- `experimental/libbox/memory.go:14` — `SetMemoryLimit(45MiB)` → **35 MiB** (Fable) /
+  upstream uses 37.5 (3/4 of 50). Ship 35, measure, raise to 38 if bulk-transfer throughput
+  sags at ~50% GC CPU. Keep `SetGCPercent(10)`. Add an exported `SetMemoryLimitBytes(int64)`
+  so future tuning is build-free.
+- **Delete the default oom-killer append** (`daemon/instance.go:90-98`) OR flip
+  `command_server.go:63` `OOMKiller:false` — removes the dispatch source, the ~32/s callback,
+  the spam, and the never-disarming timer entirely. Jetsam becomes the honest backstop. The
+  backend keeps emitting the 512MB service for LEGACY clients (their libbox still appends the
+  default); the new client's ConfigSanitizer strips it.
+- Belt-and-suspenders: demote `service/oomkiller/service.go:165,170` `Warn`→`Debug`.
+- (Optional, has a caveat) fix the `observable.go:140` bypass to gate on level — BUT
+  RealTrafficStallDetector feeds on INFO `open connection` + ERROR dial-timeout lines
+  (`RealTrafficStallDetector.swift:249-268`); gating to error blinds its `successfulDials`
+  signal. If done, keep config `log.level:"info"` and take the CPU win via the Swift
+  file-sink filter instead. Simpler to skip this and do the Swift filter.
+
+**Rebuild mechanics (Fable):** `make lib_install` (pins gomobile) → `make lib_apple` (3-slice
+xcframework). Info.plist patch is NOT in build_libbox — it's the manual per-slice step
+(reference_libbox_build); skipping fails at App Store *validation*, not runtime. Upload to a
+**NEW** release tag (e.g. `libbox-v1.13.5-mem35`), NOT `--clobber` on `libbox-v1.13.5` (keep
+the known-good rollback binary); bump the tag in `clients/apple/scripts/fetch-libbox.sh`.
+
+**Verify on-device (the WDA rig):** idle phys ~20-23 MiB (was 26), start line low-30s (was
+41), whoer.net storm peak ≤ ~40 MiB with ZERO `memory pressure:` lines and no mid-line log
+silence; after a 10-min stress, pull crash reports → zero new cpu_resource/diskwrites/Jetsam.
+
+**Ranked:** (1) Go cap 45→35 [rebuild, biggest]; (2) file-sink ≥WARN + cap stderr.log [client
+build, kills 2/3 vectors, no rebuild]; (3) delete default oom-killer + Warn→Debug [rebuild];
+(4) SetMemoryLimitBytes export; (5) GOMAXPROCS=1; (6) revert emergencyNoUrltest after
+verification. Do NOT remove the 512MB service from the backend — that re-arms pressure-mode
+(the 62k-reset bug) at full frequency, since the device sits at 43-47/50.
