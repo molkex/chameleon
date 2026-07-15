@@ -579,7 +579,20 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 	_ = dnsDirect
 
 	config := clientConfig{
-		Log: clientLog{Level: "info"},
+		// 2026-07-15 (LOG-VERBOSITY): "error", not "info". At info, sing-box logs
+		// EVERY packet ("inbound packet connection") + every DNS exchange, and the
+		// oom-killer logs a WARN on every memory-pressure check (~50/s under load).
+		// In the memory-tight NE each line is a string alloc + os_log + file write —
+		// a feedback loop that makes pressure worse and bloated an exported device
+		// log to 28 MB / 227k lines (48k INFO packet lines, 60k WARN pressure lines).
+		// This used to rely on ConfigSanitizer downgrading to "error" in Release, but
+		// device logs proved INFO was still active (the Release #if wasn't taking
+		// effect, or a Debug build leaked). Emit "error" from the source so prod is
+		// quiet regardless of client build flags. The app's own TunnelFileLogger
+		// diagnostics (ui/memory/tunnel categories) are app-side os_log, NOT gated by
+		// this, so they survive. DEBUG client builds can still raise it via the
+		// sanitizer. Reaches every user on next config fetch — no client build.
+		Log: clientLog{Level: "error"},
 		DNS: clientDNSConfig{
 			Servers: []clientDNSServer{
 				// detour:"Proxy" — resolve non-RU domains THROUGH the exit so DNS

@@ -25,8 +25,13 @@ enum ConfigSanitizer {
         //    libbox. `logMaxLines` is set separately in ExtensionProvider.
         var log = (config["log"] as? [String: Any]) ?? [:]
         #if DEBUG
-        log["level"] = log["level"] ?? "info"
+        // Local debugging wants verbose engine logs; force info even though the
+        // backend now emits "error" by default (LOG-VERBOSITY 2026-07-15).
+        log["level"] = "info"
         #else
+        // Belt-and-suspenders: the backend already emits "error", but keep forcing
+        // it here so a stale cached config (or a backend regression) can't put the
+        // memory-tight NE back into per-packet INFO logging.
         log["level"] = "error"
         #endif
         log.removeValue(forKey: "output")           // no file output from extension — use TunnelFileLogger
