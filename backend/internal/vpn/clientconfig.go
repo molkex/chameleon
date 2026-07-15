@@ -350,8 +350,20 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 	// connections to dead 162.19.242.30 after urltest had already switched
 	// to de-via-msk. With interrupt=true, sing-box closes inbound conns
 	// routed through old outbound on switch — Safari pipelines auto-recreate.
-	const urltestInterval = "10s"
-	const urltestTolerance = 0
+	// 2026-07-15 (OOM-JETSAM): interval 10s→120s, tolerance 0→150.
+	// The device log showed the NE getting iOS-jetsam-killed ~4s after connect
+	// (phys_footprint hit the ~50 MiB ceiling). A 10s interval means sing-box
+	// re-probes EVERY leg (Reality-TLS handshakes = big transient allocations)
+	// six times a minute, on top of a 41 MiB baseline — constant memory churn
+	// against an 8 MiB headroom. And tolerance:0 (which serialized as the fork's
+	// forced 50ms) re-elected on any LTE jitter, tearing live connections
+	// (interrupt=true). Death-under-load is still caught immediately: the fork
+	// invalidates a leg's history on real first-write failure and re-elects, so
+	// failover doesn't wait for the 120s tick. This only stops the pointless
+	// steady-state re-probe storm. The cold-start probe spike is a separate,
+	// client-build problem (bundle geoip-ru, cut legs, lower the Go soft cap).
+	const urltestInterval = "120s"
+	const urltestTolerance = 150
 
 	autoUrltest := clientOutbound{
 		Type:                      "urltest",

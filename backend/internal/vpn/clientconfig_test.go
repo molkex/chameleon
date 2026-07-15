@@ -336,14 +336,19 @@ func TestUrltestGroupsRecoverFast(t *testing.T) {
 			t.Errorf("urltest group %q not emitted", tag)
 			continue
 		}
-		if iv, _ := g["interval"].(string); iv != "10s" {
-			t.Errorf("group %q interval=%q, want %q", tag, iv, "10s")
+		// 2026-07-15 (OOM-JETSAM): interval widened 10s→120s to stop the
+		// steady-state re-probe memory storm (Reality-TLS handshakes 6×/min
+		// against an 8 MiB NE headroom). Recovery does NOT depend on this tick —
+		// interrupt_exist_connections + the fork's first-write-failure history
+		// invalidation re-elect on real failure immediately (asserted below).
+		if iv, _ := g["interval"].(string); iv != "120s" {
+			t.Errorf("group %q interval=%q, want %q", tag, iv, "120s")
 		}
-		// Tolerance is encoded as JSON number; absent (omitempty when 0)
-		// or 0 — both are acceptable.
+		// Tolerance widened 0→150ms so ordinary LTE jitter no longer re-elects
+		// (which tore live connections via interrupt=true).
 		if tol, ok := g["tolerance"]; ok {
-			if n, _ := tol.(float64); n != 0 {
-				t.Errorf("group %q tolerance=%v, want 0 (or omitted)", tag, n)
+			if n, _ := tol.(float64); n != 150 {
+				t.Errorf("group %q tolerance=%v, want 150", tag, n)
 			}
 		}
 		// Build-40: interrupt_exist_connections MUST be true on urltest
