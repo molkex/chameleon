@@ -1158,9 +1158,11 @@ done:
         libbox-v1.13.5-mem35 (NOT --clobber on libbox-v1.13.5 — that stays as the rollback
         binary). fetch-libbox.sh default bumped to the new tag.
         Build 1.0.34(137) — shipping alongside this entry.
-      next: "Verify on-device via the WDA rig: idle/load phys_footprint before vs after (was
-        26/43-47 on build 136), whoer.net storm, zero new crash reports, zero wakes_resource
-        kernel warnings this time."
+      next: "DONE — verified on-device 2026-07-15 night: idle phys ~26MB→~13MB, load phys
+        29-30MB/avail19-20MB → phys21-22MB/avail27-28MB, zero new crash reports. wakes_resource
+        warning recurred but at 220/s (was 778/s) and Safari independently triggered the same
+        warning on the same page — downgraded from kill-vector to soft signal, not urgent.
+        NE-LOG-SINK-FIX + LIBBOX-REBUILD together close the 2026-07-14/15 OOM-JETSAM saga."
 
     - id: NE-LOG-SINK-FIX
       title: "Client build (NO libbox rebuild): file-log sinks raised INFO→WARN — kills the diskwrites_resource + most cpu_resource kill-vectors"
