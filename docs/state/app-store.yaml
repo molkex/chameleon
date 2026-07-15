@@ -119,30 +119,48 @@ apns:
 # Live App Store version. `READY_FOR_SALE` = users can install via App Store.
 versions:
   current:
-    version: "1.0.32"    # ⚠️ corrected 2026-07-11 — was showing 1.0.28/91 (a full generation
-    build: 113            # stale). See the file-level warning above for sourcing.
-    appStoreState: READY_FOR_SALE     # per separate audit's direct ASC API check, 2026-07-11
-    asc_version_id: NOT RE-FETCHED — was d9d28448-... for the OLD 1.0.28 entry, do not reuse
-    asc_build_id: NOT RE-FETCHED — was 6a033dc3-... for the OLD 1.0.28 entry, do not reuse
+    version: "1.0.33"    # ⚠️ re-verified 2026-07-15 via direct ASC API pull — was showing
+    build: 133             # 1.0.32/113 (stale, corrected 2026-07-11 note below left for history).
+    appStoreState: READY_FOR_SALE     # confirmed live 2026-07-15
+    asc_version_id: df0dad86-78ee-4852-80e2-63c90af8d49f
+    asc_build_id: 793aa858-4abb-4be8-9fa4-07dcdb0d2c72   # re-verified 2026-07-15, matches build 133
     contents_note: |
-      Corresponds to the AUTH-RKN-DIRECT-IP sign-in fix per project.yaml's 2026-06-29
-      snapshot (submitted 2026-06-09). Exact `ships:` list not re-verified this session —
-      cross-check project.yaml#product.app_store.in_review (2026-06-29 wording, itself
-      describing this same 113 build before it went live) before trusting specifics below.
-    known_issues:   # STALE — carried over from the old 1.0.28 entry, not re-verified for 113
-      - "UI-FLAG-HOME (flag emoji fallback on home card) — likely fixed since 38cc596 (data-driven country flags), see project.yaml recent-log"
-      - SETTINGS-L10N (AUTO-CONNECT section in English)
+      1.0.33 shipped the RU sign-in / server-picker fixes (AUTH-RKN-DIRECT-IP era) plus the
+      2026-07-11 Fable code-quality audit batch (AppState split, dead code purge, 2 verified
+      bugs fixed) and 2026-07-13's UI polish (Auto server badge, hero layout stability).
 
-  # Latest TestFlight build. 1.0.30 (102) carries the macOS keychain re-sign
-  # fix (KEYCHAIN-MACOS). Cut as a NEW train because 1.0.29 (101) is locked in
-  # App Store review → Apple closed the 1.0.29 train (error 90186). 1.0.29's
-  # review is untouched; 1.0.30 App Store submission is a separate later step.
+  # 1.0.34 SUBMITTED to App Store review 2026-07-15 (build 138) — supersedes 1.0.33.
+  # NE-LOG-SINK-FIX + LIBBOX-REBUILD (fixed the iOS resource-kill saga, see
+  # docs/incidents/2026-07-14-ne-oom-refilter-reset-loop.md) + removed the home-screen
+  # traffic/IP stats strip (user request). On-device verified: whoer.net storm survives
+  # (was ~4s death on 135), idle memory ~26MB→~13MB, load memory 29-30MB→21-22MB avail.
+  in_review:
+    version: "1.0.34"
+    build: 138
+    appStoreState: WAITING_FOR_REVIEW
+    releaseType: AFTER_APPROVAL   # auto-releases to all users once Apple approves
+    asc_version_id: ee8db3f6-c015-4040-9ea7-cbad0fefd022
+    asc_build_id: 1329faac-3711-4dde-9069-ef8e19e82292
+    review_submission_id: 48070227-2531-476e-a316-c378ed1a4af4
+    submitted: 2026-07-15T14:44:43Z
+    whats_new_ru: "Исправлено отключение VPN под нагрузкой / Снижено потребление памяти / Упрощён главный экран / Исправления и улучшения"
+    whats_new_en: "Fixed VPN disconnects under heavy load / Reduced memory usage / Simplified home screen / Fixes and improvements"
+
+  # Latest TestFlight build. ⚠️ 2026-07-15: bumped straight to 138 — the `ships`/`note`
+  # prose below is historical (as of build 130) and NOT re-verified for 131-138. Detailed
+  # per-build history now lives in roadmap.yaml#done and docs/incidents/ (one fact, one
+  # home) — check there instead of trusting the stale narrative below.
   testflight:
-    version: "1.0.33"
-    build: 130                        # iOS; VALID + assigned to Internal Testers (id f9ad2797) 2026-07-12
-    processingState: VALID            # uploaded 2026-07-12 ~14:53Z (CI rerun after cert-limit fix)
-    build_uploaded: 2026-07-12T~14:53Z (iOS)
-    ships:
+    version: "1.0.34"
+    build: 138                        # iOS; VALID + assigned to Internal Testers, 2026-07-15
+    processingState: VALID            # uploaded 2026-07-15 ~14:33Z
+    build_uploaded: 2026-07-15T14:33Z (iOS)
+    ships_138: |
+      NE-LOG-SINK-FIX + LIBBOX-REBUILD (iOS resource-kill saga fixed, see
+      docs/incidents/2026-07-14-ne-oom-refilter-reset-loop.md) + home-screen traffic/IP
+      stats strip removed. 138 is what got submitted to App Store review as 1.0.34 (see
+      `in_review` above) — same bits, TestFlight and the review submission share the build.
+    ships_130_historical:
       - BUILD-130-CLIENT-FIXES (all 6 build:true client stability fixes from the 2026-07-11 audit —
         ENTITLEMENT-GATE P0, EXT-RACE, CONNECT-DEADLINE, INTENT-GATE-BYPASS, VPN-PROFILE-SELECT, FALLBACK-STALE-NL)
       - STALL-OPEN-BUT-DEAD (detector counts DoH-to-resolver as non-success so DNS stalls trigger recovery)

@@ -1127,6 +1127,24 @@ deferred:
 # ============================================================
 done:
   "2026-07-15":
+    - id: SUBMIT-1.0.34
+      title: "1.0.34 (build 138) submitted to App Store review"
+      notes: |
+        Submitted via ASC API (no Xcode Organizer): created appStoreVersion
+        ee8db3f6-c015-4040-9ea7-cbad0fefd022 (versionString 1.0.34, releaseType
+        AFTER_APPROVAL — auto-releases to all users once Apple approves), set What's New
+        for ru + en-US, attached build 138 (1329faac-3711-4dde-9069-ef8e19e82292, VALID),
+        created reviewSubmission 48070227-2531-476e-a316-c378ed1a4af4, added the version as
+        an item, submitted. Confirmed appStoreState: WAITING_FOR_REVIEW.
+        Ships: NE-LOG-SINK-FIX + LIBBOX-REBUILD (iOS resource-kill fixes, see
+        docs/incidents/2026-07-14-ne-oom-refilter-reset-loop.md) + removed home-screen
+        traffic/IP stats strip (user request, redesign options presented but user chose
+        outright removal — "not useful info for the user"). Live 1.0.33/133 (READY_FOR_SALE)
+        is unaffected until Apple approves 1.0.34.
+        Also re-verified + corrected docs/state/app-store.yaml's `current`/`testflight`
+        blocks — they'd drifted (still showed 1.0.32/113 as live; real live was 1.0.33/133).
+      next: "Wait for Apple review (hours to ~3 days per recent history). Auto-releases on approval."
+
     - id: LIBBOX-REBUILD
       title: "Rebuild Libbox.xcframework: Go memory cap 45→35MiB, removed implicit oom-killer, GOMAXPROCS(1) on iOS"
       incident: docs/incidents/2026-07-14-ne-oom-refilter-reset-loop.md
