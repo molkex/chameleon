@@ -535,3 +535,63 @@ kernel log line when that ships.
 **Conclusion:** NE-LOG-SINK-FIX is a real, verified fix for the diskwrites_resource + cpu_resource
 kill vectors that were killing the extension in ~4 s. LIBBOX-REBUILD remains queued for the
 memory-baseline win and now also has a second justification (the wakeups warning).
+
+---
+
+## 2026-07-15 (night) — LIBBOX-REBUILD shipped
+
+Same session, straight after the NE-LOG-SINK-FIX on-device verification above. Rebuilt
+`sing-box-fork` (branch `v1.13.5-madfrog`, commit `890a1440`) and its xcframework.
+
+**Go memory cap 45→35 MiB** (`experimental/libbox/memory.go`) — the NE was starting ~41 MiB deep
+into its ~50 MiB budget with only ~8 MiB headroom at the old 45 MiB cap; 35 leaves real margin.
+Added an exported `SetMemoryLimitBytes(int64)` for build-free future tuning.
+
+**Removed the implicit oom-killer entirely**, not just demoted its logging. Traced the full
+call chain: `command_server.go:63` set `OOMKiller: memoryLimitEnabled`, which is always true on
+iOS (`SetMemoryLimit(true)` runs at every start) → `daemon/instance.go`'s `newInstance` appended
+a bare `{Type: TypeOOMKiller}` service (no `MemoryLimit`) whenever the config didn't already
+declare one → `service/oomkiller/service.go`'s `hasTimerMode == false` branch is "pressure-monitor
+mode": every `DISPATCH_MEMORYPRESSURE_CRITICAL` event, device-wide, unconditionally calls
+`router.ResetNetwork()` — the original 62,756-reset bug from the top of this file. In practice this
+branch has been dormant since the backend started emitting an explicit `memory_limit` service
+(`common.Any` found one already present, skipped the append) — but it was a live footgun for any
+future config path that forgets to include one. Deleted the append block, then deleted the now
+fully-dead `oomKiller`/`OOMKiller` field end-to-end (struct field, options field, assignment) —
+confirmed via grep it was the *only* call site, so hardcoding it false and then removing the dead
+field entirely was safe. A config that wants an oom-killer must declare one explicitly now; jetsam
+is the sole implicit backstop.
+
+**Demoted the oom-killer's timer-mode pressure logs Warn→Debug** (`service/oomkiller/service.go`).
+These fire on device-wide memory pressure (observed ~32/s under load in the original investigation)
+and, now that NE-LOG-SINK-FIX raised the iOS client's file-sink filter to WARN+, would otherwise
+flow straight back into the log file the fix was meant to quiet — informational-only lines (timer
+mode doesn't act on them, no `ResetNetwork`) don't need to survive at WARN.
+
+**`runtime.GOMAXPROCS(1)`, iOS-only** (`experimental/libbox/setup.go`, gated on `C.IsIos`, not
+applied to Android). Added in `init()` — the earliest point the framework's own code runs (dyld
+constructor, before `Setup()`/`RedirectStderr`/`CommandServer` creation), matching Fable's
+2026-07-15 finding that no Swift/Cgo path can set this. Directly targets the wakes_resource kernel
+warning (778 wakes/s vs a 150/s budget) that surfaced during the NE-LOG-SINK-FIX on-device test
+above — Tailscale precedent for memory-constrained network extensions.
+
+**Zero server impact, confirmed structurally, not just asserted:** grepped for every importer of
+the `daemon` package — only `experimental/libbox/{command_client,command_types,command_server}.go`
+(the gomobile client bindings) reference it; the server's `cmd/` binary never does. Separately,
+`service/oomkiller/service.go` carries `//go:build darwin && cgo` — it's compiled out of the Linux
+server build (`service_stub.go` provides the stub there). So none of these four changes touch the
+`sing-box-fork:v1.13.6-userapi` server image; no docker redeploy needed.
+
+**Build process:** `make lib_install` (gomobile/gobind v0.1.12 reinstall) → `make lib_apple` (3
+slices: ios-arm64, ios-arm64_x86_64-simulator, macos-arm64_x86_64 — tvOS stripped, not shipped) →
+per-slice Info.plist patch (App Store validation, see `reference_libbox_build`) → full
+app+extension `xcodebuild build` succeeded, 358 unit tests pass. Uploaded to a **new** GitHub
+Release tag `libbox-v1.13.5-mem35` (did **not** `--clobber` `libbox-v1.13.5` — that stays the
+rollback binary if anything regresses). `fetch-libbox.sh`'s default `LIBBOX_TAG` bumped; override
+with `LIBBOX_TAG=libbox-v1.13.5` to roll back without a re-clone.
+
+**Build 1.0.34(137)** — shipped to TestFlight the same session.
+
+**Still needed:** on-device WDA-rig verification — idle/load phys_footprint before (26/43-47 MiB
+on build 136) vs after, another whoer.net storm, zero new crash reports, and specifically whether
+the wakes_resource kernel warning recurs.

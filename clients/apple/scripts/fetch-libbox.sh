@@ -3,9 +3,15 @@
 # Fetches the prebuilt Libbox.xcframework (~480 MB, git-ignored) from a GitHub
 # Release asset so CI can link against it without committing the binary.
 #
-# The framework is built from sing-box v1.13.5 via `make lib_apple` (sagernet/
-# gomobile fork) — see the libbox-build reference. We host the zipped result as a
-# release asset because the binary is too large for git and identical across PRs.
+# The framework is built from our sing-box-fork (branch v1.13.5-madfrog) via
+# `make lib_apple` (sagernet/gomobile fork) — see the libbox-build reference.
+# We host the zipped result as a release asset because the binary is too
+# large for git and identical across PRs.
+#
+# LIBBOX-REBUILD (2026-07-15, fork commit 890a1440): Go memory cap 45→35MiB,
+# removed implicit oom-killer, GOMAXPROCS(1) on iOS. See
+# docs/incidents/2026-07-14-ne-oom-refilter-reset-loop.md. Rollback: set
+# LIBBOX_TAG=libbox-v1.13.5 to get the pre-rebuild binary back.
 #
 # Idempotent: if Frameworks/Libbox.xcframework already exists (a local dev box
 # that built it), the download is skipped. Resolves TD-LIBBOX-FETCH / TEST-IOS-CI.
@@ -15,7 +21,7 @@
 set -euo pipefail
 
 REPO="${LIBBOX_REPO:-molkex/chameleon}"
-TAG="${LIBBOX_TAG:-libbox-v1.13.5}"
+TAG="${LIBBOX_TAG:-libbox-v1.13.5-mem35}"
 ASSET="Libbox.xcframework.zip"
 DEST="Frameworks"
 FRAMEWORK="$DEST/Libbox.xcframework"

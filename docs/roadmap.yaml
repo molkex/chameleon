@@ -776,29 +776,6 @@ next:
         test-DB harness. Medium effort. Engine ships DISABLED so no prod risk yet.
 
   client_reliability:
-    - id: LIBBOX-REBUILD
-      title: "Rebuild Libbox.xcframework: lower the Go memory cap + silence oom-killer logging — the only thing that gives the NE real headroom"
-      priority: P0
-      why: |
-        On-device crash reports prove the NE is iOS-resource-killed under load (CPU 97%,
-        disk-writes, memory jetsam) — see OOM-JETSAM-INVESTIGATION / incident 2026-07-14.
-        Backend-config fixes reduced it but the baseline is still ~47 MiB under load (ceiling
-        50). Only a libbox rebuild moves the baseline.
-      plan: |
-        1. experimental/libbox/memory.go: SetMemoryLimit(45MiB)→~32-37MiB, tune GOGC (mind the
-           GC death-spiral). 2. service/oomkiller/service.go ~L165: stop the per-event pressure
-           WARN (drop to Debug / gate) OR a cleaner way to disable libbox's default
-           pressure-monitor ResetNetwork without a spammy service. 3. Resolve whether the
-           oom-killer logger is gated by config log.level (determines if log=error can help).
-           4. experimental/libbox/setup.go func init(): add runtime.GOMAXPROCS(1) (Fable,
-           2026-07-15 — verified this can't be done from Swift/Cgo, must be Go-side; init()
-           runs at framework load, earliest point our code can act, right next to the existing
-           debug.SetPanicOnFault/SetTraceback calls there). Flag: may lengthen GC-pause tails
-           under bursty load with GOMEMLIMIT this tight — measure before/after CPU time via
-           measure-engine-memory.sh, not just memory. 5. make lib_apple (mind Info.plist patch
-           for App Store, 3 slices, GitHub Release re-upload — reference_libbox_build).
-           6. Verify before/after phys_footprint on-device under a whoer.net storm via the WDA
-           rig. Fold in Fable + Sonnet advice (consulted 2026-07-15, in the incident doc).
     # --- from the 2026-07-14 simplification audit (Fable), after OOM-REFILTER landed.
     # Theme: the NE has ~50 MiB and far too many moving parts competing for it.
     # Ordered by reliability-per-effort. None of these are started.
@@ -1150,6 +1127,41 @@ deferred:
 # ============================================================
 done:
   "2026-07-15":
+    - id: LIBBOX-REBUILD
+      title: "Rebuild Libbox.xcframework: Go memory cap 45→35MiB, removed implicit oom-killer, GOMAXPROCS(1) on iOS"
+      incident: docs/incidents/2026-07-14-ne-oom-refilter-reset-loop.md
+      notes: |
+        sing-box-fork (branch v1.13.5-madfrog, commit 890a1440):
+        - experimental/libbox/memory.go: Go soft memory limit 45→35 MiB (NE was starting ~41 MiB
+          deep with only ~8 MiB headroom at 45). Added exported SetMemoryLimitBytes(int64) for
+          future build-free tuning.
+        - experimental/libbox/command_server.go + daemon/instance.go + daemon/started_service.go:
+          removed the implicit oom-killer default-append entirely (was silently selecting
+          device-wide pressure-monitor mode whenever a config omitted an explicit oom-killer
+          service — the 62,756-reset-in-one-session bug). Deleted the now-fully-dead
+          oomKiller/OOMKiller field end-to-end rather than leave an inert flag. A config that
+          wants an oom-killer must declare one explicitly (ours does); jetsam is the sole
+          implicit backstop now.
+        - service/oomkiller/service.go: demoted timer-mode pressure-event logs Warn→Debug —
+          they fire on device-wide pressure (~32/s observed under load) and would otherwise
+          flow straight through the NE-LOG-SINK-FIX's new WARN+ file-sink filter.
+        - experimental/libbox/setup.go: runtime.GOMAXPROCS(1), iOS-only (gated on C.IsIos, not
+          applied to Android) — targets the wakes_resource kernel warning (778 wakes/s vs a
+          150/s budget) surfaced during NE-LOG-SINK-FIX's on-device verification.
+        Verified go build + go vet clean. Confirmed zero server impact: the daemon package is
+        client-only (gomobile bindings), the Linux server binary doesn't import it; oomkiller/
+        service.go is darwin-only (go:build tag), doesn't compile into the Linux server build —
+        no docker redeploy needed for either change.
+        Rebuilt xcframework (make lib_apple, 3 slices: ios-arm64, ios-arm64_x86_64-simulator,
+        macos-arm64_x86_64; tvOS stripped; Info.plist patched per slice). Full app+extension
+        build succeeded, 358 unit tests pass. Uploaded to a NEW GitHub Release tag
+        libbox-v1.13.5-mem35 (NOT --clobber on libbox-v1.13.5 — that stays as the rollback
+        binary). fetch-libbox.sh default bumped to the new tag.
+        Build 1.0.34(137) — shipping alongside this entry.
+      next: "Verify on-device via the WDA rig: idle/load phys_footprint before vs after (was
+        26/43-47 on build 136), whoer.net storm, zero new crash reports, zero wakes_resource
+        kernel warnings this time."
+
     - id: NE-LOG-SINK-FIX
       title: "Client build (NO libbox rebuild): file-log sinks raised INFO→WARN — kills the diskwrites_resource + most cpu_resource kill-vectors"
       incident: docs/incidents/2026-07-14-ne-oom-refilter-reset-loop.md
