@@ -67,20 +67,21 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             -quiet
 
-      - name: Build unit tests (compile-only)
+      - name: Run unit tests
         if: steps.libbox.outputs.skip_build != 'true'
         run: |
-          # build-for-testing, NOT `test`: the iOS unit-test host crashes on
-          # launch in an unsigned simulator build (the app-group container is
-          # unavailable), so RUNNING the bundle is unreliable in CI. We compile
-          # the test bundle as the gate — the project keeps its logic in pure,
-          # host-independent helpers that this verifies. See test-map.yaml
-          # (apple_note / build_for_testing).
+          # 2026-07-15: MadFrogVPNTests is now a HOST-LESS logic test target
+          # (TEST_HOST/BUNDLE_LOADER removed in project.yml), so `test` actually
+          # RUNS — no app launch, no app-group crash. Constants.sharedContainerURL
+          # falls back to a temp dir under XCTest. This replaces the old
+          # build-for-testing-only gate (which could only compile, and let two
+          # stale tests rot invisibly). Needs a concrete simulator to run on.
           if xcodebuild -list -project MadFrogVPN.xcodeproj | grep -q MadFrogVPNTests; then
-            xcodebuild build-for-testing \
+            SIM=$(xcrun simctl list devices available | grep -oE 'iPhone [0-9]+' | head -1)
+            xcodebuild test \
               -project MadFrogVPN.xcodeproj \
               -scheme MadFrogVPNTests \
-              -destination 'generic/platform=iOS Simulator' \
+              -destination "platform=iOS Simulator,name=${SIM:-iPhone 16}" \
               CODE_SIGNING_ALLOWED=NO \
               -quiet
           else

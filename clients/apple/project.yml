@@ -250,8 +250,12 @@ targets:
         product: Sentry
     settings:
       base:
-        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/MadFrogVPN.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MadFrogVPN"
-        BUNDLE_LOADER: "$(TEST_HOST)"
+        # 2026-07-15: host-less LOGIC test (no TEST_HOST/BUNDLE_LOADER). The
+        # app-hosted config crashed in an unsigned simulator (app-group
+        # container unavailable at app launch), so CI could only
+        # build-for-testing, never `test`. These are pure-logic tests
+        # (@testable import links the app module directly, no app process
+        # launches), so they RUN host-less. See docs/state/test-map.yaml.
         TARGETED_DEVICE_FAMILY: "1"
         # Auto-generate Info.plist for the test bundle. Without this,
         # `xcodebuild test` fails with "Cannot code sign because the target

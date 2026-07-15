@@ -126,12 +126,23 @@ enum AppConstants {
         // into separate sandboxes — extension logs became invisible to the UI
         // reader, and config reads/writes silently desynced. If the entitlement
         // is misconfigured we must fail loud, not pretend.
-        guard let url = FileManager.default.containerURL(
+        if let url = FileManager.default.containerURL(
             forSecurityApplicationGroupIdentifier: appGroupID
-        ) else {
-            fatalError("App Group container for '\(appGroupID)' is unavailable. Check entitlements on main app AND extension targets.")
+        ) {
+            return url
         }
-        return url
+        // Under XCTest (unsigned simulator, no provisioned app-group entitlement)
+        // there is no shared container and never can be — fall back to a temp dir
+        // so host-less logic tests can RUN instead of trapping at load. This does
+        // NOT weaken production: outside XCTest the entitlement is real, and a
+        // missing container there is still a fatal misconfiguration we refuse to
+        // paper over (extension/app would silently desync). 2026-07-15.
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+            || ProcessInfo.processInfo.environment["XCTestBundlePath"] != nil {
+            return FileManager.default.temporaryDirectory
+                .appendingPathComponent("madfrog-xctest", isDirectory: true)
+        }
+        fatalError("App Group container for '\(appGroupID)' is unavailable. Check entitlements on main app AND extension targets.")
     }
 
     static var configFileURL: URL {

@@ -214,9 +214,12 @@ final class ConfigSanitizerTests: XCTestCase {
 
         let oom = services?.first { $0["type"] as? String == "oom-killer" }
         XCTAssertNotNil(oom, "oom-killer service must be injected")
-        // NB: sing-box maps the "mb" unit to MiByte — "45MB" IS 45 MiB, and "45MiB"
-        // is rejected outright ("unsupported unit: MiB"), which fails the whole config.
-        XCTAssertEqual(oom?["memory_limit"] as? String, "45MB")
+        // 512MB (not 45/48): the service exists only to select timer mode and
+        // disable libbox's pressure-monitor auto-reset; the limit sits ABOVE the
+        // ~50 MiB jetsam ceiling so the timer never self-trips (45/48 sat at/below
+        // the operating footprint and caused reset loops / connect-time trips).
+        // sing-box maps "mb"→MiByte; "512MiB" would be rejected. See ConfigSanitizer.
+        XCTAssertEqual(oom?["memory_limit"] as? String, "512MB")
     }
 
     /// Never clobber an oom-killer the backend already configured.

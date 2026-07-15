@@ -131,12 +131,16 @@ final class VPNManagerOnDemandRulesTests: XCTestCase {
     }
 
     func testFreshProtocolDefaultsMatchKillSwitchOffState() {
-        // A brand-new profile (kill switch never touched) must already read
-        // as "off" — i.e. today's pre-fix behaviour for every existing user
-        // who hasn't opted in.
+        // A brand-new profile (kill switch never touched) must read the two
+        // fields our kill switch actually gates as "off": includeAllNetworks and
+        // enforceRoutes. NB: excludeLocalNetworks is NOT asserted here — modern
+        // iOS defaults it to TRUE on a fresh NETunnelProviderProtocol (surfaced
+        // 2026-07-15 when logic tests first RAN). That default is harmless while
+        // includeAllNetworks is false (it only matters when all traffic is
+        // captured), and applyKillSwitchSettings(enabled:false) still forces all
+        // three to false — proven by testKillSwitchDisabledClearsAllThreeBackToDefault.
         let proto = NETunnelProviderProtocol()
         XCTAssertFalse(proto.includeAllNetworks)
-        XCTAssertFalse(proto.excludeLocalNetworks)
         XCTAssertFalse(proto.enforceRoutes)
     }
 }
