@@ -119,9 +119,15 @@ targets:
       - path: PacketTunnel
         excludes:
           - "**/.DS_Store"
+          - "Resources/**"
       - path: Shared
         excludes:
           - "**/.DS_Store"
+      # Bundled geoip-ru rule-set (MEM-01): loaded from disk instead of
+      # fetched+parsed from raw.githubusercontent.com on every tunnel start.
+      # See ConfigSanitizer.swift for the remote->local rewrite.
+      - path: PacketTunnel/Resources/geoip-ru.srs
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.madfrog.vpn.tunnel
@@ -196,9 +202,13 @@ targets:
           - "**/.DS_Store"
           - "Info.plist"
           - "*.entitlements"
+          - "Resources/**"
       - path: Shared
         excludes:
           - "**/.DS_Store"
+      # Bundled geoip-ru rule-set (MEM-01) — see PacketTunnel target above.
+      - path: PacketTunnel/Resources/geoip-ru.srs
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.madfrog.vpn.mac.tunnel

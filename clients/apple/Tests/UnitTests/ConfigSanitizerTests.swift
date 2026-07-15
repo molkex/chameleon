@@ -281,6 +281,88 @@ final class ConfigSanitizerTests: XCTestCase {
         XCTAssertEqual(ru?["default"] as? String, "Proxy", "must leave the default alone when the target is not a member")
     }
 
+    // MARK: - Bundled geoip-ru rule_set (MEM-01, 2026-07-15)
+
+    /// The backend still emits geoip-ru as a `remote` rule_set (fetched +
+    /// parsed into RAM on every tunnel start, and RKN-blocked in Russia on
+    /// top of that). The sanitizer rewrites it to `local`, pointing at the
+    /// .srs bundled into the extension, so this must hold for every config
+    /// that reaches the extension — fresh from the backend or cached on
+    /// disk from a previous fetch.
+    func testRewritesRemoteGeoipRuRuleSetToLocal() throws {
+        let input = """
+        {
+          "route": {
+            "rule_set": [
+              {
+                "tag": "geoip-ru",
+                "type": "remote",
+                "format": "binary",
+                "url": "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-ru.srs",
+                "download_detour": "direct",
+                "update_interval": "168h"
+              }
+            ]
+          }
+        }
+        """
+        let dict = try parseJSON(ConfigSanitizer.sanitizeForIOS(input))
+        let ruleSets = (dict["route"] as? [String: Any])?["rule_set"] as? [[String: Any]] ?? []
+        let geoipRu = ruleSets.first { $0["tag"] as? String == "geoip-ru" }
+
+        XCTAssertEqual(geoipRu?["type"] as? String, "local")
+        XCTAssertNil(geoipRu?["url"])
+        XCTAssertNil(geoipRu?["download_detour"])
+        XCTAssertNil(geoipRu?["update_interval"])
+        let path = geoipRu?["path"] as? String
+        XCTAssertNotNil(path, "local rule_set must carry a path")
+        XCTAssertTrue(path?.hasSuffix("geoip-ru.srs") ?? false)
+        // Non-matching rule_set fields (format) untouched.
+        XCTAssertEqual(geoipRu?["format"] as? String, "binary")
+    }
+
+    /// Idempotent: re-running against an already-local entry (a cached config
+    /// this same rewrite already touched) must not reintroduce url/etc, and
+    /// must still carry a path.
+    func testGeoipRuRewriteIsIdempotentOnAlreadyLocalEntry() throws {
+        let input = """
+        {
+          "route": {
+            "rule_set": [
+              {"tag": "geoip-ru", "type": "local", "format": "binary", "path": "/old/stale/path.srs"}
+            ]
+          }
+        }
+        """
+        let dict = try parseJSON(ConfigSanitizer.sanitizeForIOS(input))
+        let ruleSets = (dict["route"] as? [String: Any])?["rule_set"] as? [[String: Any]] ?? []
+        let geoipRu = ruleSets.first { $0["tag"] as? String == "geoip-ru" }
+
+        XCTAssertEqual(geoipRu?["type"] as? String, "local")
+        XCTAssertNil(geoipRu?["url"])
+        XCTAssertNotNil(geoipRu?["path"] as? String)
+    }
+
+    /// Other rule_set entries (any future non-geoip-ru tag) must pass through
+    /// untouched — this rewrite only targets the specific geoip-ru tag.
+    func testNonGeoipRuRuleSetsUntouched() throws {
+        let input = """
+        {
+          "route": {
+            "rule_set": [
+              {"tag": "other-set", "type": "remote", "url": "https://example.com/other.srs"}
+            ]
+          }
+        }
+        """
+        let dict = try parseJSON(ConfigSanitizer.sanitizeForIOS(input))
+        let ruleSets = (dict["route"] as? [String: Any])?["rule_set"] as? [[String: Any]] ?? []
+        let other = ruleSets.first { $0["tag"] as? String == "other-set" }
+
+        XCTAssertEqual(other?["type"] as? String, "remote")
+        XCTAssertEqual(other?["url"] as? String, "https://example.com/other.srs")
+    }
+
     // MARK: - Helpers
 
     private func parseJSON(_ s: String) throws -> [String: Any] {

@@ -112,6 +112,7 @@
 		65313A361B8F13E330805908 /* APIClientSensitiveFlagTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A01555D3038E7947B6CCD7 /* APIClientSensitiveFlagTests.swift */; };
 		65DA59A2CDC30F2588EF80ED /* StatusWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7E6B6FE7A966818AE262F20 /* StatusWidget.swift */; };
 		66C604DD3B3F931BFED819E7 /* Announcement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8088B4CB467F045A63443C0F /* Announcement.swift */; };
+		673F275197C92E70C4A8593C /* geoip-ru.srs in Resources */ = {isa = PBXBuildFile; fileRef = 909406CFBB62ED3ECBA77153 /* geoip-ru.srs */; };
 		6796802AABB7434354F3280B /* LeafRankingStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD40F85317EC15AD9DC28123 /* LeafRankingStoreTests.swift */; };
 		6A8DE20C7A5B339770CC4E77 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0CB7FDF9EA71B70EF8E2BB5 /* MainView.swift */; };
 		6B44D4AE2C892A6DB3116CF4 /* L10n.swift in Sources */ = {isa = PBXBuildFile; fileRef = F48680996CDA6DA1906F2747 /* L10n.swift */; };
@@ -133,6 +134,7 @@
 		787BD10C48028CFD57C227D3 /* SubscriptionEntitlementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A238DFA5F1520E5CBB83FCD8 /* SubscriptionEntitlementTests.swift */; };
 		79F2C7E77EF95A509AFDA477 /* PingResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13544CC236C9C3C6C0D6366 /* PingResult.swift */; };
 		7A67986856838A6A79A77E10 /* WidgetVPNSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DF255FC3085B56FF435958B /* WidgetVPNSnapshot.swift */; };
+		7B87E6F3B15F64A9E31BB5D7 /* geoip-ru.srs in Resources */ = {isa = PBXBuildFile; fileRef = 909406CFBB62ED3ECBA77153 /* geoip-ru.srs */; };
 		7C73E2608B0041FD1CABB1B0 /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9165FAC1D21DF4F01B68654F /* PaywallView.swift */; };
 		7C880BC5497811CF5591B29E /* TunnelStartGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69B72B880DD016B83D0E07B6 /* TunnelStartGuard.swift */; };
 		7CAC52EDD7D631FEED620424 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 52F25CA4945E63F7C3CB0355 /* PrivacyInfo.xcprivacy */; };
@@ -441,6 +443,7 @@
 		872DE7900BBC5982BA0688E8 /* CoreLocation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreLocation.framework; path = System/Library/Frameworks/CoreLocation.framework; sourceTree = SDKROOT; };
 		8C0143BDF66872F26920B09B /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		8F6C0D910C8814F24440E9B4 /* WebPaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebPaywallView.swift; sourceTree = "<group>"; };
+		909406CFBB62ED3ECBA77153 /* geoip-ru.srs */ = {isa = PBXFileReference; path = "geoip-ru.srs"; sourceTree = "<group>"; };
 		911405BB4A76493BB81F7FD7 /* RoutingModeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutingModeTests.swift; sourceTree = "<group>"; };
 		9165FAC1D21DF4F01B68654F /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
 		9191826F2A49E0C47AF914EF /* LeafRankingStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeafRankingStore.swift; sourceTree = "<group>"; };
@@ -689,6 +692,7 @@
 				52F25CA4945E63F7C3CB0355 /* PrivacyInfo.xcprivacy */,
 				EAC879DEDEBE9302A8936940 /* RealTrafficStallDetector.swift */,
 				3B77B8C83804315DF2505934 /* TunnelStallProbe.swift */,
+				AB308CE4062E76AA70D26159 /* Resources */,
 			);
 			path = PacketTunnel;
 			sourceTree = "<group>";
@@ -826,6 +830,14 @@
 				6EEC108E284B59CB79FB98A0 /* Frameworks */,
 				EC3A3EDD394553EF29F1AA2D /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		AB308CE4062E76AA70D26159 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				909406CFBB62ED3ECBA77153 /* geoip-ru.srs */,
+			);
+			path = Resources;
 			sourceTree = "<group>";
 		};
 		CDC7399CAEC6EE6BE7428F09 /* clients */ = {
@@ -1070,6 +1082,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C40B67C0BBCEDFEE24159E85 /* PrivacyInfo.xcprivacy in Resources */,
+				7B87E6F3B15F64A9E31BB5D7 /* geoip-ru.srs in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1102,6 +1115,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				7CAC52EDD7D631FEED620424 /* PrivacyInfo.xcprivacy in Resources */,
+				673F275197C92E70C4A8593C /* geoip-ru.srs in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

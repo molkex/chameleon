@@ -24,13 +24,13 @@ open class ExtensionProvider: NEPacketTunnelProvider {
     /// completion that races a fast `stopTunnel` (see TunnelStartGuard doc).
     private let startGuard = TunnelStartGuard()
 
-    /// Build-39 stall detector. Lives only while sing-box is running.
-    /// Catches the dead-leaf scenario the main-app TrafficHealthMonitor
-    /// can't reach when the user is in Safari and MadFrog is suspended.
-    /// Build-44: kept as a passive diagnostic only — `RealTrafficStallDetector`
-    /// below is the new authoritative source for stall signals because
-    /// synthetic probes (which is what TunnelStallProbe does) gave
-    /// false-OK readings while real user traffic was timing out.
+    /// MEM-01 (2026-07-15): no longer a probe loop — its periodic 15 s
+    /// synthetic GET (own ephemeral URLSession per tick, never invalidated)
+    /// was an unbounded native-memory leak inside the extension's ~50 MiB
+    /// jetsam budget. `RealTrafficStallDetector` below is the authoritative
+    /// stall signal; this now only exists to `nudgeNow()` — force sing-box
+    /// to re-probe its urltest groups immediately when a real stall fires.
+    /// See TunnelStallProbe.swift.
     private var stallProbe: TunnelStallProbe?
 
     /// Build-44 real-traffic stall detector. Subscribes to every
@@ -182,30 +182,12 @@ open class ExtensionProvider: NEPacketTunnelProvider {
         // resurrecting a stale 'connected' signal. See TunnelStartGuard.
         let startToken = startGuard.beginGeneration()
 
-        // iOS NE extension 50 MB hard cap — jetsam SIGKILLs us past that. Pin Go
-        // runtime so GC runs aggressively before we hit the wall.
-        // GOMEMLIMIT is a soft target (Go 1.19+); GOGC=25 makes GC run 4× more
-        // often than default (100). These MUST be set before libbox init loads
-        // the Go runtime. Matches practice of Hiddify/sfi.
-        //
-        // 2026-06-21 (PRODUCT-MATURITY-LOOP): lowered 42MiB → 38MiB. Real device
-        // logs show the libbox oom-killer (LibboxSetMemoryLimit) resetting the
-        // network at 40 MiB. The old 42MiB GOMEMLIMIT sat ABOVE that trip, so Go
-        // never pressed before the fork reset — it was inert. 38MiB is below the
-        // trip, so the runtime GCs/releases under 40 first. This can only free
-        // more memory (worst case = a little extra GC CPU); verify resets drop via
-        // the on-device memory watchdog log before tuning further.
-        setenv("GOMEMLIMIT", "38MiB", 1)
-        setenv("GOGC", "25", 1)
-        setenv("GODEBUG", "madvdontneed=1", 1)
-
         // Do NOT clear log here — we lose all UI-side logs written before tunnel starts
         // (toggleVPN, connect button taps). Log rotation happens at 512KB anyway.
         // Sync flush for the boot markers: if jetsam kills us in the first few
         // seconds these lines are the only diagnostic the user can surface.
         TunnelFileLogger.logSync("========== TUNNEL START ==========")
         TunnelFileLogger.logSync("libbox version: \(LibboxVersion())")
-        TunnelFileLogger.logSync("GOMEMLIMIT=38MiB GOGC=25 — below the 40MiB oom-killer trip", category: "memory")
         TunnelFileLogger.log("options keys: \(options?.keys.joined(separator: ", ") ?? "nil")")
 
         // If user just stopped VPN from iOS Settings, On Demand will try to restart immediately.
@@ -398,13 +380,10 @@ open class ExtensionProvider: NEPacketTunnelProvider {
         realStallDetector = detector
         platformInterface?.realStallDetector = detector
 
-        let probe = TunnelStallProbe()
-        stallProbe = probe
-        probe.start()
+        stallProbe = TunnelStallProbe()
     }
 
     private func stopStallProbe() {
-        stallProbe?.stop()
         stallProbe = nil
         platformInterface?.realStallDetector = nil
         realStallDetector = nil

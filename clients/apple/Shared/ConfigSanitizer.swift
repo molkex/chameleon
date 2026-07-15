@@ -139,6 +139,43 @@ enum ConfigSanitizer {
         }
         config["services"] = services
 
+        // 8. Rewrite the geoip-ru rule_set from remote to local.
+        //
+        //    The backend emits {type:"remote", url:"https://raw.githubusercontent.com/
+        //    SagerNet/sing-geoip/rule-set/geoip-ru.srs", download_detour:"direct",
+        //    update_interval:"168h"}. That downloads AND parses a ~50 KB .srs into RAM
+        //    on EVERY tunnel start — rule 4 above strips experimental.cache_file, so
+        //    there's no on-disk cache to skip the re-fetch. raw.githubusercontent.com
+        //    is also RKN-blocked in Russia, so this was a reliability footgun on top
+        //    of the memory cost. The .srs is now bundled straight into the extension
+        //    (PacketTunnel/PacketTunnelMac target resources — see project.yml), so we
+        //    can point sing-box at the file on disk: zero network, no parse-from-HTTP
+        //    overhead.
+        //
+        //    Matched by tag, not url — so this is idempotent whether the entry
+        //    arrives remote (fresh backend config) or already-local (a config this
+        //    same rewrite already touched). `Bundle.main` resolves to whichever
+        //    process is actually executing this file; the rewrite that matters is
+        //    the one ExtensionProvider runs right before starting the tunnel, where
+        //    Bundle.main is the extension's own .appex, which is where the resource
+        //    is bundled. Fall back to a bundlePath-relative guess (never emitting a
+        //    pathless local rule_set) for hosts that don't carry the resource —
+        //    e.g. MadFrogVPNTests, injected into the main app bundle.
+        if var route = config["route"] as? [String: Any],
+           var ruleSets = route["rule_set"] as? [[String: Any]] {
+            for i in ruleSets.indices {
+                guard ruleSets[i]["tag"] as? String == "geoip-ru" else { continue }
+                ruleSets[i]["type"] = "local"
+                ruleSets[i].removeValue(forKey: "url")
+                ruleSets[i].removeValue(forKey: "download_detour")
+                ruleSets[i].removeValue(forKey: "update_interval")
+                ruleSets[i]["path"] = Bundle.main.path(forResource: "geoip-ru", ofType: "srs")
+                    ?? (Bundle.main.bundlePath as NSString).appendingPathComponent("geoip-ru.srs")
+            }
+            route["rule_set"] = ruleSets
+            config["route"] = route
+        }
+
         guard let sanitized = try? JSONSerialization.data(withJSONObject: config, options: []),
               let result = String(data: sanitized, encoding: .utf8) else {
             return configJSON
