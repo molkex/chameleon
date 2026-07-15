@@ -269,3 +269,57 @@ upstream (disarm + hysteresis), drop the Go soft cap to ~37 MiB, plug the
 TunnelStallProbe URLSession leak. Only then is a real backstop below jetsam safe. The
 whole episode is the cautionary tale for invariant I-1 in ADR 0014 (never tune NE
 memory blind — measure on-device before/after).
+
+---
+
+## 2026-07-15 (midday) — the real root cause: iOS jetsam, not the oom-killer
+
+A fresh 231k-line device log (1.0.34, running the 512MB oom config) settled it. With
+`memory_limit: 512MB` the oom-killer timer no longer fires — the log shows
+`memory pressure: critical` as WARN only, **no `resetting network`**. So the oom-killer
+saga was, from the start, treating a symptom. The real failure:
+
+- `sing-box started successfully (memory: 41MB/8MB avail)` — the NE starts **41 MiB**
+  deep into its ~50 MiB budget, 8 MiB headroom.
+- At cold start, urltest immediately probes **every leg** (nl-direct-nl2, nl-via-msk,
+  pl-via-msk) — concurrent Reality-TLS handshakes — plus the geoip-ru remote
+  fetch+parse. phys_footprint crosses the ~50 MiB hard ceiling.
+- The `[singbox]` log goes **silent mid-line at 12:06:26**, ~4 s after connect; the app
+  sees `status=1` at 12:06:52. No graceful stop, no oom log — the signature of an **iOS
+  jetsam SIGKILL** (a process can't log its own kill). 22 tunnel starts in one log = the
+  device reconnecting into the same wall over and over.
+
+So: my earlier oom-killer tuning (45→48→512 MB) correctly removed the self-inflicted
+resets but **exposed** the underlying bloat — the NE is genuinely too fat and iOS kills
+it. No backend oom setting can fix that.
+
+### Fixes (2026-07-15)
+
+**Emergency, backend, no build (deployed):** `emergencyNoUrltest` in clientconfig.go —
+Proxy becomes a PLAIN selector over the raw legs, default nl-direct-nl2 (the leg urltest
+itself picked, 42 ms in the log). A plain selector dials **only the default** at cold
+start → one handshake → the NE stays under the ceiling. Auto + country urltest groups
+are not emitted. Cost: no auto RTT-selection / cross-leg failover (owner explicitly
+accepted this stopgap); both countries stay manually selectable. One-line revert.
+
+**Real fix, client build 1.0.34 (135):** NE memory diet —
+1. **geoip-ru.srs bundled** into the extension; ConfigSanitizer rewrites the remote
+   rule_set to `{type:"local", path}`. Kills the per-start download+parse AND the
+   RKN-blocked-GitHub dependency. Local form validated with `sing-box check`.
+2. **TunnelStallProbe URLSession leak deleted** — it created a new ephemeral URLSession
+   every 15 s without invalidation (unbounded native-memory growth). `nudgeNow` kept.
+3. **Inert setenv GOMEMLIMIT block deleted** (ran too late, overridden by
+   LibboxSetMemoryLimit — never took effect).
+
+Once 135 is verified on-device to hold under the ceiling, flip `emergencyNoUrltest` back
+to false to restore auto-selection. The deeper baseline cut (lower the Go soft memory
+cap, needs a libbox rebuild) stays a follow-up — the 41 MiB baseline is mostly libbox +
+Go runtime, and only a rebuild moves it materially.
+
+### Lesson (reinforces ADR 0014, invariant I-1)
+
+Do not tune NE memory blind. Every one of the 45→48→512 MB steps was a guess without an
+on-device before/after number, and each shifted the symptom instead of fixing it. The
+device log — not reasoning — is what finally identified jetsam. The exportable
+`TunnelFileLogger` (with the `memory: NN MB/NN avail` line) is the measurement of record;
+every NE-memory change must cite a before/after from it.
