@@ -454,6 +454,35 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 		InterruptExistConnections: boolPtr(true),
 	}
 
+	// 2026-07-15 (OOM-JETSAM EMERGENCY): when true, the config drops the urltest
+	// machinery entirely — Proxy becomes a PLAIN selector over the raw legs,
+	// defaulting to the first direct leg. Why: a device log proved the NE gets
+	// iOS-jetsam-killed ~4s after connect because urltest probes EVERY leg
+	// (concurrent Reality-TLS handshakes) at cold start on top of a 41 MiB
+	// baseline (8 MiB headroom). A plain selector dials ONLY the default leg at
+	// start → one handshake → the NE stays under the ~50 MiB ceiling. Cost:
+	// no automatic RTT selection / cross-leg failover (the user picks manually;
+	// the fork still re-dials on hard failure of the active leg). All legs stay
+	// selectable members, so both countries remain reachable from the picker.
+	// REVERT: set to false once the client memory diet ships (1.0.35) and the NE
+	// footprint has real headroom. The urltest groups below are simply not
+	// emitted while this is on.
+	const emergencyNoUrltest = true
+	if emergencyNoUrltest && len(sortedLeaves) > 0 {
+		leanMembers := append([]string(nil), sortedLeaves...)
+		if whitelistGroupTag != "" {
+			leanMembers = append(leanMembers, whitelistGroupTag)
+		}
+		leanMembers = append(leanMembers, whitelistLegs...)
+		proxyOutbound = clientOutbound{
+			Type:                      "selector",
+			Tag:                       "Proxy",
+			Outbounds:                 leanMembers,
+			Default:                   sortedLeaves[0], // legSortKey puts a "-direct-" leg first
+			InterruptExistConnections: boolPtr(true),
+		}
+	}
+
 	// --- Mode selectors ---
 	// Routing mode is implemented via selectors the app flips over the Clash
 	// API; no reconnect needed. See RoutingMode.selectorTargets (iOS).
@@ -518,8 +547,14 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 	//   System                      → direct, block
 	allOutbounds := []clientOutbound{proxyOutbound}
 	allOutbounds = append(allOutbounds, ruTrafficOutbound, blockedTrafficOutbound, defaultRouteOutbound)
-	allOutbounds = append(allOutbounds, autoUrltest)
-	allOutbounds = append(allOutbounds, countryGroups...)
+	// Emergency lean mode omits the urltest groups (see emergencyNoUrltest): with
+	// Proxy a plain selector, nothing references Auto/country groups, and emitting
+	// them would still make sing-box probe every leg at cold start — the whole
+	// thing we're avoiding.
+	if !emergencyNoUrltest {
+		allOutbounds = append(allOutbounds, autoUrltest)
+		allOutbounds = append(allOutbounds, countryGroups...)
+	}
 	if whitelistGroupOutbound != nil {
 		allOutbounds = append(allOutbounds, *whitelistGroupOutbound)
 	}
