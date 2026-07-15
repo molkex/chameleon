@@ -776,23 +776,6 @@ next:
         test-DB harness. Medium effort. Engine ships DISABLED so no prod risk yet.
 
   client_reliability:
-    - id: NE-LOG-SINK-FIX
-      title: "Client build (NO libbox rebuild): filter file-log sinks to >=WARN + cap stderr.log — kills 2 of 3 iOS resource-kill vectors"
-      priority: P0
-      why: |
-        Fable+Sonnet (2026-07-15) found log.level=error is a DEVICE NO-OP: sing-box's platform
-        writer (observable.go:140) delivers every line at every level unconditionally, and
-        ExtensionProvider sets debug=true, so every packet/pressure line hits os_log + TWO
-        file sinks + a stat() per line. That's the diskwrites_resource kill (28 MB stderr.log,
-        the only uncapped sink) and most of the 97% storm CPU. Fixable in a CLIENT build.
-      plan: |
-        ExtensionPlatformInterface.swift (~372,389 + writeDebugMessage): skip both file sinks
-        for non-WARN lines, but keep realStallDetector.ingest() FIRST (it reads the raw
-        pre-filter stream). TunnelFileLogger.swift: cap stderr.log like the others (2/4 MB) and
-        replace the String(contentsOf:) full-file-read truncation with seek+truncate
-        (truncationKeepOffset helper exists). Add runtime.GOMAXPROCS(1) in the NE entrypoint.
-        Verify on-device (WDA rig): whoer.net storm → no diskwrites/cpu_resource crash reports.
-        Full detail in incident 2026-07-14-ne-oom-refilter-reset-loop.md.
     - id: LIBBOX-REBUILD
       title: "Rebuild Libbox.xcframework: lower the Go memory cap + silence oom-killer logging — the only thing that gives the NE real headroom"
       priority: P0
@@ -807,10 +790,15 @@ next:
            WARN (drop to Debug / gate) OR a cleaner way to disable libbox's default
            pressure-monitor ResetNetwork without a spammy service. 3. Resolve whether the
            oom-killer logger is gated by config log.level (determines if log=error can help).
-           4. make lib_apple (mind Info.plist patch for App Store, 3 slices, GitHub Release
-           re-upload — reference_libbox_build). 5. Verify before/after phys_footprint on-device
-           under a whoer.net storm via the WDA rig. Fold in Fable + Sonnet advice (consulted
-           2026-07-15, in the incident doc).
+           4. experimental/libbox/setup.go func init(): add runtime.GOMAXPROCS(1) (Fable,
+           2026-07-15 — verified this can't be done from Swift/Cgo, must be Go-side; init()
+           runs at framework load, earliest point our code can act, right next to the existing
+           debug.SetPanicOnFault/SetTraceback calls there). Flag: may lengthen GC-pause tails
+           under bursty load with GOMEMLIMIT this tight — measure before/after CPU time via
+           measure-engine-memory.sh, not just memory. 5. make lib_apple (mind Info.plist patch
+           for App Store, 3 slices, GitHub Release re-upload — reference_libbox_build).
+           6. Verify before/after phys_footprint on-device under a whoer.net storm via the WDA
+           rig. Fold in Fable + Sonnet advice (consulted 2026-07-15, in the incident doc).
     # --- from the 2026-07-14 simplification audit (Fable), after OOM-REFILTER landed.
     # Theme: the NE has ~50 MiB and far too many moving parts competing for it.
     # Ordered by reliability-per-effort. None of these are started.
@@ -1162,6 +1150,32 @@ deferred:
 # ============================================================
 done:
   "2026-07-15":
+    - id: NE-LOG-SINK-FIX
+      title: "Client build (NO libbox rebuild): file-log sinks raised INFO→WARN — kills the diskwrites_resource + most cpu_resource kill-vectors"
+      incident: docs/incidents/2026-07-14-ne-oom-refilter-reset-loop.md
+      notes: |
+        ExtensionPlatformInterface.swift writeLogs/writeMessage: guard level >=2 → >=3.
+        writeDebugMessage: isVerboseSingboxLine (dropped TRACE/DEBUG) → isBelowWarnSingboxLine
+        (also drops INFO), sharing a stripLeadingANSI helper; realStallDetector.ingest() still
+        gets every line FIRST (raw pre-filter stream), unaffected. TunnelFileLogger.swift:
+        writeToFile's own truncation (tunnel-debug.log, was String(contentsOf:) full-file-read)
+        now seeks+truncates via the existing truncationKeepOffset helper, same pattern
+        singbox.log already used. Dropped the per-line fsync (handle.synchronize()) entirely —
+        Fable-verified it guards kernel panic/power loss, not jetsam SIGKILL (a written line
+        survives the process dying via the kernel page cache regardless), and forcing a
+        physical write per line was pure diskwrites budget for nothing; logSync()'s queue.sync
+        is what actually protects against a SIGKILL racing an unflushed async write.
+        Consulted Fable mid-session on the original plan's "cap stderr.log" bullet — REFUTED:
+        stderr.log is written once, at process death, via Go's debug.SetCrashOutput (fork
+        experimental/libbox/log.go RedirectStderr), not an ongoing stream; a periodic Swift
+        truncation watchdog would be pure overhead and risks silently killing crash forensics
+        if ever done with `.atomic`/full-file-read (breaks the dup'd fd's inode). Left untouched.
+        GOMAXPROCS(1) moved to LIBBOX-REBUILD (Go-side only, no Swift/Cgo path exists).
+        358 unit tests pass (2 new isBelowWarnSingboxLine cases), full app+extension
+        BUILD SUCCEEDED. Build 1.0.34(136).
+      next: "Verify on-device via the WDA rig (whoer.net storm → no new diskwrites_resource/
+        cpu_resource crash reports), then LIBBOX-REBUILD."
+
     - id: OOM-JETSAM-INVESTIGATION
       title: "Root-caused the 'VPN disconnects under load / whoer.net kills it': iOS resource-kills the NE (CPU 97%, disk, memory) — logging is the amplifier"
       incident: docs/incidents/2026-07-14-ne-oom-refilter-reset-loop.md

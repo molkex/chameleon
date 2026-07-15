@@ -55,13 +55,34 @@ enum TunnelFileLogger {
     /// Pure + unit-tested. The caller still feeds EVERY line to the stall detector
     /// first; only the file write is skipped.
     static func isVerboseSingboxLine(_ message: String) -> Bool {
-        // Skip a leading ANSI SGR escape ("\u{1b}[…m") so we read the level token.
+        let s = stripLeadingANSI(message)
+        return s.hasPrefix("TRACE") || s.hasPrefix("DEBUG")
+    }
+
+    /// True when a raw sing-box log line is below WARN (TRACE/DEBUG/INFO).
+    /// NE-LOG-SINK-FIX (2026-07-15): iOS killed the extension via the
+    /// `diskwrites_resource` + `cpu_resource` limits under load — sing-box's
+    /// platform log writer delivers EVERY line at EVERY level unconditionally
+    /// once `setupOptions.debug = true` (fork `log/observable.go:140`), so
+    /// config `log.level` never gates this callback. Raising the file-sink
+    /// threshold to WARN here (in Swift, where we can actually enforce it)
+    /// is what cuts the write volume. `writeDebugMessage` still feeds
+    /// `realStallDetector.ingest()` with EVERY line first — this only gates
+    /// the file sinks.
+    static func isBelowWarnSingboxLine(_ message: String) -> Bool {
+        let s = stripLeadingANSI(message)
+        return s.hasPrefix("TRACE") || s.hasPrefix("DEBUG") || s.hasPrefix("INFO")
+    }
+
+    /// Skip a leading ANSI SGR escape ("\u{1b}[…m") so callers read the level
+    /// token. Shared by `isVerboseSingboxLine` and `isBelowWarnSingboxLine`.
+    private static func stripLeadingANSI(_ message: String) -> Substring {
         var s = Substring(message)
         while s.first == "\u{1b}" {
             guard let m = s.firstIndex(of: "m") else { break }
             s = s[s.index(after: m)...]
         }
-        return s.hasPrefix("TRACE") || s.hasPrefix("DEBUG")
+        return s
     }
 
     /// Primary write path: App Group container root. Confirmed writable
@@ -168,13 +189,19 @@ enum TunnelFileLogger {
             }
         }
 
-        // Truncate-to-half if we crossed the cap.
+        // Truncate-to-half if we crossed the cap. Seek+truncate (like the
+        // singbox.log path in ExtensionPlatformInterface.writeDebugMessage)
+        // instead of String(contentsOf:) — never loads the whole file into
+        // the NE's ~50 MB budget just to drop the first half of it. Must
+        // stay non-atomic (same inode) — see truncationKeepOffset's callers.
         if let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
-           let size = attrs[.size] as? Int, size > maxFileSize {
-            if let content = try? String(contentsOf: url, encoding: .utf8) {
-                let halfIndex = content.index(content.startIndex, offsetBy: content.count / 2)
-                let trimmed = "--- log truncated ---\n" + String(content[halfIndex...])
-                try? trimmed.write(to: url, atomically: true, encoding: .utf8)
+           let size = attrs[.size] as? Int,
+           let offset = truncationKeepOffset(fileSize: size, maxSize: maxFileSize) {
+            if let rh = try? FileHandle(forReadingFrom: url) {
+                defer { try? rh.close() }
+                _ = try? rh.seek(toOffset: offset)
+                let tail = (try? rh.readToEnd()) ?? Data()
+                try? (Data("--- log truncated ---\n".utf8) + tail).write(to: url)
             }
         }
 
@@ -182,7 +209,13 @@ enum TunnelFileLogger {
             let handle = try FileHandle(forWritingTo: url)
             try handle.seek(toOffset: handle.seekToEndOfFile())
             try handle.write(contentsOf: data)
-            try handle.synchronize()
+            // NE-LOG-SINK-FIX: no fsync. It guards against kernel panic/power
+            // loss, not jetsam SIGKILL — a written line survives the process
+            // dying regardless (kernel page cache), and it's the same-machine
+            // App Group container, so readers see it the instant write()
+            // returns. logSync()'s queue.sync is what actually protects
+            // against a SIGKILL racing an unflushed async write. Forcing a
+            // physical write per line was pure diskwrites budget for nothing.
             try handle.close()
         } catch {
             osLogger.error("writeToFile failed at \(url.path, privacy: .public): \(error.localizedDescription, privacy: .public)")

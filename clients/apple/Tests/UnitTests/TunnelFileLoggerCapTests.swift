@@ -56,4 +56,29 @@ final class TunnelFileLoggerCapTests: XCTestCase {
         XCTAssertFalse(TunnelFileLogger.isVerboseSingboxLine(
             "\(Self.esc)[36mINFO\(Self.esc)[0m[1] dns: exchange debug.example.com. IN A"))
     }
+
+    // MARK: - isBelowWarnSingboxLine (NE-LOG-SINK-FIX: drop TRACE/DEBUG/INFO)
+
+    func testBelowWarnLevelsDropped() {
+        XCTAssertTrue(TunnelFileLogger.isBelowWarnSingboxLine(
+            "\(Self.esc)[37mDEBUG\(Self.esc)[0m[4731] dns: exchange strm.yandex.ru. IN A"))
+        XCTAssertTrue(TunnelFileLogger.isBelowWarnSingboxLine(
+            "\(Self.esc)[37mTRACE\(Self.esc)[0m[0001] service: start"))
+        XCTAssertTrue(TunnelFileLogger.isBelowWarnSingboxLine("DEBUG[4731] router: match"))
+        // INFO is the delta vs isVerboseSingboxLine — now also dropped.
+        XCTAssertTrue(TunnelFileLogger.isBelowWarnSingboxLine(
+            "\(Self.esc)[36mINFO\(Self.esc)[0m[4731] outbound/vless[nl-direct-nl2]: outbound connection"))
+    }
+
+    func testWarnAndAboveKeptByBelowWarn() {
+        XCTAssertFalse(TunnelFileLogger.isBelowWarnSingboxLine(
+            "\(Self.esc)[33mWARN\(Self.esc)[0m[4731] service/oom-killer: memory pressure"))
+        XCTAssertFalse(TunnelFileLogger.isBelowWarnSingboxLine(
+            "\(Self.esc)[31mERROR\(Self.esc)[0m[4731] service/oom-killer: resetting network"))
+        XCTAssertFalse(TunnelFileLogger.isBelowWarnSingboxLine("WARN something"))
+        XCTAssertFalse(TunnelFileLogger.isBelowWarnSingboxLine(""))
+        // A domain containing "info" must NOT be misread as an INFO line.
+        XCTAssertFalse(TunnelFileLogger.isBelowWarnSingboxLine(
+            "\(Self.esc)[33mWARN\(Self.esc)[0m[1] dns: exchange info.example.com. IN A"))
+    }
 }

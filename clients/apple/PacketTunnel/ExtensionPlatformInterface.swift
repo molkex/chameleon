@@ -363,13 +363,14 @@ extension ExtensionPlatformInterface: LibboxCommandServerHandlerProtocol {
             // Build-44: feed EVERY line to the stall detector (it fast-paths
             // non-dial events), regardless of the file-sink filter below.
             realStallDetector?.ingest(level: entry.level, message: entry.message)
-            // LOG-01 / NE-memory (build 99): drop TRACE(0)/DEBUG(1) before the
-            // file sink. libbox emits them regardless of config log.level, and
-            // writing the flood (the captured logs were 18 MB) is a top allocator
-            // inside the ~50 MB NetworkExtension jetsam cap — sing-box's oom-killer
-            // thrashed "resetting network" at ~46 MiB and crashed the tunnel on
-            // connect. Keep INFO+ (≥2) for diagnostics.
-            guard entry.level >= 2 else { continue }
+            // NE-LOG-SINK-FIX (2026-07-15): raised INFO(2)→WARN(3). On-device
+            // crash reports proved the file-sink volume at INFO was itself
+            // enough to trip iOS's diskwrites_resource + cpu_resource limits
+            // under load (a whoer.net connection storm killed the extension
+            // in ~4s) — config log.level never gates this callback (fork
+            // log/observable.go:140 delivers every line once a platform
+            // writer exists), so only a Swift-side threshold can cut it.
+            guard entry.level >= 3 else { continue }
             let levelStr: String
             switch entry.level {
             case 2: levelStr = "INFO"
@@ -385,8 +386,8 @@ extension ExtensionPlatformInterface: LibboxCommandServerHandlerProtocol {
     func writeMessage(_ level: Int32, message: String?) {
         guard let message else { return }
         realStallDetector?.ingest(level: level, message: message)
-        // LOG-01 / NE-memory: keep INFO+ only out of the file sink (see writeLogs).
-        guard level >= 2 else { return }
+        // NE-LOG-SINK-FIX: keep WARN+ only out of the file sink (see writeLogs).
+        guard level >= 3 else { return }
         TunnelFileLogger.log("[L\(level)] \(message)", category: "singbox")
     }
 
@@ -397,12 +398,14 @@ extension ExtensionPlatformInterface: LibboxCommandServerHandlerProtocol {
         // dial events even at DEBUG level. Its fast-path filter ignores anything
         // that's not a dial pattern.
         realStallDetector?.ingest(level: 2, message: message)
-        // LOG-01 / NE-memory: drop TRACE/DEBUG from the file sinks (keep INFO+),
-        // consistent with the build-99 filter on writeLogs/writeMessage which
-        // MISSED this callback. libbox floods it with DEBUG regardless of config
-        // log.level; writing ~37% of lines is a top allocator under the ~50 MB NE
-        // cap and feeds the oom-killer "resetting network" drops.
-        guard !TunnelFileLogger.isVerboseSingboxLine(message) else { return }
+        // NE-LOG-SINK-FIX (2026-07-15): raised TRACE/DEBUG→also-drop-INFO
+        // (isVerboseSingboxLine → isBelowWarnSingboxLine), matching the
+        // writeLogs/writeMessage threshold. This callback carries the bulk of
+        // sing-box's stderr-formatted stream and was confirmed the top
+        // contributor to the on-device diskwrites_resource + cpu_resource
+        // kills (a whoer.net storm killed the extension in ~4s at INFO).
+        // config log.level cannot gate this (fork log/observable.go:140).
+        guard !TunnelFileLogger.isBelowWarnSingboxLine(message) else { return }
         // Forward sing-box messages to our file logger too. libbox calls this
         // from arbitrary background threads — funnel writes through a serial
         // queue so concurrent emissions don't interleave (which used to corrupt

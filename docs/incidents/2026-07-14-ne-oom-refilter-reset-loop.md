@@ -449,3 +449,56 @@ build, kills 2/3 vectors, no rebuild]; (3) delete default oom-killer + Warn→De
 (4) SetMemoryLimitBytes export; (5) GOMAXPROCS=1; (6) revert emergencyNoUrltest after
 verification. Do NOT remove the 512MB service from the backend — that re-arms pressure-mode
 (the 62k-reset bug) at full frequency, since the device sits at 43-47/50.
+
+---
+
+## 2026-07-15 (night) — NE-LOG-SINK-FIX shipped; the "cap stderr.log" bullet above was wrong
+
+Implemented item (2) from the ranked plan above, but re-verified the stderr.log half with Fable
+mid-implementation rather than trust the earlier write-up, since capping a file our own Swift
+code never writes to (it's a native `LibboxRedirectStderr` fd redirect) needed a real mechanism,
+not a guess.
+
+**Finding: "cap stderr.log" was wrong, and worse than a no-op if implemented naively.**
+`experimental/libbox/log.go RedirectStderr` doesn't dup2 the process's raw fd 2 — it calls Go's
+stdlib `runtime/debug.SetCrashOutput(outputFile, ...)` (confirmed against Go 1.26 runtime source,
+`writeErrData` in `runtime/runtime.go`: the crash-fd write is gated on `gp.m.dying > 0 ||
+panicking.Load() > 0`). That fires **once**, synchronously, in the dying moments of a fatal Go
+runtime error (unrecovered panic, concurrent-map crash, etc.) — never periodically. So:
+
+- A 15s Swift truncation watchdog can't intercept a burst that only happens at process death.
+- Truncating afterwards refunds nothing — the diskwrites ledger (if that's even how the field
+  28 MB event was charged) was already spent by the time any watchdog could see the file.
+- **The trap:** truncating via `.atomic` (temp-file + rename) or any full-file
+  `String(contentsOf:)` read would swap the inode or spike memory — either breaks Go's already
+  dup'd crash-output fd (next crash silently vanishes) or risks the exact jetsam-adjacent memory
+  spike this whole saga is about. Left the file untouched entirely.
+
+**Where the 28 MB actually came from (best-effort, unconfirmed):** `experimental/libbox/setup.go`
+forces `debug.SetTraceback("all")` in its `init()`, so *every* fatal crash — not just runtime
+internals — dumps **every live goroutine's stack**, not just the crashing one. 227k lines /
+~12 lines-per-goroutine ≈ ~19k goroutines at time of death. Under a `GOMEMLIMIT=45MiB` +
+`GCPercent(10)` regime, that's a plausible pile-up (blocked/leaked goroutines accumulating under
+memory pressure, then one fatal error dumps the whole pile). **Not proven** — the actual trigger
+line (the crash header) would need reading the field device's `stderr.log`/`stderr.log.old`
+directly, not done this session. Real fix, if the goroutine-pileup theory holds, is upstream of
+this file entirely (whatever leaks/blocks goroutines under memory pressure) — separate from
+LIBBOX-REBUILD's already-planned memory-cap work, and not yet root-caused.
+
+**What actually shipped (client build, no rebuild, build 1.0.34/136):**
+- `ExtensionPlatformInterface.swift`: `writeLogs`/`writeMessage` guard raised INFO(2)→WARN(3);
+  `writeDebugMessage` swapped `isVerboseSingboxLine` → new `isBelowWarnSingboxLine` (also drops
+  INFO). `realStallDetector.ingest()` still sees every raw line first, unaffected.
+- `TunnelFileLogger.swift`: `writeToFile`'s own truncation (the tunnel-debug.log path) switched
+  from `String(contentsOf:)` to seek+truncate via the existing `truncationKeepOffset` helper.
+  Also **dropped the per-line `fsync`** (`handle.synchronize()`) — Fable-verified it protects
+  against kernel panic/power loss, not jetsam SIGKILL (a `write()`'d line survives the process
+  dying via the kernel page cache regardless of fsync; same-machine App Group readers see it the
+  instant the syscall returns). `logSync()`'s `queue.sync` is what actually protects against a
+  SIGKILL racing an unflushed async write — the fsync was pure diskwrites cost for nothing.
+- `GOMAXPROCS(1)` **not** done here — Fable confirmed no Swift/Cgo path exists to set it; belongs
+  in `experimental/libbox/setup.go`'s `init()` as part of LIBBOX-REBUILD.
+- 358 unit tests pass (2 new), full app+extension `xcodebuild build` succeeds.
+
+**Still needed:** on-device WDA-rig verification (whoer.net storm → no new `diskwrites_resource`/
+`cpu_resource` crash reports), then LIBBOX-REBUILD.
