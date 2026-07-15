@@ -323,3 +323,61 @@ on-device before/after number, and each shifted the symptom instead of fixing it
 device log — not reasoning — is what finally identified jetsam. The exportable
 `TunnelFileLogger` (with the `memory: NN MB/NN avail` line) is the measurement of record;
 every NE-memory change must cite a before/after from it.
+
+---
+
+## 2026-07-15 (afternoon) — on-device investigation: it's a THREE-vector iOS resource kill, and logging is the amplifier
+
+Built an autonomous on-device test rig (see memory `reference_autonomous_iphone_control`):
+WebDriverAgent rebuilt under the org team (99W3C374T2) + run via Xcode's CoreDevice
+tunnel (NO sudo) → I drive the iPhone (turn VPN on/off) over USB; memory read live via
+`idevicesyslog` watchdog lines; crash reports pulled via `pymobiledevice3 crash` (needs
+the user's one-time `sudo pymobiledevice3 remote tunneld`).
+
+**The user reported: whoer.net (an IP-leak test = connection storm) disconnects the VPN.**
+I reproduced it and the extension died within ~4s — with 0 oom `resetting network` and
+0 `memory threshold`, i.e. NOT our oom-killer. Pulling the device crash reports gave the
+real cause — the NE is killed by iOS **resource limits, three vectors, all confirmed**:
+
+- **`PacketTunnel.cpu_resource` (bug_type 202):** "144 seconds cpu time over 149 seconds
+  (**97% cpu average**), exceeding limit of 80% cpu over 180 seconds." A near-idle VPN
+  tunnel burning 97% CPU = the logging (per-packet INFO at log.level=info + the oom-killer
+  logging a WARN on every DISPATCH_MEMORYPRESSURE_CRITICAL, ~32/s near the ceiling).
+- **`PacketTunnel.diskwrites_resource` (2026-07-12, -13):** exceeded the disk-write limit —
+  the TunnelFileLogger FILE hit 28 MB / 227k lines.
+- **`JetsamEvent`:** memory jetsam near the ~50 MiB ceiling.
+
+**Live measurement (build 135, driven by me):** phys_footprint **26 MiB idle → 43–47 MiB
+under load**, PID stable when idle (not killed), 0 self-resets. So build 135 + the emergency
+config HOLDS in normal use, but sits ~3 MiB under the ceiling — a whoer.net connection
+storm spikes memory + CPU + disk (via logging) past the limits in seconds → iOS kills it.
+
+**The owner's "maybe it's the log" hunch was the ROOT, confirmed three independent ways.**
+
+### Status of today's fixes vs this
+
+- log.level "info"→"error" (backend, deployed): cut per-packet INFO (device shows ~28 vs
+  thousands). BUT the memory-pressure WARN spam PERSISTS on-device (~1111 lines/35s) even
+  after app kill+relaunch — either the device is still on a stale cached config, OR the
+  fork's oom-killer logger is NOT gated by the config log.level (standalone logger). UNRESOLVED
+  — load-bearing for whether log=error can silence the pressure spam. Needs a fork read.
+- emergency no-urltest + memory diet 135 + geoip-bundle: all reduce the baseline/CPU but
+  don't create real headroom — the baseline is still ~47 under load.
+
+### The real fix (next session): rebuild libbox
+
+Consensus all along: the only thing that moves the baseline is a **Libbox.xcframework rebuild**:
+1. Lower the Go soft memory cap in `experimental/libbox/memory.go` (currently
+   `SetMemoryLimit(45 MiB)` + `SetGCPercent(10)` — 45 leaves ~3 MiB headroom; target ~32–37
+   MiB, mind the GC death-spiral).
+2. Silence the oom-killer's per-event pressure logging (fork `service/oomkiller/service.go`
+   ~line 165 `s.logger.Warn`) — drop to Debug or gate it, so it stops burning CPU/disk when
+   the process sits near the ceiling. (Or find a cleaner way to disable libbox's default
+   pressure-monitor ResetNetwork without emitting a spammy service at all.)
+3. Rebuild via `make lib_apple` (mind the Info.plist patching for App Store validation, 3
+   slices, GitHub Release re-upload — see reference_libbox_build).
+4. VERIFY on-device before/after with the new WDA+idevicesyslog rig (phys_footprint under a
+   whoer.net storm must stay well under 50).
+
+Fable + Sonnet were consulted 2026-07-15 for the ranked rebuild plan — fold their answers in
+here next session before starting the rebuild.

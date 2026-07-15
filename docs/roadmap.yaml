@@ -776,6 +776,24 @@ next:
         test-DB harness. Medium effort. Engine ships DISABLED so no prod risk yet.
 
   client_reliability:
+    - id: LIBBOX-REBUILD
+      title: "Rebuild Libbox.xcframework: lower the Go memory cap + silence oom-killer logging — the only thing that gives the NE real headroom"
+      priority: P0
+      why: |
+        On-device crash reports prove the NE is iOS-resource-killed under load (CPU 97%,
+        disk-writes, memory jetsam) — see OOM-JETSAM-INVESTIGATION / incident 2026-07-14.
+        Backend-config fixes reduced it but the baseline is still ~47 MiB under load (ceiling
+        50). Only a libbox rebuild moves the baseline.
+      plan: |
+        1. experimental/libbox/memory.go: SetMemoryLimit(45MiB)→~32-37MiB, tune GOGC (mind the
+           GC death-spiral). 2. service/oomkiller/service.go ~L165: stop the per-event pressure
+           WARN (drop to Debug / gate) OR a cleaner way to disable libbox's default
+           pressure-monitor ResetNetwork without a spammy service. 3. Resolve whether the
+           oom-killer logger is gated by config log.level (determines if log=error can help).
+           4. make lib_apple (mind Info.plist patch for App Store, 3 slices, GitHub Release
+           re-upload — reference_libbox_build). 5. Verify before/after phys_footprint on-device
+           under a whoer.net storm via the WDA rig. Fold in Fable + Sonnet advice (consulted
+           2026-07-15, in the incident doc).
     # --- from the 2026-07-14 simplification audit (Fable), after OOM-REFILTER landed.
     # Theme: the NE has ~50 MiB and far too many moving parts competing for it.
     # Ordered by reliability-per-effort. None of these are started.
@@ -1126,6 +1144,28 @@ deferred:
 # DONE — append-only log. Most recent date first.
 # ============================================================
 done:
+  "2026-07-15":
+    - id: OOM-JETSAM-INVESTIGATION
+      title: "Root-caused the 'VPN disconnects under load / whoer.net kills it': iOS resource-kills the NE (CPU 97%, disk, memory) — logging is the amplifier"
+      incident: docs/incidents/2026-07-14-ne-oom-refilter-reset-loop.md
+      notes: |
+        Built an autonomous on-device rig (WebDriverAgent via Xcode tunnel, no sudo; memory
+        via idevicesyslog; crash reports via pymobiledevice3) — I now drive the user's iPhone
+        and read NE memory/crash reports myself. Pulled the reports: PacketTunnel.cpu_resource
+        (97% CPU avg, limit 80%/180s), diskwrites_resource (28 MB log file), JetsamEvent
+        (memory). All amplified by logging: per-packet INFO + oom-killer WARN on every
+        pressure event. whoer.net (connection storm) trips it in seconds.
+        Shipped/deployed today (backend, no build): refilter removed + geoip bundled;
+        ru-direct default; smart retired; oom-killer 512MB (never self-trips); emergency
+        no-urltest; log.level info→error; TunnelStallProbe leak + inert setenv deleted.
+        Build 1.0.34(135) on TestFlight (NE memory diet). iOS logic tests now RUN (356).
+        Tooling: measure-engine-memory.sh (device-free engine RSS), watch-ios-ne-memory.sh.
+      unresolved: |
+        On-device the memory-pressure WARN spam persists (~1111/35s) despite log=error —
+        either stale cached config OR the oom-killer logger isn't gated by log.level. The NE
+        still runs ~47 MiB under load (ceiling 50) with only ~3 MiB headroom.
+      next: LIBBOX-REBUILD
+
   "2026-07-14":
     - id: BUILD-134
       title: "1.0.34 (build 134) → TestFlight — OOM fix + kill switch + RU-direct default + home stats"
