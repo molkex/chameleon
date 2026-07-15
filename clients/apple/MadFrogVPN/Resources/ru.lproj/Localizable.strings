@@ -62,11 +62,6 @@
 "home.server.auto_long"          = "Авто (быстрейший)";
 "home.server.auto_subtitle"      = "Лучший пинг";
 
-"home.stats.upload_a11y"         = "Отправлено";
-"home.stats.download_a11y"       = "Получено";
-"home.stats.ip_a11y"             = "Ваш IP-адрес";
-"home.stats.ip_fmt"              = "Ваш IP: %@";
-
 /* ===== Онбординг ===== */
 "onboarding.title"               = "MadFrog VPN";
 "onboarding.subtitle"            = "Приватно. Быстро. Безопасно.";

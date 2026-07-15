@@ -62,11 +62,6 @@
 "home.server.auto_long"          = "Auto (fastest)";
 "home.server.auto_subtitle"      = "Lowest ping";
 
-"home.stats.upload_a11y"         = "Uploaded";
-"home.stats.download_a11y"       = "Downloaded";
-"home.stats.ip_a11y"             = "Your IP address";
-"home.stats.ip_fmt"              = "Your IP: %@";
-
 /* ===== Onboarding ===== */
 "onboarding.title"               = "MadFrog VPN";
 "onboarding.subtitle"            = "Private. Fast. Secure.";

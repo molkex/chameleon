@@ -15,13 +15,6 @@ struct MainViewNeon: View {
 
     private let theme = Theme.neon
 
-    /// HOME-STATS (2026-07-14): owns the one-shot egress-IP lookup for the
-    /// stats strip below the timer. Kept as view @State (not on AppState) —
-    /// it's pure display plumbing, single instance for the lifetime of this
-    /// view, and its refresh is driven entirely by `.task(id: ipRefreshKey)`
-    /// below, never by a timer.
-    @State private var ipService = ExternalIPService()
-
     var body: some View {
         ZStack {
             // Multi-layer radial glow background
@@ -69,13 +62,6 @@ struct MainViewNeon: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.top, 18)
 
-                // Live traffic (↑/↓ totals) + egress IP. Always rendered —
-                // shows "—" placeholders instead of hiding/reflowing so the
-                // hero above never jumps (this app has a history of home
-                // layout overflow, see build 132/133 fixes).
-                statsStrip
-                    .padding(.top, 14)
-
                 Spacer()
 
                 // Server card with flag + IP badge
@@ -102,27 +88,6 @@ struct MainViewNeon: View {
             .padding(.bottom, 24)
         }
         .ignoresSafeArea(edges: .top)
-        // Re-fetch the egress IP exactly when it can have changed: tunnel
-        // (dis)connects, the user switches server, or the app returns to the
-        // foreground. SwiftUI cancels+restarts this task whenever the id
-        // changes — no internal polling/timer, and backgrounding (isAppActive
-        // → false) tears down any in-flight request via cooperative
-        // cancellation (see ExternalIPService).
-        .task(id: ipRefreshKey) {
-            guard VPNStateHelper.isConnected(app), app.isAppActive else {
-                ipService.reset()
-                return
-            }
-            await ipService.refresh()
-        }
-    }
-
-    /// Identity for the IP-refresh task above. Changes on connect/disconnect,
-    /// server switch, and foreground/background — each change cancels the
-    /// previous task and starts a fresh one-shot fetch (or a reset when the
-    /// new state means "nothing to show").
-    private var ipRefreshKey: String {
-        "\(VPNStateHelper.isConnected(app))|\(app.selectedServerTag ?? "auto")|\(app.isAppActive)"
     }
 
     // MARK: - Background
@@ -268,80 +233,6 @@ struct MainViewNeon: View {
                 .font(.system(.body, design: .monospaced).weight(.bold))
                 .foregroundStyle(.white)
         }
-    }
-
-    // MARK: - Live stats strip (HOME-STATS)
-
-    /// Compact ↑/↓ totals + egress IP row. Fixed height reserved regardless
-    /// of state (disconnected shows "—" placeholders) so this never shifts
-    /// the CTA/subscription strip below it.
-    private var statsStrip: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 16) {
-                statChip(icon: "arrow.up", value: trafficUpText, a11y: L10n.Home.statsUploadA11y)
-                statChip(icon: "arrow.down", value: trafficDownText, a11y: L10n.Home.statsDownloadA11y)
-            }
-            HStack(spacing: 6) {
-                Image(systemName: "network")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(theme.textSecondary.opacity(0.7))
-                Text(ipLineText)
-                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(theme.textSecondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                    .accessibilityLabel(Text(L10n.Home.statsIpA11y))
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: 54, alignment: .topLeading)
-    }
-
-    private func statChip(icon: String, value: String, a11y: LocalizedStringKey) -> some View {
-        HStack(spacing: 5) {
-            Image(systemName: icon)
-                .font(.system(size: 11, weight: .bold))
-            Text(value)
-                .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-        }
-        .foregroundStyle(theme.textSecondary)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(Text(a11y))
-        .accessibilityValue(value)
-    }
-
-    /// "—" whenever the tunnel isn't connected — NOT just when the
-    /// CommandClient's socket is down — so a fresh disconnect can't show a
-    /// stale "0 B" (see `ConnectionStatsFormatter` doc comment for why the
-    /// guard lives here instead of trusting `statsAvailable` alone).
-    private var trafficUpText: String {
-        ConnectionStatsFormatter.totalText(
-            bytes: app.commandClient.uploadTotal,
-            isConnected: VPNStateHelper.isConnected(app),
-            statsAvailable: app.commandClient.statsAvailable
-        )
-    }
-
-    private var trafficDownText: String {
-        ConnectionStatsFormatter.totalText(
-            bytes: app.commandClient.downloadTotal,
-            isConnected: VPNStateHelper.isConnected(app),
-            statsAvailable: app.commandClient.statsAvailable
-        )
-    }
-
-    /// "Ваш IP: 217.182.74.70 🇵🇱" — flag is the already-selected server's
-    /// flag (same helper the server card above uses), not a reverse-geo
-    /// lookup of the resolved IP itself: cheap, no new geo dependency, and
-    /// consistent with what the user just picked. Falls back to no flag for
-    /// Auto (🌍) or unrecognised tags.
-    private var ipLineText: String {
-        guard VPNStateHelper.isConnected(app), let ip = ipService.ip, !ip.isEmpty else { return "—" }
-        let flag = VPNStateHelper.selectedServerFlag(app)
-        let base = String(format: String(localized: "home.stats.ip_fmt"), ip)
-        return (flag.isEmpty || flag == "🌍") ? base : "\(base) \(flag)"
     }
 
     // MARK: - Server card

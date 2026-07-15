@@ -44,11 +44,6 @@ enum L10n {
         static func subDaysLeft(_ days: Int) -> String {
             String(format: String(localized: "home.subscription.days_left"), days)
         }
-
-        // HOME-STATS (2026-07-14): live ↑/↓ totals + egress IP strip.
-        static let statsUploadA11y   = LKey("home.stats.upload_a11y")
-        static let statsDownloadA11y = LKey("home.stats.download_a11y")
-        static let statsIpA11y       = LKey("home.stats.ip_a11y")
     }
 
     enum Onboarding {
