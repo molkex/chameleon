@@ -1127,6 +1127,42 @@ deferred:
 # ============================================================
 done:
   "2026-07-16":
+    - id: ADMIN-CF-BYPASS
+      title: "Admin panel unreachable in RU without VPN — the old non-CF bypass (api.madfrog.online/admin/app/) had silently 404'd since the 2026-07-01 WAW migration"
+      notes: |
+        User report: madfrog.online/admin/app/ doesn't load without VPN from RU
+        (classic Cloudflare-RU-throttle symptom, well documented elsewhere in this
+        project). Live-checked the known workaround (api.madfrog.online/admin/app/,
+        a non-CF path via the MSK relay) — it now 404s. Root cause: the 2026-07-01
+        WAW web migration moved the admin SPA's static files onto WAW's own nginx
+        (chameleon-nginx :80, Cloudflare-only firewalled per ufw), while MSK's
+        api.madfrog.online vhost proxies straight to WAW's raw Go backend port
+        (:8000 — JSON API only, no static files). The bypass had been quietly dead
+        for two weeks.
+        Fable (reading the live nginx configs + ufw rules on both boxes) confirmed
+        the fix and flagged the one real trap: proxy to WAW:80 (not :8000) with
+        Host $host (NOT a hardcoded "madfrog.online") — WAW's nginx has
+        absolute-URL redirects (/admin → /admin/app/, HTTP→HTTPS) keyed off $host
+        that would otherwise bounce the browser back to the Cloudflare-fronted
+        domain and silently defeat the whole bypass.
+        Fix: WAW ufw `80/tcp ALLOW 217.198.5.52` (MSK relay IP only, same allowlist
+        pattern as the existing :8000/:15380 rules); MSK nginx
+        /etc/nginx/sites-available/api.madfrog.online got a new
+        `location ^~ /admin` block (backed up the file first) proxying to
+        217.182.74.70:80 with Host $host, placed before the existing `location /`
+        (which still proxies to :8000 for the mobile API) — `^~` guarantees it
+        can't be shadowed by the SSE regex location either. `nginx -t` + graceful
+        `reload` (not restart — this box carries live RU mobile API traffic).
+        Verified: api.madfrog.online/admin/app/ → 200, correct SPA HTML (not a
+        redirect back to CF), api.madfrog.online/api/v1/mobile/healthcheck still
+        200 (mobile API unaffected), madfrog.online/admin/app/ still 200 via CF.
+        Full detail: docs/state/domains.yaml (api record) +
+        reference_admin_cf_bypass memory.
+      next: "DONE. Lesson for the future: any web/admin origin topology change
+        (like a future migration off WAW) must re-verify this bypass path live —
+        it rotted silently for 2 weeks with nobody noticing. Permanent option
+        still not done: a dedicated non-CF admin.madfrog.online A-record."
+
     - id: STALL-ON-NETSWITCH-LEAN-FIX
       title: "STALL-ON-NETSWITCH (today's earlier fix) was a total no-op — urltest nudge targeted a group that hasn't existed since the OOM emergency"
       notes: |

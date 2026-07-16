@@ -30,6 +30,18 @@ madfrog.online:
       target: msk_relay (217.198.5.52)
       target_via: direct_dns         # NO CF proxy — DNS-only
       origin: waw:8000 (via msk_relay nginx upstream)   # 2026-06-29 failover: was nl:80
+      admin_bypass: |
+        ADMIN-CF-BYPASS (2026-07-16): api.madfrog.online/admin/* proxies to
+        waw:80 (chameleon-nginx, the SPA's real origin) instead of :8000 (the
+        raw Go API, no static files) — restores the non-CF path to the admin
+        panel that the 2026-07-01 WAW web migration silently dropped (the
+        old bypass note "open at api.madfrog.online/admin/app/" 404'd until
+        this fix). MSK nginx: /etc/nginx/sites-available/api.madfrog.online,
+        `location ^~ /admin` block, Host MUST be $host (not a hardcoded
+        madfrog.online — WAW's absolute-URL redirects would bounce back to
+        the CF domain otherwise). WAW ufw: `80/tcp ALLOW 217.198.5.52`
+        (comment "MSK relay admin bypass 2026-07-16"). Verified: 200 +
+        correct SPA HTML + no redirect, mobile API unaffected.
 
     "grafana":
       type: A
