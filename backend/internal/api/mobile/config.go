@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -149,7 +150,9 @@ func (h *Handler) GetConfig(c echo.Context) error {
 		ShortID:  shortID,
 	}
 
-	configJSON, err := h.VPN.GenerateClientConfig(vpnUser, serverEntries, chainEntries)
+	clientBuild := parseClientBuild(c.Request().Header.Get("X-App-Build"))
+
+	configJSON, err := h.VPN.GenerateClientConfig(vpnUser, serverEntries, chainEntries, clientBuild)
 	if err != nil {
 		h.Logger.Error("vpn: generate client config", zap.Error(err), zap.Int64("user_id", user.ID))
 		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
@@ -226,6 +229,19 @@ func cfCountryCode(h string) string {
 		return ""
 	}
 	return strings.ToUpper(h)
+}
+
+// parseClientBuild reads the X-App-Build header (the client's CFBundleVersion,
+// e.g. "137") into an int for the urltest lean-mode gate (see
+// vpn.generateClientConfig's leanMode / firstUrltestSafeBuild). Absent,
+// malformed, or negative values all resolve to 0 — treated as "old/unknown
+// client" by the gate, i.e. the safe (lean) default.
+func parseClientBuild(h string) int {
+	n, err := strconv.Atoi(strings.TrimSpace(h))
+	if err != nil || n < 0 {
+		return 0
+	}
+	return n
 }
 
 // firstValue trims whitespace and truncates to max runes to avoid hostile
@@ -326,11 +342,15 @@ func (h *Handler) GetConfigLegacy(c echo.Context) error {
 		shortID = *user.VPNShortID
 	}
 
+	// clientBuild=0: this unauthenticated link has no reliable app-version
+	// signal (may be loaded by a third-party sing-box client, not just our
+	// app), so it always gets the safe lean shape — unchanged from before
+	// this gate existed.
 	configJSON, err := h.VPN.GenerateClientConfig(vpn.VPNUser{
 		Username: *user.VPNUsername,
 		UUID:     *user.VPNUUID,
 		ShortID:  shortID,
-	}, serverEntries, chainEntries)
+	}, serverEntries, chainEntries, 0)
 	if err != nil {
 		return c.String(http.StatusInternalServerError, "config generation failed")
 	}

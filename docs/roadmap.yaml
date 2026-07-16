@@ -1127,6 +1127,63 @@ deferred:
 # ============================================================
 done:
   "2026-07-16":
+    - id: STALL-ON-NETSWITCH-LEAN-FIX
+      title: "STALL-ON-NETSWITCH (today's earlier fix) was a total no-op — urltest nudge targeted a group that hasn't existed since the OOM emergency"
+      notes: |
+        Field report same day: "vpn то включался то выключался" after leaving a WiFi
+        zone. Traced via the user's exported tunnel-debug.log (09:38-18:01): every
+        single stall-recovery nudge all day — 12:28, 12:30, 12:32, 12:35, 12:39,
+        15:39, 15:41, 17:56 — failed identically: `urlTest('Auto') FAILED rpc error:
+        code = Unknown desc = outbound group not found: Auto`. What looked like
+        spontaneous flapping was actually the user manually toggling disconnect/
+        reconnect (visible in the log) because nothing auto-recovered.
+        Root cause (Fable-verified against source, then independently confirmed by
+        reading the actual files): `backend/internal/vpn/clientconfig.go`'s
+        `emergencyNoUrltest = true` (set 2026-07-15 for the OOM-JETSAM crisis) was
+        still hardcoded on for EVERY client — it strips the "Auto" urltest group
+        (and country groups) out of the served config entirely. Meanwhile
+        `TunnelStallProbe.swift` hardcoded `urltestGroupTags: ["Auto"]` for both the
+        pre-existing RealTrafficStallDetector nudge AND today's STALL-ON-NETSWITCH
+        fix. Since "Auto" never existed in the served config, both were silent
+        no-ops. The flag couldn't safely auto-revert either: the client's
+        User-Agent ("MadFrog-iOS") never matched useragent.Parse's
+        `Chameleon/(\S+)` regex, so the backend had zero signal for which libbox a
+        given client was running — flipping the flag blind would re-expose the
+        live App Store fleet (still on the pre-LIBBOX-REBUILD libbox) to the
+        original jetsam crash.
+        Fix, 3 parts:
+        1. Client sends its build number via a new `X-App-Build` header
+           (APIClient.swift applyTelemetry — CFBundleVersion, not the marketing
+           version used elsewhere for analytics).
+        2. Backend: `emergencyNoUrltest` replaced with `leanMode := clientBuild <
+           firstUrltestSafeBuild` (137 — 1.0.34's first LIBBOX-REBUILD build).
+           clientBuild=0 (missing header, old client, or the unauthenticated
+           /sub/:token/:mode legacy link) stays lean — zero regression for anyone
+           who hasn't updated. `GenerateClientConfig`/`Engine` interface/
+           `generateClientConfig` all threaded the new param.
+        3. Client: `TunnelStallProbe` no longer hardcodes "Auto" — new
+           `Shared/UrltestGroupParsing.swift` (`urltestGroupTags(fromConfigJSON:)`,
+           pure + unit tested) derives the real group list from the config
+           sing-box was actually handed. Empty list (lean mode) now logs one line
+           and skips the nudge instead of erroring per stall. Also incidentally
+           fixes a second latent bug: nudging only "Auto" never helped a user
+           pinned to a specific country urltest group.
+        Tests: 3 new Go tests pin both shapes at the exact build boundary
+        (TestLeanModeGateBoundary, TestLeanModeUnknownBuildStaysLean,
+        TestFullUrltestModeMatchesLegacyShape) + a header-parsing unit test
+        (parseClientBuild). 5 new Swift tests for urltestGroupTags (full-mode
+        extraction, lean-mode empty, malformed JSON, missing/empty tag). go
+        build/vet/test clean; iOS+macOS build clean; 356 unit tests pass (was 351).
+      next: "NOT YET DEPLOYED/SHIPPED — backend change is live-user-affecting
+        (every /config fetch) the moment it's deployed to WAW; client change needs
+        a new build (>=137 to actually flip lean mode off for updated users, plus
+        the un-hardcoded nudge). Needs an explicit go-ahead before: (1) deploying
+        backend to WAW, (2) bumping/shipping a new iOS build with the X-App-Build
+        header + fixed TunnelStallProbe. Until both ship together, behavior is
+        UNCHANGED from before this fix (every client still resolves clientBuild=0
+        server-side, stays lean) — safe to leave uncommitted/undeployed as long as
+        needed."
+
     - id: WIDGET-CONNECTING
       title: "Home/Lock-Screen + Control Center widget: honest 'connecting…' state instead of dead air on tap"
       notes: |

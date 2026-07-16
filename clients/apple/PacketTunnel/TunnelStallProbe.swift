@@ -38,9 +38,19 @@ final class TunnelStallProbe {
         /// Audit P1-1 (2026-05-26): "🇩🇪 Германия" hardcoded here used to be
         /// the leading entry; after DE retirement (2026-05-25) sing-box no
         /// longer emits that group, so `urlTest("🇩🇪 Германия")` returns a
-        /// "group not found" error on every probe and pollutes the log. Now
-        /// only "Auto" is always-present (top-level urltest).
-        var urltestGroupTags: [String] = ["Auto"]
+        /// "group not found" error on every probe and pollutes the log.
+        ///
+        /// STALL-ON-NETSWITCH-LEAN-FIX (2026-07-16): a later hardcoded
+        /// default of `["Auto"]` had the exact same problem one level up —
+        /// the backend's OOM-emergency lean config omits "Auto" too (and
+        /// every other urltest group) whenever the server decides the
+        /// client should stay lean. A 2026-07-16 device log showed this
+        /// failing on every single stall all day: "outbound group not
+        /// found: Auto". No default here anymore — callers derive the real
+        /// list from the running config via `urltestGroupTags(fromConfigJSON:)`
+        /// (Shared/UrltestGroupParsing.swift) so this always matches
+        /// whatever sing-box was actually handed, lean or not.
+        var urltestGroupTags: [String] = []
     }
 
     private let config: Config
@@ -60,6 +70,15 @@ final class TunnelStallProbe {
     /// Implementation intentionally creates a short-lived CommandClient
     /// each time — the connection lives <1s.
     private func nudgeUrltestGroups() {
+        guard !config.urltestGroupTags.isEmpty else {
+            // Lean config (see STALL-ON-NETSWITCH-LEAN-FIX): no urltest
+            // groups exist to nudge. Log once instead of a per-tag
+            // "group not found" error — there's nothing wrong here, the
+            // server just isn't running urltest for this client build.
+            TunnelFileLogger.log("TunnelStallProbe: nudge skipped — no urltest groups in current config (lean mode)", category: "tunnel-probe")
+            return
+        }
+
         let handler = NudgeHandler()
         let options = LibboxCommandClientOptions()
         options.statusInterval = Int64(NSEC_PER_SEC)

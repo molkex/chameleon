@@ -43,7 +43,10 @@ type Engine interface {
 	UptimeHours() float64
 
 	// GenerateClientConfig creates a sing-box client config JSON for iOS/macOS.
-	GenerateClientConfig(user VPNUser, servers []ServerEntry, chains []ChainedEntry) ([]byte, error)
+	// clientBuild is the client's self-reported build number (0 = unknown/old
+	// client); it gates whether urltest groups are emitted or the config
+	// stays in the OOM-emergency lean shape — see clientconfig.go leanMode.
+	GenerateClientConfig(user VPNUser, servers []ServerEntry, chains []ChainedEntry, clientBuild int) ([]byte, error)
 }
 
 // EngineConfig holds VPN server configuration.

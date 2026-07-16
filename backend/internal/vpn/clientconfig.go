@@ -16,6 +16,17 @@ const (
 	// whitelist-bypass group in the Proxy selector. Localised to Russian
 	// since the feature is only useful inside RU.
 	whitelistBypassGroupTag = "🇷🇺 Россия (обход белых списков)"
+
+	// firstUrltestSafeBuild is the lowest client build number known to carry
+	// the LIBBOX-REBUILD memory diet (Go soft cap 45→35 MiB, GOMAXPROCS(1),
+	// implicit oom-killer removed — see docs/roadmap.yaml#done LIBBOX-REBUILD),
+	// shipped as 1.0.34 build 137. Below this, a client gets the emergency
+	// lean config (see leanMode in generateClientConfig) regardless of what
+	// it reports, because the 2026-07-14 OOM-JETSAM crash predates any memory
+	// fix and urltest's per-leg cold-start probing risks reproducing it.
+	// clientBuild == 0 (no X-App-Build header — old client, or the
+	// unauthenticated /sub/:token/:mode legacy link) also stays lean.
+	firstUrltestSafeBuild = 137
 )
 
 // relayOnlyExitKeys lists exit `Key`s whose DIRECT legs are intentionally
@@ -104,7 +115,7 @@ func countryDisplay(cc string) string {
 // projected into a single dedicated selector "🇷🇺 Россия (обход белых списков)"
 // (constant defined below). They're excluded from standard leaves — whitelist
 // bypass is a narrow manual-only option, never an auto pick.
-func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []ServerEntry, chains []ChainedEntry) ([]byte, error) {
+func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []ServerEntry, chains []ChainedEntry, clientBuild int) ([]byte, error) {
 	// Split servers by role + category:
 	//   standardExits    — role='exit', category='standard'          → country groups + Auto
 	//   whitelistExits   — role='exit', category='whitelist_bypass'  → isolated group
@@ -454,21 +465,33 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 		InterruptExistConnections: boolPtr(true),
 	}
 
-	// 2026-07-15 (OOM-JETSAM EMERGENCY): when true, the config drops the urltest
-	// machinery entirely — Proxy becomes a PLAIN selector over the raw legs,
-	// defaulting to the first direct leg. Why: a device log proved the NE gets
-	// iOS-jetsam-killed ~4s after connect because urltest probes EVERY leg
-	// (concurrent Reality-TLS handshakes) at cold start on top of a 41 MiB
-	// baseline (8 MiB headroom). A plain selector dials ONLY the default leg at
-	// start → one handshake → the NE stays under the ~50 MiB ceiling. Cost:
-	// no automatic RTT selection / cross-leg failover (the user picks manually;
-	// the fork still re-dials on hard failure of the active leg). All legs stay
-	// selectable members, so both countries remain reachable from the picker.
-	// REVERT: set to false once the client memory diet ships (1.0.35) and the NE
-	// footprint has real headroom. The urltest groups below are simply not
-	// emitted while this is on.
-	const emergencyNoUrltest = true
-	if emergencyNoUrltest && len(sortedLeaves) > 0 {
+	// 2026-07-15 (OOM-JETSAM EMERGENCY): when leanMode is true, the config
+	// drops the urltest machinery entirely — Proxy becomes a PLAIN selector
+	// over the raw legs, defaulting to the first direct leg. Why: a device
+	// log proved the NE gets iOS-jetsam-killed ~4s after connect because
+	// urltest probes EVERY leg (concurrent Reality-TLS handshakes) at cold
+	// start on top of a 41 MiB baseline (8 MiB headroom). A plain selector
+	// dials ONLY the default leg at start → one handshake → the NE stays
+	// under the ~50 MiB ceiling. Cost: no automatic RTT selection / cross-leg
+	// failover (the user picks manually; the fork still re-dials on hard
+	// failure of the active leg). All legs stay selectable members, so both
+	// countries remain reachable from the picker.
+	//
+	// STALL-ON-NETSWITCH-LEAN-FIX (2026-07-16): this was `const
+	// emergencyNoUrltest = true` for every client regardless of version —
+	// the config endpoint had no way to tell an old client (still on the
+	// pre-memory-diet libbox) from an updated one, because the app's
+	// User-Agent ("MadFrog-iOS") never matched useragent.Parse's
+	// `Chameleon/(\S+)` regex, so AppVersion was always empty. That also
+	// meant the client's stall-recovery nudge (TunnelStallProbe hardcoding
+	// urlTest("Auto")) was silently failing on every stall all day, every
+	// day, since "Auto" never existed in the served config — see incident
+	// docs/incidents/2026-07-14-ne-oom-refilter-reset-loop.md. Now gated on
+	// the client's self-reported build (X-App-Build header → clientBuild;
+	// 0 for old/unknown clients, which stay lean — zero regression for them).
+	// The urltest groups below are simply not emitted while leanMode is true.
+	leanMode := clientBuild < firstUrltestSafeBuild
+	if leanMode && len(sortedLeaves) > 0 {
 		leanMembers := append([]string(nil), sortedLeaves...)
 		if whitelistGroupTag != "" {
 			leanMembers = append(leanMembers, whitelistGroupTag)
@@ -547,11 +570,11 @@ func generateClientConfig(engineCfg EngineConfig, user VPNUser, servers []Server
 	//   System                      → direct, block
 	allOutbounds := []clientOutbound{proxyOutbound}
 	allOutbounds = append(allOutbounds, ruTrafficOutbound, blockedTrafficOutbound, defaultRouteOutbound)
-	// Emergency lean mode omits the urltest groups (see emergencyNoUrltest): with
+	// Emergency lean mode omits the urltest groups (see leanMode above): with
 	// Proxy a plain selector, nothing references Auto/country groups, and emitting
 	// them would still make sing-box probe every leg at cold start — the whole
 	// thing we're avoiding.
-	if !emergencyNoUrltest {
+	if !leanMode {
 		allOutbounds = append(allOutbounds, autoUrltest)
 		allOutbounds = append(allOutbounds, countryGroups...)
 	}

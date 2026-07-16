@@ -18,7 +18,7 @@ func TestSEC03UDPLegsPinCertNeverInsecure(t *testing.T) {
 	engine, user, servers, chains := fixture()
 
 	// Cert present (fixture default): legs emit, with certificate, never insecure.
-	raw, err := generateClientConfig(engine, user, servers, chains)
+	raw, err := generateClientConfig(engine, user, servers, chains, 0)
 	if err != nil {
 		t.Fatalf("generate (cert present): %v", err)
 	}
@@ -35,7 +35,7 @@ func TestSEC03UDPLegsPinCertNeverInsecure(t *testing.T) {
 
 	// No cert: the UDP legs are skipped entirely (never insecure).
 	engine.UDPCertPEM = ""
-	raw2, err := generateClientConfig(engine, user, servers, chains)
+	raw2, err := generateClientConfig(engine, user, servers, chains, 0)
 	if err != nil {
 		t.Fatalf("generate (no cert): %v", err)
 	}
@@ -62,7 +62,7 @@ func TestSEC03UDPLegsPinCertNeverInsecure(t *testing.T) {
 // cert, engineCfg.UDPCertPEM) is enforced in deploy.sh + the incident playbook.
 func TestUDPLegsServerNameMatchesSNI(t *testing.T) {
 	engine, user, servers, chains := fixture()
-	raw, err := generateClientConfig(engine, user, servers, chains)
+	raw, err := generateClientConfig(engine, user, servers, chains, 0)
 	if err != nil {
 		t.Fatalf("generate: %v", err)
 	}
@@ -184,12 +184,21 @@ func fixture() (EngineConfig, VPNUser, []ServerEntry, []ChainedEntry) {
 	return engine, user, servers, chains
 }
 
-// parseGenerated renders the fixture through generateClientConfig and
+// parseGenerated renders the fixture through generateClientConfig with
+// clientBuild=0 (today's default: old/unknown client → lean shape) and
 // returns the parsed JSON. Test helpers below query this shape.
 func parseGenerated(t *testing.T) map[string]any {
 	t.Helper()
+	return parseGeneratedWithBuild(t, 0)
+}
+
+// parseGeneratedWithBuild is parseGenerated but lets a test pick the
+// clientBuild — used to pin both the lean (build < firstUrltestSafeBuild)
+// and full urltest (build >= firstUrltestSafeBuild) config shapes.
+func parseGeneratedWithBuild(t *testing.T, clientBuild int) map[string]any {
+	t.Helper()
 	engine, user, servers, chains := fixture()
-	raw, err := generateClientConfig(engine, user, servers, chains)
+	raw, err := generateClientConfig(engine, user, servers, chains, clientBuild)
 	if err != nil {
 		t.Fatalf("generateClientConfig: %v", err)
 	}
@@ -537,7 +546,7 @@ func TestHysteria2AndTUICOmittedWhenPortsZero(t *testing.T) {
 			servers[i].TUICPort = 0
 		}
 	}
-	raw, err := generateClientConfig(engine, user, servers, chains)
+	raw, err := generateClientConfig(engine, user, servers, chains, 0)
 	if err != nil {
 		t.Fatalf("generateClientConfig: %v", err)
 	}
@@ -579,7 +588,7 @@ func TestHysteria2ObfsWiredWhenConfigured(t *testing.T) {
 	const psk = "test-salamander-psk"
 	engine.Hysteria2ObfsPassword = psk
 
-	raw, err := generateClientConfig(engine, user, servers, chains)
+	raw, err := generateClientConfig(engine, user, servers, chains, 0)
 	if err != nil {
 		t.Fatalf("generateClientConfig: %v", err)
 	}
@@ -677,7 +686,7 @@ func TestRelayOnlyExitSkipsDirectLeg(t *testing.T) {
 		ExitCountryCode: "PL",
 	})
 
-	raw, err := generateClientConfig(engine, user, servers, chains)
+	raw, err := generateClientConfig(engine, user, servers, chains, 0)
 	if err != nil {
 		t.Fatalf("generateClientConfig: %v", err)
 	}
@@ -742,6 +751,83 @@ func TestRelayOnlyExitSkipsDirectLeg(t *testing.T) {
 		if slices.Contains(proxyMembers, tag) {
 			t.Errorf("Proxy must not list %q (waw1 is relay-only)", tag)
 		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// STALL-ON-NETSWITCH-LEAN-FIX (2026-07-16) — leanMode client-build gate
+// ---------------------------------------------------------------------------
+
+// TestLeanModeGateBoundary pins the exact build-number boundary between the
+// OOM-emergency lean config (no urltest) and the full urltest shape:
+// firstUrltestSafeBuild (137) is the first build carrying the LIBBOX-REBUILD
+// memory diet. One build below must still be lean; that exact build and
+// above must have urltest. A regression here either strands an old client's
+// still-fragile NE on urltest's cold-start probe storm, or leaves an
+// updated client on the broken lean+hardcoded-"Auto"-nudge combination that
+// caused the 2026-07-16 all-day stall (device log: every
+// `urlTest("Auto")` failed with "outbound group not found: Auto").
+func TestLeanModeGateBoundary(t *testing.T) {
+	below := parseGeneratedWithBuild(t, firstUrltestSafeBuild-1)
+	if outboundByTag(below, "Auto") != nil {
+		t.Errorf("build %d: expected lean config (no Auto urltest group)", firstUrltestSafeBuild-1)
+	}
+
+	atThreshold := parseGeneratedWithBuild(t, firstUrltestSafeBuild)
+	if outboundByTag(atThreshold, "Auto") == nil {
+		t.Errorf("build %d: expected full urltest config (Auto group present)", firstUrltestSafeBuild)
+	}
+}
+
+// TestLeanModeUnknownBuildStaysLean pins clientBuild=0 (no X-App-Build
+// header — old client, or the unauthenticated /sub/:token/:mode legacy
+// link) to the safe lean shape. This is the zero-regression guarantee for
+// every client that predates this gate.
+func TestLeanModeUnknownBuildStaysLean(t *testing.T) {
+	cfg := parseGeneratedWithBuild(t, 0)
+	if outboundByTag(cfg, "Auto") != nil {
+		t.Error("clientBuild=0 must stay on the lean config (no Auto urltest group)")
+	}
+	proxy := outboundByTag(cfg, "Proxy")
+	if proxy == nil {
+		t.Fatal("Proxy selector not found")
+	}
+	if def, _ := proxy["default"].(string); def == "Auto" {
+		t.Error("clientBuild=0: Proxy.default must not be \"Auto\" (lean mode has no such group)")
+	}
+}
+
+// TestFullUrltestModeMatchesLegacyShape asserts that a client build at/above
+// firstUrltestSafeBuild gets exactly the pre-emergency urltest shape assumed
+// by TestProxySelectorContainsAutoAndCountryGroups/TestProxySelectorDefault/
+// TestUrltestGroupsRecoverFast (those tests skip when Auto is absent — this
+// one requires it to be present and asserts the same core invariants
+// directly, so the "unlocked" shape has an unconditional pin, not just a
+// skip-if-lean).
+func TestFullUrltestModeMatchesLegacyShape(t *testing.T) {
+	cfg := parseGeneratedWithBuild(t, firstUrltestSafeBuild)
+
+	proxy := outboundByTag(cfg, "Proxy")
+	if proxy == nil {
+		t.Fatal("Proxy selector not found")
+	}
+	if def, _ := proxy["default"].(string); def != "Auto" {
+		t.Errorf("Proxy.default = %q, want \"Auto\"", def)
+	}
+
+	members := outboundMembers(cfg, "Proxy")
+	for _, group := range []string{"🇩🇪 Германия", "🇳🇱 Нидерланды"} {
+		if !slices.Contains(members, group) {
+			t.Errorf("Proxy missing country urltest group %q; got %v", group, members)
+		}
+	}
+
+	auto := outboundByTag(cfg, "Auto")
+	if auto == nil {
+		t.Fatal("Auto urltest group not emitted")
+	}
+	if auto["type"] != "urltest" {
+		t.Errorf("Auto type=%v, want urltest", auto["type"])
 	}
 }
 

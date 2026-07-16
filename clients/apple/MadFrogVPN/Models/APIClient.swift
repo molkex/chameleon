@@ -333,6 +333,14 @@ class APIClient {
         #endif
         req.setValue(DeviceTelemetry.modelIdentifier, forHTTPHeaderField: "X-Device-Model")
         req.setValue(DeviceTelemetry.installDateISO, forHTTPHeaderField: "X-Install-Date")
+        // STALL-ON-NETSWITCH-LEAN-FIX (2026-07-16): CFBundleVersion (build
+        // number), NOT the marketing version — lets /config gate the
+        // urltest-vs-lean shape per client build (clientconfig.go leanMode).
+        // Distinct from the analytics X-App-Version header (EventTracker),
+        // which carries CFBundleShortVersionString for a different purpose.
+        if let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String, !build.isEmpty {
+            req.setValue(build, forHTTPHeaderField: "X-App-Build")
+        }
         // STORE-COUNTRY: App Store storefront, cached at launch (SubscriptionManager).
         if let store = UserDefaults.standard.string(forKey: AppConstants.storeCountryKey), !store.isEmpty {
             req.setValue(store, forHTTPHeaderField: "X-Store-Country")

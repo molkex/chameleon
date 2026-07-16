@@ -490,10 +490,14 @@ func (e *SingboxEngine) UptimeHours() float64 {
 
 // GenerateClientConfig creates a sing-box client config JSON for iOS/macOS.
 //
+// clientBuild is the client's self-reported build number (0 if unknown/old
+// client) — see leanMode / firstUrltestSafeBuild in clientconfig.go for how
+// it gates the urltest vs. lean-selector config shape.
+//
 // Emits a single INFO log line with the user's username + the selected uTLS
 // fingerprint (LAUNCH-12). Correlate handshake failures by fingerprint to
 // detect if RKN ever starts targeting one specific fingerprint.
-func (e *SingboxEngine) GenerateClientConfig(user VPNUser, servers []ServerEntry, chains []ChainedEntry) ([]byte, error) {
+func (e *SingboxEngine) GenerateClientConfig(user VPNUser, servers []ServerEntry, chains []ChainedEntry, clientBuild int) ([]byte, error) {
 	fp := selectFingerprint(user.Username)
 	if e.logger != nil {
 		e.logger.Info("clientconfig generated",
@@ -501,7 +505,7 @@ func (e *SingboxEngine) GenerateClientConfig(user VPNUser, servers []ServerEntry
 			zap.String("utls_fingerprint", fp),
 		)
 	}
-	return generateClientConfig(e.cfg, user, servers, chains)
+	return generateClientConfig(e.cfg, user, servers, chains, clientBuild)
 }
 
 // ---------------------------------------------------------------------------

@@ -251,7 +251,7 @@ open class ExtensionProvider: NEPacketTunnelProvider {
                 }
 
                 self.startMemoryWatchdog()
-                self.startStallProbe()
+                self.startStallProbe(configJSON: sanitizedConfig)
                 self.publishWidgetState(connected: true)
                 completionHandler(nil)
             } catch {
@@ -313,8 +313,16 @@ open class ExtensionProvider: NEPacketTunnelProvider {
 
     // MARK: - Stall probe lifecycle
 
-    private func startStallProbe() {
+    private func startStallProbe(configJSON: String) {
         guard stallProbe == nil else { return }
+
+        // STALL-ON-NETSWITCH-LEAN-FIX (2026-07-16): derive the real urltest
+        // group tags from the config sing-box was actually handed, instead
+        // of hardcoding "Auto" — the backend's OOM-emergency lean mode omits
+        // it entirely, which made every nudge below silently fail all day
+        // (device log: "outbound group not found: Auto" on every stall).
+        let discoveredTags = urltestGroupTags(fromConfigJSON: configJSON)
+        TunnelFileLogger.log("startStallProbe: discovered urltest groups: \(discoveredTags)", category: "tunnel-probe")
 
         // Build-44: real-traffic detector takes authority for fallback
         // signals. The synthetic probe stays only as an idle health
@@ -380,7 +388,7 @@ open class ExtensionProvider: NEPacketTunnelProvider {
         realStallDetector = detector
         platformInterface?.realStallDetector = detector
 
-        stallProbe = TunnelStallProbe()
+        stallProbe = TunnelStallProbe(config: TunnelStallProbe.Config(urltestGroupTags: discoveredTags))
         platformInterface?.stallProbe = stallProbe
     }
 
