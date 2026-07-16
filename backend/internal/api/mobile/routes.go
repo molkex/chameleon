@@ -24,21 +24,22 @@ import (
 
 // Handler holds all dependencies needed by mobile API handlers.
 type Handler struct {
-	DB            *db.DB
-	Redis         *redis.Client
-	JWT           *auth.JWTManager
-	Apple         *auth.AppleVerifier  // Sign In With Apple (identity token)
-	Google        *auth.GoogleVerifier // Google Sign-In (id_token)
-	AppleVerifier *apple.Verifier      // App Store IAP JWS verification
-	Payments      *payments.Service
-	FreeKassa     *freekassa.Client // may be nil if FreeKassa is disabled
-	VPN           vpn.Engine        // may be nil if VPN engine is not configured
-	Config        *config.Config
-	GeoIP         *geoip.Resolver
-	Email         email.Sender     // transactional email sender (Resend or noop)
-	Metrics       *metrics.Metrics // Prometheus counters; may be nil in tests
-	Storage       *storage.Client  // B2 attachments; nil ⇒ attachments disabled
-	Logger        *zap.Logger
+	DB               *db.DB
+	Redis            *redis.Client
+	JWT              *auth.JWTManager
+	Apple            *auth.AppleVerifier  // Sign In With Apple (identity token)
+	Google           *auth.GoogleVerifier // Google Sign-In (id_token)
+	AppleVerifier    *apple.Verifier      // App Store IAP JWS verification
+	Payments         *payments.Service
+	FreeKassa        *freekassa.Client           // may be nil if FreeKassa is disabled
+	QuupbotForwarder *freekassa.QuupbotForwarder // may be nil (feature off) — see FreeKassaWebhook
+	VPN              vpn.Engine                  // may be nil if VPN engine is not configured
+	Config           *config.Config
+	GeoIP            *geoip.Resolver
+	Email            email.Sender     // transactional email sender (Resend or noop)
+	Metrics          *metrics.Metrics // Prometheus counters; may be nil in tests
+	Storage          *storage.Client  // B2 attachments; nil ⇒ attachments disabled
+	Logger           *zap.Logger
 }
 
 // RegisterRoutes adds mobile API routes to the given echo group.

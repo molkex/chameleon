@@ -2,6 +2,7 @@ package mobile
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -75,6 +76,35 @@ func (h *Handler) FreeKassaWebhook(c echo.Context) error {
 			zap.String("order_id", payload.MerchantOrderID),
 		)
 		return c.String(http.StatusForbidden, "bad signature")
+	}
+
+	// 3.5. quupbot orders (qb_ prefix): relay to quupbot's own webhook receiver instead
+	// of processing here. quupbot shares this project's FreeKassa shopId — see
+	// freekassa.QuupbotForwarder's doc comment for why one shopId needs this routing.
+	// Feature-gated: h.QuupbotForwarder is nil unless configured, in which case this
+	// behaves exactly like the pre-existing "non-app payment id" branch below.
+	if freekassa.IsQuupbotPayment(payload.MerchantOrderID) {
+		if h.QuupbotForwarder == nil {
+			h.Logger.Warn("freekassa webhook: quupbot order but forwarder not configured",
+				zap.String("order_id", payload.MerchantOrderID))
+			return c.String(http.StatusOK, "YES")
+		}
+		switch fwdErr := h.QuupbotForwarder.Forward(c.Request().Context(), form); {
+		case fwdErr == nil:
+			return c.String(http.StatusOK, "YES")
+		case errors.Is(fwdErr, freekassa.ErrForwardRejected):
+			// Permanent: quupbot examined the payment and rejected it (amount mismatch,
+			// unknown order, ...). Don't tell FreeKassa to keep retrying.
+			h.Logger.Warn("freekassa webhook: quupbot forward rejected",
+				zap.String("order_id", payload.MerchantOrderID), zap.Error(fwdErr))
+			return c.String(http.StatusBadRequest, "ERR")
+		default:
+			// Transient: quupbot unreachable/erroring. Let FreeKassa retry; this is NOT
+			// a chameleon payment failure, so it's logged at Warn, not Error/alerted.
+			h.Logger.Warn("freekassa webhook: quupbot forward unavailable",
+				zap.String("order_id", payload.MerchantOrderID), zap.Error(fwdErr))
+			return c.String(http.StatusServiceUnavailable, "ERR")
+		}
 	}
 
 	// 4. Route by paymentId prefix. Bot payments are handled elsewhere

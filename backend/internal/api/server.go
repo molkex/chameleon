@@ -227,13 +227,17 @@ func (s *Server) setupRoutes(e *echo.Echo) {
 		AppleVerifier: appleVerifier,
 		Payments:      paymentsSvc,
 		FreeKassa:     fkClient,
-		VPN:           s.VPN,
-		Config:        s.Config,
-		GeoIP:         geoip.New(),
-		Email:         s.Email,
-		Metrics:       s.Metrics,
-		Storage:       s.Storage,
-		Logger:        s.Logger,
+		QuupbotForwarder: freekassa.NewQuupbotForwarder(
+			s.Config.Payments.FreeKassa.QuupbotForwardURL,
+			s.Config.Payments.FreeKassa.QuupbotForwardSecret,
+		),
+		VPN:     s.VPN,
+		Config:  s.Config,
+		GeoIP:   geoip.New(),
+		Email:   s.Email,
+		Metrics: s.Metrics,
+		Storage: s.Storage,
+		Logger:  s.Logger,
 	}
 
 	// Mobile API: /api/mobile/* and /api/v1/mobile/* (iOS app uses v1 prefix)

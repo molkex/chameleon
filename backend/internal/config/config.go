@@ -104,6 +104,15 @@ type FreeKassaPaymentsConfig struct {
 	// PublicURL is the origin used to build success/fail redirect URLs passed to FreeKassa.
 	// Example: "https://madfrog.online". No trailing slash.
 	PublicURL string `yaml:"public_url"`
+
+	// QuupbotForwardURL/Secret: quupbot (a separate Telegram-bot shop) shares this
+	// project's FreeKassa shopId, so FreeKassa's one-per-shop notification URL is
+	// chameleon's. Orders whose MERCHANT_ORDER_ID starts with "qb_" are relayed here
+	// instead of processed locally — see freekassa.QuupbotForwarder. Both empty (default)
+	// = feature off, those orders fall through to the pre-existing "non-app payment id"
+	// no-op branch, unchanged from before this field existed.
+	QuupbotForwardURL    string `yaml:"quupbot_forward_url"`
+	QuupbotForwardSecret string `yaml:"quupbot_forward_secret"`
 }
 
 // TrialConfig controls the automatic free-day grant on registration.
@@ -361,6 +370,8 @@ func (c *Config) resolveAllEnvVars() {
 	c.Payments.FreeKassa.APIKey = resolveEnvVars(c.Payments.FreeKassa.APIKey)
 	c.Payments.FreeKassa.Secret1 = resolveEnvVars(c.Payments.FreeKassa.Secret1)
 	c.Payments.FreeKassa.Secret2 = resolveEnvVars(c.Payments.FreeKassa.Secret2)
+	c.Payments.FreeKassa.QuupbotForwardURL = resolveEnvVars(c.Payments.FreeKassa.QuupbotForwardURL)
+	c.Payments.FreeKassa.QuupbotForwardSecret = resolveEnvVars(c.Payments.FreeKassa.QuupbotForwardSecret)
 
 	// Email + Google
 	c.Email.APIKey = resolveEnvVars(c.Email.APIKey)
