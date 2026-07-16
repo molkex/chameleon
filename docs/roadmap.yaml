@@ -1157,8 +1157,10 @@ done:
         Go-side durable version (queued, not done): make `URLTestGroup` implement
         `adapter.InterfaceUpdateListener` directly — `route/network.go` would pick it up
         automatically, cleaner than the client-side nudge but needs LIBBOX-REBUILD.
-        Build 1.0.34(139), TestFlight only (1.0.34/138 already WAITING_FOR_REVIEW at
-        Apple — not touching that submission). 345 unit tests pass, full build succeeds.
+        Build 1.0.35(139), TestFlight only — 1.0.34's train closed to new builds the
+        moment build 138 went WAITING_FOR_REVIEW at Apple (known pattern, "Invalid
+        Pre-Release Train"), so this shipped as a NEW marketing version. Not touching
+        the 1.0.34 App Store submission. 345 unit tests pass, full build succeeds.
       next: "Verify on-device: toggle WiFi off/on or airplane-mode-cycle while connected,
         confirm traffic resumes within ~1-6s instead of hanging. If solid, consider the
         Go-side InterfaceUpdateListener version for a future LIBBOX-REBUILD pass."
