@@ -1193,6 +1193,8 @@ class AppState {
         let persistTarget = isAuto ? "Auto" : serverTag
         if let persisted = buildConfigWithSelections(chain: chainOrFallback(target: persistTarget)) {
             UserDefaults(suiteName: AppConstants.appGroupID)?.set(persisted, forKey: AppConstants.startOptionsKey)
+        } else {
+            TunnelFileLogger.log("selectServer: startOptions NOT persisted — buildConfigWithSelections returned nil for target='\(persistTarget)'", category: "ui")
         }
         TunnelFileLogger.log("selectServer ENTER: groupTag='\(groupTag)' serverTag='\(serverTag)' prev='\(previousTag ?? "Auto")' connected=\(vpnManager.isConnected) cmdClientConnected=\(commandClient.isConnected)", category: "ui")
         // Dump current servers tree so we can verify the tag we got from

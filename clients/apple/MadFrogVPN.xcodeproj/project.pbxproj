@@ -14,6 +14,7 @@
 		03D46FF6FD8EF369819CAAEC /* PlatformViewExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11EBC90E3AED9A381EEA7F2F /* PlatformViewExtensions.swift */; };
 		0488AB077CE7FECAF0AEE10E /* Libbox.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = C18C942EF28864C26636822B /* Libbox.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		09184E05C76A88DC8AF609D8 /* CrashReporterSanitizeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A68B252ED056950D8E56A513 /* CrashReporterSanitizeTests.swift */; };
+		0AE6E13A1CB43099BC80397F /* WidgetTimelineRefreshTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD645AA3D3209415D34A061B /* WidgetTimelineRefreshTests.swift */; };
 		0B6748C5506EFFE2D804F8A3 /* PlanPricingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E62FB9F87E98C6E2CDAA9C4 /* PlanPricingTests.swift */; };
 		0BC8C5012360A5EB8E0E0FEF /* SystemConfiguration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CBA31374948F1B482110AB8A /* SystemConfiguration.framework */; };
 		0D6FD98F17D51EA831F22DB9 /* VPNErrorMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = E683952FD2B39BA18604AB73 /* VPNErrorMapper.swift */; };
@@ -489,6 +490,7 @@
 		D74E8F46235E55DCBC83A95C /* NetworkFingerprint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkFingerprint.swift; sourceTree = "<group>"; };
 		D8BA0442D38049EA8D16B48E /* VPNControlIntentsBehaviorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VPNControlIntentsBehaviorTests.swift; sourceTree = "<group>"; };
 		DBF8B42392C0D194798D2667 /* TunnelFileLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunnelFileLogger.swift; sourceTree = "<group>"; };
+		DD645AA3D3209415D34A061B /* WidgetTimelineRefreshTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetTimelineRefreshTests.swift; sourceTree = "<group>"; };
 		DE3FC4D9A2F0228684038B28 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		DF2F273346C080E186A4A490 /* ServerGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerGroup.swift; sourceTree = "<group>"; };
 		DF45EE5DF9D0CCC61D75519F /* TunnelStartGuardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunnelStartGuardTests.swift; sourceTree = "<group>"; };
@@ -651,6 +653,7 @@
 				D8BA0442D38049EA8D16B48E /* VPNControlIntentsBehaviorTests.swift */,
 				ADB65A53BF4FC3C3AA645847 /* VPNManagerOnDemandRulesTests.swift */,
 				D65D479EF0373DB31F5069CB /* VPNManagerTimeoutTests.swift */,
+				DD645AA3D3209415D34A061B /* WidgetTimelineRefreshTests.swift */,
 			);
 			path = UnitTests;
 			sourceTree = "<group>";
@@ -1353,6 +1356,7 @@
 				3DC5082569D21467B3C6D82B /* VPNControlIntentsBehaviorTests.swift in Sources */,
 				0EABA873BD504C158A7F3B0D /* VPNManagerOnDemandRulesTests.swift in Sources */,
 				F03C939490E02FAFE06DAD69 /* VPNManagerTimeoutTests.swift in Sources */,
+				0AE6E13A1CB43099BC80397F /* WidgetTimelineRefreshTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

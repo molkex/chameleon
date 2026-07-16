@@ -1127,6 +1127,61 @@ deferred:
 # ============================================================
 done:
   "2026-07-16":
+    - id: WIDGET-CONNECTING-TIMELINE-FIX
+      title: "Widget shows 'Не защищено' for ~30s after a real connect succeeds — StatusProvider baked a bake-time guess instead of scheduling a re-read"
+      notes: |
+        Field report same day: "виджет ... не работает, если авто режим выбран,
+        нажимаю подключиться и на этом подключение висит и потом написано не
+        защищено хотя подключился." Traced via a fresh exported tunnel-debug.log:
+        the connect was triggered from the widget/Control Center (no toggleVPN/
+        TAP lines, "Config source: persisted UserDefaults", not "tunnel options"),
+        sing-box actually connected within ~1s of TUNNEL START, and
+        ExtensionProvider.publishWidgetState(connected:true) fires right after —
+        but the widget still showed "Не защищено" for a long stretch until the
+        app was reopened ~58s later.
+        Root cause (Fable-verified against source): StatusProvider.getTimeline
+        (StatusWidget.swift), when it observed the "connecting" flag, scheduled
+        a Timeline with TWO entries — the current "connecting" one, and a SECOND
+        entry hardcoded to `WidgetVPNSnapshot(connected: false, ...)` at the
+        flag's 30s self-expiry. That's a guess baked in at render time; the only
+        way to correct it before it fired was `WidgetCenter.reloadAllTimelines()`
+        landing first, which is subject to iOS's own reload-budget throttling
+        (already documented same-day in the WIDGET-CONNECTING entry's followup
+        for a different rapid-reconnect scenario — this is the same platform
+        quirk biting a plain single connect too).
+        Fix: `WidgetVPNSnapshot` gained `nextTimelineRefresh(now:)` (pure,
+        tested) — while connecting, refresh right at the flag's 30s expiry;
+        otherwise the existing 30-min safety net. `getTimeline` now returns a
+        SINGLE entry with `policy: .after(nextTimelineRefresh)` — when that
+        date passes, WidgetKit calls getTimeline again and reads the App Group
+        fresh, self-correcting to whatever is actually true instead of
+        rendering a bake-time guess.
+        Second, related bug found in the same log and fixed alongside:
+        selecting a new server (e.g. "Auto") while disconnected, then connecting
+        via the widget seconds later, booted the tunnel on the OLD leg
+        (persisted before the fresh pick) for ~58s until the app reopened and
+        applied the pick live over the Clash API. Fixed with ConfigSanitizer
+        rule 6b: bakes the persisted selectedServerTag into the Proxy selector's
+        `default` at extension boot, mirroring AppState.resolveChain's exact
+        3-case resolution (direct Proxy member; nested leaf inside a non-Auto
+        urltest/selector member, pinning that parent too when it's a real
+        `selector` — urltest groups have no `default` field; last-resort
+        fallback to Auto) — same "kill the race structurally at boot" pattern
+        already used for RoutingMode in rule 6. Also added a log line for the
+        previously-silent AppState.selectServer persist-failure branch
+        (buildConfigWithSelections returning nil).
+        Tests: 4 new (WidgetTimelineRefreshTests) + 6 new (ConfigSanitizerTests:
+        direct member, nil→Auto, stale tag untouched, nested-leaf-pins-parent,
+        leaf-only-in-Auto fallback, lean-config-without-Auto untouched). iOS +
+        macOS build clean, 366 unit tests pass (was 356).
+      next: "DONE, shipped as part of the same 1.0.35 build as
+        STALL-ON-NETSWITCH-LEAN-FIX (see that entry below for exact build
+        number). Needs on-device confirmation: pick a server, background the
+        app, connect via the Home Screen widget or Control Center, confirm it
+        shows 'Подключение…' then flips to 'Защищено' within a few seconds
+        (not ~30s), and that the tunnel comes up on the picked server
+        immediately rather than the previous one."
+
     - id: ADMIN-CF-BYPASS
       title: "Admin panel unreachable in RU without VPN — the old non-CF bypass (api.madfrog.online/admin/app/) had silently 404'd since the 2026-07-01 WAW migration"
       notes: |

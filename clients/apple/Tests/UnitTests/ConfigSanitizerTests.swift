@@ -284,6 +284,157 @@ final class ConfigSanitizerTests: XCTestCase {
         XCTAssertEqual(ru?["default"] as? String, "Proxy", "must leave the default alone when the target is not a member")
     }
 
+    // MARK: - Bake persisted server pick into Proxy default (STALL-ON-NETSWITCH-LEAN-FIX follow-up, 2026-07-16)
+
+    /// A device log 2026-07-16 showed a user pick "Auto" in-app, then connect
+    /// via the widget 4s later — the tunnel booted on the OLD leg because
+    /// nothing baked the fresh pick into the config the widget's cold-start
+    /// path reads. Case 1: a country group tag is a direct Proxy member.
+    func testBakesSelectedCountryIntoProxyDefault() throws {
+        let defaults = UserDefaults(suiteName: AppConstants.appGroupID)
+        let previous = defaults?.string(forKey: AppConstants.selectedServerTagKey)
+        defer {
+            if let previous { defaults?.set(previous, forKey: AppConstants.selectedServerTagKey) }
+            else { defaults?.removeObject(forKey: AppConstants.selectedServerTagKey) }
+        }
+        defaults?.set("🇳🇱 Нидерланды", forKey: AppConstants.selectedServerTagKey)
+
+        let input = """
+        {"log":{},"outbounds":[
+          {"type":"selector","tag":"Proxy","outbounds":["Auto","🇳🇱 Нидерланды","nl-direct-nl2"],"default":"Auto"},
+          {"type":"urltest","tag":"Auto","outbounds":["nl-direct-nl2"]},
+          {"type":"urltest","tag":"🇳🇱 Нидерланды","outbounds":["nl-direct-nl2"]}
+        ]}
+        """
+        let dict = try parseJSON(ConfigSanitizer.sanitizeForIOS(input))
+        let outbounds = dict["outbounds"] as? [[String: Any]] ?? []
+        let proxy = outbounds.first { $0["tag"] as? String == "Proxy" }
+        XCTAssertEqual(proxy?["default"] as? String, "🇳🇱 Нидерланды")
+    }
+
+    /// No persisted key (fresh install, or the user has never picked) must
+    /// bake "Auto" — the documented default a fresh tunnel should land on.
+    func testNilSelectionBakesAuto() throws {
+        let defaults = UserDefaults(suiteName: AppConstants.appGroupID)
+        let previous = defaults?.string(forKey: AppConstants.selectedServerTagKey)
+        defer {
+            if let previous { defaults?.set(previous, forKey: AppConstants.selectedServerTagKey) }
+            else { defaults?.removeObject(forKey: AppConstants.selectedServerTagKey) }
+        }
+        defaults?.removeObject(forKey: AppConstants.selectedServerTagKey)
+
+        let input = """
+        {"log":{},"outbounds":[
+          {"type":"selector","tag":"Proxy","outbounds":["Auto","nl-direct-nl2"],"default":"nl-direct-nl2"},
+          {"type":"urltest","tag":"Auto","outbounds":["nl-direct-nl2"]}
+        ]}
+        """
+        let dict = try parseJSON(ConfigSanitizer.sanitizeForIOS(input))
+        let outbounds = dict["outbounds"] as? [[String: Any]] ?? []
+        let proxy = outbounds.first { $0["tag"] as? String == "Proxy" }
+        XCTAssertEqual(proxy?["default"] as? String, "Auto")
+    }
+
+    /// A persisted tag the current config no longer emits (server retired,
+    /// stale cache) must never invent a non-member default — leave whatever
+    /// was already baked in untouched.
+    func testStaleTagLeavesProxyDefaultUntouched() throws {
+        let defaults = UserDefaults(suiteName: AppConstants.appGroupID)
+        let previous = defaults?.string(forKey: AppConstants.selectedServerTagKey)
+        defer {
+            if let previous { defaults?.set(previous, forKey: AppConstants.selectedServerTagKey) }
+            else { defaults?.removeObject(forKey: AppConstants.selectedServerTagKey) }
+        }
+        defaults?.set("de-direct-de", forKey: AppConstants.selectedServerTagKey)
+
+        let input = """
+        {"log":{},"outbounds":[
+          {"type":"selector","tag":"Proxy","outbounds":["Auto","nl-direct-nl2"],"default":"nl-direct-nl2"},
+          {"type":"urltest","tag":"Auto","outbounds":["nl-direct-nl2"]}
+        ]}
+        """
+        let dict = try parseJSON(ConfigSanitizer.sanitizeForIOS(input))
+        let outbounds = dict["outbounds"] as? [[String: Any]] ?? []
+        let proxy = outbounds.first { $0["tag"] as? String == "Proxy" }
+        XCTAssertEqual(proxy?["default"] as? String, "nl-direct-nl2", "unknown tag must not overwrite the existing default")
+    }
+
+    /// Case 2: a leaf nested one level inside a non-Auto selector member
+    /// (e.g. the whitelist-bypass group) — Proxy routes to the parent, and
+    /// the parent (a real `selector`, unlike urltest groups) gets pinned to
+    /// the specific leaf too.
+    func testNestedLeafInSelectorPinsParentToo() throws {
+        let defaults = UserDefaults(suiteName: AppConstants.appGroupID)
+        let previous = defaults?.string(forKey: AppConstants.selectedServerTagKey)
+        defer {
+            if let previous { defaults?.set(previous, forKey: AppConstants.selectedServerTagKey) }
+            else { defaults?.removeObject(forKey: AppConstants.selectedServerTagKey) }
+        }
+        defaults?.set("ru-spb-nl", forKey: AppConstants.selectedServerTagKey)
+
+        let input = """
+        {"log":{},"outbounds":[
+          {"type":"selector","tag":"Proxy","outbounds":["Auto","🇷🇺 Россия (обход белых списков)"],"default":"Auto"},
+          {"type":"urltest","tag":"Auto","outbounds":["nl-direct-nl2"]},
+          {"type":"selector","tag":"🇷🇺 Россия (обход белых списков)","outbounds":["ru-spb-de","ru-spb-nl"],"default":"ru-spb-de"}
+        ]}
+        """
+        let dict = try parseJSON(ConfigSanitizer.sanitizeForIOS(input))
+        let outbounds = dict["outbounds"] as? [[String: Any]] ?? []
+        let proxy = outbounds.first { $0["tag"] as? String == "Proxy" }
+        let bypass = outbounds.first { $0["tag"] as? String == "🇷🇺 Россия (обход белых списков)" }
+        XCTAssertEqual(proxy?["default"] as? String, "🇷🇺 Россия (обход белых списков)")
+        XCTAssertEqual(bypass?["default"] as? String, "ru-spb-nl")
+    }
+
+    /// Case 3: the target exists ONLY inside Auto (no dedicated country
+    /// group claims it) — last-resort fallback still routes Proxy to Auto
+    /// rather than leaving a stale default.
+    func testLeafOnlyInAutoFallsBackToAuto() throws {
+        let defaults = UserDefaults(suiteName: AppConstants.appGroupID)
+        let previous = defaults?.string(forKey: AppConstants.selectedServerTagKey)
+        defer {
+            if let previous { defaults?.set(previous, forKey: AppConstants.selectedServerTagKey) }
+            else { defaults?.removeObject(forKey: AppConstants.selectedServerTagKey) }
+        }
+        defaults?.set("nl-direct-nl2", forKey: AppConstants.selectedServerTagKey)
+
+        let input = """
+        {"log":{},"outbounds":[
+          {"type":"selector","tag":"Proxy","outbounds":["Auto"],"default":"Auto"},
+          {"type":"urltest","tag":"Auto","outbounds":["nl-direct-nl2","de-direct-de"]}
+        ]}
+        """
+        let dict = try parseJSON(ConfigSanitizer.sanitizeForIOS(input))
+        let outbounds = dict["outbounds"] as? [[String: Any]] ?? []
+        let proxy = outbounds.first { $0["tag"] as? String == "Proxy" }
+        XCTAssertEqual(proxy?["default"] as? String, "Auto")
+    }
+
+    /// A lean-mode config (STALL-ON-NETSWITCH-LEAN-FIX: old/unknown client
+    /// builds get no "Auto" urltest group at all) with a persisted "Auto"
+    /// pick must leave the existing default untouched rather than pointing
+    /// Proxy at a member that doesn't exist.
+    func testLeanConfigWithoutAutoLeavesDefaultUntouched() throws {
+        let defaults = UserDefaults(suiteName: AppConstants.appGroupID)
+        let previous = defaults?.string(forKey: AppConstants.selectedServerTagKey)
+        defer {
+            if let previous { defaults?.set(previous, forKey: AppConstants.selectedServerTagKey) }
+            else { defaults?.removeObject(forKey: AppConstants.selectedServerTagKey) }
+        }
+        defaults?.removeObject(forKey: AppConstants.selectedServerTagKey)
+
+        let input = """
+        {"log":{},"outbounds":[
+          {"type":"selector","tag":"Proxy","outbounds":["nl-direct-nl2","de-direct-de"],"default":"nl-direct-nl2"}
+        ]}
+        """
+        let dict = try parseJSON(ConfigSanitizer.sanitizeForIOS(input))
+        let outbounds = dict["outbounds"] as? [[String: Any]] ?? []
+        let proxy = outbounds.first { $0["tag"] as? String == "Proxy" }
+        XCTAssertEqual(proxy?["default"] as? String, "nl-direct-nl2")
+    }
+
     // MARK: - Bundled geoip-ru rule_set (MEM-01, 2026-07-15)
 
     /// The backend still emits geoip-ru as a `remote` rule_set (fetched +

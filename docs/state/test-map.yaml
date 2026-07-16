@@ -204,7 +204,13 @@ apple:
       memory pressure — 62,756 resets in one device log), never duplicates a
       backend-supplied one, bakes the persisted RoutingMode into the selector defaults
       before engine start (kills the host-app apply race), and never selects a
-      non-member outbound.
+      non-member outbound. 2026-07-16: also bakes the persisted server pick
+      (selectedServerTagKey) into Proxy's default at boot (mirrors
+      AppState.resolveChain's 3 cases — direct member, nested-leaf-in-selector
+      pinning the parent too, leaf-only-in-Auto fallback) — closes the race where
+      a widget/Control-Center-triggered connect right after picking a new server
+      would boot on the stale previous leg for up to ~60s until the app reopened
+      and corrected it live.
     - SingBoxConfigPatcher, LastWorkingLegStore, LeafRankingStore, RoutingMode
     - StringUtils (RU pluralisation), KeychainHelper (XCTSkip in sim; now also covers legacy→data-protection-keychain migration — KEYCHAIN-MACOS fix 2026-06-03)
     - VPNControlIntents, CountryFlag, CrashReporter (sanitize), DisconnectNotifier
@@ -212,11 +218,13 @@ apple:
     - TunnelFileLogger.truncationKeepOffset + isVerboseSingboxLine (TunnelFileLoggerCapTests, LOG-01 2026-06-06 — singbox.log size-cap offset math + ANSI-aware TRACE/DEBUG detection so writeDebugMessage drops the 37%-of-volume verbose firehose from the file sinks; both feed the NE-memory fix behind the oom-killer "resetting network" drops)
     - StallSignals.dnsFailureDomain + dnsStallReached + isMemoryPressureReset + isDNSResolverDestination (StallSignalsTests, STALL-DNS-SIGNAL + OOM-SELF-HEAL 2026-06-17 + STALL-OPEN-BUT-DEAD 2026-07-12 — pure seam extracted from RealTrafficStallDetector so the stall heuristics are testable from the MadFrogVPN target; pinned against real iPhone-log lines — (a) DNS — "dns exchange failed … i/o timeout" domains the detector was blind to, dominating the bricked-Instagram failure (Pain #1); (b) OOM — "oom-killer … memory pressure critical … resetting network" so the NE self-heals after a jetsam-driven reset instead of needing the user to re-open the app (Pain #2); (c) isDNSResolverDestination — excludes the proxied DoH resolver IPs (1.1.1.1/1.0.0.1) from user-dial-success counting, plus a dnsStallReached case at the new minDNSFailDomains=5 threshold replaying the 2026-07-12 pl-direct-waw1 incident (Pain #3). ANSI noise + NXDOMAIN/partial-line rejects covered)
     - urltestGroupTags(fromConfigJSON:) (UrltestGroupParsingTests, STALL-ON-NETSWITCH-LEAN-FIX 2026-07-16 — pure seam extracted so TunnelStallProbe's group-discovery logic is testable from the MadFrogVPN target: full-mode extraction, lean-mode empty result, malformed/empty JSON, missing/empty tag skip)
+    - WidgetVPNSnapshot.nextTimelineRefresh (WidgetTimelineRefreshTests, WIDGET-CONNECTING-TIMELINE-FIX 2026-07-16 — the seam that replaced StatusProvider.getTimeline's hardcoded connected:false fallback entry with a self-correcting refresh policy; pinned against the device log that showed a real connect succeed in ~1s while the widget still rendered "Не защищено" for ~28s)
   untested_surfaces:
     - PacketTunnel/* (ExtensionProvider, ExtensionPlatformInterface, RealTrafficStallDetector [DNS-stall trigger now covered indirectly via StallSignalsTests], TunnelStallProbe [group-discovery logic now covered indirectly via UrltestGroupParsingTests; the actual CommandClient nudge/connect mechanism remains device-only]) — extension wiring on-device only
+    - MadFrogWidget/* (StatusWidget's getTimeline scheduling logic — the pure refresh-policy math is covered via WidgetTimelineRefreshTests, but actual WidgetKit rendering/reload-budget behavior is device-only)
     - Views/* (20 files) — no UI tests
     - CommandClient, Theme/ThemeManager/Haptics, LegRaceProbe, NetworkFingerprint
-  test_files_count: 34   # 2026-07-16: +UrltestGroupParsingTests (STALL-ON-NETSWITCH-LEAN-FIX)
+  test_files_count: 35   # 2026-07-16: +UrltestGroupParsingTests (STALL-ON-NETSWITCH-LEAN-FIX), +WidgetTimelineRefreshTests (WIDGET-CONNECTING-TIMELINE-FIX)
   build_for_testing: "VERIFIED 2026-06-01 — `xcodebuild build-for-testing -scheme MadFrogVPNTests -destination generic/platform=iOS Simulator CODE_SIGNING_ALLOWED=NO` exits 0. Fixed a pre-existing breakage that blocked it: EventTrackerTests had `await` inside XCTAssertEqual autoclosures (illegal under Xcode 26.5 / Swift 6) — hoisted into lets."
   ci_status: "WIRED 2026-06-01 (TEST-IOS-CI done) — scripts/fetch-libbox.sh pulls Libbox.xcframework.zip (146M) from the libbox-v1.13.5 GitHub Release (ditto-extract preserves macOS symlinks); ios.yml builds iOS+macOS and build-for-testing the test bundle. Run step is compile-only (the test HOST crashes on launch in an unsigned sim — see apple_note)."
 

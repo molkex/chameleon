@@ -40,27 +40,18 @@ struct StatusProvider: TimelineProvider {
         let snapshot = WidgetVPNSnapshot.read()
         let entry = StatusEntry(date: now, snapshot: snapshot)
 
-        // WIDGET-CONNECTING (2026-07-16): while a connect attempt is in
-        // flight, schedule a second entry right at the 30s self-expiry
-        // (WidgetVPNSnapshot.read's own timeout) so the fallback-to-"off"
-        // actually renders even if nothing ever calls reloadAllTimelines()
-        // in between — e.g. the widget extension that stamped "connecting"
-        // got jetsam-killed before the real outcome could clear it. No
-        // per-tick polling: just this one precomputed follow-up entry.
-        if snapshot.connecting, let connectingAt = snapshot.connectingAt {
-            let expiresAt = connectingAt.addingTimeInterval(30)
-            let fallback = StatusEntry(
-                date: expiresAt,
-                snapshot: WidgetVPNSnapshot(connected: false, serverName: snapshot.serverName)
-            )
-            completion(Timeline(entries: [entry, fallback], policy: .after(expiresAt)))
-            return
-        }
-
-        // App-driven reloads are the primary refresh path; this is the
-        // safety net if one is ever missed.
-        let next = Calendar.current.date(byAdding: .minute, value: 30, to: now) ?? now.addingTimeInterval(1800)
-        completion(Timeline(entries: [entry], policy: .after(next)))
+        // WIDGET-CONNECTING-TIMELINE-FIX (2026-07-16): a single entry, always.
+        // Previously this baked a SECOND entry hardcoded to `connected: false`
+        // at the connecting flag's 30s expiry — a bake-time guess that stuck
+        // unless a reloadAllTimelines() call happened to land first, which
+        // iOS's own reload-budget throttling doesn't guarantee (see
+        // WidgetVPNSnapshot.nextTimelineRefresh doc comment for the device-log
+        // evidence). Now the policy date is the only thing scheduled ahead:
+        // when it passes, WidgetKit calls getTimeline again and read() reports
+        // whatever is ACTUALLY true by then — self-correcting, not guessing.
+        // App-driven reloads (reloadAllTimelines on every status change)
+        // remain the primary refresh path; this is the safety net.
+        completion(Timeline(entries: [entry], policy: .after(snapshot.nextTimelineRefresh(now: now))))
     }
 }
 

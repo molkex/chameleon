@@ -98,6 +98,28 @@ struct WidgetVPNSnapshot: Equatable {
         return now.timeIntervalSince1970 - timestamp < 30
     }
 
+    /// WIDGET-CONNECTING-TIMELINE-FIX (2026-07-16): when should WidgetKit
+    /// request a fresh timeline after rendering this snapshot?
+    ///
+    /// While `connecting`, refresh right at the flag's 30s self-expiry so
+    /// the next `getTimeline` call re-reads the App Group and renders
+    /// whatever is ACTUALLY true by then — connected, or genuinely still
+    /// not connected. `StatusProvider.getTimeline` used to instead bake a
+    /// SECOND timeline entry hardcoded to `connected: false` at this same
+    /// expiry — a bake-time guess that only got corrected if
+    /// `WidgetCenter.reloadAllTimelines()` happened to land before it,
+    /// which iOS's own reload-budget throttling doesn't guarantee (device
+    /// log 2026-07-16: a real connect succeeded in ~1s, but the widget
+    /// still rendered "Не защищено" for ~28s because the hardcoded fallback
+    /// entry fired before any reload got through). A single entry + this
+    /// refresh policy makes the widget self-correct instead of guess.
+    func nextTimelineRefresh(now: Date) -> Date {
+        if connecting, let connectingAt {
+            return connectingAt.addingTimeInterval(30)
+        }
+        return now.addingTimeInterval(30 * 60)
+    }
+
     /// Read the current snapshot from the App Group. Returns a
     /// disconnected snapshot if the App Group is unreachable — a widget
     /// must never crash, "disconnected" is the safe default to show.

@@ -116,6 +116,82 @@ enum ConfigSanitizer {
             config["outbounds"] = outbounds
         }
 
+        // 6b. Bake the user's persisted SERVER pick into the Proxy default.
+        //
+        //    Same race as rule 6, different selector: AppState.selectServer
+        //    persists the pick into startOptions immediately, but a tunnel
+        //    started with no live host app (widget, Control Center, boot, or
+        //    on-demand) runs whatever `default` the persisted config
+        //    happened to already carry — the live Clash-API correction
+        //    (AppState.applyServerSelectionIfLive) only runs once the app
+        //    itself reconnects to CommandClient, which can be tens of
+        //    seconds later. Device log 2026-07-16: picked "Auto", connected
+        //    via the widget 4s later, and the tunnel came up on the OLD
+        //    ("pl-via-msk") leg for ~58s until the app reopened and corrected
+        //    it. Mirrors AppState.resolveChain's three cases exactly (kept
+        //    duplicated rather than shared — AppState.swift isn't part of
+        //    the PacketTunnel/PacketTunnelMac target, same reason
+        //    VPNIntentSubscriptionGate duplicates AppState.mayConnect).
+        //
+        //    Defensive like rule 6: only ever rewrites `default` when the
+        //    resolved target is an actual member of the selector being
+        //    written — a stale/unknown tag leaves the existing default
+        //    (whatever the backend or a previous rewrite already set)
+        //    untouched.
+        let savedServerTag = UserDefaults(suiteName: AppConstants.appGroupID)?
+            .string(forKey: AppConstants.selectedServerTagKey)
+        let serverTarget = (savedServerTag?.isEmpty == false) ? savedServerTag! : "Auto"
+        if var outbounds = config["outbounds"] as? [[String: Any]] {
+            var typeByTag: [String: String] = [:]
+            var membersByTag: [String: [String]] = [:]
+            var indexByTag: [String: Int] = [:]
+            for i in outbounds.indices {
+                guard let tag = outbounds[i]["tag"] as? String,
+                      let type = outbounds[i]["type"] as? String else { continue }
+                typeByTag[tag] = type
+                indexByTag[tag] = i
+                if let members = outbounds[i]["outbounds"] as? [String] {
+                    membersByTag[tag] = members
+                }
+            }
+            let proxyMembers = membersByTag["Proxy"] ?? []
+
+            func pinProxyDefault(to target: String) {
+                guard let pi = indexByTag["Proxy"] else { return }
+                outbounds[pi]["default"] = target
+            }
+            // urltest groups (country groups, Auto) have no `default` field
+            // in sing-box's schema — they self-select by probe RTT. Only a
+            // `selector`-type parent (e.g. the whitelist-bypass group) can
+            // be pinned to a specific member.
+            func pinParentDefaultIfSelector(_ parent: String, to target: String) {
+                guard typeByTag[parent] == "selector", let idx = indexByTag[parent] else { return }
+                outbounds[idx]["default"] = target
+            }
+
+            if proxyMembers.contains(serverTarget) {
+                // Case 1: direct Proxy member — Auto, a country group tag,
+                // or an individual leaf pinned as a Proxy child.
+                pinProxyDefault(to: serverTarget)
+            } else if let parent = proxyMembers.first(where: { member in
+                member != "Auto" && membersByTag[member]?.contains(serverTarget) == true
+            }) {
+                // Case 2: leaf nested one level down inside a non-Auto
+                // urltest/selector member. Prefer this over Auto so a
+                // deliberate country/group pick isn't stolen by the
+                // meta-group.
+                pinProxyDefault(to: parent)
+                pinParentDefaultIfSelector(parent, to: serverTarget)
+            } else if typeByTag["Auto"] == "urltest", membersByTag["Auto"]?.contains(serverTarget) == true {
+                // Case 3: last resort — the leaf exists only inside Auto.
+                pinProxyDefault(to: "Auto")
+            }
+            // else: unknown/stale tag (e.g. a lean-mode config with no
+            // "Auto" member when the persisted pick was "Auto") — leave
+            // whatever default was already there.
+            config["outbounds"] = outbounds
+        }
+
         // 7. Pin the oom-killer into TIMER mode.
         //
         //    libbox appends a DEFAULT oom-killer service on iOS whenever the
