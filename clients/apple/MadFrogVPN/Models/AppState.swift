@@ -1726,6 +1726,11 @@ class AppState {
                         .set(now.timeIntervalSince1970, forKey: key)
                 }
             }
+            // WIDGET-CONNECTING: a real .connected status is a definitive
+            // outcome — clear any in-flight "connecting…" flag the widget/
+            // Control-Center intent may have stamped, same as
+            // WidgetVPNSnapshot.write does for the other two writers.
+            sharedDefaults?.removeObject(forKey: AppConstants.vpnConnectingAtKey)
             if !commandClient.isConnected { commandClient.connect() }
             // Clear the user-stopped flag on successful connection
             sharedDefaults?.removeObject(forKey: AppConstants.userStoppedVPNKey)
@@ -1763,6 +1768,11 @@ class AppState {
         case .disconnected, .invalid:
             vpnConnectedAt = nil
             UserDefaults(suiteName: AppConstants.appGroupID)?.removeObject(forKey: AppConstants.vpnConnectedAtKey)
+            // WIDGET-CONNECTING: a real disconnected/invalid status is also
+            // definitive — a connect attempt that failed surfaces here too,
+            // so clear the flag instead of leaving the widget to wait out
+            // the 30s self-expiry.
+            sharedDefaults?.removeObject(forKey: AppConstants.vpnConnectingAtKey)
             if commandClient.isConnected { commandClient.disconnect() }
             trafficHealthMonitor?.stop()
             deadLeavesInCurrentCascade.removeAll()

@@ -36,10 +36,30 @@ struct StatusProvider: TimelineProvider {
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<StatusEntry>) -> Void) {
-        let entry = StatusEntry(date: Date(), snapshot: WidgetVPNSnapshot.read())
+        let now = Date()
+        let snapshot = WidgetVPNSnapshot.read()
+        let entry = StatusEntry(date: now, snapshot: snapshot)
+
+        // WIDGET-CONNECTING (2026-07-16): while a connect attempt is in
+        // flight, schedule a second entry right at the 30s self-expiry
+        // (WidgetVPNSnapshot.read's own timeout) so the fallback-to-"off"
+        // actually renders even if nothing ever calls reloadAllTimelines()
+        // in between — e.g. the widget extension that stamped "connecting"
+        // got jetsam-killed before the real outcome could clear it. No
+        // per-tick polling: just this one precomputed follow-up entry.
+        if snapshot.connecting, let connectingAt = snapshot.connectingAt {
+            let expiresAt = connectingAt.addingTimeInterval(30)
+            let fallback = StatusEntry(
+                date: expiresAt,
+                snapshot: WidgetVPNSnapshot(connected: false, serverName: snapshot.serverName)
+            )
+            completion(Timeline(entries: [entry, fallback], policy: .after(expiresAt)))
+            return
+        }
+
         // App-driven reloads are the primary refresh path; this is the
         // safety net if one is ever missed.
-        let next = Calendar.current.date(byAdding: .minute, value: 30, to: Date()) ?? Date().addingTimeInterval(1800)
+        let next = Calendar.current.date(byAdding: .minute, value: 30, to: now) ?? now.addingTimeInterval(1800)
         completion(Timeline(entries: [entry], policy: .after(next)))
     }
 }
@@ -85,10 +105,18 @@ struct StatusWidgetView: View {
         }
     }
 
-    // Green when protected, secondary/grey when not — the one glanceable bit.
-    private var tint: Color { snapshot.connected ? .green : .secondary }
+    // Green when protected, amber while connecting, secondary/grey when
+    // off — WIDGET-CONNECTING (2026-07-16) adds the middle state so a tap
+    // gets an honest acknowledgement instead of dead air.
+    private var tint: Color {
+        if snapshot.connected { return .green }
+        if snapshot.connecting { return .orange }
+        return .secondary
+    }
     private var shieldSymbol: String {
-        snapshot.connected ? "checkmark.shield.fill" : "shield.slash"
+        if snapshot.connected { return "checkmark.shield.fill" }
+        if snapshot.connecting { return "shield.lefthalf.filled" }
+        return "shield.slash"
     }
 
     private var smallView: some View {
@@ -102,11 +130,11 @@ struct StatusWidgetView: View {
             Button(intent: ToggleVPNIntent(value: !snapshot.connected)) {
                 Image(systemName: shieldSymbol)
                     .font(.system(size: 26, weight: .semibold))
-                    .foregroundStyle(snapshot.connected ? Color.white : Color.secondary)
+                    .foregroundStyle(snapshot.connected || snapshot.connecting ? Color.white : Color.secondary)
                     .frame(width: 54, height: 54)
                     .background(
-                        snapshot.connected ? AnyShapeStyle(tint)
-                                           : AnyShapeStyle(.fill.secondary),
+                        snapshot.connected || snapshot.connecting ? AnyShapeStyle(tint)
+                                                                   : AnyShapeStyle(.fill.secondary),
                         in: Circle()
                     )
             }

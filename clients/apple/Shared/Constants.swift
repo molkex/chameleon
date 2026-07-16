@@ -177,6 +177,13 @@ enum AppConstants {
     // typo in either binary cannot silently break the stop-from-Settings flow.
     static let vpnConnectedAtKey = "vpnConnectedAt"
     static let userStoppedVPNKey = "user_stopped_vpn"
+    /// WIDGET-CONNECTING (2026-07-16): stamped by the widget/Control-Center
+    /// intent right before it calls startTunnel, so the widget can show an
+    /// honest "connecting…" state instead of dead air. Read side applies its
+    /// own 30s expiry (see WidgetVPNSnapshot.read) so the widget self-heals
+    /// to "off" even if nothing ever clears the key — never trust a stale
+    /// flag from a process that isn't watching it.
+    static let vpnConnectingAtKey = "vpnConnectingAt"
 
     // Mobile JWT auth tokens (stored in Keychain)
     static let accessTokenKey = "mobileAccessToken"

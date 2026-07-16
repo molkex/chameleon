@@ -251,9 +251,30 @@ enum VPNControl {
             guard let session = manager.connection as? NETunnelProviderSession else {
                 throw VPNControlError.noSession
             }
-            // options: nil — the extension uses the App-Group-persisted
-            // config; no backend fetch, no app launch on the warm path.
-            try session.startTunnel(options: nil)
+            // WIDGET-CONNECTING (2026-07-16): stamp BEFORE startTunnel so the
+            // widget shows an honest "connecting…" the instant iOS queues the
+            // start, instead of dead air. This does NOT claim protection —
+            // see WidgetVPNSnapshot.writeConnecting's doc comment — so it's
+            // safe from a process that can't observe the eventual outcome;
+            // the reader's own 30s expiry self-heals if nothing clears it.
+            let sharedDefaults = UserDefaults(suiteName: AppConstants.appGroupID)
+            WidgetVPNSnapshot.writeConnecting(to: sharedDefaults)
+            #if os(iOS)
+            WidgetCenter.shared.reloadAllTimelines()
+            #endif
+            do {
+                // options: nil — the extension uses the App-Group-persisted
+                // config; no backend fetch, no app launch on the warm path.
+                try session.startTunnel(options: nil)
+            } catch {
+                // Queueing itself failed — clear the connecting flag right
+                // away instead of waiting out the 30s self-expiry.
+                WidgetVPNSnapshot.write(connected: false, to: sharedDefaults)
+                #if os(iOS)
+                WidgetCenter.shared.reloadAllTimelines()
+                #endif
+                throw error
+            }
             // Build-84: NO optimistic .connected write. startTunnel() is
             // async — it returns without throwing as long as iOS QUEUED
             // the start, but the actual tunnel may fail to come up
@@ -262,14 +283,8 @@ enum VPNControl {
             // outcome, so an optimistic .connected write here could
             // never be reverted and the widget would lie forever about
             // protection state. Defer to ExtensionProvider.publishWidget
-            // State, which fires from the one process that knows. Cost:
-            // ~1-3s delay before the widget shows "Защищено" after a tap;
-            // far better than showing it when actually disconnected.
-            // Still nudge a reload so any stale "Защищено" from a prior
-            // session gets re-read (current cleared key wins).
-            #if os(iOS)
-            WidgetCenter.shared.reloadAllTimelines()
-            #endif
+            // State, which fires from the one process that knows — it'll
+            // clear the connecting flag too (see WidgetVPNSnapshot.write).
 
         case .stop:
             managers[0].connection.stopVPNTunnel()

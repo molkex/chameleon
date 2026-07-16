@@ -1127,6 +1127,45 @@ deferred:
 # ============================================================
 done:
   "2026-07-16":
+    - id: WIDGET-CONNECTING
+      title: "Home/Lock-Screen + Control Center widget: honest 'connecting…' state instead of dead air on tap"
+      notes: |
+        Field report: "не все этапы видно и лагает" (not all stages visible, feels
+        laggy) tapping the widget to connect. Root cause (confirmed via Fable
+        reading WidgetVPNSnapshot.swift/VPNControlIntents.swift/StatusWidget.swift/
+        MadFrogControlWidget.swift): the widget's whole state model was a strict
+        Bool (connected/not). `.start` deliberately never wrote an optimistic
+        "connected" flag (build-84 invariant — a widget-extension process can't
+        observe whether a queued startTunnel() actually succeeds, so a false
+        "protected" claim could never be reverted). Correct call, but it meant a
+        tap produced ZERO visual feedback until the real outcome resolved — could
+        be seconds, could be much longer under bad network conditions.
+        Fix: added a THIRD, honest "connecting" state that doesn't claim
+        protection (safe to write optimistically) — Constants.vpnConnectingAtKey,
+        stamped by VPNControl.perform(.start) right before startTunnel, read by
+        WidgetVPNSnapshot.read() with a self-expiring 30s window (pure decision
+        extracted to WidgetVPNSnapshot.isConnectingFlagFresh for testability —
+        matches the existing 30s in-app connect timeout convention). Cleared by
+        every definitive-outcome writer: WidgetVPNSnapshot.write() (both branches),
+        AppState.handleStatus()'s raw connected/disconnected writes, and the
+        intent's own catch block if startTunnel itself throws. StatusWidget gained
+        a third icon/tint (shield.lefthalf.filled, orange, "Подключение…"/
+        "Connecting…") and a precomputed timeline fallback entry at the 30s expiry
+        so it renders even if nothing calls reloadAllTimelines() in between (e.g.
+        widget extension jetsam-killed mid-connect). MadFrogControlWidget (iOS 18+
+        Control Center) needed NO change — Fable confirmed the Controls framework
+        already shows a system pending-affordance between tap and the async
+        intent's return.
+        Also confirmed (no code needed): the Control Center toggle is ALREADY
+        shipped and, per Apple's unified iOS 18 Controls framework, automatically
+        eligible for the iPhone 15 Pro+/16-series Action Button via Settings →
+        Action Button → Controls — the user's second ask was already done.
+        351 unit tests pass (+6 new), full build succeeds. Build 1.0.35(140).
+      next: "Verify on-device: tap connect on the Home Screen widget and the
+        Control Center toggle, confirm the orange 'connecting…' state appears
+        immediately and resolves to green/grey within the real connect time. Try
+        Settings → Action Button → Controls to confirm MadFrog appears there."
+
     - id: STALL-ON-NETSWITCH
       title: "VPN hangs after WiFi↔LTE switch, needs manual reconnect — fixed with an immediate urltest nudge on interface change"
       notes: |

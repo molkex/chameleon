@@ -154,6 +154,76 @@ final class VPNControlIntentsBehaviorTests: XCTestCase {
                              "after a real disconnect, the next connect stamps a fresh timestamp")
     }
 
+    // MARK: - WIDGET-CONNECTING (2026-07-16)
+
+    func testWriteConnectingStampsTimestamp() {
+        let suiteName = "widget-connecting-tests-\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("could not create scratch UserDefaults suite"); return
+        }
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        XCTAssertEqual(defaults.double(forKey: AppConstants.vpnConnectingAtKey), 0,
+                       "precondition: no connecting flag yet")
+        WidgetVPNSnapshot.writeConnecting(to: defaults)
+        XCTAssertGreaterThan(defaults.double(forKey: AppConstants.vpnConnectingAtKey), 0)
+    }
+
+    func testWriteConnectedClearsConnectingFlag() {
+        // Both write(connected: true) and write(connected: false) are
+        // definitive outcomes — either must clear a stale connecting flag,
+        // not just the .stop path.
+        let suiteName = "widget-connecting-tests-\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("could not create scratch UserDefaults suite"); return
+        }
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        WidgetVPNSnapshot.writeConnecting(to: defaults)
+        XCTAssertGreaterThan(defaults.double(forKey: AppConstants.vpnConnectingAtKey), 0)
+        WidgetVPNSnapshot.write(connected: true, to: defaults)
+        XCTAssertNil(defaults.object(forKey: AppConstants.vpnConnectingAtKey),
+                     "a real connect must clear the in-flight flag")
+
+        WidgetVPNSnapshot.writeConnecting(to: defaults)
+        WidgetVPNSnapshot.write(connected: false, to: defaults)
+        XCTAssertNil(defaults.object(forKey: AppConstants.vpnConnectingAtKey),
+                     "a real disconnect must also clear the in-flight flag")
+    }
+
+    func testConnectingFlagFreshWithin30Seconds() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        XCTAssertTrue(WidgetVPNSnapshot.isConnectingFlagFresh(
+            timestamp: now.timeIntervalSince1970 - 5, now: now))
+        XCTAssertTrue(WidgetVPNSnapshot.isConnectingFlagFresh(
+            timestamp: now.timeIntervalSince1970 - 29.9, now: now))
+    }
+
+    func testConnectingFlagExpiresAt30Seconds() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        XCTAssertFalse(WidgetVPNSnapshot.isConnectingFlagFresh(
+            timestamp: now.timeIntervalSince1970 - 30, now: now),
+            "must expire AT 30s, not just after — a widget extension can't run its own timer")
+        XCTAssertFalse(WidgetVPNSnapshot.isConnectingFlagFresh(
+            timestamp: now.timeIntervalSince1970 - 3600, now: now))
+    }
+
+    func testConnectingFlagNeverFreshWhenUnset() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        XCTAssertFalse(WidgetVPNSnapshot.isConnectingFlagFresh(timestamp: 0, now: now))
+        XCTAssertFalse(WidgetVPNSnapshot.isConnectingFlagFresh(timestamp: -1, now: now))
+    }
+
+    func testStatusTextShowsConnectingState() {
+        let connecting = WidgetVPNSnapshot(connected: false, serverName: nil,
+                                           connecting: true, connectingAt: Date())
+        if Locale.current.language.languageCode?.identifier == "ru" {
+            XCTAssertEqual(connecting.statusText, "Подключение…")
+        } else {
+            XCTAssertEqual(connecting.statusText, "Connecting…")
+        }
+    }
+
     // MARK: - CLIENT-VPN-PROFILE-SELECT: selectOurManager
 
     private func makeManager(providerBundleID: String?) -> NETunnelProviderManager {
