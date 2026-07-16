@@ -20,7 +20,15 @@ spof_warning: |
 # 2026-06-29: NL is a streaming REPLICA of WAW (chameleon STOPPED). Was the primary.
 # 2026-07-01: went OFFLINE (Timeweb reboot-flap). RECOVERED 2026-07-10 — see below.
 nl:
-  status: production (replica)   # ✅ 2026-07-11: RECOVERED. Streaming confirmed both sides
+  status: production (replica)   # ⚠️ 2026-07-16: went FULLY unreachable (both :443 and :22, whole
+    # host, ~3+ hrs) — Timeweb Cloud ACCOUNT BALANCE ran out, no alert fired anywhere. User topped
+    # up; host back within one check cycle (confirmed via Timeweb Cloud API + SSH-from-WAW port
+    # checks, independent of the reporting user's own network). Same failure MODE as the
+    # 2026-06-26 stuck-reboot incident (fully unreachable) but a DIFFERENT cause (billing, not a
+    # frozen hypervisor) — don't assume stuck-reboot recovery steps apply next time; check Timeweb
+    # balance FIRST. Follow-up owed, not done: balance-alert monitoring on the account. See
+    # roadmap.yaml#done["2026-07-16"].NL2-TIMEWEB-BALANCE-OUTAGE.
+    # ✅ 2026-07-11: RECOVERED. Streaming confirmed both sides
     # (WAW pg_stat_replication + NL pg_stat_wal_receiver, state=streaming, lag ~0). Reboot-flapped
     # 3x on 2026-07-09/10 (Timeweb host issue, same signature as 2026-06-26) then stable 26h+.
     # CANNOT be decommissioned regardless of cost: ss_ws_router (below) has 452 live established

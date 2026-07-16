@@ -146,15 +146,21 @@ versions:
     whats_new_ru: "Исправлено отключение VPN под нагрузкой / Снижено потребление памяти / Упрощён главный экран / Исправления и улучшения"
     whats_new_en: "Fixed VPN disconnects under heavy load / Reduced memory usage / Simplified home screen / Fixes and improvements"
 
-  # Latest TestFlight build. ⚠️ 2026-07-15: bumped straight to 138 — the `ships`/`note`
-  # prose below is historical (as of build 130) and NOT re-verified for 131-138. Detailed
-  # per-build history now lives in roadmap.yaml#done and docs/incidents/ (one fact, one
-  # home) — check there instead of trusting the stale narrative below.
+  # Latest TestFlight build. ⚠️ 2026-07-16: 1.0.34's train CLOSED to new builds the moment
+  # b138 went WAITING_FOR_REVIEW (Apple's "Invalid Pre-Release Train" error) — 139/140 shipped
+  # as a NEW marketing version, 1.0.35, TestFlight-only. The in_review submission above is
+  # UNTOUCHED (still 1.0.34/138). Full per-build history: roadmap.yaml#done["2026-07-16"].
   testflight:
-    version: "1.0.34"
-    build: 138                        # iOS; VALID + assigned to Internal Testers, 2026-07-15
-    processingState: VALID            # uploaded 2026-07-15 ~14:33Z
-    build_uploaded: 2026-07-15T14:33Z (iOS)
+    version: "1.0.35"
+    build: 140                        # iOS; VALID + assigned to Internal Testers, 2026-07-16
+    processingState: VALID            # uploaded 2026-07-16 ~14:15Z
+    build_uploaded: 2026-07-16T14:15Z (iOS)
+    ships_140: |
+      WIDGET-CONNECTING: honest "connecting…" state on Home/Lock-Screen widget + Control Center
+      tap instead of dead air (build-84 invariant preserved — never optimistically claims
+      protection). Confirmed the Control Center toggle is already Action-Button-eligible, no
+      code needed for that. b139 (same train) shipped STALL-ON-NETSWITCH: nudges urltest
+      re-probe immediately on WiFi↔LTE interface change instead of waiting up to 120s.
     ships_138: |
       NE-LOG-SINK-FIX + LIBBOX-REBUILD (iOS resource-kill saga fixed, see
       docs/incidents/2026-07-14-ne-oom-refilter-reset-loop.md) + home-screen traffic/IP

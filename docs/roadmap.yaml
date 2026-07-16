@@ -1165,6 +1165,21 @@ done:
         Control Center toggle, confirm the orange 'connecting…' state appears
         immediately and resolves to green/grey within the real connect time. Try
         Settings → Action Button → Controls to confirm MadFrog appears there."
+      followup: |
+        2026-07-16, same day: user reported the widget showing "Не защищено" while the app
+        itself showed connected+running for a full minute. Diagnosed from a fresh tunnel-debug.log
+        (NOT a regression from this fix): the user had done THREE rapid stop/start cycles via the
+        in-app server picker within ~29 seconds (switching to "Auto", which itself triggered two
+        reconnects to settle on a leg). AppState.handleStatus() correctly calls
+        WidgetCenter.reloadAllTimelines() on every one of those transitions, but iOS's own
+        WidgetKit reload budget/throttling appears to coalesce or defer rapid successive reload
+        requests — the widget was still showing a stale state a full minute after the tunnel had
+        settled, until the user opened the app (which re-syncs on launch) or the system got
+        around to it. This is a platform-level timing characteristic, not something our reload
+        calls can force past — not a code bug, and pre-existing (the original code's own comments
+        already documented the opposite-direction staleness risk: "widget can show stale
+        'Защищено' for up to 15 min after disconnect"). Not actioned further this session; only
+        worth revisiting if it recurs under NORMAL (non-rapid-reconnect) single-tap usage.
 
     - id: STALL-ON-NETSWITCH
       title: "VPN hangs after WiFi↔LTE switch, needs manual reconnect — fixed with an immediate urltest nudge on interface change"
