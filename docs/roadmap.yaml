@@ -1126,7 +1126,74 @@ deferred:
 # DONE — append-only log. Most recent date first.
 # ============================================================
 done:
-  "2026-07-15":
+  "2026-07-16":
+    - id: STALL-ON-NETSWITCH
+      title: "VPN hangs after WiFi↔LTE switch, needs manual reconnect — fixed with an immediate urltest nudge on interface change"
+      notes: |
+        Field report: user's Mac + iPhone both saw the VPN "connect but nothing loads"
+        (separately traced that specific incident to NL2's Timeweb balance lapsing — see
+        below — but the user also reported a DISTINCT, recurring issue: after a network
+        switch, e.g. WiFi↔LTE, the VPN hangs until manually disconnected+reconnected).
+        Consulted Fable to verify by reading both the Swift client and sing-box-fork
+        source (not speculation). Confirmed: `ExtensionPlatformInterface.handlePathUpdate`
+        (interface-change callback) only reasserts the NEPacketTunnelProvider + flushes
+        DNS — it never triggers a urltest re-probe. Go-side `NetworkManager.ResetNetwork`
+        (route/network.go) DOES reset every outbound's transport on interface change
+        (so stale sockets don't linger), but urltest election itself is untouched —
+        `URLTestGroup` doesn't implement `InterfaceUpdateListener`. A previously-elected
+        leg that's now dead on the new interface sits selected until either
+        RealTrafficStallDetector accumulates enough failed traffic (6-15s+ of active
+        failures) or the urltest group's own re-probe ticker fires — which was WIDENED
+        from 10s to 120s on 2026-07-15 for an unrelated memory fix, unintentionally
+        making this exact gap worse.
+        Fix (client-only, no libbox rebuild): `ExtensionPlatformInterface.swift` now
+        calls `TunnelStallProbe.nudgeNow()` (force urlTest("Auto") re-probe, confirmed
+        safe — interrupts existing connections only on an ACTUAL re-election, no blanket
+        close) from `handlePathUpdate` on every confirmed interface change, with a ~1s
+        settle delay + ~5s min-interval debounce to coalesce WiFi↔LTE flapping into one
+        nudge. `ExtensionProvider.swift` wires the existing `stallProbe` instance into
+        `platformInterface.stallProbe` (new weak var) alongside the existing
+        `realStallDetector` wiring.
+        Go-side durable version (queued, not done): make `URLTestGroup` implement
+        `adapter.InterfaceUpdateListener` directly — `route/network.go` would pick it up
+        automatically, cleaner than the client-side nudge but needs LIBBOX-REBUILD.
+        Build 1.0.34(139), TestFlight only (1.0.34/138 already WAITING_FOR_REVIEW at
+        Apple — not touching that submission). 345 unit tests pass, full build succeeds.
+      next: "Verify on-device: toggle WiFi off/on or airplane-mode-cycle while connected,
+        confirm traffic resumes within ~1-6s instead of hanging. If solid, consider the
+        Go-side InterfaceUpdateListener version for a future LIBBOX-REBUILD pass."
+
+    - id: NL2-TIMEWEB-BALANCE-OUTAGE
+      title: "NL2 (147.45.252.234) fully unreachable ~3+ hours — Timeweb Cloud account balance ran out, no alert fired"
+      notes: |
+        User reported iOS + macOS both stuck "connected but nothing loads." iPhone's
+        exported tunnel-debug.log showed every dial/DNS attempt through
+        outbound/vless[nl-direct-nl2] timing out. Cross-checked from WAW via SSH
+        (independent vantage point, not the user's possibly-confused local network):
+        both port 443 and port 22 on 147.45.252.234 closed/timeout — the whole host
+        unreachable, not just the VPN service. Timeweb Cloud API showed status "on" but
+        clearly network-cut. User confirmed: Timeweb Cloud account balance had run out;
+        topped up, and both ports opened within the same check cycle — confirmed root
+        cause. No notification/alert fired anywhere for this (billing-driven suspension
+        looks different from the 2026-06-26 stuck-hard-reboot incident and evidently
+        isn't covered by existing monitoring).
+        Separately, driving the iPhone via WDA to debug this hit a wall independent of
+        the app: `sudo pymobiledevice3 remote tunneld`, left running since earlier in the
+        session for on-device debugging, had accumulated 10 leaked utun tunnel
+        interfaces on the user's Mac — one (utun9, address 198.18.0.1, the RSD-tunnel
+        reserved range) had become the system's PrimaryInterface, black-holing DNS/ICMP
+        system-wide (unrelated to MadFrog). This was MY tooling's side effect, not a
+        MadFrog bug. Diagnosed via `netstat -rn` + `scutil show State:/Network/Global/IPv4`.
+        Killing the daemon didn't release the interfaces (orphaned kernel state); a
+        reboot was needed to actually clear it.
+      next: |
+        No code fix — this is a billing/ops gap, not a client bug. Worth a follow-up
+        (not done this session): (1) balance-alert monitoring on the Timeweb account so
+        a lapse pages before users notice, (2) a lesson for future on-device debugging
+        sessions — kill `pymobiledevice3 remote tunneld` promptly after use instead of
+        leaving it running for hours, since its utun interfaces can silently capture the
+        Mac's default route.
+
     - id: SUBMIT-1.0.34
       title: "1.0.34 (build 138) submitted to App Store review"
       notes: |

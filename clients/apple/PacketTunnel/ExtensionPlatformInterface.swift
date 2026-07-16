@@ -14,6 +14,22 @@ final class ExtensionPlatformInterface: NSObject, @unchecked Sendable {
     /// detector only exists while sing-box is alive — no point
     /// retaining 30 s of stale events across reconnects.
     weak var realStallDetector: RealTrafficStallDetector?
+
+    /// STALL-ON-NETSWITCH (2026-07-16, Fable-verified via source read of
+    /// both this file and sing-box-fork): a WiFi↔LTE interface switch
+    /// resets every outbound's transport (Go-side NetworkManager.ResetNetwork,
+    /// route/network.go) but never touches urltest election — the previously
+    /// selected leg keeps running even if it's now dead on the new interface,
+    /// until either RealTrafficStallDetector accumulates enough real traffic
+    /// failures (6-15s+ of active failures) or the urltest group's own
+    /// re-probe ticker fires (up to 120s — widened from 10s on 2026-07-15 for
+    /// a memory fix, which unintentionally widened this exact gap). That's
+    /// the field-reported "VPN hangs after switching networks, needs a
+    /// manual reconnect." Set by ExtensionProvider alongside realStallDetector.
+    weak var stallProbe: TunnelStallProbe?
+    private var lastNetworkSwitchNudgeAt: Date?
+    private var pendingNetworkSwitchNudge: DispatchWorkItem?
+
     weak var tunnel: NEPacketTunnelProvider?
     private var pathMonitor: NWPathMonitor?
     private var interfaceListener: LibboxInterfaceUpdateListenerProtocol?
@@ -312,7 +328,34 @@ extension ExtensionPlatformInterface: LibboxPlatformInterfaceProtocol {
                 self?.tunnel?.reasserting = true
                 self?.tunnel?.reasserting = false
             }
+            scheduleNetworkSwitchNudge()
         }
+    }
+
+    /// STALL-ON-NETSWITCH: coalesces rapid interface flaps (WiFi↔LTE
+    /// bouncing a few times in quick succession) into a single urltest
+    /// re-probe instead of one per flap. Cancels any pending nudge and
+    /// reschedules ~1s out (letting the new path settle first — Go-side
+    /// ResetNetwork already ran synchronously before this is called), then
+    /// enforces a ~5s floor since the last ACTUAL nudge. `urlTest(force:
+    /// true)` is confirmed safe to call this often — it only interrupts
+    /// existing connections if the election actually changes, never a
+    /// blanket close (see TunnelStallProbe.swift's build-42 history for
+    /// why that distinction matters).
+    private func scheduleNetworkSwitchNudge() {
+        pendingNetworkSwitchNudge?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            if let last = self.lastNetworkSwitchNudgeAt, Date().timeIntervalSince(last) < 5 {
+                TunnelFileLogger.log("Network switch nudge skipped — within 5s of last nudge", category: "network")
+                return
+            }
+            self.lastNetworkSwitchNudgeAt = Date()
+            TunnelFileLogger.log("Network switch: nudging urltest re-probe", category: "network")
+            self.stallProbe?.nudgeNow()
+        }
+        pendingNetworkSwitchNudge = work
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 1, execute: work)
     }
 }
 

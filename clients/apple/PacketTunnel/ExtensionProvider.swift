@@ -381,10 +381,12 @@ open class ExtensionProvider: NEPacketTunnelProvider {
         platformInterface?.realStallDetector = detector
 
         stallProbe = TunnelStallProbe()
+        platformInterface?.stallProbe = stallProbe
     }
 
     private func stopStallProbe() {
         stallProbe = nil
+        platformInterface?.stallProbe = nil
         platformInterface?.realStallDetector = nil
         realStallDetector = nil
     }
