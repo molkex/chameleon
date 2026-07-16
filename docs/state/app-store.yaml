@@ -152,9 +152,21 @@ versions:
   # UNTOUCHED (still 1.0.34/138). Full per-build history: roadmap.yaml#done["2026-07-16"].
   testflight:
     version: "1.0.35"
-    build: 141                        # iOS; VALID + assigned to Internal Testers, 2026-07-16
-    processingState: VALID            # uploaded 2026-07-16 ~15:42Z, asc_build_id 87f4ce75-26ed-457e-a12e-92b01739c98d
-    build_uploaded: 2026-07-16T15:42Z (iOS)
+    build: 142                        # iOS; VALID + assigned to Internal Testers, 2026-07-16
+    processingState: VALID            # uploaded 2026-07-16 ~16:38Z, asc_build_id c31aeef4-e43d-4552-9409-6490de36851b
+    build_uploaded: 2026-07-16T16:38Z (iOS)
+    ships_142: |
+      WIDGET-CONNECTING-TIMELINE-FIX: StatusProvider.getTimeline no longer bakes
+      a hardcoded connected:false fallback entry at the "connecting" flag's 30s
+      expiry (device log: a real connect succeeded in ~1s, widget still showed
+      "Не защищено" for ~28s regardless) — now a single entry + a refresh
+      policy that makes WidgetKit re-read the real App Group state instead of
+      rendering a bake-time guess. Also fixes a related bug: picking a new
+      server (e.g. "Auto") then connecting via the widget seconds later used
+      to boot on the OLD leg for ~58s — ConfigSanitizer now bakes the persisted
+      server pick into Proxy's default at extension boot (rule 6b, mirrors
+      AppState.resolveChain). Full detail: roadmap.yaml#done["2026-07-16"]
+      WIDGET-CONNECTING-TIMELINE-FIX.
     ships_141: |
       STALL-ON-NETSWITCH-LEAN-FIX: b139's urltest nudge (and the pre-existing
       RealTrafficStallDetector nudge) was a silent no-op all day — hardcoded
