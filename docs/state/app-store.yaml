@@ -147,14 +147,26 @@ versions:
     whats_new_en: "Fixed VPN disconnects under heavy load / Reduced memory usage / Simplified home screen / Fixes and improvements"
 
   # Latest TestFlight build. ⚠️ 2026-07-16: 1.0.34's train CLOSED to new builds the moment
-  # b138 went WAITING_FOR_REVIEW (Apple's "Invalid Pre-Release Train" error) — 139/140 shipped
+  # b138 went WAITING_FOR_REVIEW (Apple's "Invalid Pre-Release Train" error) — 139/140/141 shipped
   # as a NEW marketing version, 1.0.35, TestFlight-only. The in_review submission above is
   # UNTOUCHED (still 1.0.34/138). Full per-build history: roadmap.yaml#done["2026-07-16"].
   testflight:
     version: "1.0.35"
-    build: 140                        # iOS; VALID + assigned to Internal Testers, 2026-07-16
-    processingState: VALID            # uploaded 2026-07-16 ~14:15Z
-    build_uploaded: 2026-07-16T14:15Z (iOS)
+    build: 141                        # iOS; VALID + assigned to Internal Testers, 2026-07-16
+    processingState: VALID            # uploaded 2026-07-16 ~15:42Z, asc_build_id 87f4ce75-26ed-457e-a12e-92b01739c98d
+    build_uploaded: 2026-07-16T15:42Z (iOS)
+    ships_141: |
+      STALL-ON-NETSWITCH-LEAN-FIX: b139's urltest nudge (and the pre-existing
+      RealTrafficStallDetector nudge) was a silent no-op all day — hardcoded
+      urlTest("Auto") always failed "outbound group not found: Auto" because the
+      backend's OOM-emergency lean config (emergencyNoUrltest) omits every urltest
+      group regardless of client version. Client now sends its build number
+      (X-App-Build header); backend gates lean-vs-full config on
+      clientBuild < 137 instead of a global constant (old/unknown clients
+      unaffected, stay lean). TunnelStallProbe derives the real urltest tags from
+      the running config instead of hardcoding "Auto". Backend deployed to WAW +
+      this build shipped together 2026-07-16. Full detail: roadmap.yaml#done
+      ["2026-07-16"] STALL-ON-NETSWITCH-LEAN-FIX.
     ships_140: |
       WIDGET-CONNECTING: honest "connecting…" state on Home/Lock-Screen widget + Control Center
       tap instead of dead air (build-84 invariant preserved — never optimistically claims

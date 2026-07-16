@@ -1174,15 +1174,17 @@ done:
         (parseClientBuild). 5 new Swift tests for urltestGroupTags (full-mode
         extraction, lean-mode empty, malformed JSON, missing/empty tag). go
         build/vet/test clean; iOS+macOS build clean; 356 unit tests pass (was 351).
-      next: "NOT YET DEPLOYED/SHIPPED — backend change is live-user-affecting
-        (every /config fetch) the moment it's deployed to WAW; client change needs
-        a new build (>=137 to actually flip lean mode off for updated users, plus
-        the un-hardcoded nudge). Needs an explicit go-ahead before: (1) deploying
-        backend to WAW, (2) bumping/shipping a new iOS build with the X-App-Build
-        header + fixed TunnelStallProbe. Until both ship together, behavior is
-        UNCHANGED from before this fix (every client still resolves clientBuild=0
-        server-side, stays lean) — safe to leave uncommitted/undeployed as long as
-        needed."
+      next: "DONE — user approved 2026-07-16. Committed (cd0c1ed fix + bbf76b6
+        version bump), backend deployed to WAW (waw-backend-up.sh, confirmed
+        healthy: DB connected, sing-box engine up, health 200 via
+        api.madfrog.online). iOS shipped as 1.0.35 build 141 (tag ios-build-141 →
+        ios-archive-upload CI, VALID in ASC, explicitly assigned to Internal
+        Testers — see docs/state/app-store.yaml testflight block). Old/unaffected
+        clients (build <137 or no header) still resolve clientBuild=0 → lean,
+        unchanged. Real fix only takes effect for devices once they update to
+        141+ — still needs on-device field confirmation that a WiFi↔LTE switch
+        now actually self-heals (same outstanding ask as the original
+        STALL-ON-NETSWITCH entry above)."
 
     - id: WIDGET-CONNECTING
       title: "Home/Lock-Screen + Control Center widget: honest 'connecting…' state instead of dead air on tap"
