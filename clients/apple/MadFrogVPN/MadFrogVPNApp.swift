@@ -5,6 +5,16 @@ import UserNotifications
 import UIKit
 #endif
 
+#if os(macOS)
+/// Holds the one-time `ProcessInfo.beginActivity` token for the process's
+/// entire lifetime — see MAC-BACKGROUND-ACTIVITY in `MadFrogVPNApp.init()`.
+/// ARC releases (and thereby ends) the activity as soon as nothing retains
+/// it, so this must outlive every other reference.
+private enum MacBackgroundActivity {
+    static var token: NSObjectProtocol?
+}
+#endif
+
 @main
 struct MadFrogVPNApp: App {
     @State private var appState = AppState()
@@ -52,6 +62,24 @@ struct MadFrogVPNApp: App {
         // this delegate; without it our action button would just open the
         // app with no follow-through.
         UNUserNotificationCenter.current().delegate = AppNotificationDelegate.shared
+
+        #if os(macOS)
+        // MAC-BACKGROUND-ACTIVITY (2026-07-17): unrelated to the iOS-on-Mac
+        // idle-exit incident this session diagnosed (that was FrontBoard
+        // killing the iOS bundle running via "Designed for iPad on Mac",
+        // which this native target — a genuine AppKit-hosted process — is
+        // not subject to). This is a separate, purely defensive measure:
+        // hold one `.background` activity token for the process's entire
+        // lifetime so macOS's App Nap doesn't throttle the timers this app
+        // keeps running with no visible window (TrafficHealthMonitor, the
+        // memory watchdog's periodic reads). The token is intentionally
+        // never ended — assigning to `_` would let ProcessInfo release it
+        // immediately.
+        MacBackgroundActivity.token = ProcessInfo.processInfo.beginActivity(
+            options: .background,
+            reason: "VPN session monitoring"
+        )
+        #endif
     }
 
     var body: some Scene {
