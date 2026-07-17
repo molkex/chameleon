@@ -83,8 +83,10 @@ struct DebugLogsView: View {
                         Image(systemName: "arrow.clockwise")
                     }
 
-                    ShareLink(item: allLogsText) {
-                        Image(systemName: "square.and.arrow.up")
+                    if let exportedLogFileURL {
+                        ShareLink(item: exportedLogFileURL) {
+                            Image(systemName: "square.and.arrow.up")
+                        }
                     }
 
                     Button {
@@ -211,6 +213,29 @@ struct DebugLogsView: View {
         === DIAGNOSTICS ===
         \(diagnostics)
         """
+    }
+
+    /// SUPPORT-LOG-DOWNLOAD-MAC (2026-07-17): `ShareLink(item: String)` has
+    /// no "save to disk" option in macOS's NSSharingServicePicker — it only
+    /// offers Mail/Messages/AirDrop for plain text, which is useless for a
+    /// multi-hundred-KB log dump. Field report: "как мне скинуть логи, там
+    /// нет кнопки скачать, ток скопировать" — the only working button on Mac
+    /// was the "copy" one. Sharing a file URL instead gives every platform a
+    /// real "Save to…" service and AirDrops an actual named file instead of
+    /// pasted text (also a strict improvement on iOS, which otherwise wraps
+    /// the raw string in a generic .txt anyway).
+    private var exportedLogFileURL: URL? {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyyMMdd-HHmmss"
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("madfrog-debug-\(f.string(from: Date())).txt")
+        do {
+            try allLogsText.write(to: url, atomically: true, encoding: .utf8)
+            return url
+        } catch {
+            return nil
+        }
     }
 
     // MARK: - Claude Report
