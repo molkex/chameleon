@@ -720,6 +720,18 @@ next:
   # Test-coverage gaps surfaced by the 2026-06-01 audit. Canonical detail +
   # verify commands: state/test-map.yaml. Discipline: decisions/0009.
   testing:
+    - id: TEST-APPLE-ENTITLEMENTS
+      priority: P1
+      build: false
+      title: "Inspect signed macOS host + PacketTunnelMac.appex entitlements and run a signed Packet Tunnel smoke before removing network.server"
+      notes: |
+        APPLE-TUN-BRIDGE (2026-07-18) fixed the client-side synchronous bridge,
+        but source entitlements are not evidence of the signature Apple grants.
+        Inspect both `MadFrogVPN.app` and
+        `MadFrogVPN.app/Contents/PlugIns/PacketTunnelMac.appex` from an existing
+        signed archive with `codesign -d --entitlements :-`; then connect/disconnect
+        once on a signed macOS build. Do not add `-allowProvisioningUpdates` just
+        to perform this verification.
     # TEST-AUTH-CREDS → done 2026-06-01 (auth 31%→77%).
     - id: TEST-APPLE-IAP
       priority: P3
@@ -1126,6 +1138,70 @@ deferred:
 # DONE — append-only log. Most recent date first.
 # ============================================================
 done:
+  "2026-07-19":
+    - id: CONNECT-DESPITE-STALE-TUNNEL
+      title: "Connect blocked with 'server unreachable' even though the server answers instantly — preflight's VPN-interface exclusion has no fallback"
+      notes: |
+        Field report: user pressed Connect repeatedly on their Mac and every
+        attempt failed with a red "pl-via-msk недоступен" toast, despite the
+        server being reportedly fine.
+        Root cause, found by reading the live tunnel-debug.log on the
+        affected dev Mac and cross-checking system state directly (not
+        speculation): a PacketTunnel process from a SEPARATE install of this
+        same app (the iOS build running via "Designed for iPad on Mac" —
+        installed 2026-07-16 for testing, distinct from the native
+        MadFrogVPNMac install) had been running since the prior Saturday and
+        was still holding the Mac's default route via its own utun interface
+        at 172.19.0.1 — our own TUN subnet. `route -n get 217.198.5.52`
+        confirmed traffic to the MSK relay was routing through that stale
+        interface. A raw TCP connect to the exact target (217.198.5.52:2100,
+        pl-via-msk) from outside the app succeeded instantly — the server was
+        never actually down.
+        Two independent checks in the app failed to catch this: (1)
+        `PingService.measureTCP/QUIC` deliberately sets
+        `prohibitedInterfaceTypes=[.other]` to exclude VPN-type interfaces
+        from reachability probes (so it measures real internet RTT, not a
+        tunnel's own loopback-fast latency) — but with the ONLY route to the
+        target going through that excluded interface, the probe had no path
+        to test at all and always reported dead. (2)
+        `VPNErrorMapper.anotherVPNActive()`'s "skip preflight, proceed to
+        takeover" escape hatch only fires for a foreign IP outside our own
+        172.19.0.0/30 range — the orphaned interface used exactly that range,
+        so it read as "our own tunnel, already handled" instead of "a stale
+        session preflight can't see through."
+        Fix: `PingService` gained `probeTCPAnyInterface`/
+        `probeQUICAnyInterface` — identical probes with the VPN-interface
+        exclusion lifted. `AppState.preflightProbe()` now falls back to these
+        before declaring a target `.selectedDead`/`.allDead`: if reachable via
+        *some* interface (ours, a genuine third-party VPN, or an orphaned
+        tunnel), the real connect attempt — which goes through
+        NEVPNManager's actual takeover mechanism, not this restricted probe —
+        gets a real chance instead of being blocked pre-emptively.
+        Immediate unblock applied the same session on the affected Mac:
+        killed the zombie process (PID 34712), which released the stale
+        route back to en0 (WiFi) instantly.
+        iOS + macOS build clean, full unit test suite passed. No new unit
+        test added for this specific change — consistent with the existing,
+        documented gap in test-map.yaml ("PingService: real socket probes
+        not tested" — this is real NWConnection network I/O, same class as
+        the untested code it extends).
+      next: "DONE — shipped as 1.0.35 build 143 (VALID in ASC, assigned to
+        Internal Testers, 2026-07-19). Needs on-device confirmation from a
+        normal (non-dual-install) scenario if the field report recurs — the
+        specific orphaned-tunnel trigger here was dev-machine-specific (two
+        MadFrog installs on one Mac), but the fix is general: any case where
+        the only route to a target goes through a tunnel interface should now
+        connect instead of blocking."
+
+  "2026-07-18":
+    - id: APPLE-ATS
+      title: "Remove macOS global ATS bypass and bound all APIClient URLSessions"
+      files: [clients/apple/MadFrogVPNMac/Info.plist, clients/apple/MadFrogVPN/Models/APIClient.swift, clients/apple/Tests/UnitTests/APIClientSessionTests.swift]
+      verification: "APIClientSessionTests passed 2/2 on iPhone 17 simulator"
+    - id: APPLE-TUN-BRIDGE
+      title: "Bound PacketTunnel synchronous bridge and eliminate private KVC TUN FD lookup"
+      files: [clients/apple/Shared/RunBlocking.swift, clients/apple/Shared/OneShotContinuationGate.swift, clients/apple/PacketTunnel/ExtensionPlatformInterface.swift, clients/apple/Tests/UnitTests/RunBlockingTests.swift, clients/apple/Tests/UnitTests/OneShotContinuationGateTests.swift]
+      verification: "RunBlockingTests + OneShotContinuationGateTests passed 5/5 on iPhone 17 simulator; real NE callback remains device-only"
   "2026-07-16":
     - id: WIDGET-CONNECTING-TIMELINE-FIX
       title: "Widget shows 'Не защищено' for ~30s after a real connect succeeds — StatusProvider baked a bake-time guess instead of scheduling a re-read"

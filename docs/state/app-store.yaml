@@ -147,14 +147,36 @@ versions:
     whats_new_en: "Fixed VPN disconnects under heavy load / Reduced memory usage / Simplified home screen / Fixes and improvements"
 
   # Latest TestFlight build. ⚠️ 2026-07-16: 1.0.34's train CLOSED to new builds the moment
-  # b138 went WAITING_FOR_REVIEW (Apple's "Invalid Pre-Release Train" error) — 139/140/141 shipped
-  # as a NEW marketing version, 1.0.35, TestFlight-only. The in_review submission above is
-  # UNTOUCHED (still 1.0.34/138). Full per-build history: roadmap.yaml#done["2026-07-16"].
+  # b138 went WAITING_FOR_REVIEW (Apple's "Invalid Pre-Release Train" error) — 139/140/141/142/143
+  # shipped as a NEW marketing version, 1.0.35, TestFlight-only. The in_review submission above is
+  # UNTOUCHED (still 1.0.34/138). Full per-build history: roadmap.yaml#done["2026-07-16"]/["2026-07-19"].
   testflight:
     version: "1.0.35"
-    build: 142                        # iOS; VALID + assigned to Internal Testers, 2026-07-16
-    processingState: VALID            # uploaded 2026-07-16 ~16:38Z, asc_build_id c31aeef4-e43d-4552-9409-6490de36851b
-    build_uploaded: 2026-07-16T16:38Z (iOS)
+    build: 143                        # iOS; VALID + assigned to Internal Testers, 2026-07-19
+    processingState: VALID            # uploaded 2026-07-19 ~17:31Z, asc_build_id 7ac6103f-7d41-4dfa-bc33-7e2b6fb5e406
+    build_uploaded: 2026-07-19T17:31Z (iOS)
+    ships_143: |
+      CONNECT-DESPITE-STALE-TUNNEL: preflightProbe() deliberately excludes
+      VPN-type interfaces from its reachability check (PingService's
+      prohibitedInterfaceTypes=[.other]) so it measures real internet RTT
+      instead of a tunnel's own loopback-fast latency — but that means it can
+      never see a target that's only reachable via whatever tunnel currently
+      owns the default route. Confirmed on a real device: an orphaned
+      PacketTunnel process from a SEPARATE install of this same app (the iOS
+      build running via "Designed for iPad on Mac" alongside the native Mac
+      app) had been holding the default route for over a day via our own
+      172.19.0.0/30 range — so VPNErrorMapper's foreign-VPN IP heuristic
+      didn't flag it either. Every connect attempt failed with "pl-via-msk
+      недоступен" even though the server answered instantly over that same
+      tunnel (verified with a raw TCP probe outside the app). Fix: PingService
+      gained probeTCPAnyInterface/probeQUICAnyInterface (same probes, VPN
+      interfaces allowed); preflightProbe() now retries with these before
+      declaring a target dead — reachable via *some* interface means the real
+      connect (which goes through NEVPNManager's actual takeover, not this
+      restricted probe) deserves a real attempt. Immediate unblock also
+      applied same session: killed the zombie process (PID 34712) on the
+      affected dev Mac. Full detail: roadmap.yaml#done["2026-07-19"]
+      CONNECT-DESPITE-STALE-TUNNEL.
     ships_142: |
       WIDGET-CONNECTING-TIMELINE-FIX: StatusProvider.getTimeline no longer bakes
       a hardcoded connected:false fallback entry at the "connecting" flag's 30s
