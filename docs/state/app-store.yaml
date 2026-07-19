@@ -177,6 +177,22 @@ versions:
       applied same session: killed the zombie process (PID 34712) on the
       affected dev Mac. Full detail: roadmap.yaml#done["2026-07-19"]
       CONNECT-DESPITE-STALE-TUNNEL.
+    macos_build: |
+      2026-07-19: build 143 (same source, same CONNECT-DESPITE-STALE-TUNNEL
+      fix — AppState.swift/PingService.swift are shared between the iOS and
+      macOS targets via project.yml) also cut and uploaded for
+      MadFrogVPNMac, asc_app_id 6762887787 (separate ASC app from iOS'
+      6761008632). Manual CLI flow — no CI workflow exists for macOS release
+      (only ios-archive-upload.yml, iOS-only): xcodebuild archive -scheme
+      MadFrogVPNMac, -exportArchive with ExportOptionsMac.plist +
+      -allowProvisioningUpdates. asc_build_id
+      f63183af-8296-4dbf-8b55-59744375012f, VALID. This was a follow-up fix
+      within the same session — the first pass shipped the code change (it's
+      shared) but only released the iOS binary; the user pointed out they
+      were testing the macOS app specifically and hadn't gotten the fix.
+      macOS Internal Testers group (see `groups.macos` below) has
+      hasAccessToAllBuilds=true — no manual beta-group assignment needed,
+      confirmed auto-available.
     ships_142: |
       WIDGET-CONNECTING-TIMELINE-FIX: StatusProvider.getTimeline no longer bakes
       a hardcoded connected:false fallback entry at the "connecting" flag's 30s

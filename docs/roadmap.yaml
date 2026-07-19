@@ -1192,6 +1192,26 @@ done:
         MadFrog installs on one Mac), but the fix is general: any case where
         the only route to a target goes through a tunnel interface should now
         connect instead of blocking."
+      followup: |
+        2026-07-19, same day: the field report came from the native macOS
+        app specifically (window chrome in the screenshot, "MadFrog" title
+        bar), and the first pass only shipped the fix to iOS TestFlight — the
+        code change IS shared (AppState.swift/PingService.swift are compiled
+        into MadFrogVPNMac too via project.yml), but nothing rebuilds/ships
+        the Mac binary automatically; there's no CI workflow for it (only
+        ios-archive-upload.yml, iOS-only). User caught the gap directly
+        ("почему ты изменил для ios а не для mac os"). Fixed by manually
+        archiving + exporting MadFrogVPNMac (xcodebuild archive +
+        -exportArchive with ExportOptionsMac.plist, the pre-existing manual
+        CLI flow from prior Mac releases — see docs/state/app-store.yaml's
+        `macos_build` note) and uploading build 143 to the separate macOS ASC
+        app (6762887787). Lesson: this repo's shared-codebase-two-targets
+        structure means a client-side fix is code-complete on both platforms
+        as soon as it's committed, but is only USER-visible on whichever
+        platform actually gets a new build shipped — always ship (or
+        explicitly say you're not shipping) both when the fix lives in
+        shared code, not just the platform that happened to trigger the
+        CI tag.
 
   "2026-07-18":
     - id: APPLE-ATS
