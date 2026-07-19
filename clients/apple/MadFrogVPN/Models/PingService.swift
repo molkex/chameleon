@@ -276,7 +276,25 @@ final class PingService {
     /// Public one-shot TCP probe. Does not mutate cache or `results`.
     /// Returns RTT in ms, or 0 on timeout/failure. Safe to call from any actor.
     nonisolated static func probeTCP(host: String, port: Int, timeout: TimeInterval = 2.0) async -> Int {
-        await measureTCP(host: host, port: port, timeout: timeout)
+        await measureTCP(host: host, port: port, timeout: timeout, allowVPNInterfaces: false)
+    }
+
+    /// CONNECT-DESPITE-STALE-TUNNEL (2026-07-17): same probe as `probeTCP`,
+    /// but does NOT exclude VPN-type interfaces. Used as a fallback signal
+    /// when `probeTCP` reports a target dead — the exclusion in `measureTCP`
+    /// is correct for the common case (don't measure our own tunnel's
+    /// loopback-fast RTT), but it also means preflight can never see a
+    /// target that is ONLY reachable via whatever tunnel currently owns the
+    /// default route — a genuine third-party VPN, or (confirmed via a real
+    /// device investigation) an orphaned/zombie tunnel interface left behind
+    /// by a crashed or separately-installed instance of this same app,
+    /// which nothing else detects as "foreign" because it uses our own
+    /// 172.19.0.0/30 range. If THIS probe succeeds, the real connect
+    /// attempt (which goes through NEVPNManager's actual takeover, not a
+    /// restricted NWConnection) has a real path and should be allowed to
+    /// try rather than being blocked on a preflight false-negative.
+    nonisolated static func probeTCPAnyInterface(host: String, port: Int, timeout: TimeInterval = 2.0) async -> Int {
+        await measureTCP(host: host, port: port, timeout: timeout, allowVPNInterfaces: true)
     }
 
     /// Public one-shot QUIC probe for UDP transports (Hysteria2 / TUIC).
@@ -289,7 +307,13 @@ final class PingService {
     /// the user on it. (Industry rule — Psiphon/Outline/sing-box urltest only
     /// trust a transport once real bytes traverse it.)
     nonisolated static func probeQUIC(host: String, port: Int, timeout: TimeInterval = 2.0) async -> Int {
-        await measureQUIC(host: host, port: port, timeout: timeout)
+        await measureQUIC(host: host, port: port, timeout: timeout, allowVPNInterfaces: false)
+    }
+
+    /// CONNECT-DESPITE-STALE-TUNNEL (2026-07-17): QUIC counterpart of
+    /// `probeTCPAnyInterface` — see its doc comment.
+    nonisolated static func probeQUICAnyInterface(host: String, port: Int, timeout: TimeInterval = 2.0) async -> Int {
+        await measureQUIC(host: host, port: port, timeout: timeout, allowVPNInterfaces: true)
     }
 
     /// Measure TCP handshake RTT in milliseconds. Returns 0 on failure/timeout.
@@ -297,7 +321,7 @@ final class PingService {
     /// We use `NWConnection` with a dedicated concurrent queue so many probes
     /// can run without blocking each other. The connection is torn down as
     /// soon as it transitions to `.ready` — we don't need to send any bytes.
-    nonisolated private static func measureTCP(host: String, port: Int, timeout: TimeInterval) async -> Int {
+    nonisolated private static func measureTCP(host: String, port: Int, timeout: TimeInterval, allowVPNInterfaces: Bool = false) async -> Int {
         guard let nwPort = NWEndpoint.Port(rawValue: UInt16(port)) else { return 0 }
         let endpoint = NWEndpoint.hostPort(host: NWEndpoint.Host(host), port: nwPort)
 
@@ -307,7 +331,11 @@ final class PingService {
         // through it, reporting the tunnel's own sub-10ms local loopback
         // latency instead of real internet RTT. `.other` = utun and similar
         // virtual interfaces. Physical paths (wifi/cellular/wired) remain.
-        params.prohibitedInterfaceTypes = [.other]
+        // `allowVPNInterfaces` opts out for `probeTCPAnyInterface` — see its
+        // doc comment for why.
+        if !allowVPNInterfaces {
+            params.prohibitedInterfaceTypes = [.other]
+        }
 
         let connection = NWConnection(to: endpoint, using: params)
         let queue = DispatchQueue(label: "ping.probe.\(host):\(port)")
@@ -362,7 +390,7 @@ final class PingService {
     ///                  equals the real RTT, which is what we want; we
     ///                  treat it as a valid RTT value.
     /// Timeout (no server response at all) still returns 0.
-    nonisolated private static func measureQUIC(host: String, port: Int, timeout: TimeInterval) async -> Int {
+    nonisolated private static func measureQUIC(host: String, port: Int, timeout: TimeInterval, allowVPNInterfaces: Bool = false) async -> Int {
         guard let nwPort = NWEndpoint.Port(rawValue: UInt16(port)) else { return 0 }
         let endpoint = NWEndpoint.hostPort(host: NWEndpoint.Host(host), port: nwPort)
 
@@ -385,8 +413,11 @@ final class PingService {
         let params = NWParameters(quic: quicOpts)
         // Same utun-bypass rationale as measureTCP: without this, QUIC probes
         // while our VPN is up would tunnel over the already-established sing-box
-        // session, reporting single-digit ms loopback RTT.
-        params.prohibitedInterfaceTypes = [.other]
+        // session, reporting single-digit ms loopback RTT. `allowVPNInterfaces`
+        // opts out for `probeQUICAnyInterface`.
+        if !allowVPNInterfaces {
+            params.prohibitedInterfaceTypes = [.other]
+        }
         let connection = NWConnection(to: endpoint, using: params)
         let queue = DispatchQueue(label: "quic.probe.\(host):\(port)")
 

@@ -1151,6 +1151,47 @@ class AppState {
 
         if anyAlive { return .ok }
 
+        // CONNECT-DESPITE-STALE-TUNNEL (2026-07-17): the probe above
+        // deliberately excludes VPN-type interfaces (PingService.measureTCP/
+        // QUIC's `.other` exclusion) so it measures real internet RTT, not a
+        // tunnel's own loopback-fast latency. But that means it can NEVER see
+        // a target that's only reachable via whatever tunnel currently owns
+        // the default route — confirmed on a real device: an orphaned
+        // PacketTunnel process from a separate install of this same app had
+        // been holding the default route for hours, using our own
+        // 172.19.0.0/30 range (so `VPNErrorMapper.anotherVPNActive()`'s
+        // foreign-IP heuristic didn't flag it either) — every connect
+        // attempt failed with "selected server unreachable" even though the
+        // server answered instantly over that same tunnel. Before declaring
+        // dead, re-probe once WITHOUT the interface exclusion: if the target
+        // is reachable via *some* interface (ours, a third-party VPN, or an
+        // orphaned tunnel), the real connect attempt goes through
+        // NEVPNManager's actual takeover — not this restricted probe — and
+        // deserves a real chance rather than being blocked pre-emptively.
+        let anyAliveViaAnyInterface: Bool = await withTaskGroup(of: Bool.self) { group in
+            for target in targets {
+                let isUDP = udpOnlyTypes.contains(target.type)
+                group.addTask {
+                    let ms: Int
+                    if isUDP {
+                        ms = await PingService.probeQUICAnyInterface(host: target.host, port: target.port, timeout: 2.0)
+                    } else {
+                        ms = await PingService.probeTCPAnyInterface(host: target.host, port: target.port, timeout: 2.0)
+                    }
+                    return ms > 0
+                }
+            }
+            for await alive in group where alive {
+                group.cancelAll()
+                return true
+            }
+            return false
+        }
+        if anyAliveViaAnyInterface {
+            TunnelFileLogger.log("toggleVPN: preflight dead on physical-only probe but reachable via an existing tunnel interface — proceeding", category: "ui")
+            return .ok
+        }
+
         if selectedTag != nil, targets.first != nil {
             // Prefer the country's display name (e.g. "Нидерланды") over the raw
             // leaf tag (e.g. "nl-direct-nl2") — a country pin is the default UX,
